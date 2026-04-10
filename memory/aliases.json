@@ -1,0 +1,16 @@
+{
+  "projeto": "sandbox/projeto",
+  "notas": "sandbox/notas.txt",
+  "zap": {
+    "type": "app",
+    "target": "whatsapp"
+  },
+  "navegador": {
+    "type": "app",
+    "target": "chrome"
+  },
+  "codigo": {
+    "type": "app",
+    "target": "code"
+  }
+}

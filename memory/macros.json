@@ -1,0 +1,23 @@
+{
+  "trabalho": [
+    {
+      "intent": "open_app",
+      "target": "spotify"
+    },
+    {
+      "intent": "open_chatgpt",
+      "target": null
+    }
+  ],
+  "nota": [
+    {
+      "intent": "create_file",
+      "target": "nota.txt"
+    },
+    {
+      "intent": "write_file",
+      "target": "escreva",
+      "content": "hello"
+    }
+  ]
+}
