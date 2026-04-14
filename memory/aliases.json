@@ -12,5 +12,9 @@
   "codigo": {
     "type": "app",
     "target": "code"
+  },
+  "mercado livre": {
+    "type": "site",
+    "target": "https://www.mercadolivre.com.br"
   }
 }

@@ -1,0 +1,165 @@
+import difflib
+
+from core.router import normalize_text
+
+
+APP_TARGETS = [
+    "chrome",
+    "google chrome",
+    "vscode",
+    "code",
+    "spotify",
+    "whatsapp",
+    "zap",
+    "whats app",
+    "watsap",
+    "uatsap",
+    "estaga",
+    "estag",
+    "bloco de notas",
+    "notas",
+    "powershell",
+    "edge",
+    "explorador de arquivos",
+]
+
+SITE_TARGETS = [
+    "youtube",
+    "google",
+    "gmail",
+    "chatgpt",
+]
+
+BASE_COMMANDS = {
+    "nova aba": "nova aba",
+    "abrir nova aba": "nova aba",
+    "abre nova aba": "nova aba",
+    "fechar aba": "fechar aba",
+    "fecha aba": "fechar aba",
+    "proxima aba": "proxima aba",
+    "aba anterior": "aba anterior",
+    "de novo": "de novo",
+    "maximiza": "maximiza",
+    "maximizar": "maximiza",
+    "minimiza": "minimiza",
+    "minimizar": "minimiza",
+    "restaura": "restaura",
+    "restaurar": "restaura",
+    "foca": "foca",
+    "focar": "foca",
+    "fecha": "fecha",
+    "fechar": "fecha",
+    "pausa": "pausa",
+    "pausar": "pausa",
+    "continua": "pausa",
+    "continuar": "pausa",
+    "pausa musica": "pausa musica",
+    "pausa video": "pausa video",
+    "proxima musica": "proxima musica",
+    "proximo video": "proximo video",
+    "musica anterior": "musica anterior",
+    "video anterior": "video anterior",
+    "aumenta volume": "aumenta volume",
+    "abaixa volume": "abaixa volume",
+    "diminui volume": "abaixa volume",
+    "mudo": "mudo",
+    "mutar": "mudo",
+    "rolar para baixo": "rolar para baixo",
+    "role para baixo": "rolar para baixo",
+    "olhe para baixo": "rolar para baixo",
+    "ola para baixo": "rolar para baixo",
+    "rolar para cima": "rolar para cima",
+    "role para cima": "rolar para cima",
+    "olhe para cima": "rolar para cima",
+    "ola para cima": "rolar para cima",
+    "ativar bluetooth": "ativar bluetooth",
+    "ligar bluetooth": "ativar bluetooth",
+    "desativar bluetooth": "desativar bluetooth",
+    "desligar bluetooth": "desativar bluetooth",
+    "abrir bluetooth": "abrir bluetooth",
+    "configuracoes bluetooth": "abrir bluetooth",
+    "status bluetooth": "status bluetooth",
+    "diagnosticar spotify": "diagnosticar spotify",
+    "diagnostica spotify": "diagnosticar spotify",
+    "diagnostica e spotify": "diagnosticar spotify",
+    "diagnosticar e spotify": "diagnosticar spotify",
+    "diagnosticare spotify": "diagnosticar spotify",
+    "jagnoche car spotify": "diagnosticar spotify",
+    "debug spotify": "diagnosticar spotify",
+}
+
+
+def _build_command_candidates() -> dict[str, str]:
+    candidates = dict(BASE_COMMANDS)
+
+    for target in APP_TARGETS + SITE_TARGETS:
+        candidates[f"abre {target}"] = f"abre {target}"
+        candidates[f"abre o {target}"] = f"abre {target}"
+        candidates[f"abrir {target}"] = f"abre {target}"
+        candidates[f"abrir o {target}"] = f"abre {target}"
+
+    for target in APP_TARGETS:
+        candidates[f"fecha {target}"] = f"fecha {target}"
+        candidates[f"fecha o {target}"] = f"fecha {target}"
+        candidates[f"fechar {target}"] = f"fecha {target}"
+        candidates[f"fechar o {target}"] = f"fecha {target}"
+        candidates[f"foca {target}"] = f"foca {target}"
+        candidates[f"foca no {target}"] = f"foca {target}"
+        candidates[f"maximiza {target}"] = f"maximiza {target}"
+        candidates[f"maximizar {target}"] = f"maximiza {target}"
+        candidates[f"minimiza {target}"] = f"minimiza {target}"
+        candidates[f"minimizar {target}"] = f"minimiza {target}"
+        candidates[f"restaura {target}"] = f"restaura {target}"
+        candidates[f"restaurar {target}"] = f"restaura {target}"
+
+    return candidates
+
+
+COMMAND_CANDIDATES = _build_command_candidates()
+UNSAFE_SHORT_INPUTS = {"oi", "ola", "opa", "boa", "um beijo", "beijo"}
+
+
+def _similarity(left: str, right: str) -> float:
+    return difflib.SequenceMatcher(None, left, right).ratio()
+
+
+def _threshold_for(text: str, canonical: str) -> float:
+    word_count = len(text.split())
+
+    if canonical == "nova aba" and text.startswith(("ab", "abr")):
+        return 0.66
+
+    if canonical in {"minimiza", "maximiza"} and word_count <= 2:
+        return 0.70
+
+    return 0.82 if word_count <= 2 else 0.76
+
+
+def normalize_voice_command(user_input: str) -> str:
+    text = normalize_text(user_input)
+
+    if not text or text in UNSAFE_SHORT_INPUTS:
+        return user_input
+
+    if text in COMMAND_CANDIDATES:
+        return COMMAND_CANDIDATES[text]
+
+    best_key = None
+    best_score = 0.0
+
+    for candidate in COMMAND_CANDIDATES:
+        score = _similarity(text, candidate)
+        if score > best_score:
+            best_score = score
+            best_key = candidate
+
+    if not best_key:
+        return user_input
+
+    canonical = COMMAND_CANDIDATES[best_key]
+    threshold = _threshold_for(text, canonical)
+
+    if best_score >= threshold:
+        return canonical
+
+    return user_input

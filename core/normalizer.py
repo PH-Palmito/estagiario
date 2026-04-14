@@ -22,9 +22,85 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent == "smart_open":
+        return Command(
+            action="smart_open",
+            params={"target": target},
+            source="router",
+        )
+
+    if intent == "smart_open_choice":
+        return Command(
+            action="smart_open_choice",
+            params={
+                "target": target.get("name") if isinstance(target, dict) else None,
+                "kind": target.get("kind") if isinstance(target, dict) else None,
+            },
+            source="router",
+        )
+
+    if intent == "remember_target_kind":
+        return Command(
+            action="remember_target_kind",
+            params={
+                "target": target.get("name") if isinstance(target, dict) else None,
+                "kind": target.get("kind") if isinstance(target, dict) else None,
+            },
+            source="router",
+        )
+
+    if intent == "forget_smart_memory":
+        return Command(
+            action="forget_smart_memory",
+            params={"target": target},
+            source="router",
+        )
+
+    if intent == "list_smart_memory":
+        return Command(
+            action="list_smart_memory",
+            params={},
+            source="router",
+        )
+
     if intent == "close_app":
         return Command(
             action="close_app",
+            params={"target": target},
+            source="router",
+        )
+
+    if intent == "context_close":
+        return Command(
+            action="context_close",
+            params={},
+            source="router",
+        )
+
+    if intent == "focus_app":
+        return Command(
+            action="focus_app",
+            params={"target": target},
+            source="router",
+        )
+
+    if intent == "minimize_app":
+        return Command(
+            action="minimize_app",
+            params={"target": target},
+            source="router",
+        )
+
+    if intent == "maximize_app":
+        return Command(
+            action="maximize_app",
+            params={"target": target},
+            source="router",
+        )
+
+    if intent == "restore_app":
+        return Command(
+            action="restore_app",
             params={"target": target},
             source="router",
         )
@@ -39,13 +115,6 @@ def normalize_action(old_action: dict) -> Command:
     if intent == "open_url":
         return Command(
             action="open_url",
-            params={"target": target},
-            source="router",
-        )
-
-    if intent == "close_app":
-        return Command(
-            action="close_app",
             params={"target": target},
             source="router",
         )
@@ -89,6 +158,91 @@ def normalize_action(old_action: dict) -> Command:
         return Command(
             action="browser_search",
             params={"query": target},
+            source="router",
+        )
+
+    if intent in {
+        "browser_scroll_down",
+        "browser_scroll_up",
+        "browser_scroll_top",
+        "browser_scroll_bottom",
+    }:
+        return Command(
+            action=intent,
+            params={},
+            source="router",
+        )
+
+    if intent == "browser_find":
+        return Command(
+            action="browser_find",
+            params={"query": target},
+            source="router",
+        )
+
+    if intent == "browser_search_site":
+        return Command(
+            action="browser_search_site",
+            params={
+                "site": target.get("site") if isinstance(target, dict) else None,
+                "query": target.get("query") if isinstance(target, dict) else None,
+            },
+            source="router",
+        )
+
+    if intent == "browser_search_music":
+        return Command(
+            action="browser_search_music",
+            params={
+                "service": target.get("service") if isinstance(target, dict) else None,
+                "query": target.get("query") if isinstance(target, dict) else None,
+            },
+            source="router",
+        )
+
+    if intent == "spotify_diagnostic":
+        return Command(
+            action="spotify_diagnostic",
+            params={},
+            source="router",
+        )
+
+    if intent in {
+        "media_play_pause",
+        "media_next",
+        "media_previous",
+        "volume_up",
+        "volume_down",
+        "volume_mute",
+    }:
+        return Command(
+            action=intent,
+            params={},
+            source="router",
+        )
+
+    if intent in {
+        "bluetooth_on",
+        "bluetooth_off",
+        "bluetooth_settings",
+        "bluetooth_status",
+    }:
+        return Command(
+            action=intent,
+            params={},
+            source="router",
+        )
+
+    if intent in {
+        "media_play_pause_target",
+        "media_play_target",
+        "media_pause_target",
+        "media_next_target",
+        "media_previous_target",
+    }:
+        return Command(
+            action=intent,
+            params={"target": target},
             source="router",
         )
 

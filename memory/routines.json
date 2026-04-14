@@ -1,0 +1,16 @@
+{
+  "modo estudo": [
+    "abre vscode",
+    "abre chrome",
+    "abre spotify"
+  ],
+  "modo zap": [
+    "abre whatsapp",
+    "foca whatsapp"
+  ],
+  "modo limpar": [
+    "fechar spotify",
+    "fechar whatsapp",
+    "fechar notas"
+  ]
+}

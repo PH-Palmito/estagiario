@@ -2,6 +2,8 @@ class RuntimeState:
     def __init__(self):
         self.last_file = None
         self.last_folder = None
+        self.last_app = None
+        self.last_surface = None
         self.last_action = None
         self.last_result = None
         self.last_clipboard = None
@@ -22,6 +24,14 @@ class RuntimeState:
 
         elif a == "folder_create":
             self.last_folder = p.get("path")
+
+        elif a in {"open_app", "close_app", "focus_app", "minimize_app", "maximize_app", "restore_app"}:
+            self.last_app = p.get("target")
+            self.last_surface = "app"
+
+        elif a in {"open_url", "browser_new_tab", "browser_close_tab", "browser_next_tab", "browser_prev_tab", "browser_search", "web_google_search", "web_open_chatgpt"}:
+            self.last_app = "chrome"
+            self.last_surface = "browser"
 
         self.last_action = a
         self.last_result = result

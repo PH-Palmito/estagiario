@@ -23,6 +23,16 @@ def _is_ref(value):
     }
 
 
+def _is_app_ref(value):
+    if value is None:
+        return True
+
+    if not isinstance(value, str):
+        return False
+
+    return value.lower().strip() in {"", "ele", "isso", "isto", "app", "janela", "ela", "ultimo", "atual"}
+
+
 def _is_clip_ref(value):
     if not isinstance(value, str):
         return False
@@ -74,6 +84,33 @@ def resolve_params(command, state):
             if clip:
                 p["query"] = clip
                 state.last_clipboard = clip
+
+    # -------------------------
+    # CONTEXTUAL APP / WINDOW ACTIONS
+    # -------------------------
+    if action in {"focus_app", "minimize_app", "maximize_app", "restore_app", "close_app"}:
+        if _is_app_ref(p.get("target")):
+            if state.last_app:
+                p["target"] = state.last_app
+            else:
+                command.action = "respond"
+                command.params = {"message": "Qual app?"}
+                return command
+
+    if action == "context_close":
+        if state.last_surface == "browser":
+            command.action = "browser_close_tab"
+            command.params = {}
+            return command
+
+        if state.last_app:
+            command.action = "close_app"
+            command.params = {"target": state.last_app}
+            return command
+
+        command.action = "respond"
+        command.params = {"message": "Nao sei o que fechar."}
+        return command
 
     # -------------------------
     # FILE ACTIONS

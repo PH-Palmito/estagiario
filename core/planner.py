@@ -65,10 +65,30 @@ ALLOWED_INTENTS = {
 
 LOCAL_STEP_PATTERN = re.compile(
     r"\s*(?:,|\be depois\b|\bdepois\b|\bem seguida\b|\bentao\b|\bentão\b|\be\b)\s+"
-    r"(?=(?:abra|abre|abrir|abri|abrei|inicie|iniciar|feche|fechar|fecha|encerre|encerrar|"
-    r"termine|terminar|pesquise|crie|escreva|leia|rode|execute|executar)\b)",
+    r"(?=(?:abra|abre|abrir|abri|abriu|abrei|inicie|iniciar|feche|fechar|fecha|encerre|encerrar|"
+    r"termine|terminar|play|pausa|pausar|pause|continua|continuar|toca|tocar|liga|ligar|ligue|ativa|ativar|ative|desliga|desligar|desligue|desativa|desativar|desative|pesquise|crie|escreva|leia|rode|execute|executar|troca|troque|vai|"
+    r"foca|focar|minimiza|minimize|maximiza|maximize|restaura|restaure)\b)",
     flags=re.IGNORECASE,
 )
+
+MEDIA_ACTION_WORDS = {
+    "play",
+    "pausa",
+    "pausar",
+    "pause",
+    "continua",
+    "continuar",
+    "toca",
+    "tocar",
+}
+
+MEDIA_TARGET_WORDS = {
+    "spotify",
+    "youtube",
+    "you",
+    "chrome",
+    "navegador",
+}
 
 
 def extract_json_array(text: str):
@@ -130,8 +150,25 @@ def split_local_steps(user_input: str):
         return []
 
     parts = re.split(LOCAL_STEP_PATTERN, text)
-    steps = [part.strip(" ,.") for part in parts if part and part.strip(" ,.")]
-    return steps
+    parts = [part.strip(" ,.") for part in parts if part and part.strip(" ,.")]
+    repaired = []
+    index = 0
+
+    while index < len(parts):
+        current = parts[index]
+        current_lower = current.lower().strip()
+        next_part = parts[index + 1] if index + 1 < len(parts) else ""
+        next_lower = next_part.lower().strip()
+
+        if current_lower in MEDIA_ACTION_WORDS and next_lower in MEDIA_TARGET_WORDS:
+            repaired.append(f"{current} {next_part}")
+            index += 2
+            continue
+
+        repaired.append(current)
+        index += 1
+
+    return repaired
 
 
 def looks_like_multi_step_request(user_input: str):
@@ -150,12 +187,44 @@ def looks_like_multi_step_request(user_input: str):
     action_words = [
         "abra",
         "abrir",
+        "abriu",
+        "play",
+        "pausa",
+        "pausar",
+        "pause",
+        "continua",
+        "continuar",
+        "toca",
+        "tocar",
+        "liga",
+        "ligar",
+        "ligue",
+        "ativa",
+        "ativar",
+        "ative",
+        "desliga",
+        "desligar",
+        "desligue",
+        "desativa",
+        "desativar",
+        "desative",
         "pesquise",
         "crie",
         "escreva",
         "leia",
         "rode",
         "execute",
+        "troca",
+        "troque",
+        "vai",
+        "foca",
+        "focar",
+        "minimiza",
+        "minimize",
+        "maximiza",
+        "maximize",
+        "restaura",
+        "restaure",
         "feche",
         "fechar",
         "fecha",

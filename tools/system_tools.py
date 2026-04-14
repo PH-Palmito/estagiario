@@ -43,8 +43,10 @@ ALLOWED_APPS = {
         os.path.join(LOCAL_APPDATA, "Microsoft", "WindowsApps", "Spotify.exe"),
     ],
     "whatsapp": [
-        "whatsapp:",
+        "WhatsApp.exe",
         os.path.join(LOCAL_APPDATA, "Microsoft", "WindowsApps", "WhatsApp.exe"),
+        r"shell:AppsFolder\5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App",
+        "whatsapp:",
     ],
 }
 
@@ -60,7 +62,7 @@ APP_PROCESSES = {
     "code": ["Code.exe"],
     "vscode": ["Code.exe"],
     "spotify": ["Spotify.exe"],
-    "whatsapp": ["WhatsApp.exe"],
+    "whatsapp": ["WhatsApp.exe", "WhatsApp.Root.exe"],
 }
 
 FRIENDLY_URLS = {
@@ -73,13 +75,20 @@ FRIENDLY_URLS = {
     "chat.openai.com": "ChatGPT",
 }
 
+WINDOW_ACTIONS = {
+    "focus": 5,
+    "minimize": 6,
+    "maximize": 3,
+    "restore": 9,
+}
+
 
 def _resolve_app_command(candidates):
     for candidate in candidates:
         if not candidate:
             continue
 
-        if isinstance(candidate, str) and candidate.endswith(":"):
+        if isinstance(candidate, str) and (candidate.endswith(":") or candidate.startswith("shell:")):
             return candidate
 
         found = shutil.which(candidate)
@@ -90,6 +99,72 @@ def _resolve_app_command(candidates):
             return candidate
 
     return None
+
+
+def _run_window_action(app_name: str, action: str):
+    process_names = APP_PROCESSES.get(app_name)
+
+    if not process_names:
+        return f"Aplicativo '{app_name}' nao permitido para janela."
+
+    ps_process_names = ", ".join(f"'{Path(name).stem}'" for name in process_names)
+    show_code = WINDOW_ACTIONS[action]
+    action_labels = {
+        "focus": f"Trocando para {app_name}.",
+        "minimize": f"Minimizando {app_name}.",
+        "maximize": f"Maximizando {app_name}.",
+        "restore": f"Restaurando {app_name}.",
+    }
+
+    script = f"""
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class WinApi {{
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+}}
+"@
+
+$processNames = @({ps_process_names})
+$process = $null
+
+foreach ($name in $processNames) {{
+    $process = Get-Process -Name $name -ErrorAction SilentlyContinue |
+        Where-Object {{ $_.MainWindowHandle -ne 0 }} |
+        Sort-Object StartTime -Descending |
+        Select-Object -First 1
+
+    if ($process) {{
+        break
+    }}
+}}
+
+if (-not $process) {{
+    Write-Output "__NO_WINDOW__"
+    return
+}}
+
+[void][WinApi]::ShowWindowAsync($process.MainWindowHandle, {show_code})
+[void][WinApi]::SetForegroundWindow($process.MainWindowHandle)
+Write-Output "__OK__"
+"""
+
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+    output = (result.stdout or "").strip()
+    if "__OK__" in output:
+        return action_labels[action]
+
+    return f"Nao encontrei uma janela aberta de {app_name}."
 
 
 def open_app(app_name: str):
@@ -107,7 +182,7 @@ def open_app(app_name: str):
         return f"Aplicativo '{app_name}' nao encontrado neste PC."
 
     try:
-        if isinstance(command, str) and command.endswith(":"):
+        if isinstance(command, str) and (command.endswith(":") or command.startswith("shell:")):
             os.startfile(command)
             return f"Abrindo {app_name}."
 
@@ -115,6 +190,69 @@ def open_app(app_name: str):
         return f"Abrindo {app_name}."
     except Exception as e:
         return f"Erro ao executar {app_name}: {e}"
+
+
+def focus_app(app_name: str):
+    if not app_name:
+        return "Nao consegui identificar qual aplicativo focar."
+
+    return _run_window_action(app_name.lower().strip(), "focus")
+
+
+def minimize_app(app_name: str):
+    if not app_name:
+        return "Nao consegui identificar qual aplicativo minimizar."
+
+    return _run_window_action(app_name.lower().strip(), "minimize")
+
+
+def maximize_app(app_name: str):
+    if not app_name:
+        return "Nao consegui identificar qual aplicativo maximizar."
+
+    return _run_window_action(app_name.lower().strip(), "maximize")
+
+
+def restore_app(app_name: str):
+    if not app_name:
+        return "Nao consegui identificar qual aplicativo restaurar."
+
+    return _run_window_action(app_name.lower().strip(), "restore")
+
+
+def _close_processes_with_powershell(process_names: list[str]) -> bool:
+    ps_process_names = ", ".join(f"'{Path(name).stem}'" for name in process_names)
+    script = f"""
+$processNames = @({ps_process_names})
+$closed = $false
+
+foreach ($name in $processNames) {{
+    $processes = Get-Process -Name $name -ErrorAction SilentlyContinue
+    foreach ($process in $processes) {{
+        try {{
+            Stop-Process -Id $process.Id -Force -ErrorAction Stop
+            $closed = $true
+        }} catch {{
+        }}
+    }}
+}}
+
+if ($closed) {{
+    Write-Output "__OK__"
+}} else {{
+    Write-Output "__NO_PROCESS__"
+}}
+"""
+
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+    return result.returncode == 0 and "__OK__" in (result.stdout or "")
 
 
 def close_app(app_name: str):
@@ -137,6 +275,9 @@ def close_app(app_name: str):
         )
         if result.returncode == 0:
             return f"Fechando {app_name}."
+
+    if _close_processes_with_powershell(process_names):
+        return f"Fechando {app_name}."
 
     return f"O aplicativo '{app_name}' nao parecia estar aberto."
 
