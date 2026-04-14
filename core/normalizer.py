@@ -70,6 +70,13 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent == "smart_close_app":
+        return Command(
+            action="smart_close_app",
+            params={"target": target},
+            source="router",
+        )
+
     if intent == "context_close":
         return Command(
             action="context_close",

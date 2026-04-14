@@ -37,6 +37,7 @@ from tools.media_tools import (
 from tools.smart_open_tools import (
     forget_smart_memory,
     list_smart_memory,
+    close_smart_target,
     open_smart_target,
     open_smart_target_as_kind,
     remember_target_kind,
@@ -96,6 +97,7 @@ ACTIONS = {
     "forget_smart_memory": lambda p: forget_smart_memory(p["target"]),
     "list_smart_memory": lambda p: list_smart_memory(),
     "close_app": lambda p: close_app(p["target"]),
+    "smart_close_app": lambda p: close_smart_target(p["target"]),
     "focus_app": lambda p: focus_app(p["target"]),
     "minimize_app": lambda p: minimize_app(p["target"]),
     "maximize_app": lambda p: maximize_app(p["target"]),

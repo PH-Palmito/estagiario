@@ -16,5 +16,25 @@
   "mercado livre": {
     "type": "site",
     "target": "https://www.mercadolivre.com.br"
+  },
+  "android studio": {
+    "type": "smart_app",
+    "target": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Android Studio\\Android Studio.lnk",
+    "label": "Android Studio"
+  },
+  "games": {
+    "type": "smart_app",
+    "target": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Epic Games Launcher.lnk",
+    "label": "Epic Games Launcher"
+  },
+  "steam": {
+    "type": "smart_app",
+    "target": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Steam\\Steam.lnk",
+    "label": "Steam"
+  },
+  "github": {
+    "type": "smart_app",
+    "target": "C:\\Users\\almei\\AppData\\Local\\GitHubDesktop\\bin\\github.BAT",
+    "label": "github"
   }
 }

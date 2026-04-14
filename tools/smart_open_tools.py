@@ -1,8 +1,10 @@
 import difflib
+import base64
 import json
 import os
 import re
 import shutil
+import subprocess
 import unicodedata
 import webbrowser
 from pathlib import Path
@@ -54,7 +56,7 @@ def _clean_target(target: str) -> str:
         words = words[1:]
 
     words = [word for word in words if word not in NOISE_WORDS]
-    return " ".join(words).strip()
+    return " ".join(words).strip(" .")
 
 
 def _load_aliases():
@@ -79,13 +81,100 @@ def _save_aliases(aliases: dict):
 
 def _find_alias_entry(cleaned: str):
     aliases = _load_aliases()
-    normalized_key = _normalize_text(cleaned)
+    normalized_key = _normalize_text(cleaned).strip(" .")
 
     for key, value in aliases.items():
-        if _normalize_text(str(key)) == normalized_key:
+        if _normalize_text(str(key)).strip(" .") == normalized_key:
             return str(key), value
 
     return None, None
+
+
+def _find_typed_alias_entry(cleaned: str, alias_types: set[str], cutoff: float = 0.68):
+    aliases = _load_aliases()
+    normalized_key = _normalize_text(cleaned).strip(" .")
+
+    existing_key, value = _find_alias_entry(normalized_key)
+    if isinstance(value, dict) and value.get("type") in alias_types:
+        return existing_key, value
+
+    best_key = None
+    best_value = None
+    best_score = 0.0
+
+    for key, value in aliases.items():
+        if not isinstance(value, dict) or value.get("type") not in alias_types:
+            continue
+
+        key_normalized = _normalize_text(str(key)).strip(" .")
+        label = value.get("label") if isinstance(value.get("label"), str) else ""
+        label_normalized = _normalize_text(label).strip(" .")
+        score = max(
+            difflib.SequenceMatcher(None, normalized_key, key_normalized).ratio(),
+            difflib.SequenceMatcher(None, normalized_key, label_normalized).ratio() if label_normalized else 0.0,
+        )
+
+        if normalized_key and (normalized_key in key_normalized or normalized_key in label_normalized):
+            score = max(score, 0.92)
+
+        if score > best_score:
+            best_key = str(key)
+            best_value = value
+            best_score = score
+
+    if best_key and best_score >= cutoff:
+        return best_key, best_value
+
+    return None, None
+
+
+def _run_powershell(script: str, timeout_seconds: int = 10) -> subprocess.CompletedProcess:
+    encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    return subprocess.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-EncodedCommand",
+            encoded,
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout_seconds,
+    )
+
+
+def _ps_array(values):
+    escaped = []
+    for value in values:
+        value = str(value or "").strip()
+        if value:
+            escaped.append("'" + value.replace("'", "''").lower() + "'")
+    return "@(" + ", ".join(escaped) + ")"
+
+
+def _resolve_shortcut_target(path: str):
+    if not path or not str(path).lower().endswith(".lnk"):
+        return path
+
+    shortcut_path = str(path).replace("'", "''")
+    script = f"""
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut('{shortcut_path}')
+Write-Output $shortcut.TargetPath
+"""
+
+    try:
+        completed = _run_powershell(script, timeout_seconds=5)
+    except Exception:
+        return path
+
+    resolved = (completed.stdout or "").strip()
+    return resolved or path
 
 
 def _remember_site(cleaned: str, url: str):
@@ -165,6 +254,172 @@ def _open_remembered_target(cleaned: str):
             return f"Ainda nao encontrei o app {cleaned} neste PC."
 
     return None
+
+
+def smart_app_exists(target: str):
+    cleaned = _clean_target(target)
+    if not cleaned:
+        return False
+
+    _, value = _find_typed_alias_entry(cleaned, {"smart_app", "smart_preference"})
+    return isinstance(value, dict)
+
+
+def close_smart_target(target: str):
+    cleaned = _clean_target(target)
+    if not cleaned:
+        return None
+
+    _, value = _find_typed_alias_entry(cleaned, {"smart_app"})
+    if not isinstance(value, dict):
+        return None
+
+    label = value.get("label") if isinstance(value.get("label"), str) else cleaned
+    remembered_target = value.get("target") if isinstance(value.get("target"), str) else ""
+    resolved_target = _resolve_shortcut_target(remembered_target)
+    process_stem = Path(resolved_target).stem if resolved_target else ""
+
+    label_words = [word for word in _normalize_text(label).split() if len(word) >= 3]
+    cleaned_words = [word for word in _normalize_text(cleaned).split() if len(word) >= 3]
+    process_names = [process_stem]
+
+    # Android Studio commonly runs as studio64.exe/studio.exe even when opened from a .lnk.
+    if "android" in cleaned_words and "studio" in cleaned_words:
+        process_names.extend(["studio64", "studio"])
+
+    title_queries = [label, cleaned, " ".join(label_words), " ".join(cleaned_words)]
+    word_queries = sorted(set(label_words + cleaned_words), key=len, reverse=True)
+
+    script = f"""
+$processNames = {_ps_array(process_names)}
+$titleQueries = {_ps_array(title_queries)}
+$wordQueries = {_ps_array(word_queries)}
+$matches = @()
+
+foreach ($process in Get-Process -ErrorAction SilentlyContinue) {{
+    try {{
+        $processName = ([string]$process.ProcessName).ToLower()
+        $title = ([string]$process.MainWindowTitle).ToLower()
+        $hasWindow = $process.MainWindowHandle -ne 0
+        $matched = $false
+
+        foreach ($name in $processNames) {{
+            if ($name -and $processName -eq $name) {{
+                $matched = $true
+                break
+            }}
+        }}
+
+        if (-not $matched -and $hasWindow) {{
+            foreach ($query in $titleQueries) {{
+                if ($query -and $title.Contains($query)) {{
+                    $matched = $true
+                    break
+                }}
+            }}
+        }}
+
+        if (-not $matched -and $hasWindow -and $wordQueries.Count -gt 0) {{
+            $allWordsInTitle = $true
+            foreach ($query in $wordQueries) {{
+                if (-not $query -or -not $title.Contains($query)) {{
+                    $allWordsInTitle = $false
+                    break
+                }}
+            }}
+            if ($allWordsInTitle) {{
+                $matched = $true
+            }}
+        }}
+
+        if ($matched) {{
+            $matches += $process
+        }}
+    }} catch {{
+    }}
+}}
+
+if (-not $matches -or $matches.Count -eq 0) {{
+    Write-Output "__NO_PROCESS__"
+    return
+}}
+
+$requestedClose = $false
+foreach ($process in $matches | Sort-Object StartTime -Descending) {{
+    try {{
+        if ($process.MainWindowHandle -ne 0) {{
+            [void]$process.CloseMainWindow()
+            $requestedClose = $true
+        }}
+    }} catch {{
+    }}
+}}
+
+Start-Sleep -Milliseconds 1800
+
+$stillOpen = @()
+foreach ($process in $matches) {{
+    try {{
+        $fresh = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+        if ($fresh) {{
+            $stillOpen += $fresh
+        }}
+    }} catch {{
+    }}
+}}
+
+if (-not $stillOpen -or $stillOpen.Count -eq 0) {{
+    Write-Output "__OK_GRACEFUL__"
+    return
+}}
+
+$forced = $false
+foreach ($process in $stillOpen) {{
+    try {{
+        Stop-Process -Id $process.Id -Force -ErrorAction Stop
+        $forced = $true
+    }} catch {{
+    }}
+}}
+
+Start-Sleep -Milliseconds 300
+
+$remaining = $false
+foreach ($process in $stillOpen) {{
+    try {{
+        if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) {{
+            $remaining = $true
+            break
+        }}
+    }} catch {{
+    }}
+}}
+
+if ($forced -and -not $remaining) {{
+    Write-Output "__OK_FORCED__"
+}} elseif ($requestedClose) {{
+    Write-Output "__REQUESTED_ONLY__"
+}} else {{
+    Write-Output "__NO_CLOSE__"
+}}
+"""
+
+    try:
+        completed = _run_powershell(script, timeout_seconds=10)
+    except Exception:
+        return f"Nao consegui fechar {label}."
+
+    output = completed.stdout or ""
+    if "__OK_GRACEFUL__" in output or "__OK_FORCED__" in output:
+        return f"Fechando {label}."
+
+    if "__REQUESTED_ONLY__" in output:
+        return f"Pedi para fechar {label}, mas ele ainda parece aberto."
+
+    if "__NO_PROCESS__" in output:
+        return f"O aplicativo '{label}' nao parecia estar aberto."
+
+    return f"Nao consegui fechar {label}."
 
 
 def _iter_start_menu_shortcuts():

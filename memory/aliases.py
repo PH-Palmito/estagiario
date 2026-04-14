@@ -1,4 +1,6 @@
 import json
+import re
+import unicodedata
 from pathlib import Path
 
 
@@ -19,6 +21,18 @@ def load_aliases():
 def _normalized_aliases():
     raw = load_aliases()
     return {str(key).lower(): value for key, value in raw.items()}
+
+
+def _strip_accents(text: str) -> str:
+    normalized = unicodedata.normalize("NFD", text)
+    return "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+
+
+def normalize_alias_key(text: str) -> str:
+    text = _strip_accents(str(text or "").strip().lower())
+    text = re.sub(r"[^\w\s.-]", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip(" .")
 
 
 def resolve_alias(name: str):
@@ -42,7 +56,19 @@ def load_app_aliases():
         if isinstance(value, dict) and value.get("type") == "app":
             target = value.get("target")
             if isinstance(target, str) and target.strip():
-                aliases[key] = target.strip().lower()
+                aliases[normalize_alias_key(key)] = target.strip().lower()
+
+    return aliases
+
+
+def load_smart_app_aliases():
+    aliases = {}
+
+    for key, value in _normalized_aliases().items():
+        if isinstance(value, dict) and value.get("type") in {"smart_app", "smart_preference"}:
+            target = value.get("target")
+            if isinstance(target, str) and target.strip():
+                aliases[normalize_alias_key(key)] = value
 
     return aliases
 
@@ -54,6 +80,6 @@ def load_site_aliases():
         if isinstance(value, dict) and value.get("type") == "site":
             target = value.get("target")
             if isinstance(target, str) and target.strip():
-                aliases[key] = target.strip()
+                aliases[normalize_alias_key(key)] = target.strip()
 
     return aliases

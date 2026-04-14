@@ -263,6 +263,15 @@ def close_app(app_name: str):
     process_names = APP_PROCESSES.get(app_name)
 
     if not process_names:
+        try:
+            from tools.smart_open_tools import close_smart_target
+
+            smart_result = close_smart_target(app_name)
+            if smart_result:
+                return smart_result
+        except Exception:
+            pass
+
         return f"Aplicativo '{app_name}' nao permitido para fechamento."
 
     for process_name in process_names:

@@ -25,9 +25,18 @@ class RuntimeState:
         elif a == "folder_create":
             self.last_folder = p.get("path")
 
-        elif a in {"open_app", "close_app", "focus_app", "minimize_app", "maximize_app", "restore_app"}:
+        elif a in {"open_app", "close_app", "smart_close_app", "focus_app", "minimize_app", "maximize_app", "restore_app"}:
             self.last_app = p.get("target")
             self.last_surface = "app"
+
+        elif a == "smart_open_choice":
+            self.last_app = p.get("target")
+            self.last_surface = "app" if p.get("kind") == "app" else "browser"
+
+        elif a == "smart_open":
+            result_text = str(result or "").lower()
+            self.last_app = p.get("target")
+            self.last_surface = "browser" if "site" in result_text else "app"
 
         elif a in {"open_url", "browser_new_tab", "browser_close_tab", "browser_next_tab", "browser_prev_tab", "browser_search", "web_google_search", "web_open_chatgpt"}:
             self.last_app = "chrome"

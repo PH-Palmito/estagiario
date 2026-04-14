@@ -451,7 +451,7 @@ Write-Output "__NO_CLICK__"
 
 
 def _click_spotify_first_visible_track():
-    script = """
+    script = r"""
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 
@@ -807,6 +807,8 @@ def browser_search_music(service: str, query: str):
 
             for _ in range(6):
                 if _click_spotify_track_by_name(query):
+                    return f"Tentando dar play em {query} no Spotify."
+                if _click_spotify_first_visible_track():
                     return f"Tentando dar play em {query} no Spotify."
                 time.sleep(0.7)
 

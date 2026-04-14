@@ -2,7 +2,7 @@ import difflib
 import re
 import unicodedata
 
-from memory.aliases import load_app_aliases, load_site_aliases
+from memory.aliases import load_app_aliases, load_site_aliases, load_smart_app_aliases
 from memory.macros import delete_macro, get_macro, list_macros
 from memory.profile import get_value, set_value
 from memory.routines import get_routine, list_routines
@@ -235,6 +235,10 @@ def _site_options():
     options = dict(KNOWN_SITES)
     options.update({normalize_text(k): v for k, v in load_site_aliases().items()})
     return options
+
+
+def _smart_app_options():
+    return {normalize_text(k): k for k in load_smart_app_aliases().keys()}
 
 
 def _extract_after_prefix(text: str, prefixes):
@@ -1009,6 +1013,10 @@ def detect_close_app(user_input: str):
     app = _match_app_target(close_target)
     if app:
         return {"intent": "close_app", "target": app}
+
+    smart_app = _best_fuzzy_match(close_target, _smart_app_options(), cutoff=0.68)
+    if smart_app:
+        return {"intent": "smart_close_app", "target": smart_app}
 
     return {"intent": "respond", "target": None, "response": "Nao identifiquei qual app fechar."}
 

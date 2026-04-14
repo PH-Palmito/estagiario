@@ -186,12 +186,17 @@ def render_status_line():
     print(f"\r{rendered_status_line:<24}", end="", flush=True)
 
 
-def read_user_input(voice_mode: bool, announce_ready: bool = True, fallback_to_text: bool = True) -> str:
+def read_user_input(
+    voice_mode: bool,
+    announce_ready: bool = True,
+    fallback_to_text: bool = True,
+    ready_message: str = "Pode falar...",
+) -> str:
     if not voice_mode:
         return terminal_input("Voce: ")
 
     if announce_ready:
-        terminal_print("IA: Pode falar...")
+        terminal_print(f"IA: {ready_message}")
     heard = listen_once()
 
     if heard.ok:
@@ -284,6 +289,10 @@ def wait_for_hotword(
         if heard.error.startswith("Falha ao acessar o microfone"):
             output_response(heard.error, voice_mode=False)
             return False, voice_paused, ""
+
+
+def is_waiting_for_direct_response() -> bool:
+    return pending_command is not None or pending_smart_open_choice is not None
 
 
 def handle_multi_step_request(user_input: str):
@@ -396,7 +405,22 @@ def main():
 
     while True:
         try:
-            if voice_mode and hotword_mode:
+            direct_response_mode = (
+                voice_mode
+                and hotword_mode
+                and not voice_paused
+                and is_waiting_for_direct_response()
+            )
+
+            if direct_response_mode:
+                set_voice_status("RESPOSTA")
+                user_input = read_user_input(
+                    voice_mode,
+                    announce_ready=True,
+                    fallback_to_text=False,
+                    ready_message="Pode responder...",
+                )
+            elif voice_mode and hotword_mode:
                 should_continue, voice_paused, inline_command = wait_for_hotword(
                     voice_mode,
                     hotword_mode,
@@ -406,10 +430,10 @@ def main():
                     hotword_ui_enabled = False
                     clear_status_line()
                     break
-            if voice_mode and hotword_mode and inline_command:
+            if not direct_response_mode and voice_mode and hotword_mode and inline_command:
                 terminal_print(f"Voce (voz): {inline_command}")
                 user_input = inline_command
-            else:
+            elif not direct_response_mode:
                 user_input = read_user_input(
                     voice_mode,
                     announce_ready=not hotword_mode,

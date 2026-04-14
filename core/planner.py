@@ -121,7 +121,11 @@ def validate_step(step: dict):
 
 
 def plan_actions(user_input: str):
-    raw = ask_model(f"{PLANNER_PROMPT}\n\nPedido do usuario: {user_input}")
+    try:
+        raw = ask_model(f"{PLANNER_PROMPT}\n\nPedido do usuario: {user_input}")
+    except Exception:
+        return None
+
     json_text = extract_json_array(raw)
 
     if not json_text:
