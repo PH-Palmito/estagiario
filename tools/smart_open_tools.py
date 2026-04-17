@@ -36,6 +36,11 @@ NOISE_WORDS = {
     "página",
 }
 
+EXTRA_TARGET_ALIASES = {
+    "github": {"git hub", "github desktop", "e chegar", "chegar"},
+    "android studio": {"studio", "android", "and run 2", "androm studio", "android estudar"},
+}
+
 
 def _strip_accents(text: str) -> str:
     normalized = unicodedata.normalize("NFD", text)
@@ -109,12 +114,25 @@ def _find_typed_alias_entry(cleaned: str, alias_types: set[str], cutoff: float =
         key_normalized = _normalize_text(str(key)).strip(" .")
         label = value.get("label") if isinstance(value.get("label"), str) else ""
         label_normalized = _normalize_text(label).strip(" .")
+        stored_aliases = [
+            _normalize_text(alias).strip(" .")
+            for alias in value.get("aliases", [])
+            if isinstance(alias, str)
+        ]
         score = max(
             difflib.SequenceMatcher(None, normalized_key, key_normalized).ratio(),
             difflib.SequenceMatcher(None, normalized_key, label_normalized).ratio() if label_normalized else 0.0,
+            *[
+                difflib.SequenceMatcher(None, normalized_key, alias).ratio()
+                for alias in stored_aliases
+            ],
         )
 
-        if normalized_key and (normalized_key in key_normalized or normalized_key in label_normalized):
+        if normalized_key and (
+            normalized_key in key_normalized
+            or normalized_key in label_normalized
+            or normalized_key in stored_aliases
+        ):
             score = max(score, 0.92)
 
         if score > best_score:
@@ -177,6 +195,26 @@ Write-Output $shortcut.TargetPath
     return resolved or path
 
 
+def _generated_aliases(cleaned: str, label: str):
+    aliases = set()
+    for text in {cleaned, label}:
+        normalized = _normalize_text(text).strip(" .")
+        if not normalized:
+            continue
+
+        aliases.add(normalized)
+
+        words = [word for word in normalized.split() if len(word) >= 4]
+        if len(words) >= 2:
+            aliases.add(" ".join(words))
+            aliases.add(words[-1])
+
+        if normalized in EXTRA_TARGET_ALIASES:
+            aliases.update(EXTRA_TARGET_ALIASES[normalized])
+
+    return sorted(alias for alias in aliases if alias and alias != cleaned)
+
+
 def _remember_site(cleaned: str, url: str):
     key = _normalize_text(cleaned)
     if not key or not url:
@@ -210,6 +248,7 @@ def _remember_app(cleaned: str, path: str, label: str):
         "type": "smart_app",
         "target": path,
         "label": label,
+        "aliases": _generated_aliases(cleaned, label),
     }
     _save_aliases(aliases)
 
@@ -422,6 +461,139 @@ if ($forced -and -not $remaining) {{
     return f"Nao consegui fechar {label}."
 
 
+def smart_window_action(target: str, action: str):
+    action = _normalize_text(action)
+    if action not in {"focus", "minimize", "maximize", "restore"}:
+        return None
+
+    cleaned = _clean_target(target)
+    if not cleaned:
+        return None
+
+    _, value = _find_typed_alias_entry(cleaned, {"smart_app"})
+    if not isinstance(value, dict):
+        return None
+
+    label = value.get("label") if isinstance(value.get("label"), str) else cleaned
+    remembered_target = value.get("target") if isinstance(value.get("target"), str) else ""
+    resolved_target = _resolve_shortcut_target(remembered_target)
+    process_stem = Path(resolved_target).stem if resolved_target else ""
+
+    label_words = [word for word in _normalize_text(label).split() if len(word) >= 3]
+    cleaned_words = [word for word in _normalize_text(cleaned).split() if len(word) >= 3]
+    aliases = [
+        alias
+        for alias in value.get("aliases", [])
+        if isinstance(alias, str) and len(_normalize_text(alias)) >= 4
+    ]
+    process_names = [process_stem]
+
+    if "android" in cleaned_words and "studio" in cleaned_words:
+        process_names.extend(["studio64", "studio"])
+
+    title_queries = [label, cleaned, " ".join(label_words), " ".join(cleaned_words), *aliases]
+    word_queries = sorted(set(label_words + cleaned_words), key=len, reverse=True)
+    show_codes = {
+        "focus": 5,
+        "minimize": 6,
+        "maximize": 3,
+        "restore": 9,
+    }
+    action_labels = {
+        "focus": f"Trocando para {label}.",
+        "minimize": f"Minimizando {label}.",
+        "maximize": f"Maximizando {label}.",
+        "restore": f"Restaurando {label}.",
+    }
+
+    script = f"""
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class WinApi {{
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+}}
+"@
+
+$processNames = {_ps_array(process_names)}
+$titleQueries = {_ps_array(title_queries)}
+$wordQueries = {_ps_array(word_queries)}
+$matches = @()
+
+foreach ($process in Get-Process -ErrorAction SilentlyContinue) {{
+    try {{
+        $processName = ([string]$process.ProcessName).ToLower()
+        $title = ([string]$process.MainWindowTitle).ToLower()
+        $hasWindow = $process.MainWindowHandle -ne 0
+        $matched = $false
+
+        foreach ($name in $processNames) {{
+            if ($name -and $processName -eq $name) {{
+                $matched = $true
+                break
+            }}
+        }}
+
+        if (-not $matched -and $hasWindow) {{
+            foreach ($query in $titleQueries) {{
+                if ($query -and $title.Contains($query)) {{
+                    $matched = $true
+                    break
+                }}
+            }}
+        }}
+
+        if (-not $matched -and $hasWindow -and $wordQueries.Count -gt 0) {{
+            $allWordsInTitle = $true
+            foreach ($query in $wordQueries) {{
+                if (-not $query -or -not $title.Contains($query)) {{
+                    $allWordsInTitle = $false
+                    break
+                }}
+            }}
+            if ($allWordsInTitle) {{
+                $matched = $true
+            }}
+        }}
+
+        if ($matched -and $hasWindow) {{
+            $matches += $process
+        }}
+    }} catch {{
+    }}
+}}
+
+$process = $matches |
+    Sort-Object StartTime -Descending |
+    Select-Object -First 1
+
+if (-not $process) {{
+    Write-Output "__NO_WINDOW__"
+    return
+}}
+
+[void][WinApi]::ShowWindowAsync($process.MainWindowHandle, {show_codes[action]})
+if ("{action}" -ne "minimize") {{
+    [void][WinApi]::SetForegroundWindow($process.MainWindowHandle)
+}}
+Write-Output "__OK__"
+"""
+
+    try:
+        completed = _run_powershell(script, timeout_seconds=10)
+    except Exception:
+        return f"Nao consegui controlar a janela de {label}."
+
+    output = completed.stdout or ""
+    if "__OK__" in output:
+        return action_labels[action]
+
+    return f"Nao encontrei uma janela aberta de {label}."
+
+
 def _iter_start_menu_shortcuts():
     for root in START_MENU_DIRS:
         if not root.exists():
@@ -623,6 +795,7 @@ def remember_target_kind(target: str, kind: str, open_after: bool = False):
             "type": "smart_app",
             "target": candidate["path"],
             "label": candidate["label"],
+            "aliases": _generated_aliases(cleaned, candidate["label"]),
         }
         _save_aliases(aliases)
 

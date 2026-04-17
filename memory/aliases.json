@@ -20,12 +20,24 @@
   "android studio": {
     "type": "smart_app",
     "target": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Android Studio\\Android Studio.lnk",
-    "label": "Android Studio"
+    "label": "Android Studio",
+    "aliases": [
+      "android",
+      "android estudar",
+      "androm studio",
+      "and run 2",
+      "studio"
+    ]
   },
   "games": {
     "type": "smart_app",
     "target": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Epic Games Launcher.lnk",
-    "label": "Epic Games Launcher"
+    "label": "Epic Games Launcher",
+    "aliases": [
+      "epic",
+      "epic games",
+      "launcher"
+    ]
   },
   "steam": {
     "type": "smart_app",
@@ -35,6 +47,14 @@
   "github": {
     "type": "smart_app",
     "target": "C:\\Users\\almei\\AppData\\Local\\GitHubDesktop\\bin\\github.BAT",
-    "label": "github"
+    "label": "github",
+    "aliases": [
+      "chegar",
+      "e chegar",
+      "git hub",
+      "github desktop",
+      "gui hub",
+      "guithub"
+    ]
   }
 }

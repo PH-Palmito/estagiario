@@ -21,17 +21,28 @@ POWERSHELL_EXE = "powershell"
 BROWSER_ACTIVATE_NAMES = ["chrome", "msedge", "firefox", "opera", "brave"]
 
 VK_CONTROL = 0x11
+VK_MENU = 0x12
 VK_SHIFT = 0x10
 VK_TAB = 0x09
 VK_L = 0x4C
 VK_W = 0x57
 VK_F = 0x46
+VK_R = 0x52
+VK_F5 = 0x74
+VK_ADD = 0x6B
+VK_SUBTRACT = 0x6D
+VK_0 = 0x30
+VK_BACK = 0x08
 VK_RETURN = 0x0D
 VK_PRIOR = 0x21
 VK_NEXT = 0x22
 VK_END = 0x23
 VK_HOME = 0x24
 VK_SPACE = 0x20
+VK_DOWN = 0x28
+VK_UP = 0x26
+VK_LEFT = 0x25
+VK_RIGHT = 0x27
 
 KEYEVENTF_KEYUP = 0x0002
 MOUSEEVENTF_LEFTDOWN = 0x0002
@@ -167,6 +178,124 @@ if ([WinRectApi]::GetWindowRect($process.MainWindowHandle, [ref]$rect)) {{
         return None
 
     return left, top, right, bottom
+
+
+def _get_browser_window_rect():
+    for name in BROWSER_ACTIVATE_NAMES:
+        rect = _get_app_window_rect(name)
+        if rect:
+            return rect
+
+    return None
+
+
+def _click_first_browser_link():
+    names = ", ".join(f"'{name}'" for name in BROWSER_ACTIVATE_NAMES)
+    script = f"""
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+
+$processNames = @({names})
+$process = $null
+
+foreach ($name in $processNames) {{
+    $process = Get-Process -Name $name -ErrorAction SilentlyContinue |
+        Where-Object {{ $_.MainWindowHandle -ne 0 }} |
+        Sort-Object StartTime -Descending |
+        Select-Object -First 1
+
+    if ($process) {{
+        break
+    }}
+}}
+
+if (-not $process) {{
+    Write-Output "__NO_BROWSER__"
+    return
+}}
+
+$root = [System.Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+if (-not $root) {{
+    Write-Output "__NO_ROOT__"
+    return
+}}
+
+$rootRect = $root.Current.BoundingRectangle
+$elements = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+$candidates = @()
+
+for ($i = 0; $i -lt $elements.Count; $i++) {{
+    $element = $elements.Item($i)
+    try {{
+        $name = ([string]$element.Current.Name).Trim()
+        $controlType = $element.Current.ControlType.ProgrammaticName
+        $rect = $element.Current.BoundingRectangle
+
+        if (-not $name -or $name.Length -lt 3) {{
+            continue
+        }}
+
+        if ($rect.IsEmpty -or $rect.Width -lt 40 -or $rect.Height -lt 10) {{
+            continue
+        }}
+
+        $relativeTop = $rect.Top - $rootRect.Top
+        $relativeLeft = $rect.Left - $rootRect.Left
+
+        if ($relativeTop -lt 135 -or $relativeLeft -lt 80) {{
+            continue
+        }}
+
+        if ($controlType -notmatch "Hyperlink|Button|ListItem|DataItem") {{
+            continue
+        }}
+
+        if ($name -match "^(voltar|avancar|recarregar|favoritos|perfil|mais|menu|google apps|entrar)$") {{
+            continue
+        }}
+
+        $score = 1000 - $relativeTop
+        if ($controlType -match "Hyperlink") {{
+            $score += 200
+        }}
+
+        $candidates += [pscustomobject]@{{
+            Top = $rect.Top
+            Left = $rect.Left
+            Score = $score
+            X = [int]($rect.Left + [Math]::Min(160, [Math]::Max(20, $rect.Width / 2)))
+            Y = [int]($rect.Top + ($rect.Height / 2))
+        }}
+    }} catch {{
+    }}
+}}
+
+$candidate = $candidates |
+    Sort-Object -Property @{{ Expression = "Score"; Descending = $true }}, @{{ Expression = "Top"; Descending = $false }}, @{{ Expression = "Left"; Descending = $false }} |
+    Select-Object -First 1
+
+if (-not $candidate) {{
+    Write-Output "__NO_LINK__"
+    return
+}}
+
+Write-Output ("__POINT__:{0},{1}" -f $candidate.X, $candidate.Y)
+"""
+
+    try:
+        completed = _run_powershell(script, timeout_seconds=8)
+    except Exception:
+        return False
+
+    output = completed.stdout or ""
+    point_match = re.search(r"__POINT__:(-?\d+),(-?\d+)", output)
+    if not point_match:
+        return False
+
+    x = int(point_match.group(1))
+    y = int(point_match.group(2))
+    _click(x, y)
+    return True
 
 
 def _click_relative_to_app(app_name: str, relative_x: float, relative_y: float, clicks: int = 1):
@@ -710,6 +839,91 @@ def browser_prev_tab():
 
     _shortcut(VK_CONTROL, VK_SHIFT, VK_TAB)
     return "Voltando para a aba anterior."
+
+
+def browser_back():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para voltar."
+
+    user32.keybd_event(VK_MENU, 0, 0, 0)
+    time.sleep(0.02)
+    _tap(VK_LEFT)
+    user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+    return "Voltando pagina."
+
+
+def browser_forward():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para avancar."
+
+    user32.keybd_event(VK_MENU, 0, 0, 0)
+    time.sleep(0.02)
+    _tap(VK_RIGHT)
+    user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+    return "Avancando pagina."
+
+
+def browser_refresh():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para atualizar."
+
+    _tap(VK_F5)
+    return "Atualizando pagina."
+
+
+def browser_open_first_result():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para abrir o resultado."
+
+    if _click_first_browser_link():
+        return "Abrindo primeiro resultado."
+
+    _tap(VK_TAB)
+    time.sleep(0.08)
+    _tap(VK_RETURN)
+    return "Abrindo primeiro resultado."
+
+
+def browser_open_focused_item():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para abrir."
+
+    _tap(VK_RETURN)
+    return "Abrindo item selecionado."
+
+
+def browser_click_center():
+    rect = _get_browser_window_rect()
+    if not rect:
+        return "Nao encontrei um navegador aberto para clicar."
+
+    left, top, right, bottom = rect
+    _click(left + ((right - left) / 2), top + ((bottom - top) / 2))
+    return "Clicando no centro da pagina."
+
+
+def browser_zoom_in():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para zoom."
+
+    _shortcut(VK_CONTROL, VK_ADD)
+    return "Aumentando zoom."
+
+
+def browser_zoom_out():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para zoom."
+
+    _shortcut(VK_CONTROL, VK_SUBTRACT)
+    return "Diminuindo zoom."
+
+
+def browser_zoom_reset():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para zoom."
+
+    _shortcut(VK_CONTROL, VK_0)
+    return "Restaurando zoom."
 
 
 def browser_search(query: str):

@@ -1,5 +1,6 @@
 import difflib
 
+from memory.aliases import load_app_aliases, load_site_aliases, load_smart_app_aliases
 from core.router import normalize_text
 
 
@@ -91,14 +92,29 @@ BASE_COMMANDS = {
 
 def _build_command_candidates() -> dict[str, str]:
     candidates = dict(BASE_COMMANDS)
+    app_targets = list(APP_TARGETS)
+    site_targets = list(SITE_TARGETS)
 
-    for target in APP_TARGETS + SITE_TARGETS:
+    for alias, target in load_app_aliases().items():
+        app_targets.append(alias)
+        app_targets.append(target)
+
+    for alias in load_smart_app_aliases().keys():
+        app_targets.append(alias)
+
+    for alias in load_site_aliases().keys():
+        site_targets.append(alias)
+
+    app_targets = sorted(set(normalize_text(target) for target in app_targets if target))
+    site_targets = sorted(set(normalize_text(target) for target in site_targets if target))
+
+    for target in app_targets + site_targets:
         candidates[f"abre {target}"] = f"abre {target}"
         candidates[f"abre o {target}"] = f"abre {target}"
         candidates[f"abrir {target}"] = f"abre {target}"
         candidates[f"abrir o {target}"] = f"abre {target}"
 
-    for target in APP_TARGETS:
+    for target in app_targets:
         candidates[f"fecha {target}"] = f"fecha {target}"
         candidates[f"fecha o {target}"] = f"fecha {target}"
         candidates[f"fechar {target}"] = f"fecha {target}"
@@ -115,7 +131,6 @@ def _build_command_candidates() -> dict[str, str]:
     return candidates
 
 
-COMMAND_CANDIDATES = _build_command_candidates()
 UNSAFE_SHORT_INPUTS = {"oi", "ola", "opa", "boa", "um beijo", "beijo"}
 
 
@@ -141,13 +156,15 @@ def normalize_voice_command(user_input: str) -> str:
     if not text or text in UNSAFE_SHORT_INPUTS:
         return user_input
 
-    if text in COMMAND_CANDIDATES:
-        return COMMAND_CANDIDATES[text]
+    command_candidates = _build_command_candidates()
+
+    if text in command_candidates:
+        return command_candidates[text]
 
     best_key = None
     best_score = 0.0
 
-    for candidate in COMMAND_CANDIDATES:
+    for candidate in command_candidates:
         score = _similarity(text, candidate)
         if score > best_score:
             best_score = score
@@ -156,7 +173,7 @@ def normalize_voice_command(user_input: str) -> str:
     if not best_key:
         return user_input
 
-    canonical = COMMAND_CANDIDATES[best_key]
+    canonical = command_candidates[best_key]
     threshold = _threshold_for(text, canonical)
 
     if best_score >= threshold:

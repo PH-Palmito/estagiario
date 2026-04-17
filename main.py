@@ -12,6 +12,7 @@ from core.router import detect_create_macro_start, normalize_text, route
 from core.runtime_state import RuntimeState
 from core.validator import validate_command
 from core.voice_command_classifier import normalize_voice_command
+from llm.chat import chat_response, clear_chat_history
 from memory.macros import add_macro
 from memory.session import clear
 from tools.smart_open_tools import smart_open_needs_choice
@@ -35,6 +36,8 @@ pending_smart_open_choice = None
 voice_status = None
 hotword_ui_enabled = False
 rendered_status_line = ""
+conversation_mode = False
+conversation_ready_announced = False
 
 creating_macro = False
 macro_name = None
@@ -295,6 +298,72 @@ def is_waiting_for_direct_response() -> bool:
     return pending_command is not None or pending_smart_open_choice is not None
 
 
+def is_conversation_stop(text: str) -> bool:
+    normalized = normalize_text(text)
+    return normalized in {
+        "parar conversa",
+        "para conversa",
+        "chega de conversa",
+        "sair da conversa",
+        "modo comando",
+        "voltar comandos",
+    }
+
+
+def is_transcription_artifact(text: str) -> bool:
+    normalized = normalize_text(text)
+    normalized_without_dots = normalized.replace(".", " ")
+    artifacts = {
+        "legendas pela comunidade de amara org",
+        "legendas pela comunidade de amara.org",
+        "aplicativos e sites esperados em portugues do brasil",
+        "exemplos e sites esperados",
+        "transcreva comandos curtos",
+        "transcreva comandos curtos em portugues do brasil",
+        "assistente local chamado estagiario",
+        "vocabulario esperado",
+    }
+
+    return any(
+        artifact in normalized or artifact in normalized_without_dots
+        for artifact in artifacts
+    )
+
+
+def conversation_reply(user_input: str) -> str:
+    normalized = normalize_text(user_input)
+
+    if not normalized:
+        return "Estou aqui."
+
+    if "um dois" in normalized or "testando" in normalized or "teste de microfone" in normalized:
+        return "Teste de microfone recebido. Estou te ouvindo."
+
+    if "tudo bem" in normalized:
+        return "Tudo bem por aqui. Estou em modo conversa, sem executar comandos por acidente."
+
+    if "bom dia" in normalized:
+        return "Bom dia. Estou aqui, mais para papo do que para apertar botao agora."
+
+    if "boa tarde" in normalized:
+        return "Boa tarde. Pode conversar comigo sem cerimônia."
+
+    if "boa noite" in normalized:
+        return "Boa noite. Modo conversa tranquilo ativado."
+
+    if difflib.SequenceMatcher(None, normalized, "qual o seu nome").ratio() >= 0.78:
+        return "Meu nome e Estagiario. Ainda junior, mas ja com algumas manias de assistente."
+
+    if "estimado usuario" in normalized:
+        return "Estimado usuario foi um floreio inesperado, mas confesso que teve seu charme."
+
+    response = chat_response(user_input)
+    if response:
+        return response
+
+    return "Estou sem acesso ao meu raciocinio local agora, mas ainda consigo te ouvir. Me fala de um jeito simples."
+
+
 def handle_multi_step_request(user_input: str):
     local_steps = split_local_steps(user_input)
     plan = None
@@ -361,6 +430,8 @@ def main():
     global pending_smart_open_choice
     global creating_macro, macro_name, macro_steps
     global hotword_ui_enabled
+    global conversation_mode
+    global conversation_ready_announced
 
     voice_mode = "--voice" in sys.argv
     hotword_mode = "--hotword" in sys.argv
@@ -411,6 +482,13 @@ def main():
                 and not voice_paused
                 and is_waiting_for_direct_response()
             )
+            conversation_listen_mode = (
+                voice_mode
+                and hotword_mode
+                and not voice_paused
+                and conversation_mode
+                and not direct_response_mode
+            )
 
             if direct_response_mode:
                 set_voice_status("RESPOSTA")
@@ -420,6 +498,15 @@ def main():
                     fallback_to_text=False,
                     ready_message="Pode responder...",
                 )
+            elif conversation_listen_mode:
+                set_voice_status("CONVERSA")
+                user_input = read_user_input(
+                    voice_mode,
+                    announce_ready=not conversation_ready_announced,
+                    fallback_to_text=False,
+                    ready_message="Pode falar comigo...",
+                )
+                conversation_ready_announced = True
             elif voice_mode and hotword_mode:
                 should_continue, voice_paused, inline_command = wait_for_hotword(
                     voice_mode,
@@ -430,10 +517,10 @@ def main():
                     hotword_ui_enabled = False
                     clear_status_line()
                     break
-            if not direct_response_mode and voice_mode and hotword_mode and inline_command:
+            if not direct_response_mode and not conversation_listen_mode and voice_mode and hotword_mode and inline_command:
                 terminal_print(f"Voce (voz): {inline_command}")
                 user_input = inline_command
-            elif not direct_response_mode:
+            elif not direct_response_mode and not conversation_listen_mode:
                 user_input = read_user_input(
                     voice_mode,
                     announce_ready=not hotword_mode,
@@ -452,6 +539,21 @@ def main():
             break
 
         if not user_input:
+            continue
+
+        if is_transcription_artifact(user_input):
+            continue
+
+        if conversation_mode and is_conversation_stop(user_input):
+            conversation_mode = False
+            conversation_ready_announced = False
+            if hotword_mode:
+                set_voice_status(f"BOTAO {HOTKEY_NAME}")
+            output_response("Modo conversa encerrado. Voltei para comandos.", voice_mode)
+            continue
+
+        if conversation_mode and not is_waiting_for_direct_response():
+            output_response(conversation_reply(user_input), voice_mode)
             continue
 
         user_input = maybe_normalize_voice_command(user_input, voice_mode)
@@ -554,6 +656,19 @@ def main():
         if raw_action.get("intent") == "run_routine":
             result = execute_routine_steps(raw_action.get("target"))
             output_response(result, voice_mode)
+            continue
+
+        if raw_action.get("intent") == "start_conversation":
+            conversation_mode = True
+            conversation_ready_announced = False
+            clear_chat_history()
+            output_response("Modo conversa ativado. Pode falar sem apertar F8. Para sair, diga parar conversa.", voice_mode)
+            continue
+
+        if raw_action.get("intent") == "stop_conversation":
+            conversation_mode = False
+            conversation_ready_announced = False
+            output_response("Modo conversa encerrado. Voltei para comandos.", voice_mode)
             continue
 
         if raw_action.get("intent") == "repeat_last":

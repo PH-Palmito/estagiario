@@ -15,6 +15,13 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent in {"start_conversation", "stop_conversation"}:
+        return Command(
+            action=intent,
+            params={},
+            source="router",
+        )
+
     if intent == "open_app":
         return Command(
             action="open_app",
@@ -173,6 +180,15 @@ def normalize_action(old_action: dict) -> Command:
         "browser_scroll_up",
         "browser_scroll_top",
         "browser_scroll_bottom",
+        "browser_back",
+        "browser_forward",
+        "browser_refresh",
+        "browser_open_first_result",
+        "browser_open_focused_item",
+        "browser_click_center",
+        "browser_zoom_in",
+        "browser_zoom_out",
+        "browser_zoom_reset",
     }:
         return Command(
             action=intent,

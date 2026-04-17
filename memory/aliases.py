@@ -62,13 +62,41 @@ def load_app_aliases():
 
 
 def load_smart_app_aliases():
-    aliases = {}
+    candidates = {}
+
+    def add_candidate(alias: str, value: dict):
+        alias = normalize_alias_key(alias)
+        if not alias:
+            return
+
+        candidates.setdefault(alias, []).append(value)
 
     for key, value in _normalized_aliases().items():
         if isinstance(value, dict) and value.get("type") in {"smart_app", "smart_preference"}:
             target = value.get("target")
             if isinstance(target, str) and target.strip():
-                aliases[normalize_alias_key(key)] = value
+                canonical_value = dict(value)
+                canonical_value["_key"] = normalize_alias_key(key)
+
+                add_candidate(key, canonical_value)
+
+                label = value.get("label")
+                if isinstance(label, str) and label.strip():
+                    add_candidate(label, canonical_value)
+
+                for alias in value.get("aliases", []):
+                    if isinstance(alias, str):
+                        add_candidate(alias, canonical_value)
+
+    aliases = {}
+    for alias, values in candidates.items():
+        targets = {
+            str(value.get("target", "")).strip().lower()
+            for value in values
+            if isinstance(value, dict)
+        }
+        if len(targets) == 1:
+            aliases[alias] = values[0]
 
     return aliases
 

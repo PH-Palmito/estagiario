@@ -105,6 +105,15 @@ def _run_window_action(app_name: str, action: str):
     process_names = APP_PROCESSES.get(app_name)
 
     if not process_names:
+        try:
+            from tools.smart_open_tools import smart_window_action
+
+            smart_result = smart_window_action(app_name, action)
+            if smart_result:
+                return smart_result
+        except Exception:
+            pass
+
         return f"Aplicativo '{app_name}' nao permitido para janela."
 
     ps_process_names = ", ".join(f"'{Path(name).stem}'" for name in process_names)

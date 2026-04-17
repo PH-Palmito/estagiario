@@ -38,7 +38,31 @@ class RuntimeState:
             self.last_app = p.get("target")
             self.last_surface = "browser" if "site" in result_text else "app"
 
-        elif a in {"open_url", "browser_new_tab", "browser_close_tab", "browser_next_tab", "browser_prev_tab", "browser_search", "web_google_search", "web_open_chatgpt"}:
+        elif a in {
+            "open_url",
+            "browser_new_tab",
+            "browser_close_tab",
+            "browser_next_tab",
+            "browser_prev_tab",
+            "browser_back",
+            "browser_forward",
+            "browser_refresh",
+            "browser_open_first_result",
+            "browser_open_focused_item",
+            "browser_click_center",
+            "browser_search",
+            "browser_find",
+            "browser_scroll_down",
+            "browser_scroll_up",
+            "browser_scroll_top",
+            "browser_scroll_bottom",
+            "browser_search_site",
+            "browser_zoom_in",
+            "browser_zoom_out",
+            "browser_zoom_reset",
+            "web_google_search",
+            "web_open_chatgpt",
+        }:
             self.last_app = "chrome"
             self.last_surface = "browser"
 

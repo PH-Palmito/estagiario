@@ -6,6 +6,7 @@ from memory.aliases import load_app_aliases, load_site_aliases, load_smart_app_a
 from memory.macros import delete_macro, get_macro, list_macros
 from memory.profile import get_value, set_value
 from memory.routines import get_routine, list_routines
+from llm.chat import chat_response
 from tools.math_tools import calculate_basic_expression, calculate_percentage
 
 
@@ -72,6 +73,19 @@ BLUETOOTH_TERMS = {
     "blutut",
 }
 
+TARGET_CORRECTIONS = {
+    "e chegar": "github",
+    "chegar": "github",
+    "git hub": "github",
+    "gui hub": "github",
+    "guithub": "github",
+    "github desktop": "github",
+    "and run 2": "android studio",
+    "androm studio": "android studio",
+    "android estudar": "android studio",
+    "android estudio": "android studio",
+}
+
 OPEN_PREFIXES = (
     "abra ",
     "abre ",
@@ -110,11 +124,13 @@ FOCUS_PREFIXES = (
     "volta para ",
     "foca no ",
     "foca na ",
+    "foca ",
     "foca o ",
     "foca a ",
     "foca em ",
     "focar no ",
     "focar na ",
+    "focar ",
     "focar o ",
     "focar a ",
     "focar em ",
@@ -162,9 +178,28 @@ CHATTER_PATTERNS = {
     "e ai": "Fala comigo.",
     "oi": "Ola.",
     "ola": "Ola.",
+    "olá": "Ola.",
     "posso falar": "Pode falar.",
     "ta ouvindo": "Estou ouvindo sim.",
     "esta ouvindo": "Estou ouvindo sim.",
+    "tudo bem": "Tudo certo por aqui. Pronto para trabalhar.",
+    "como voce esta": "Estou bem. Com vontade de ser util.",
+    "como voce ta": "Estou bem. Pode mandar.",
+    "obrigado": "Disponha. Estamos juntos.",
+    "obrigada": "Disponha. Estamos juntos.",
+    "valeu": "Valeu. Seguimos.",
+    "bom trabalho": "Obrigado. Estou pegando o jeito.",
+    "muito bom": "Boa. Isso significa que estamos evoluindo.",
+    "vamos trabalhar": "Vamos sim. Me diga o que quer fazer.",
+    "vamos avancar": "Vamos avancar. Qual frente voce quer puxar agora?",
+    "quem e voce": "Sou seu estagiario local. Eu abro apps, controlo janelas, navego e estou aprendendo a conversar melhor.",
+    "o que voce e": "Sou seu estagiario local. Ainda meio junior, mas dedicado.",
+    "qual seu nome": "Meu nome e Estagiario. Simples, funcional, com leve cheiro de cafe frio.",
+    "qual e seu nome": "Meu nome e Estagiario. Simples, funcional, com leve cheiro de cafe frio.",
+    "o que voce sabe fazer": "Posso abrir apps e sites, controlar janelas, navegar no navegador, controlar midia, lembrar atalhos e responder comandos por voz.",
+    "o que voce consegue fazer": "Posso abrir apps e sites, controlar janelas, navegar no navegador, controlar midia, lembrar atalhos e responder comandos por voz.",
+    "me conta uma coisa interessante": "Uma coisa interessante: quase toda automacao boa nasce de uma frase irritante repetida muitas vezes. A gente esta transformando irritacao em botao invisivel.",
+    "fala uma coisa interessante": "Uma coisa interessante: quase toda automacao boa nasce de uma frase irritante repetida muitas vezes. A gente esta transformando irritacao em botao invisivel.",
 }
 
 REPEAT_PATTERNS = {
@@ -238,7 +273,11 @@ def _site_options():
 
 
 def _smart_app_options():
-    return {normalize_text(k): k for k in load_smart_app_aliases().keys()}
+    options = {}
+    for alias, value in load_smart_app_aliases().items():
+        canonical = value.get("_key") if isinstance(value, dict) else None
+        options[normalize_text(alias)] = canonical or normalize_text(alias)
+    return options
 
 
 def _extract_after_prefix(text: str, prefixes):
@@ -276,6 +315,11 @@ def _strip_leading_articles(text: str) -> str:
     return " ".join(words)
 
 
+def _normalize_target_phrase(text: str) -> str:
+    target = _strip_leading_articles(normalize_text(text)).strip(" .")
+    return TARGET_CORRECTIONS.get(target, target)
+
+
 def _best_fuzzy_match(text: str, options: dict, cutoff: float = 0.72):
     if not text:
         return None
@@ -305,7 +349,7 @@ def _best_fuzzy_match(text: str, options: dict, cutoff: float = 0.72):
 
 def _match_app_target(text: str):
     apps = _app_options()
-    target = _strip_leading_articles(normalize_text(text))
+    target = _normalize_target_phrase(text)
     app = _best_fuzzy_match(target, apps, cutoff=0.68)
     if app:
         return app
@@ -316,6 +360,11 @@ def _match_app_target(text: str):
             return canonical
 
     return None
+
+
+def _match_smart_app_target(text: str):
+    target = _normalize_target_phrase(text)
+    return _best_fuzzy_match(target, _smart_app_options(), cutoff=0.66)
 
 
 def _looks_like_window_request(text: str) -> bool:
@@ -440,6 +489,44 @@ def detect_greeting(user_input: str):
     text = normalize_text(user_input)
     if text in CHATTER_PATTERNS:
         return {"intent": "respond", "target": None, "response": CHATTER_PATTERNS[text]}
+
+    if "bom dia" in text:
+        return {"intent": "respond", "target": None, "response": "Bom dia. Vamos fazer esse computador trabalhar."}
+
+    if "boa tarde" in text:
+        return {"intent": "respond", "target": None, "response": "Boa tarde. Estou pronto."}
+
+    if "boa noite" in text:
+        return {"intent": "respond", "target": None, "response": "Boa noite. Modo estagiario noturno ativado."}
+
+    if any(phrase in text for phrase in {"voce e legal", "voce e bom", "voce e massa"}):
+        return {"intent": "respond", "target": None, "response": "Obrigado. Eu tento compensar a falta de cafe com processamento."}
+
+    if difflib.SequenceMatcher(None, text, "qual o seu nome").ratio() >= 0.78:
+        return {"intent": "respond", "target": None, "response": CHATTER_PATTERNS["qual seu nome"]}
+
+    heard_about_match = re.search(r"(?:voce\s+)?(?:ja\s+)?ouviu falar(?:\s+de|\s+sobre)?\s+(.+)", text)
+    if heard_about_match:
+        subject = heard_about_match.group(1).strip(" .")
+        if subject:
+            return {
+                "intent": "respond",
+                "target": None,
+                "response": f"Ja ouvi falar de {subject}. O que voce quer saber sobre isso?",
+            }
+
+    if any(phrase in text for phrase in {"conversa comigo", "vamos conversar", "quero conversar"}):
+        return {"intent": "start_conversation", "target": None}
+
+    if any(phrase in text for phrase in {"parar conversa", "para conversa", "chega de conversa", "sair da conversa", "modo comando", "voltar comandos"}):
+        return {"intent": "stop_conversation", "target": None}
+
+    if any(phrase in text for phrase in {"esta funcionando", "funcionou", "deu certo"}):
+        return {"intent": "respond", "target": None, "response": "Boa. Pequena vitoria registrada."}
+
+    if any(phrase in text for phrase in {"nao funcionou", "deu errado", "falhou"}):
+        return {"intent": "respond", "target": None, "response": "Entendi. Me diga o que aconteceu que eu tento ajustar."}
+
     return None
 
 
@@ -573,6 +660,33 @@ def detect_navigation_command(user_input: str):
     if lower in {"ir para o fim", "vai para o fim", "fim da pagina", "final da pagina", "fim"}:
         return {"intent": "browser_scroll_bottom", "target": None}
 
+    if lower in {"voltar pagina", "voltar no site", "voltar no navegador", "pagina anterior", "volta pagina", "volta no site"}:
+        return {"intent": "browser_back", "target": None}
+
+    if lower in {"avancar pagina", "avancar no site", "avancar no navegador", "pagina seguinte", "vai pra frente", "vai para frente"}:
+        return {"intent": "browser_forward", "target": None}
+
+    if lower in {"atualizar pagina", "atualiza pagina", "recarregar pagina", "recarrega pagina", "refresh", "atualizar"}:
+        return {"intent": "browser_refresh", "target": None}
+
+    if any(phrase in lower for phrase in {"abrir primeiro resultado", "abre primeiro resultado", "abrir o primeiro resultado", "abre o primeiro resultado", "primeiro resultado"}):
+        return {"intent": "browser_open_first_result", "target": None}
+
+    if lower in {"abrir selecionado", "abre selecionado", "abrir item", "abre item", "entrar", "enter"}:
+        return {"intent": "browser_open_focused_item", "target": None}
+
+    if lower in {"clicar no centro", "clique no centro", "clica no centro", "clicar na pagina", "clique na pagina"}:
+        return {"intent": "browser_click_center", "target": None}
+
+    if lower in {"aumentar zoom", "aumenta zoom", "mais zoom", "zoom mais"}:
+        return {"intent": "browser_zoom_in", "target": None}
+
+    if lower in {"diminuir zoom", "diminui zoom", "menos zoom", "zoom menos"}:
+        return {"intent": "browser_zoom_out", "target": None}
+
+    if lower in {"resetar zoom", "restaurar zoom", "zoom normal", "voltar zoom"}:
+        return {"intent": "browser_zoom_reset", "target": None}
+
     find_match = re.match(r"^(?:procurar|procure|buscar|busque|encontre)\s+(.+?)\s+(?:na|nesta|nessa)\s+pagina$", lower)
     if find_match:
         return {"intent": "browser_find", "target": find_match.group(1).strip()}
@@ -631,8 +745,11 @@ def detect_browser_command(user_input: str):
     if lower in {"fecha", "fechar", "fecha ai", "fecha ae"}:
         return {"intent": "context_close", "target": None}
 
-    if lower in {"volta", "voltar", "aba anterior", "anterior"}:
+    if lower in {"aba anterior", "anterior"}:
         return {"intent": "browser_prev_tab", "target": None}
+
+    if lower in {"volta", "voltar"}:
+        return {"intent": "browser_back", "target": None}
 
     if lower in {"proxima", "proxima aba", "aba seguinte", "seguinte"} or "proxima aba" in lower:
         return {"intent": "browser_next_tab", "target": None}
@@ -939,56 +1056,80 @@ def detect_window_command(user_input: str):
 
     focus_target = _extract_after_prefix(lower, FOCUS_PREFIXES)
     if focus_target:
+        focus_target = _normalize_target_phrase(focus_target)
         app = _match_app_target(focus_target)
+        if not app:
+            app = _match_smart_app_target(focus_target)
         if app:
             return {"intent": "focus_app", "target": app}
         return {"intent": "respond", "target": None, "response": "Nao identifiquei qual janela focar."}
 
     maximize_target = _extract_after_prefix(lower, MAXIMIZE_PREFIXES)
     if maximize_target:
+        maximize_target = _normalize_target_phrase(maximize_target)
         app = _match_app_target(maximize_target)
+        if not app:
+            app = _match_smart_app_target(maximize_target)
         if app:
             return {"intent": "maximize_app", "target": app}
         return {"intent": "respond", "target": None, "response": "Nao identifiquei qual janela maximizar."}
 
     minimize_target = _extract_after_prefix(lower, MINIMIZE_PREFIXES)
     if minimize_target:
+        minimize_target = _normalize_target_phrase(minimize_target)
         app = _match_app_target(minimize_target)
+        if not app:
+            app = _match_smart_app_target(minimize_target)
         if app:
             return {"intent": "minimize_app", "target": app}
         return {"intent": "respond", "target": None, "response": "Nao identifiquei qual janela minimizar."}
 
     restore_target = _extract_after_prefix(lower, RESTORE_PREFIXES)
     if restore_target:
+        restore_target = _normalize_target_phrase(restore_target)
         app = _match_app_target(restore_target)
+        if not app:
+            app = _match_smart_app_target(restore_target)
         if app:
             return {"intent": "restore_app", "target": app}
         return {"intent": "respond", "target": None, "response": "Nao identifiquei qual janela restaurar."}
 
     focus_target = _extract_after_fuzzy_prefix(lower, FOCUS_PREFIXES)
     if focus_target:
+        focus_target = _normalize_target_phrase(focus_target)
         app = _match_app_target(focus_target)
+        if not app:
+            app = _match_smart_app_target(focus_target)
         if app:
             return {"intent": "focus_app", "target": app}
         return {"intent": "respond", "target": None, "response": "Nao identifiquei qual janela focar."}
 
     maximize_target = _extract_after_fuzzy_prefix(lower, MAXIMIZE_PREFIXES)
     if maximize_target:
+        maximize_target = _normalize_target_phrase(maximize_target)
         app = _match_app_target(maximize_target)
+        if not app:
+            app = _match_smart_app_target(maximize_target)
         if app:
             return {"intent": "maximize_app", "target": app}
         return {"intent": "respond", "target": None, "response": "Nao identifiquei qual janela maximizar."}
 
     minimize_target = _extract_after_fuzzy_prefix(lower, MINIMIZE_PREFIXES)
     if minimize_target:
+        minimize_target = _normalize_target_phrase(minimize_target)
         app = _match_app_target(minimize_target)
+        if not app:
+            app = _match_smart_app_target(minimize_target)
         if app:
             return {"intent": "minimize_app", "target": app}
         return {"intent": "respond", "target": None, "response": "Nao identifiquei qual janela minimizar."}
 
     restore_target = _extract_after_fuzzy_prefix(lower, RESTORE_PREFIXES)
     if restore_target:
+        restore_target = _normalize_target_phrase(restore_target)
         app = _match_app_target(restore_target)
+        if not app:
+            app = _match_smart_app_target(restore_target)
         if app:
             return {"intent": "restore_app", "target": app}
         return {"intent": "respond", "target": None, "response": "Nao identifiquei qual janela restaurar."}
@@ -1005,7 +1146,7 @@ def detect_close_app(user_input: str):
     if not close_target:
         return None
 
-    close_target = _strip_leading_articles(close_target)
+    close_target = _normalize_target_phrase(close_target)
 
     if _best_fuzzy_match(close_target, sites, cutoff=0.72):
         return {"intent": "browser_close_tab", "target": None}
@@ -1014,7 +1155,7 @@ def detect_close_app(user_input: str):
     if app:
         return {"intent": "close_app", "target": app}
 
-    smart_app = _best_fuzzy_match(close_target, _smart_app_options(), cutoff=0.68)
+    smart_app = _match_smart_app_target(close_target)
     if smart_app:
         return {"intent": "smart_close_app", "target": smart_app}
 
@@ -1031,7 +1172,7 @@ def detect_open_app(user_input: str):
         return None
 
     if open_target:
-        open_target = _strip_leading_articles(open_target)
+        open_target = _normalize_target_phrase(open_target)
 
         if _best_fuzzy_match(open_target, sites, cutoff=0.7):
             return None
@@ -1040,12 +1181,19 @@ def detect_open_app(user_input: str):
         if app:
             return {"intent": "open_app", "target": app}
 
+        smart_app = _match_smart_app_target(open_target)
+        if smart_app:
+            return {"intent": "smart_open", "target": smart_app}
+
         return {"intent": "smart_open", "target": open_target}
 
     if len(lower.split()) <= 3:
         app = _match_app_target(lower)
         if app:
             return {"intent": "open_app", "target": app}
+        smart_app = _match_smart_app_target(lower)
+        if smart_app:
+            return {"intent": "smart_open", "target": smart_app}
 
     return None
 
@@ -1130,6 +1278,41 @@ def detect_short_unclear_text(user_input: str):
     return None
 
 
+def detect_light_conversation(user_input: str):
+    text = normalize_text(user_input)
+    if not text:
+        return None
+
+    if any(word in text for word in {"conversavel", "conversar", "bater papo", "inteligente"}):
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": "Da para eu ficar mais conversavel sim. Por enquanto eu respondo melhor frases curtas, mas posso aprender respostas e contexto aos poucos.",
+        }
+
+    question_prefixes = ("por que ", "porque ", "como ", "qual ", "quando ", "onde ")
+    if any(text.startswith(prefix) for prefix in question_prefixes):
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": "Essa parte de conversa aberta ainda e limitada. Se voce quiser, posso responder perguntas simples e ir aprendendo respostas mais naturais.",
+        }
+
+    return None
+
+
+def detect_ollama_chat(user_input: str):
+    text = normalize_text(user_input)
+    if not text or len(text) <= 4:
+        return None
+
+    response = chat_response(user_input)
+    if response:
+        return {"intent": "respond", "target": None, "response": response}
+
+    return None
+
+
 def route(user_input: str):
     detectors = [
         detect_create_macro_start,
@@ -1163,6 +1346,8 @@ def route(user_input: str):
         detect_run_script,
         detect_profile_question,
         detect_short_unclear_text,
+        detect_ollama_chat,
+        detect_light_conversation,
     ]
 
     for detector in detectors:

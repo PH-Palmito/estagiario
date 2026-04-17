@@ -5,6 +5,8 @@ import re
 import subprocess
 import tempfile
 import unicodedata
+import time
+import wave
 import winsound
 from collections import deque
 from dataclasses import dataclass
@@ -78,7 +80,8 @@ COMMAND_PROMPT = (
     "minimiza, minimizar, maximiza, maximizar, restaura, restaurar, nova aba, fechar aba, "
     "proxima aba, aba anterior, de novo, pesquisar. "
     "Aplicativos e sites esperados: chrome, google chrome, youtube, google, vscode, vs code, "
-    "code, spotify, whatsapp, zap, bloco de notas, notas, powershell, edge, explorador de arquivos. "
+    "code, spotify, whatsapp, zap, bloco de notas, notas, powershell, edge, explorador de arquivos, "
+    "github, git hub, android studio, epic games, steam. "
     "Exemplos: estagiario abre o chrome; abre o vscode; minimiza o chrome; maximiza code; "
     "fecha o spotify; abre nova aba; fechar aba; estagiario abre spotify."
 )
@@ -108,6 +111,11 @@ HOTKEY_NAME = str(VOICE_PREFERENCES.get("trigger_hotkey", "F8")).upper()
 HOTKEY_VK = VIRTUAL_KEYS.get(HOTKEY_NAME, VIRTUAL_KEYS["F8"])
 TOGGLE_LISTENING_HOTKEY_NAME = str(VOICE_PREFERENCES.get("toggle_listening_hotkey", "F9")).upper()
 TOGGLE_LISTENING_HOTKEY_VK = VIRTUAL_KEYS.get(TOGGLE_LISTENING_HOTKEY_NAME, VIRTUAL_KEYS["F9"])
+SPEECH_INTERRUPT_KEYS = {
+    HOTKEY_VK,
+    TOGGLE_LISTENING_HOTKEY_VK,
+    VIRTUAL_KEYS["ESC"],
+}
 
 
 @dataclass
@@ -484,6 +492,10 @@ def consume_toggle_listening_hotkey_press() -> bool:
     return _consume_key_press(TOGGLE_LISTENING_HOTKEY_VK)
 
 
+def speech_interrupt_pressed() -> bool:
+    return any(_consume_key_press(vk_code) for vk_code in SPEECH_INTERRUPT_KEYS)
+
+
 def play_activation_sound():
     if not bool(VOICE_PREFERENCES.get("activation_sound", True)):
         return
@@ -503,6 +515,230 @@ def _clamp_int(value, minimum: int, maximum: int, default: int) -> int:
         return default
 
     return max(minimum, min(maximum, value))
+
+
+def _float_setting(name: str, default: float) -> str:
+    try:
+        return str(float(VOICE_PREFERENCES.get(name, default)))
+    except (TypeError, ValueError):
+        return str(default)
+
+
+def _prepare_tts_text(text: str) -> str:
+    replacements = {
+        "spotify": "ispótifai",
+        "Spotify": "Ispótifai",
+        "github": "guít rãb",
+        "GitHub": "Guít rãb",
+        "youtube": "iutúbi",
+        "YouTube": "Iutúbi",
+        "chatgpt": "chát g p t",
+        "ChatGPT": "Chát g p t",
+        "vscode": "v s côd",
+        "VSCode": "v s côd",
+        "code": "côd",
+        "Chrome": "Crôme",
+        "chrome": "crôme",
+    }
+
+    prepared = text
+    for source, target in replacements.items():
+        prepared = re.sub(rf"\b{re.escape(source)}\b", target, prepared)
+
+    return prepared
+
+
+def _wav_duration_seconds(path: str | Path) -> float:
+    try:
+        with wave.open(str(path), "rb") as wav_file:
+            frame_count = wav_file.getnframes()
+            frame_rate = wav_file.getframerate()
+            if frame_rate > 0:
+                return frame_count / float(frame_rate)
+    except Exception:
+        pass
+
+    return 10.0
+
+
+def _speak_with_piper(text: str) -> VoiceResult:
+    text_for_tts = _prepare_tts_text(text)
+    piper_exe = str(VOICE_PREFERENCES.get("piper_exe_path", "piper")).strip() or "piper"
+    model_path = str(VOICE_PREFERENCES.get("piper_model_path", "")).strip()
+    config_path = str(VOICE_PREFERENCES.get("piper_config_path", "")).strip()
+    speaker_id = str(VOICE_PREFERENCES.get("piper_speaker_id", "")).strip()
+
+    if not model_path:
+        return VoiceResult(ok=False, error="Modelo do Piper nao configurado.")
+
+    model = Path(model_path)
+    if not model.exists():
+        return VoiceResult(ok=False, error=f"Modelo do Piper nao encontrado: {model_path}")
+
+    if config_path and not Path(config_path).exists():
+        return VoiceResult(ok=False, error=f"Config do Piper nao encontrado: {config_path}")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
+        output_path = temp_file.name
+
+    command = [
+        piper_exe,
+        "--model",
+        str(model),
+        "--output_file",
+        output_path,
+        "--length_scale",
+        _float_setting("piper_length_scale", 1.0),
+        "--noise_scale",
+        _float_setting("piper_noise_scale", 0.667),
+        "--noise_w",
+        _float_setting("piper_noise_w", 0.8),
+    ]
+
+    if config_path:
+        command.extend(["--config", config_path])
+
+    if speaker_id:
+        command.extend(["--speaker", speaker_id])
+
+    try:
+        completed = subprocess.run(
+            command,
+            input=text_for_tts,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+
+        if completed.returncode != 0:
+            error = (completed.stderr or completed.stdout or "").strip()
+            return VoiceResult(ok=False, error=error or "Piper nao conseguiu gerar audio.")
+
+        duration_seconds = _wav_duration_seconds(output_path)
+        winsound.PlaySound(output_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+
+        started_at = time.monotonic()
+        while time.monotonic() - started_at < duration_seconds + 0.15:
+            if speech_interrupt_pressed():
+                winsound.PlaySound(None, 0)
+                return VoiceResult(ok=False, error="Fala interrompida.")
+            time.sleep(0.03)
+
+        return VoiceResult(ok=True, text=text)
+    except FileNotFoundError:
+        return VoiceResult(ok=False, error=f"Piper nao encontrado: {piper_exe}")
+    except subprocess.TimeoutExpired:
+        return VoiceResult(ok=False, error="Tempo limite atingido ao falar com Piper.")
+    except Exception as exc:
+        return VoiceResult(ok=False, error=f"Falha ao usar Piper: {exc}")
+    finally:
+        try:
+            Path(output_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def _speak_with_windows(text: str, culture: str | None = None) -> VoiceResult:
+    selected_culture = culture or str(VOICE_PREFERENCES.get("tts_voice_culture", "pt-BR"))
+    preferred_voice_name = str(VOICE_PREFERENCES.get("tts_voice_name", "")).strip()
+    tts_rate = _clamp_int(VOICE_PREFERENCES.get("tts_rate", 0), -10, 10, 0)
+    tts_volume = _clamp_int(VOICE_PREFERENCES.get("tts_volume", 100), 0, 100, 100)
+    safe_text = text.replace("'", "''")
+    script = f"""
+Add-Type -AssemblyName System.Speech
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+$voice = New-Object System.Speech.Synthesis.SpeechSynthesizer
+$preferredVoiceName = "{preferred_voice_name.replace('"', '`"')}"
+
+try {{
+    $voice.Rate = {tts_rate}
+    $voice.Volume = {tts_volume}
+    $selected = $null
+
+    if ($preferredVoiceName) {{
+        $selected = $voice.GetInstalledVoices() |
+            Where-Object {{ $_.VoiceInfo.Name -eq $preferredVoiceName }} |
+            Select-Object -First 1
+    }}
+
+    if (-not $selected) {{
+        $selected = $voice.GetInstalledVoices() |
+            Where-Object {{ $_.VoiceInfo.Culture.Name -eq "{selected_culture}" }} |
+            Select-Object -First 1
+    }}
+
+    if ($selected) {{
+        $voice.SelectVoice($selected.VoiceInfo.Name)
+    }}
+
+    $voice.Speak('{safe_text}')
+    Write-Output "__OK__"
+}} catch {{
+    Write-Output ("__ERROR__:" + $_.Exception.Message)
+}} finally {{
+    $voice.Dispose()
+}}
+"""
+
+    encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+
+    try:
+        process = subprocess.Popen(
+            [
+                POWERSHELL_EXE,
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-EncodedCommand",
+                encoded,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        started_at = time.monotonic()
+        while process.poll() is None:
+            if speech_interrupt_pressed():
+                process.terminate()
+                try:
+                    process.wait(timeout=1)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                return VoiceResult(ok=False, error="Fala interrompida.")
+
+            if time.monotonic() - started_at > 20:
+                process.kill()
+                return VoiceResult(ok=False, error="Tempo limite atingido ao falar a resposta.")
+
+            time.sleep(0.03)
+
+        stdout, stderr = process.communicate()
+        completed = subprocess.CompletedProcess(
+            process.args,
+            process.returncode,
+            stdout=stdout,
+            stderr=stderr,
+        )
+    except Exception as exc:
+        return VoiceResult(ok=False, error=f"Falha ao iniciar voz sintetizada: {exc}")
+
+    if completed.returncode != 0:
+        stderr = (completed.stderr or "").strip()
+        return VoiceResult(ok=False, error=stderr or "Sintese de voz indisponivel.")
+
+    stdout = (completed.stdout or "").strip()
+    if stdout.startswith("__ERROR__:"):
+        message = stdout.split("__ERROR__:", 1)[1].strip()
+        return VoiceResult(ok=False, error=message or "Sintese de voz indisponivel.")
+
+    return VoiceResult(ok=True, text=text)
 
 
 def listen_for_hotword(hotword: str = HOTWORD) -> VoiceResult:
@@ -574,62 +810,15 @@ def speak(text: str, culture: str | None = None) -> VoiceResult:
     if not bool(VOICE_PREFERENCES.get("tts_enabled", True)):
         return VoiceResult(ok=True, text=text)
 
-    selected_culture = culture or str(VOICE_PREFERENCES.get("tts_voice_culture", "pt-BR"))
-    preferred_voice_name = str(VOICE_PREFERENCES.get("tts_voice_name", "")).strip()
-    tts_rate = _clamp_int(VOICE_PREFERENCES.get("tts_rate", 0), -10, 10, 0)
-    tts_volume = _clamp_int(VOICE_PREFERENCES.get("tts_volume", 100), 0, 100, 100)
-    safe_text = text.replace("'", "''")
-    script = f"""
-Add-Type -AssemblyName System.Speech
-$ErrorActionPreference = "Stop"
-$ProgressPreference = "SilentlyContinue"
-$voice = New-Object System.Speech.Synthesis.SpeechSynthesizer
-$preferredVoiceName = "{preferred_voice_name.replace('"', '`"')}"
+    engine = str(VOICE_PREFERENCES.get("tts_engine", "windows")).strip().lower()
 
-try {{
-    $voice.Rate = {tts_rate}
-    $voice.Volume = {tts_volume}
-    $selected = $null
+    if engine == "piper":
+        result = _speak_with_piper(text)
+        if (
+            result.ok
+            or result.error == "Fala interrompida."
+            or not bool(VOICE_PREFERENCES.get("piper_fallback_to_windows", True))
+        ):
+            return result
 
-    if ($preferredVoiceName) {{
-        $selected = $voice.GetInstalledVoices() |
-            Where-Object {{ $_.VoiceInfo.Name -eq $preferredVoiceName }} |
-            Select-Object -First 1
-    }}
-
-    if (-not $selected) {{
-        $selected = $voice.GetInstalledVoices() |
-            Where-Object {{ $_.VoiceInfo.Culture.Name -eq "{selected_culture}" }} |
-            Select-Object -First 1
-    }}
-
-    if ($selected) {{
-        $voice.SelectVoice($selected.VoiceInfo.Name)
-    }}
-
-    $voice.Speak('{safe_text}')
-    Write-Output "__OK__"
-}} catch {{
-    Write-Output ("__ERROR__:" + $_.Exception.Message)
-}} finally {{
-    $voice.Dispose()
-}}
-"""
-
-    try:
-        completed = _run_powershell(script, timeout_seconds=20)
-    except subprocess.TimeoutExpired:
-        return VoiceResult(ok=False, error="Tempo limite atingido ao falar a resposta.")
-    except Exception as exc:
-        return VoiceResult(ok=False, error=f"Falha ao iniciar voz sintetizada: {exc}")
-
-    if completed.returncode != 0:
-        stderr = (completed.stderr or "").strip()
-        return VoiceResult(ok=False, error=stderr or "Sintese de voz indisponivel.")
-
-    stdout = (completed.stdout or "").strip()
-    if stdout.startswith("__ERROR__:"):
-        message = stdout.split("__ERROR__:", 1)[1].strip()
-        return VoiceResult(ok=False, error=message or "Sintese de voz indisponivel.")
-
-    return VoiceResult(ok=True, text=text)
+    return _speak_with_windows(text, culture=culture)
