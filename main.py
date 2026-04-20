@@ -15,12 +15,15 @@ from core.voice_command_classifier import normalize_voice_command
 from llm.chat import chat_response, clear_chat_history
 from memory.macros import add_macro
 from memory.session import clear
+from memory.voice_corrections import apply_voice_correction, remember_voice_correction
+from memory.voice_preferences import load_voice_preferences
 from tools.smart_open_tools import smart_open_needs_choice
 from voice.windows_voice import (
     HOTKEY_NAME,
     HOTWORD_LISTENING_ENABLED,
     consume_hotkey_press,
     consume_toggle_listening_hotkey_press,
+    listen_conversation_once,
     listen_for_hotword,
     listen_once,
     play_activation_sound,
@@ -33,15 +36,19 @@ from voice.windows_voice import (
 runtime_state = RuntimeState()
 pending_command = None
 pending_smart_open_choice = None
+pending_smart_open_invalid_attempts = 0
 voice_status = None
 hotword_ui_enabled = False
 rendered_status_line = ""
 conversation_mode = False
 conversation_ready_announced = False
+direct_response_ready_announced = False
+last_voice_text = ""
 
 creating_macro = False
 macro_name = None
 macro_steps = []
+VOICE_PREFERENCES = load_voice_preferences()
 
 
 def process_action(raw_action: dict):
@@ -65,11 +72,28 @@ def execute_command(command):
 
 
 def is_confirmation_yes(text: str) -> bool:
-    return text.lower().strip() in {"sim", "s", "confirmar", "ok", "pode"}
+    return normalize_text(text) in {"sim", "s", "confirmar", "ok", "pode", "pode sim"}
 
 
 def is_confirmation_no(text: str) -> bool:
-    return text.lower().strip() in {"nao", "não", "n", "cancelar"}
+    normalized = normalize_text(text)
+    cancel_words = {
+        "nao",
+        "não",
+        "n",
+        "cancelar",
+        "cancela",
+        "cancele",
+        "cancelar isso",
+        "deixa",
+        "deixa pra la",
+        "deixa para la",
+        "deixa quieto",
+        "esquece",
+        "sair",
+        "voltar",
+    }
+    return normalized in cancel_words or normalized.startswith(("cancela ", "cancelar ", "cancele "))
 
 
 def smart_open_choice_kind(text: str):
@@ -131,8 +155,73 @@ def smart_open_choice_kind(text: str):
     return None
 
 
+def should_style_response(message: str) -> bool:
+    if not message or "\n" in message or len(message) > 120:
+        return False
+
+    prefixes_to_keep = (
+        "Texto selecionado:",
+        "Li selecionado:",
+        "Consegui ler",
+        "Vejo na tela:",
+        "Diagnostico",
+        "Correcoes de voz:",
+        "Rotinas:",
+        "Macros:",
+        "Arquivo",
+        "Erro",
+    )
+    return not message.startswith(prefixes_to_keep)
+
+
+def style_response(message: str) -> str:
+    if str(VOICE_PREFERENCES.get("assistant_style", "")).strip().lower() != "jarvis":
+        return message
+
+    if not bool(VOICE_PREFERENCES.get("assistant_brief_confirmations", True)):
+        return message
+
+    if not should_style_response(message):
+        return message
+
+    replacements = {
+        "Abrindo spotify.": "Certamente. Abrindo Spotify.",
+        "Abrindo chrome.": "Certamente. Abrindo Chrome.",
+        "Abrindo code.": "Certamente. Abrindo VS Code.",
+        "Fechando spotify.": "Fechando Spotify.",
+        "Fechando code.": "Fechando VS Code.",
+        "Nao entendi.": "Nao captei com precisao.",
+        "Pode repetir?": "Pode repetir, por favor?",
+        "Nao identifiquei o comando.": "Nao identifiquei o comando.",
+        "Escuta pausada.": "Escuta pausada.",
+        "Escuta retomada.": "Escuta retomada.",
+        "Acao cancelada.": "Acao cancelada.",
+    }
+    if message in replacements:
+        return replacements[message]
+
+    action_prefixes = (
+        "Abrindo ",
+        "Fechando ",
+        "Maximizando ",
+        "Minimizando ",
+        "Restaurando ",
+        "Focando ",
+        "Pesquisando ",
+        "Rolando ",
+        "Procurando ",
+        "Tocando ",
+        "Pausando ",
+    )
+    if message.startswith(action_prefixes):
+        return f"Pronto, {message[0].lower() + message[1:]}"
+
+    return message
+
+
 def output_response(message: str, voice_mode: bool):
-    terminal_print(f"IA: {message}")
+    styled_message = style_response(message)
+    terminal_print(f"IA: {styled_message}")
 
     quiet_messages = {
         "Nao entendi.",
@@ -140,8 +229,8 @@ def output_response(message: str, voice_mode: bool):
         "Nao identifiquei o comando.",
     }
 
-    if voice_mode and message not in quiet_messages:
-        speak(message)
+    if voice_mode and styled_message not in quiet_messages:
+        speak(styled_message)
 
 
 def set_voice_status(status: str):
@@ -194,17 +283,23 @@ def read_user_input(
     announce_ready: bool = True,
     fallback_to_text: bool = True,
     ready_message: str = "Pode falar...",
+    ignored_text_filter=None,
+    listener=None,
 ) -> str:
     if not voice_mode:
         return terminal_input("Voce: ")
 
     if announce_ready:
         terminal_print(f"IA: {ready_message}")
-    heard = listen_once()
+    listen = listener or listen_once
+    heard = listen()
 
     if heard.ok:
-        terminal_print(f"Voce (voz): {heard.text}")
-        return heard.text.strip()
+        text = heard.text.strip()
+        if ignored_text_filter and ignored_text_filter(text):
+            return ""
+        terminal_print(f"Voce (voz): {text}")
+        return text
 
     if not fallback_to_text and heard.error in {
         "Nao detectei fala no microfone.",
@@ -224,6 +319,10 @@ def read_user_input(
 def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
     if not voice_mode:
         return user_input
+
+    learned = apply_voice_correction(user_input)
+    if learned:
+        return learned
 
     raw_action = route(user_input)
     if raw_action.get("intent") != "respond":
@@ -318,6 +417,7 @@ def is_transcription_artifact(text: str) -> bool:
         "legendas pela comunidade de amara.org",
         "aplicativos e sites esperados em portugues do brasil",
         "exemplos e sites esperados",
+        "tem que ter o volume correto",
         "transcreva comandos curtos",
         "transcreva comandos curtos em portugues do brasil",
         "assistente local chamado estagiario",
@@ -330,8 +430,40 @@ def is_transcription_artifact(text: str) -> bool:
     )
 
 
+def is_unreliable_conversation_text(text: str) -> bool:
+    normalized = normalize_text(text)
+
+    if is_transcription_artifact(text):
+        return True
+
+    if not normalized:
+        return True
+
+    words = normalized.split()
+    if len(words) == 1 and len(normalized) <= 2:
+        return True
+
+    promptish_fragments = {
+        "portugues do brasil",
+        "comandos curtos",
+        "sites esperados",
+        "vocabulario esperado",
+        "exemplos",
+        "comunidade de amara",
+    }
+    if any(fragment in normalized for fragment in promptish_fragments):
+        return True
+
+    if len(words) >= 18:
+        unique_ratio = len(set(words)) / max(1, len(words))
+        if unique_ratio < 0.3 and "um dois" not in normalized:
+            return True
+
+    return False
+
+
 def conversation_reply(user_input: str) -> str:
-    normalized = normalize_text(user_input)
+    normalized = normalize_text(user_input).strip(" .!?")
 
     if not normalized:
         return "Estou aqui."
@@ -339,29 +471,79 @@ def conversation_reply(user_input: str) -> str:
     if "um dois" in normalized or "testando" in normalized or "teste de microfone" in normalized:
         return "Teste de microfone recebido. Estou te ouvindo."
 
-    if "tudo bem" in normalized:
-        return "Tudo bem por aqui. Estou em modo conversa, sem executar comandos por acidente."
+    if normalized in {"exatamente", "isso", "isso ai", "e isso ai", "aham", "sim", "boa"} or (
+        "isso" in normalized and len(normalized.split()) <= 3
+    ):
+        return "Peguei."
+
+    if "tudo bem" in normalized or "como voce" in normalized or "como vc" in normalized:
+        response = chat_response(user_input)
+        return response or "Tudo bem por aqui. E voce?"
 
     if "bom dia" in normalized:
-        return "Bom dia. Estou aqui, mais para papo do que para apertar botao agora."
+        response = chat_response(user_input)
+        return response or "Bom dia."
 
     if "boa tarde" in normalized:
-        return "Boa tarde. Pode conversar comigo sem cerimônia."
+        response = chat_response(user_input)
+        return response or "Boa tarde."
 
     if "boa noite" in normalized:
-        return "Boa noite. Modo conversa tranquilo ativado."
+        response = chat_response(user_input)
+        return response or "Boa noite."
 
     if difflib.SequenceMatcher(None, normalized, "qual o seu nome").ratio() >= 0.78:
-        return "Meu nome e Estagiario. Ainda junior, mas ja com algumas manias de assistente."
-
-    if "estimado usuario" in normalized:
-        return "Estimado usuario foi um floreio inesperado, mas confesso que teve seu charme."
+        return "Meu nome e Estagiario."
 
     response = chat_response(user_input)
     if response:
         return response
 
-    return "Estou sem acesso ao meu raciocinio local agora, mas ainda consigo te ouvir. Me fala de um jeito simples."
+    return "Acho que eu ouvi meio torto. Repete de outro jeito?"
+
+
+def append_multi_step_result(results, result):
+    repeated_noise = {
+        "Nao sei o que fechar.",
+        "Pode repetir?",
+        "Nao entendi.",
+    }
+
+    if result in repeated_noise and result in results:
+        return
+
+    results.append(result)
+
+
+def maybe_learn_correction_for_last_voice(user_input: str) -> str | None:
+    global last_voice_text
+
+    normalized = normalize_text(user_input)
+    prefixes = (
+        "corrigir ultimo comando para ",
+        "corrija ultimo comando para ",
+        "corrigir ultima fala para ",
+        "corrija ultima fala para ",
+        "era para ser ",
+        "eu quis dizer ",
+    )
+
+    target = None
+    for prefix in prefixes:
+        if normalized.startswith(prefix):
+            target = user_input[len(prefix):].strip()
+            break
+
+    if not target:
+        return None
+
+    if not last_voice_text:
+        return "Ainda nao tenho uma fala de voz para corrigir."
+
+    remember_voice_correction(last_voice_text, target)
+    learned_from = last_voice_text
+    last_voice_text = ""
+    return f"Aprendi: quando ouvir '{learned_from}', vou entender como '{target}'."
 
 
 def handle_multi_step_request(user_input: str):
@@ -384,16 +566,17 @@ def handle_multi_step_request(user_input: str):
         processed = process_action(step)
 
         if isinstance(processed, str):
-            results.append(processed)
+            append_multi_step_result(results, processed)
             continue
 
         if processed.requires_confirmation:
-            results.append(
-                f"Acao sensivel no plano bloqueada: {processed.action} {processed.params}"
+            append_multi_step_result(
+                results,
+                f"Acao sensivel no plano bloqueada: {processed.action} {processed.params}",
             )
             continue
 
-        results.append(execute_command(processed))
+        append_multi_step_result(results, execute_command(processed))
 
     return "\n".join(results)
 
@@ -426,12 +609,15 @@ def execute_routine_steps(steps):
 
 
 def main():
+    global last_voice_text
     global pending_command
     global pending_smart_open_choice
+    global pending_smart_open_invalid_attempts
     global creating_macro, macro_name, macro_steps
     global hotword_ui_enabled
     global conversation_mode
     global conversation_ready_announced
+    global direct_response_ready_announced
 
     voice_mode = "--voice" in sys.argv
     hotword_mode = "--hotword" in sys.argv
@@ -494,10 +680,11 @@ def main():
                 set_voice_status("RESPOSTA")
                 user_input = read_user_input(
                     voice_mode,
-                    announce_ready=True,
+                    announce_ready=not direct_response_ready_announced,
                     fallback_to_text=False,
                     ready_message="Pode responder...",
                 )
+                direct_response_ready_announced = True
             elif conversation_listen_mode:
                 set_voice_status("CONVERSA")
                 user_input = read_user_input(
@@ -505,6 +692,8 @@ def main():
                     announce_ready=not conversation_ready_announced,
                     fallback_to_text=False,
                     ready_message="Pode falar comigo...",
+                    ignored_text_filter=is_unreliable_conversation_text,
+                    listener=listen_conversation_once,
                 )
                 conversation_ready_announced = True
             elif voice_mode and hotword_mode:
@@ -544,6 +733,11 @@ def main():
         if is_transcription_artifact(user_input):
             continue
 
+        correction_response = maybe_learn_correction_for_last_voice(user_input)
+        if correction_response:
+            output_response(correction_response, voice_mode)
+            continue
+
         if conversation_mode and is_conversation_stop(user_input):
             conversation_mode = False
             conversation_ready_announced = False
@@ -556,7 +750,69 @@ def main():
             output_response(conversation_reply(user_input), voice_mode)
             continue
 
+        if pending_command is not None:
+            if is_confirmation_yes(user_input):
+                result = execute_command(pending_command)
+                pending_command = None
+                direct_response_ready_announced = False
+                output_response(result, voice_mode)
+                continue
+
+            if is_confirmation_no(user_input):
+                pending_command = None
+                direct_response_ready_announced = False
+                output_response("Acao cancelada.", voice_mode)
+                continue
+
+            output_response("Responda com sim ou nao.", voice_mode)
+            continue
+
+        if pending_smart_open_choice is not None:
+            if is_confirmation_no(user_input):
+                pending_smart_open_choice = None
+                pending_smart_open_invalid_attempts = 0
+                direct_response_ready_announced = False
+                output_response("Ok, nao abri.", voice_mode)
+                continue
+
+            kind = smart_open_choice_kind(user_input)
+
+            if not kind:
+                pending_smart_open_invalid_attempts += 1
+                if pending_smart_open_invalid_attempts >= 2:
+                    pending_smart_open_choice = None
+                    pending_smart_open_invalid_attempts = 0
+                    direct_response_ready_announced = False
+                    output_response("Nao consegui entender a resposta. Cancelei essa pergunta.", voice_mode)
+                    continue
+
+                output_response("Responda com app, site ou cancelar.", voice_mode)
+                continue
+
+            raw_action = {
+                "intent": "smart_open_choice",
+                "target": {
+                    "name": pending_smart_open_choice,
+                    "kind": kind,
+                },
+            }
+            pending_smart_open_choice = None
+            pending_smart_open_invalid_attempts = 0
+            direct_response_ready_announced = False
+            processed = process_action(raw_action)
+
+            if isinstance(processed, str):
+                output_response(processed, voice_mode)
+                continue
+
+            result = execute_command(processed)
+            output_response(result, voice_mode)
+            continue
+
+        original_user_input = user_input
         user_input = maybe_normalize_voice_command(user_input, voice_mode)
+        if voice_mode and original_user_input == user_input:
+            last_voice_text = original_user_input
 
         if creating_macro:
             if user_input.lower().strip() == "fim":
@@ -688,6 +944,8 @@ def main():
 
         if processed.action == "smart_open" and smart_open_needs_choice(processed.params.get("target")):
             pending_smart_open_choice = processed.params.get("target")
+            pending_smart_open_invalid_attempts = 0
+            direct_response_ready_announced = False
             output_response(
                 f"Primeira vez que vejo {pending_smart_open_choice}. Quer abrir como app ou site?",
                 voice_mode,
@@ -696,6 +954,7 @@ def main():
 
         if processed.requires_confirmation:
             pending_command = processed
+            direct_response_ready_announced = False
             output_response(
                 f"Confirma a acao {processed.action} com {processed.params}?",
                 voice_mode,

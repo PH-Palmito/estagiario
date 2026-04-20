@@ -31,6 +31,7 @@ HOTWORD_MODEL_SIZE = "tiny"
 FRAME_SIZE = 1024
 DEFAULT_MAX_RECORD_SECONDS = 6.0
 VOICE_PREFERENCES = load_voice_preferences()
+CONVERSATION_MODEL_SIZE = str(VOICE_PREFERENCES.get("conversation_model_size", COMMAND_MODEL_SIZE))
 
 
 def _float_pref(name: str, default: float, minimum: float, maximum: float) -> float:
@@ -64,9 +65,12 @@ AUDIO_TARGET_PEAK = _float_pref("audio_target_peak", 0.75, 0.1, 0.98)
 AUDIO_MAX_GAIN = _float_pref("audio_max_gain", 4.0, 1.0, 20.0)
 AUDIO_DIAGNOSTIC_SECONDS = _float_pref("audio_diagnostic_seconds", 4.0, 1.0, 15.0)
 WHISPER_COMMAND_VAD_FILTER = bool(VOICE_PREFERENCES.get("whisper_command_vad_filter", False))
+WHISPER_CONVERSATION_VAD_FILTER = bool(VOICE_PREFERENCES.get("whisper_conversation_vad_filter", False))
 WHISPER_HOTWORD_VAD_FILTER = bool(VOICE_PREFERENCES.get("whisper_hotword_vad_filter", True))
 WHISPER_COMMAND_BEAM_SIZE = _int_pref("whisper_command_beam_size", 5, 1, 10)
 WHISPER_COMMAND_BEST_OF = _int_pref("whisper_command_best_of", 5, 1, 10)
+WHISPER_CONVERSATION_BEAM_SIZE = _int_pref("whisper_conversation_beam_size", 3, 1, 10)
+WHISPER_CONVERSATION_BEST_OF = _int_pref("whisper_conversation_best_of", 3, 1, 10)
 WHISPER_HOTWORD_BEAM_SIZE = _int_pref("whisper_hotword_beam_size", 1, 1, 5)
 WHISPER_HOTWORD_BEST_OF = _int_pref("whisper_hotword_best_of", 1, 1, 5)
 HOTWORD = str(VOICE_PREFERENCES.get("hotword", "estagiario"))
@@ -74,6 +78,9 @@ HOTWORD_LISTENING_ENABLED = bool(VOICE_PREFERENCES.get("hotword_listening_enable
 HOTWORD_TIMEOUT_SECONDS = _float_pref("hotword_timeout_seconds", 3.0, 0.8, 8.0)
 HOTWORD_MAX_SILENCE_SECONDS = _float_pref("hotword_max_silence_seconds", 0.5, 0.15, 2.0)
 HOTWORD_MIN_SPEECH_SECONDS = _float_pref("hotword_min_speech_seconds", 0.12, 0.05, 1.0)
+CONVERSATION_TIMEOUT_SECONDS = _float_pref("conversation_timeout_seconds", 7.0, 1.0, 12.0)
+CONVERSATION_MAX_SILENCE_SECONDS = _float_pref("conversation_max_silence_seconds", 1.0, 0.25, 3.0)
+CONVERSATION_MIN_SPEECH_SECONDS = _float_pref("conversation_min_speech_seconds", 0.35, 0.08, 2.0)
 COMMAND_PROMPT = (
     "Assistente local chamado estagiario. Transcreva comandos curtos em portugues do Brasil. "
     "Vocabulário esperado: estagiario, abre, abrir, fecha, fechar, foca, focar, troca, "
@@ -85,6 +92,18 @@ COMMAND_PROMPT = (
     "Exemplos: estagiario abre o chrome; abre o vscode; minimiza o chrome; maximiza code; "
     "fecha o spotify; abre nova aba; fechar aba; estagiario abre spotify."
 )
+COMMAND_PROMPT = (
+    "Comandos curtos em portugues do Brasil para controlar o computador. "
+    "Verbos comuns: abrir, fechar, focar, trocar, minimizar, maximizar, restaurar, pesquisar, ler, selecionar. "
+    "Alvos comuns: chrome, youtube, google, vscode, code, spotify, whatsapp, zap, bloco de notas, "
+    "powershell, edge, github, android studio, steam, mercado livre, magalu."
+)
+CONVERSATION_PROMPT = str(
+    VOICE_PREFERENCES.get(
+        "conversation_transcription_prompt",
+        "Conversa casual em portugues do Brasil.",
+    )
+).strip()
 HOTWORD_PROMPT = f"Palavra de ativacao: {HOTWORD}."
 
 _models = {}
@@ -419,7 +438,7 @@ def run_audio_diagnostic(seconds: float | None = None) -> str:
 def _transcribe_audio(
     audio: np.ndarray,
     model_size: str,
-    prompt: str,
+    prompt: str | None,
     beam_size: int,
     best_of: int,
     vad_filter: bool,
@@ -441,7 +460,7 @@ def _transcribe_audio(
             beam_size=beam_size,
             best_of=best_of,
             temperature=0.0,
-            initial_prompt=prompt,
+            initial_prompt=prompt or None,
             condition_on_previous_text=False,
         )
 
@@ -800,6 +819,28 @@ def listen_once(timeout_seconds: int = 6, culture: str = "pt") -> VoiceResult:
         beam_size=WHISPER_COMMAND_BEAM_SIZE,
         best_of=WHISPER_COMMAND_BEST_OF,
         vad_filter=WHISPER_COMMAND_VAD_FILTER,
+    )
+
+
+def listen_conversation_once(timeout_seconds: float | None = None, culture: str = "pt") -> VoiceResult:
+    del culture
+
+    try:
+        audio = _record_audio(
+            timeout_seconds or CONVERSATION_TIMEOUT_SECONDS,
+            min_speech_seconds=CONVERSATION_MIN_SPEECH_SECONDS,
+            max_silence_seconds=CONVERSATION_MAX_SILENCE_SECONDS,
+        )
+    except Exception as exc:
+        return VoiceResult(ok=False, error=f"Falha ao acessar o microfone: {exc}")
+
+    return _transcribe_audio(
+        audio=audio,
+        model_size=CONVERSATION_MODEL_SIZE,
+        prompt=CONVERSATION_PROMPT,
+        beam_size=WHISPER_CONVERSATION_BEAM_SIZE,
+        best_of=WHISPER_CONVERSATION_BEST_OF,
+        vad_filter=WHISPER_CONVERSATION_VAD_FILTER,
     )
 
 

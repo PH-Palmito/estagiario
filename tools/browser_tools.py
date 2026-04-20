@@ -1,5 +1,6 @@
 import base64
 import ctypes
+import json
 import os
 import re
 import subprocess
@@ -24,7 +25,11 @@ VK_CONTROL = 0x11
 VK_MENU = 0x12
 VK_SHIFT = 0x10
 VK_TAB = 0x09
+VK_A = 0x41
+VK_C = 0x43
+VK_ESCAPE = 0x1B
 VK_L = 0x4C
+VK_V = 0x56
 VK_W = 0x57
 VK_F = 0x46
 VK_R = 0x52
@@ -47,12 +52,28 @@ VK_RIGHT = 0x27
 KEYEVENTF_KEYUP = 0x0002
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_WHEEL = 0x0800
 SPOTIFY_TRACK_SEARCH_PREFIX = "track:"
 SPOTIFY_TRACK_RESULT_CLICKS = (
     (0.52, 0.45),
     (0.49, 0.50),
     (0.56, 0.52),
 )
+LAST_BROWSER_ELEMENTS = []
+
+
+def _remember_text_items(lines):
+    global LAST_BROWSER_ELEMENTS
+
+    LAST_BROWSER_ELEMENTS = [
+        {
+            "text": line,
+            "x": None,
+            "y": None,
+            "type": "Text",
+        }
+        for line in lines
+    ]
 
 
 def _run_powershell(script: str, timeout_seconds: int = 10) -> subprocess.CompletedProcess:
@@ -73,6 +94,38 @@ def _run_powershell(script: str, timeout_seconds: int = 10) -> subprocess.Comple
         errors="replace",
         timeout=timeout_seconds,
     )
+
+
+def _get_clipboard_text() -> str:
+    try:
+        completed = _run_powershell("Get-Clipboard -Raw -ErrorAction SilentlyContinue", timeout_seconds=3)
+    except Exception:
+        return ""
+
+    return completed.stdout or ""
+
+
+def _set_clipboard_text(text: str):
+    try:
+        subprocess.run(
+            [
+                POWERSHELL_EXE,
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "Set-Clipboard",
+            ],
+            input=text,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=3,
+        )
+    except Exception:
+        pass
 
 
 def _activate_browser_window() -> bool:
@@ -296,6 +349,779 @@ Write-Output ("__POINT__:{0},{1}" -f $candidate.X, $candidate.Y)
     y = int(point_match.group(2))
     _click(x, y)
     return True
+
+
+def _normalize_text_for_match(text: str) -> str:
+    text = text.lower()
+    text = re.sub(r"[^\w\s]", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def _short_click_query(text: str) -> str:
+    normalized = re.sub(r"\s+", " ", text).strip()
+    normalized = re.sub(r"\bR\$\s*[\d\.\,]+.*$", "", normalized, flags=re.IGNORECASE).strip()
+    words = normalized.split()
+
+    if len(words) > 8:
+        normalized = " ".join(words[:8])
+
+    return normalized
+
+
+def _extract_brl_price(text: str):
+    matches = re.findall(r"R\$\s*([\d\.]+,\d{2})", text or "", flags=re.IGNORECASE)
+    if not matches:
+        return None
+
+    values = []
+    for match in matches:
+        try:
+            values.append(float(match.replace(".", "").replace(",", ".")))
+        except ValueError:
+            continue
+
+    if not values:
+        return None
+
+    return min(values)
+
+
+def _run_browser_javascript(script_body: str) -> bool:
+    if not _activate_browser_window():
+        return False
+
+    old_clipboard = _get_clipboard_text()
+
+    try:
+        _shortcut(VK_CONTROL, VK_L)
+        time.sleep(0.05)
+        _type_text("javascript:")
+        _set_clipboard_text(script_body)
+        _shortcut(VK_CONTROL, VK_V)
+        time.sleep(0.05)
+        _tap(VK_RETURN)
+        time.sleep(0.25)
+        return True
+    except Exception:
+        return False
+    finally:
+        _set_clipboard_text(old_clipboard)
+
+
+def _run_browser_javascript_and_read_clipboard(script_body: str, marker: str, timeout: float = 0.8) -> str:
+    if not _activate_browser_window():
+        return ""
+
+    old_clipboard = _get_clipboard_text()
+
+    try:
+        _set_clipboard_text("")
+        _shortcut(VK_CONTROL, VK_L)
+        time.sleep(0.05)
+        _type_text("javascript:")
+        _set_clipboard_text(script_body)
+        _shortcut(VK_CONTROL, VK_V)
+        time.sleep(0.05)
+        _tap(VK_RETURN)
+        time.sleep(timeout)
+        copied = _get_clipboard_text()
+
+        if copied.startswith(marker):
+            return copied[len(marker):].strip()
+
+        return ""
+    except Exception:
+        return ""
+    finally:
+        _set_clipboard_text(old_clipboard)
+
+
+def _click_page_item_by_text(text: str) -> bool:
+    # Disabled: address-bar JavaScript bookmarklets can be interpreted as a search by Chrome.
+    # Keep product clicks conservative until we have a safer browser-control channel.
+    return False
+
+    query = _short_click_query(text)
+    if not query:
+        return False
+
+    query_json = json.dumps(query, ensure_ascii=False)
+    script = f"""void ((()=>{{
+const q={query_json};
+const norm=s=>(s||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^\\p{{L}}\\p{{N}}\\s]/gu," ").replace(/\\s+/g," ").trim();
+const words=norm(q).split(" ").filter(w=>w.length>2).slice(0,8);
+const visible=el=>{{
+  const r=el.getBoundingClientRect();
+  const st=getComputedStyle(el);
+  return r.width>30&&r.height>12&&r.bottom>70&&r.top<innerHeight&&st.visibility!=="hidden"&&st.display!=="none";
+}};
+const scoreElement=el=>{{
+  if(!visible(el)) return null;
+  const text=norm(el.innerText||el.textContent||el.getAttribute("aria-label")||el.title||"");
+  if(!text) return null;
+  let matches=0;
+  for(const w of words) if(text.includes(w)) matches++;
+  if(matches<Math.min(3, words.length)) return null;
+  const r=el.getBoundingClientRect();
+  let score=matches*1000-r.top;
+  if(el.tagName==="A") score+=500;
+  if(el.querySelector&&el.querySelector("a")) score+=250;
+  if(text.includes("r$")) score+=150;
+  return {{el, score, top:r.top}};
+}};
+const nodes=[...document.querySelectorAll("a,button,[role='link'],[role='button'],article,li,section,div")];
+const best=nodes.map(scoreElement).filter(Boolean).sort((a,b)=>b.score-a.score||a.top-b.top)[0];
+if(!best) return false;
+const target=best.el.closest("a")||best.el.querySelector("a")||best.el;
+target.scrollIntoView({{block:"center", inline:"center"}});
+setTimeout(()=>target.click(),120);
+return true;
+}})())"""
+
+    return _run_browser_javascript(script)
+
+
+def _click_browser_element_by_text(query: str):
+    query_words = [
+        word
+        for word in _normalize_text_for_match(query).split()
+        if len(word) >= 2
+    ][:5]
+    if not query_words:
+        return False
+
+    ps_words = ", ".join(f"'{word}'" for word in query_words)
+    names = ", ".join(f"'{name}'" for name in BROWSER_ACTIVATE_NAMES)
+    script = f"""
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+
+$processNames = @({names})
+$queryWords = @({ps_words})
+$process = $null
+
+foreach ($name in $processNames) {{
+    $process = Get-Process -Name $name -ErrorAction SilentlyContinue |
+        Where-Object {{ $_.MainWindowHandle -ne 0 }} |
+        Sort-Object StartTime -Descending |
+        Select-Object -First 1
+
+    if ($process) {{
+        break
+    }}
+}}
+
+if (-not $process) {{
+    Write-Output "__NO_BROWSER__"
+    return
+}}
+
+$root = [System.Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+if (-not $root) {{
+    Write-Output "__NO_ROOT__"
+    return
+}}
+
+$rootRect = $root.Current.BoundingRectangle
+$elements = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+$candidates = @()
+
+for ($i = 0; $i -lt $elements.Count; $i++) {{
+    $element = $elements.Item($i)
+    try {{
+        $name = ([string]$element.Current.Name).Trim()
+        $controlType = $element.Current.ControlType.ProgrammaticName
+        $rect = $element.Current.BoundingRectangle
+
+        if (-not $name -or $name.Length -lt 2) {{
+            continue
+        }}
+
+        if ($rect.IsEmpty -or $rect.Width -lt 12 -or $rect.Height -lt 8) {{
+            continue
+        }}
+
+        $relativeTop = $rect.Top - $rootRect.Top
+        $relativeLeft = $rect.Left - $rootRect.Left
+
+        if ($relativeTop -lt 85 -or $relativeLeft -lt 5) {{
+            continue
+        }}
+
+        $normalizedName = $name.ToLower() -replace "[^\\p{{L}}\\p{{Nd}}\\s]", " "
+        $normalizedName = $normalizedName -replace "\\s+", " "
+
+        $matches = 0
+        foreach ($word in $queryWords) {{
+            if ($normalizedName.Contains($word)) {{
+                $matches += 1
+            }}
+        }}
+
+        if ($matches -le 0) {{
+            continue
+        }}
+
+        $score = $matches * 100
+        if ($controlType -match "Button|Hyperlink|ListItem|DataItem") {{
+            $score += 80
+        }}
+        if ($matches -eq $queryWords.Count) {{
+            $score += 120
+        }}
+
+        # Prefer visible content area and elements closer to the top.
+        $score += [Math]::Max(0, 500 - [int]$relativeTop)
+
+        $candidates += [pscustomobject]@{{
+            Score = $score
+            Top = $rect.Top
+            Left = $rect.Left
+            X = [int]($rect.Left + [Math]::Min([Math]::Max($rect.Width / 2, 12), 180))
+            Y = [int]($rect.Top + ($rect.Height / 2))
+        }}
+    }} catch {{
+    }}
+}}
+
+$candidate = $candidates |
+    Sort-Object -Property @{{ Expression = "Score"; Descending = $true }}, @{{ Expression = "Top"; Descending = $false }}, @{{ Expression = "Left"; Descending = $false }} |
+    Select-Object -First 1
+
+if (-not $candidate) {{
+    Write-Output "__NO_MATCH__"
+    return
+}}
+
+Write-Output ("__POINT__:{0},{1}" -f $candidate.X, $candidate.Y)
+"""
+
+    try:
+        completed = _run_powershell(script, timeout_seconds=8)
+    except Exception:
+        return False
+
+    output = completed.stdout or ""
+    point_match = re.search(r"__POINT__:(-?\d+),(-?\d+)", output)
+    if not point_match:
+        return False
+
+    x = int(point_match.group(1))
+    y = int(point_match.group(2))
+    _click(x, y)
+    return True
+
+
+def _read_browser_elements(limit: int = 10):
+    names = ", ".join(f"'{name}'" for name in BROWSER_ACTIVATE_NAMES)
+    script = f"""
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+
+$processNames = @({names})
+$process = $null
+
+foreach ($name in $processNames) {{
+    $process = Get-Process -Name $name -ErrorAction SilentlyContinue |
+        Where-Object {{ $_.MainWindowHandle -ne 0 }} |
+        Sort-Object StartTime -Descending |
+        Select-Object -First 1
+
+    if ($process) {{
+        break
+    }}
+}}
+
+if (-not $process) {{
+    Write-Output "__NO_BROWSER__"
+    return
+}}
+
+$root = [System.Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+if (-not $root) {{
+    Write-Output "__NO_ROOT__"
+    return
+}}
+
+$rootRect = $root.Current.BoundingRectangle
+$elements = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+$rows = @()
+
+for ($i = 0; $i -lt $elements.Count; $i++) {{
+    $element = $elements.Item($i)
+    try {{
+        $name = ([string]$element.Current.Name).Trim()
+        $controlType = $element.Current.ControlType.ProgrammaticName
+        $rect = $element.Current.BoundingRectangle
+
+        if (-not $name -or $name.Length -lt 3) {{
+            continue
+        }}
+
+        if ($rect.IsEmpty -or $rect.Width -lt 20 -or $rect.Height -lt 8) {{
+            continue
+        }}
+
+        $relativeTop = $rect.Top - $rootRect.Top
+        $relativeLeft = $rect.Left - $rootRect.Left
+
+        if ($relativeTop -lt 90 -or $relativeLeft -lt 5) {{
+            continue
+        }}
+
+        if ($controlType -notmatch "Button|Hyperlink|ListItem|DataItem|Text|Edit|ComboBox") {{
+            continue
+        }}
+
+        if ($name -match "^(voltar|avancar|recarregar|favoritos|perfil|mais|menu|google apps)$") {{
+            continue
+        }}
+
+        $safeName = ($name -replace "\\s+", " ").Trim()
+        if ($safeName.Length -gt 90) {{
+            $safeName = $safeName.Substring(0, 90)
+        }}
+
+        $score = 1000 - [int]$relativeTop
+        if ($controlType -match "Button|Hyperlink") {{
+            $score += 150
+        }}
+
+        $rows += [pscustomobject]@{{
+            Score = $score
+            Top = [int]$rect.Top
+            Left = [int]$rect.Left
+            Text = ("__ITEM__|{0}|{1}|{2}|{3}" -f $safeName.Replace("|", " "), [int]($rect.Left + ($rect.Width / 2)), [int]($rect.Top + ($rect.Height / 2)), $controlType)
+        }}
+    }} catch {{
+    }}
+}}
+
+$seen = @{{}}
+$rows |
+    Sort-Object -Property @{{ Expression = "Top"; Descending = $false }}, @{{ Expression = "Left"; Descending = $false }} |
+    ForEach-Object {{
+        $name = ($_.Text -split "\\|")[1]
+        $key = $name.ToLower()
+        if (-not $seen.ContainsKey($key)) {{
+            $seen[$key] = $true
+            Write-Output $_.Text
+        }}
+    }}
+"""
+
+    try:
+        completed = _run_powershell(script, timeout_seconds=8)
+    except Exception:
+        return None
+
+    output = completed.stdout or ""
+    if "__NO_BROWSER__" in output or "__NO_ROOT__" in output:
+        return None
+
+    items = []
+    for line in output.splitlines():
+        if not line.startswith("__ITEM__|"):
+            continue
+
+        parts = line.split("|", 4)
+        if len(parts) < 5:
+            continue
+
+        try:
+            items.append(
+                {
+                    "text": parts[1].strip(),
+                    "x": int(parts[2]),
+                    "y": int(parts[3]),
+                    "type": parts[4].strip(),
+                }
+            )
+        except ValueError:
+            continue
+
+        if len(items) >= limit:
+            break
+
+    return items
+
+
+def _useful_page_text_lines(text: str, limit: int = 10):
+    ignore_patterns = (
+        "javascript",
+        "cookie",
+        "politica de privacidade",
+        "política de privacidade",
+        "termos de uso",
+        "menu",
+        "entrar",
+        "minha conta",
+        "sacola",
+        "carrinho",
+        "buscar",
+        "pesquisar",
+    )
+    lines = []
+    seen = set()
+
+    for raw_line in (text or "").splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+
+        if len(line) < 4 or len(line) > 120:
+            continue
+
+        normalized = _normalize_text_for_match(line)
+        if not normalized or normalized in seen:
+            continue
+
+        if normalized.isdigit():
+            continue
+
+        if any(pattern in normalized for pattern in ignore_patterns):
+            continue
+
+        score = 0
+        if re.search(r"r\$\s*\d|\d+,\d{2}", line.lower()):
+            score += 80
+        if any(word in normalized for word in {"celular", "notebook", "smartphone", "iphone", "samsung", "motorola", "xiaomi", "comprar", "frete", "oferta"}):
+            score += 50
+        score += max(0, 60 - len(lines))
+        lines.append((score, line))
+        seen.add(normalized)
+
+    lines.sort(key=lambda item: item[0], reverse=True)
+    return [line for _score, line in lines[:limit]]
+
+
+def _rank_page_text_lines(text: str, limit: int = 10):
+    ignore_patterns = (
+        "javascript",
+        "cookie",
+        "politica de privacidade",
+        "termos de uso",
+        "menu",
+        "entrar",
+        "minha conta",
+        "sacola",
+        "carrinho",
+        "buscar",
+        "pesquisar",
+        "departamentos",
+        "atendimento",
+        "central de",
+        "compre pelo",
+        "formas de pagamento",
+        "pular navegacao",
+        "pular navegação",
+        "imagem do avatar",
+        "avatar",
+        "login",
+        "memoria ram",
+        "cupom",
+        "sem juros",
+        "cashback",
+        "desconto",
+    )
+    category_noise = {
+        "celulares",
+        "celular",
+        "a celular",
+        "celulares e smartphones",
+        "samsung",
+        "motorola",
+        "xiaomi",
+        "apple",
+        "iphone",
+    }
+    product_words = {
+        "celular",
+        "smartphone",
+        "notebook",
+        "iphone",
+        "galaxy",
+        "moto",
+        "realme",
+        "xiaomi",
+        "redmi",
+        "samsung",
+        "motorola",
+        "lenovo",
+        "acer",
+        "dell",
+        "positivo",
+        "tablet",
+    }
+    spec_words = {
+        "gb",
+        "ram",
+        "mah",
+        "tela",
+        "hz",
+        "nfc",
+        "ip54",
+        "resistencia",
+        "camera",
+        "processador",
+    }
+    lines = []
+    seen = set()
+
+    for raw_line in (text or "").splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+
+        if len(line) < 4 or len(line) > 180:
+            continue
+
+        normalized = _normalize_text_for_match(line)
+        if not normalized or normalized in seen:
+            continue
+
+        if normalized.isdigit():
+            continue
+
+        words = normalized.split()
+        has_price = bool(re.search(r"r\$\s*\d|\d+,\d{2}", line.lower()))
+        price_only = bool(re.match(r"^r\$\s*[\d\.\,]+$", line.lower()))
+        looks_like_slug = line.count("-") >= 2 and " " not in line.strip()
+        has_product_word = any(word in product_words for word in words)
+        has_spec_word = any(word in spec_words for word in words)
+
+        if looks_like_slug:
+            continue
+
+        if price_only:
+            continue
+
+        if normalized in category_noise:
+            continue
+
+        if len(words) <= 2 and not has_price:
+            continue
+
+        if len(words) <= 3 and has_spec_word and not has_product_word and not has_price:
+            continue
+
+        if any(pattern in normalized for pattern in ignore_patterns):
+            continue
+
+        if re.match(r"^\d+x\s+de\s+r\$", line.lower()):
+            continue
+
+        if not has_product_word:
+            continue
+
+        if len(line) > 145:
+            line = line[:142].rstrip() + "..."
+
+        lines.append(line)
+        seen.add(normalized)
+
+        if len(lines) >= limit:
+            break
+
+    return lines
+
+
+def _selected_text_items(text: str, limit: int = 10):
+    product_words = {
+        "celular",
+        "smartphone",
+        "notebook",
+        "iphone",
+        "galaxy",
+        "moto",
+        "realme",
+        "xiaomi",
+        "redmi",
+        "samsung",
+        "motorola",
+        "lenovo",
+        "acer",
+        "dell",
+        "positivo",
+        "tablet",
+    }
+    noise_patterns = (
+        "memoria ram",
+        "cupom",
+        "sem juros",
+        "frete",
+        "favorito",
+        "avaliacao",
+        "avaliações",
+        "avaliacoes",
+        "patrocinado",
+    )
+    raw_lines = [
+        re.sub(r"\s+", " ", line).strip()
+        for line in (text or "").splitlines()
+    ]
+    raw_lines = [line for line in raw_lines if line]
+    items = []
+    seen = set()
+
+    for index, line in enumerate(raw_lines):
+        normalized = _normalize_text_for_match(line)
+        words = normalized.split()
+
+        if not normalized or normalized in seen:
+            continue
+
+        if any(pattern in normalized for pattern in noise_patterns):
+            continue
+
+        if line.count("-") >= 2 and " " not in line:
+            continue
+
+        if not any(word in product_words for word in words):
+            continue
+
+        item = line
+        if "r$" not in normalized:
+            for extra in raw_lines[index + 1:index + 5]:
+                if re.search(r"r\$\s*[\d\.\,]+", extra.lower()) and not re.match(r"^\d+x\s+de\s+r\$", extra.lower()):
+                    item = f"{item} - {extra}"
+                    break
+
+        if len(item) > 180:
+            item = item[:177].rstrip() + "..."
+
+        items.append(item)
+        seen.add(normalized)
+
+        if len(items) >= limit:
+            break
+
+    if items:
+        return items
+
+    return _rank_page_text_lines(text, limit=limit)
+
+
+def _read_product_cards_via_javascript(limit: int = 10):
+    marker = "__ESTAGIARIO_PRODUCTS__\n"
+    script = f"""void ((()=>{{
+const marker={json.dumps(marker)};
+const limit={int(limit)};
+const norm=s=>(s||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^\\p{{L}}\\p{{N}}\\s]/gu," ").replace(/\\s+/g," ").trim();
+const clean=s=>(s||"").replace(/\\s+/g," ").trim();
+const visible=el=>{{
+  const r=el.getBoundingClientRect();
+  const st=getComputedStyle(el);
+  return r.width>35&&r.height>20&&r.bottom>90&&r.top<innerHeight&&st.visibility!=="hidden"&&st.display!=="none";
+}};
+const productRe=/\\b(celular|smartphone|notebook|iphone|galaxy|xiaomi|redmi|samsung|motorola|realme|lenovo|acer|dell|tablet)\\b/i;
+const noiseRe=/\\b(memoria ram|cupom|frete|departamento|categoria|sacola|carrinho|entrar|login|favorito|ordenar|filtrar|avaliacao|avaliações|sem juros|cashback)\\b/i;
+const slugText=href=>{{
+  try {{
+    const url=new URL(href, location.href);
+    const part=decodeURIComponent(url.pathname.split("/").filter(Boolean)[0]||"");
+    return clean(part.replace(/-/g," "));
+  }} catch(e) {{
+    return "";
+  }}
+}};
+const bestCardText=a=>{{
+  const chunks=[];
+  chunks.push(a.innerText, a.getAttribute("aria-label"), a.title);
+  const img=a.querySelector("img");
+  if(img) chunks.push(img.alt);
+
+  let node=a;
+  for(let depth=0; node&&depth<5; depth++, node=node.parentElement) {{
+    if(!visible(node)) continue;
+    const text=clean(node.innerText||node.textContent||"");
+    if(text.length>=8&&text.length<=700) chunks.push(text);
+  }}
+
+  let best="";
+  for(const raw of chunks) {{
+    const text=clean(raw);
+    const n=norm(text);
+    if(!text||noiseRe.test(n)) continue;
+    if(productRe.test(n)||/r\\$\\s*\\d/i.test(text)) {{
+      if(text.length>best.length) best=text;
+    }}
+  }}
+
+  if(best) return best;
+  return slugText(a.href);
+}};
+const anchors=[...document.querySelectorAll("a[href]")];
+const rows=[];
+const seen=new Set();
+for(const a of anchors) {{
+  if(!visible(a)) continue;
+  const href=a.href||"";
+  const raw=bestCardText(a);
+  let text=clean(raw);
+  if(!text) continue;
+  if(text.length>170) text=text.slice(0,167).trim()+"...";
+  const n=norm(text);
+  const hrefNorm=norm(slugText(href));
+  const looksProduct=productRe.test(n)||productRe.test(hrefNorm)||/\\/p\\//.test(href);
+  if(!looksProduct||noiseRe.test(n)) continue;
+  if(n.length<8||seen.has(href)||seen.has(n)) continue;
+  seen.add(href);
+  seen.add(n);
+  const r=a.getBoundingClientRect();
+  rows.push({{top:r.top,left:r.left,text}});
+}}
+rows.sort((a,b)=>a.top-b.top||a.left-b.left);
+const output=marker+rows.slice(0,limit).map(row=>row.text).join("\\n");
+const fallback=()=>{{
+  const ta=document.createElement("textarea");
+  ta.value=output;
+  ta.style.position="fixed";
+  ta.style.left="-9999px";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {{ document.execCommand("copy"); }} catch(e) {{}}
+  ta.remove();
+}};
+if(navigator.clipboard&&navigator.clipboard.writeText) {{
+  navigator.clipboard.writeText(output).catch(fallback);
+}} else {{
+  fallback();
+}}
+}})())"""
+
+    copied = _run_browser_javascript_and_read_clipboard(script, marker)
+    lines = []
+    seen = set()
+
+    for raw_line in copied.splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        normalized = _normalize_text_for_match(line)
+
+        if len(line) < 8 or not normalized or normalized in seen:
+            continue
+
+        lines.append(line)
+        seen.add(normalized)
+
+        if len(lines) >= limit:
+            break
+
+    return lines
+
+
+def _read_page_text_via_clipboard(limit: int = 10):
+    old_clipboard = _get_clipboard_text()
+
+    try:
+        _shortcut(VK_CONTROL, VK_A)
+        time.sleep(0.08)
+        _shortcut(VK_CONTROL, VK_C)
+        time.sleep(0.25)
+        copied = _get_clipboard_text()
+    finally:
+        _tap(VK_ESCAPE)
+        _set_clipboard_text(old_clipboard)
+
+    return _rank_page_text_lines(copied, limit=limit)
 
 
 def _click_relative_to_app(app_name: str, relative_x: float, relative_y: float, clicks: int = 1):
@@ -902,6 +1728,176 @@ def browser_click_center():
     return "Clicando no centro da pagina."
 
 
+def browser_click_text(query: str):
+    if not query:
+        return "Clicar em que texto?"
+
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para clicar."
+
+    if _click_browser_element_by_text(query):
+        return f"Clicando em {query}."
+
+    return f"Nao encontrei {query} visivel na pagina."
+
+
+def browser_click_listed_item(index: int):
+    if index < 1:
+        return "Qual item da lista?"
+
+    if index > len(LAST_BROWSER_ELEMENTS):
+        browser_describe_screen()
+
+    if index > len(LAST_BROWSER_ELEMENTS):
+        return "Li a tela, mas nao encontrei esse item na lista atual."
+
+    item = LAST_BROWSER_ELEMENTS[index - 1]
+    if item.get("x") is None or item.get("y") is None:
+        if _click_page_item_by_text(item["text"]):
+            return f"Tentando abrir o item {index}: {item['text']}."
+
+        query = _short_click_query(item["text"])
+
+        if query and _click_browser_element_by_text(query):
+            return f"Clicando no item {index}: {item['text']}."
+
+        if query:
+            browser_find(query)
+            return (
+                f"Encontrei o texto do item {index}, mas nao consegui clicar direto nele. "
+                "Deixei ele procurado na pagina."
+            )
+
+        return "Tenho esse item em texto, mas nao consegui transformar em clique."
+
+    _click(item["x"], item["y"])
+    return f"Clicando no item {index}: {item['text']}."
+
+
+def browser_describe_listed_item(index: int):
+    if index < 1:
+        return "Qual item?"
+
+    if index > len(LAST_BROWSER_ELEMENTS):
+        return "Ainda nao tenho esse item na lista. Selecione os produtos e diga: ler selecionado."
+
+    item = LAST_BROWSER_ELEMENTS[index - 1]
+    return f"Item {index}: {item['text']}."
+
+
+def _read_selected_text_from_browser():
+    if not _activate_browser_window():
+        return None
+
+    old_clipboard = _get_clipboard_text()
+
+    try:
+        _set_clipboard_text("")
+        _shortcut(VK_CONTROL, VK_C)
+        time.sleep(0.25)
+        selected = _get_clipboard_text()
+    finally:
+        _set_clipboard_text(old_clipboard)
+
+    return selected
+
+
+def _compact_selected_text(text: str, max_length: int = 650):
+    compacted = re.sub(r"\s+", " ", text or "").strip()
+    if len(compacted) > max_length:
+        return compacted[:max_length - 3].rstrip() + "..."
+    return compacted
+
+
+def browser_read_selection():
+    selected = _read_selected_text_from_browser()
+    if selected is None:
+        return "Nao encontrei um navegador aberto para ler a selecao."
+
+    text = _compact_selected_text(selected)
+    if not text:
+        LAST_BROWSER_ELEMENTS.clear()
+        return "Nao encontrei texto selecionado."
+
+    LAST_BROWSER_ELEMENTS.clear()
+    return "Texto selecionado: " + text
+
+
+def browser_read_selected_products():
+    selected = _read_selected_text_from_browser()
+    if selected is None:
+        return "Nao encontrei um navegador aberto para ler a selecao."
+
+    items = _selected_text_items(selected, limit=10)
+    if not items:
+        LAST_BROWSER_ELEMENTS.clear()
+        return "Nao consegui ler produtos no texto selecionado."
+
+    _remember_text_items(items)
+    rows = [f"{idx}. {line}" for idx, line in enumerate(items, start=1)]
+    return "Li selecionado: " + "; ".join(rows)
+
+
+def browser_cheapest_listed_item():
+    if not LAST_BROWSER_ELEMENTS:
+        browser_describe_screen()
+
+    priced_items = []
+
+    for index, item in enumerate(LAST_BROWSER_ELEMENTS, start=1):
+        price = _extract_brl_price(item.get("text", ""))
+        if price is None or price <= 0:
+            continue
+
+        priced_items.append((price, index, item["text"]))
+
+    if not priced_items:
+        return "Ainda nao tenho precos claros na lista atual. Tente dizer: o que tem na tela."
+
+    price, index, text = min(priced_items, key=lambda entry: entry[0])
+    return f"O mais barato que encontrei e o item {index}: {text}."
+
+
+def browser_describe_screen():
+    global LAST_BROWSER_ELEMENTS
+
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para ler a tela."
+
+    items = _read_browser_elements(limit=10)
+    weak_items = not items or all(_normalize_text_for_match(item["text"]).isdigit() for item in items)
+    if weak_items:
+        page_lines = _read_page_text_via_clipboard(limit=10)
+        if page_lines:
+            _remember_text_items(page_lines)
+            rows = [f"{idx}. {line}" for idx, line in enumerate(page_lines, start=1)]
+            return "Consegui ler texto da pagina: " + "; ".join(rows)
+
+        LAST_BROWSER_ELEMENTS = []
+        return "Nao consegui ler itens clicaveis visiveis nessa tela."
+
+    LAST_BROWSER_ELEMENTS = items
+    rows = [f"{idx}. {item['text']}" for idx, item in enumerate(items, start=1)]
+    return "Vejo na tela: " + "; ".join(rows)
+
+
+def browser_read_more():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para ler mais."
+
+    user32.mouse_event(MOUSEEVENTF_WHEEL, 0, 0, -550, 0)
+    time.sleep(0.25)
+    result = browser_describe_screen()
+
+    if result.startswith("Vejo na tela:"):
+        return result.replace("Vejo na tela:", "Mais abaixo vejo:", 1)
+
+    if result.startswith("Consegui ler texto da pagina:"):
+        return result.replace("Consegui ler texto da pagina:", "Mais abaixo consegui ler:", 1)
+
+    return result
+
+
 def browser_zoom_in():
     if not _activate_browser_window():
         return "Nao encontrei um navegador aberto para zoom."
@@ -963,12 +1959,28 @@ def browser_scroll_down():
     return "Rolando para baixo."
 
 
+def browser_scroll_down_small():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para rolar."
+
+    user32.mouse_event(MOUSEEVENTF_WHEEL, 0, 0, -350, 0)
+    return "Descendo um pouco."
+
+
 def browser_scroll_up():
     if not _activate_browser_window():
         return "Nao encontrei um navegador aberto para rolar."
 
     _tap(VK_PRIOR)
     return "Rolando para cima."
+
+
+def browser_scroll_up_small():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para rolar."
+
+    user32.mouse_event(MOUSEEVENTF_WHEEL, 0, 0, 350, 0)
+    return "Subindo um pouco."
 
 
 def browser_scroll_top():
@@ -997,6 +2009,10 @@ def browser_search_site(site: str, query: str):
     if "mercadolivre.com.br" in site:
         webbrowser.open(f"https://lista.mercadolivre.com.br/{quote_plus(query)}")
         return f"Pesquisando {query} no Mercado Livre."
+
+    if "magazineluiza.com.br" in site:
+        webbrowser.open(f"https://www.magazineluiza.com.br/busca/{quote_plus(query)}/")
+        return f"Pesquisando {query} no Magazine Luiza."
 
     webbrowser.open(f"https://www.google.com/search?q={quote_plus(query + ' site:' + site)}")
     return f"Pesquisando {query} em {site}."

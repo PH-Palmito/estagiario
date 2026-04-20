@@ -177,7 +177,9 @@ def normalize_action(old_action: dict) -> Command:
 
     if intent in {
         "browser_scroll_down",
+        "browser_scroll_down_small",
         "browser_scroll_up",
+        "browser_scroll_up_small",
         "browser_scroll_top",
         "browser_scroll_bottom",
         "browser_back",
@@ -186,6 +188,11 @@ def normalize_action(old_action: dict) -> Command:
         "browser_open_first_result",
         "browser_open_focused_item",
         "browser_click_center",
+        "browser_cheapest_listed_item",
+        "browser_describe_screen",
+        "browser_read_selection",
+        "browser_read_selected_products",
+        "browser_read_more",
         "browser_zoom_in",
         "browser_zoom_out",
         "browser_zoom_reset",
@@ -193,6 +200,27 @@ def normalize_action(old_action: dict) -> Command:
         return Command(
             action=intent,
             params={},
+            source="router",
+        )
+
+    if intent == "browser_click_text":
+        return Command(
+            action="browser_click_text",
+            params={"query": target},
+            source="router",
+        )
+
+    if intent == "browser_click_listed_item":
+        return Command(
+            action="browser_click_listed_item",
+            params={"index": target},
+            source="router",
+        )
+
+    if intent == "browser_describe_listed_item":
+        return Command(
+            action="browser_describe_listed_item",
+            params={"index": target},
             source="router",
         )
 

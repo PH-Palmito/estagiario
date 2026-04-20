@@ -6,6 +6,11 @@ from memory.aliases import load_app_aliases, load_site_aliases, load_smart_app_a
 from memory.macros import delete_macro, get_macro, list_macros
 from memory.profile import get_value, set_value
 from memory.routines import get_routine, list_routines
+from memory.voice_corrections import (
+    forget_voice_correction,
+    list_voice_corrections,
+    remember_voice_correction,
+)
 from llm.chat import chat_response
 from tools.math_tools import calculate_basic_expression, calculate_percentage
 
@@ -49,6 +54,13 @@ KNOWN_SITES = {
     "google": "https://www.google.com",
     "gmail": "https://mail.google.com",
     "chatgpt": "https://chat.openai.com",
+    "mercado livre": "https://www.mercadolivre.com.br",
+    "mercadolivre": "https://www.mercadolivre.com.br",
+    "mercado de": "https://www.mercadolivre.com.br",
+    "magalu": "https://www.magazineluiza.com.br",
+    "magazine luiza": "https://www.magazineluiza.com.br",
+    "magazinha luisa": "https://www.magazineluiza.com.br",
+    "magazinha luiza": "https://www.magazineluiza.com.br",
 }
 
 MEDIA_TARGETS = {
@@ -74,8 +86,6 @@ BLUETOOTH_TERMS = {
 }
 
 TARGET_CORRECTIONS = {
-    "e chegar": "github",
-    "chegar": "github",
     "git hub": "github",
     "gui hub": "github",
     "guithub": "github",
@@ -595,6 +605,51 @@ def detect_memory_command(user_input: str):
     return None
 
 
+def detect_voice_correction_command(user_input: str):
+    lower = normalize_text(user_input)
+
+    if lower in {"listar correcoes de voz", "listar correcoes", "ver correcoes de voz", "ver correcoes"}:
+        corrections = list_voice_corrections()
+        if not corrections:
+            return {"intent": "respond", "target": None, "response": "Nenhuma correcao de voz salva."}
+
+        rows = [
+            f"{idx}. quando ouvir '{item['heard']}', entender '{item['means']}'"
+            for idx, item in enumerate(corrections, start=1)
+        ]
+        return {"intent": "respond", "target": None, "response": "Correcoes de voz: " + "; ".join(rows)}
+
+    forget_match = re.match(
+        r"^(?:esquecer|esquece|apagar|apague|remover|remova)\s+correc(?:ao|oes)\s+(?:de\s+voz\s+)?(.+)$",
+        lower,
+    )
+    if forget_match:
+        heard = forget_match.group(1).strip().strip('"').strip("'")
+        if forget_voice_correction(heard):
+            return {"intent": "respond", "target": None, "response": f"Esqueci a correcao de voz para '{heard}'."}
+        return {"intent": "respond", "target": None, "response": f"Nao encontrei correcao de voz para '{heard}'."}
+
+    teach_patterns = [
+        r"^(?:aprenda|aprende|lembrar|lembre)\s+que\s+['\"]?(.+?)['\"]?\s+(?:significa|quer dizer|e para entender como|eh para entender como)\s+['\"]?(.+?)['\"]?$",
+        r"^quando\s+(?:eu\s+)?(?:disser|falar)\s+['\"]?(.+?)['\"]?\s+(?:entenda|entender|interprete|interpretar)\s+(?:como\s+)?['\"]?(.+?)['\"]?$",
+    ]
+    for pattern in teach_patterns:
+        match = re.match(pattern, lower)
+        if not match:
+            continue
+
+        heard = match.group(1).strip()
+        means = match.group(2).strip()
+        if remember_voice_correction(heard, means):
+            return {
+                "intent": "respond",
+                "target": None,
+                "response": f"Aprendi: quando ouvir '{heard}', vou entender como '{means}'.",
+            }
+
+    return None
+
+
 def _match_site_target(text: str):
     sites = _site_options()
     target = _strip_leading_articles(normalize_text(text))
@@ -624,13 +679,185 @@ def detect_navigation_command(user_input: str):
     ):
         return {"intent": "spotify_diagnostic", "target": None}
 
+    if lower in {
+        "o que tem na tela",
+        "o que aparece na tela",
+        "ler tela",
+        "leia a tela",
+        "ler a pagina",
+        "leia a pagina",
+        "ler texto da pagina",
+        "ver texto da pagina",
+        "ver o texto da pagina",
+        "veja texto da pagina",
+        "veja o texto da pagina",
+        "leia o texto da pagina",
+        "leia texto da pagina",
+        "lembre o texto da pagina",
+        "ler o texto da pagina",
+        "liga o texto da pagina",
+        "ligar o texto da pagina",
+        "listar links",
+        "liste os links",
+        "mostrar opcoes",
+        "mostrar opções",
+        "quais botoes",
+        "quais botao",
+        "quais links",
+    }:
+        return {"intent": "browser_describe_screen", "target": None}
+
+    if lower in {
+        "ler produtos selecionados",
+        "ler produto selecionado",
+        "leia produtos selecionados",
+        "leia os produtos selecionados",
+        "extrair produtos selecionados",
+        "listar produtos selecionados",
+    }:
+        return {"intent": "browser_read_selected_products", "target": None}
+
+    if lower in {
+        "ler selecionado",
+        "leia selecionado",
+        "ler selecao",
+        "ler seleção",
+        "leia a selecao",
+        "leia a seleção",
+        "ler texto selecionado",
+        "leia o texto selecionado",
+        "o que selecionei",
+        "usar selecionado",
+        "usar selecao",
+        "usar seleção",
+        "ler itens selecionados",
+        "ler produtos selecionados",
+    }:
+        return {"intent": "browser_read_selection", "target": None}
+
+    if any(token in lower for token in {"selecion", "seleccion", "licion"}) and any(
+        token in lower
+        for token in {
+            "ler",
+            "leia",
+            "leica",
+            "lig",
+            "link",
+            "links",
+            "item",
+            "itens",
+            "produto",
+            "produtos",
+            "texto",
+            "usar",
+        }
+    ):
+        return {"intent": "browser_read_selection", "target": None}
+
+    if lower in {
+        "ler mais",
+        "leia mais",
+        "mostrar mais",
+        "mostre mais",
+        "ver mais",
+        "veja mais",
+        "continua lendo",
+        "continuar lendo",
+        "o que mais tem",
+        "mais produtos",
+        "proximos produtos",
+        "proximas opcoes",
+        "proximos itens",
+    }:
+        return {"intent": "browser_read_more", "target": None}
+
+    if lower in {
+        "qual o mais barato",
+        "qual e o mais barato",
+        "qual é o mais barato",
+        "me diga o mais barato",
+        "mostre o mais barato",
+        "comparar precos",
+        "comparar preços",
+        "compare os precos",
+        "compare os preços",
+        "menor preco",
+        "menor preço",
+        "menor pre o",
+        "comparar pre os",
+        "compare os pre os",
+    }:
+        return {"intent": "browser_cheapest_listed_item", "target": None}
+
+    if lower.startswith(("comparar pre", "compare os pre", "comparar os pre")):
+        return {"intent": "browser_cheapest_listed_item", "target": None}
+
+    ordinal_words = {
+        "primeiro": 1,
+        "primeira": 1,
+        "segundo": 2,
+        "segunda": 2,
+        "terceiro": 3,
+        "terceira": 3,
+        "quarto": 4,
+        "quarta": 4,
+        "quinto": 5,
+        "quinta": 5,
+        "sexto": 6,
+        "sexta": 6,
+        "setimo": 7,
+        "setima": 7,
+        "oitavo": 8,
+        "oitava": 8,
+        "nono": 9,
+        "nona": 9,
+        "decimo": 10,
+        "decima": 10,
+    }
+    listed_item_match = re.match(
+        r"^(?:clicar|clica|clique|abrir|abre|selecionar|selecione|apertar|aperte)\s+(?:no|na|o|a)?\s*(\d+|primeir[oa]|segund[oa]|terceir[oa]|quart[oa]|quint[oa]|sext[oa]|setim[oa]|oitav[oa]|non[oa]|decim[oa])(?:\s+(?:item|produto|resultado|opcao|opcao da lista|link))?$",
+        lower,
+    )
+    if listed_item_match:
+        item = listed_item_match.group(1)
+        index = int(item) if item.isdigit() else ordinal_words.get(item)
+        if index:
+            return {"intent": "browser_click_listed_item", "target": index}
+
+    info_item_match = re.match(
+        r"^(?:informacao|informacoes|informaçao|informação|informa o|informa es|detalhe|detalhes|fale|me fale|me diga|diga|ver|veja|mostrar|mostre)\s+(?:do|da|de|o|a|sobre\s+o|sobre\s+a)?\s*(\d+|primeir[oa]|segund[oa]|terceir[oa]|quart[oa]|quint[oa]|sext[oa]|setim[oa]|oitav[oa]|non[oa]|decim[oa])(?:\s+(?:item|produto|resultado|opcao|opcao da lista))?$",
+        lower,
+    )
+    if info_item_match:
+        item = info_item_match.group(1)
+        index = int(item) if item.isdigit() else ordinal_words.get(item)
+        if index:
+            return {"intent": "browser_describe_listed_item", "target": index}
+
     if any(phrase in lower for phrase in {
         "rolar para baixo",
+        "rolar tela para baixo",
+        "role tela para baixo",
         "role para baixo",
         "role a tela para baixo",
         "desce a tela",
         "descer a tela",
+        "desca a tela",
+        "desça a tela",
+        "desce na tela",
+        "descer na tela",
+        "desuna a tela",
+        "desum na tela",
+        "desuna na tela",
+        "desum a tela",
+        "desliza para baixo",
+        "deslize para baixo",
+        "deslizar para baixo",
         "mais para baixo",
+        "rolar mais",
+        "descer mais",
+        "continua descendo",
+        "continuar descendo",
         "pagina para baixo",
         "olhe a tela para baixo",
         "olhe para baixo",
@@ -640,12 +867,32 @@ def detect_navigation_command(user_input: str):
         return {"intent": "browser_scroll_down", "target": None}
 
     if any(phrase in lower for phrase in {
+        "descer um pouco",
+        "desce um pouco",
+        "rolar um pouco",
+        "role um pouco",
+        "um pouco para baixo",
+        "pouco para baixo",
+    }):
+        return {"intent": "browser_scroll_down_small", "target": None}
+
+    if any(phrase in lower for phrase in {
         "rolar para cima",
+        "rolar tela para cima",
+        "role tela para cima",
         "role para cima",
         "role a tela para cima",
         "sobe a tela",
         "subir a tela",
+        "sobe na tela",
+        "subir na tela",
+        "desliza para cima",
+        "deslize para cima",
+        "deslizar para cima",
         "mais para cima",
+        "subir mais",
+        "continua subindo",
+        "continuar subindo",
         "pagina para cima",
         "olhe a tela para cima",
         "olhe para cima",
@@ -654,10 +901,33 @@ def detect_navigation_command(user_input: str):
     }):
         return {"intent": "browser_scroll_up", "target": None}
 
-    if lower in {"ir para o topo", "vai para o topo", "topo da pagina", "topo"}:
+    if any(phrase in lower for phrase in {
+        "subir um pouco",
+        "sobe um pouco",
+        "um pouco para cima",
+        "pouco para cima",
+    }):
+        return {"intent": "browser_scroll_up_small", "target": None}
+
+    if lower in {"ir para o topo", "vai para o topo", "topo da pagina", "topo", "inicio da pagina", "comeco da pagina", "começo da pagina"}:
         return {"intent": "browser_scroll_top", "target": None}
 
-    if lower in {"ir para o fim", "vai para o fim", "fim da pagina", "final da pagina", "fim"}:
+    if lower in {
+        "ir para o fim",
+        "vai para o fim",
+        "fim da pagina",
+        "final da pagina",
+        "fim da tela",
+        "final da tela",
+        "ate o final",
+        "ate o fim",
+        "rolar ate o final",
+        "rolar tela ate o final",
+        "olhe a tela ate o final da tela",
+        "ir ate o final da tela",
+        "vai ate o final da tela",
+        "fim",
+    }:
         return {"intent": "browser_scroll_bottom", "target": None}
 
     if lower in {"voltar pagina", "voltar no site", "voltar no navegador", "pagina anterior", "volta pagina", "volta no site"}:
@@ -669,7 +939,18 @@ def detect_navigation_command(user_input: str):
     if lower in {"atualizar pagina", "atualiza pagina", "recarregar pagina", "recarrega pagina", "refresh", "atualizar"}:
         return {"intent": "browser_refresh", "target": None}
 
-    if any(phrase in lower for phrase in {"abrir primeiro resultado", "abre primeiro resultado", "abrir o primeiro resultado", "abre o primeiro resultado", "primeiro resultado"}):
+    if any(phrase in lower for phrase in {
+        "abrir primeiro resultado",
+        "abre primeiro resultado",
+        "abrir o primeiro resultado",
+        "abre o primeiro resultado",
+        "primeiro resultado",
+        "abrir primeiro link",
+        "abre primeiro link",
+        "abrir o primeiro link",
+        "abre o primeiro link",
+        "primeiro link",
+    }):
         return {"intent": "browser_open_first_result", "target": None}
 
     if lower in {"abrir selecionado", "abre selecionado", "abrir item", "abre item", "entrar", "enter"}:
@@ -678,7 +959,16 @@ def detect_navigation_command(user_input: str):
     if lower in {"clicar no centro", "clique no centro", "clica no centro", "clicar na pagina", "clique na pagina"}:
         return {"intent": "browser_click_center", "target": None}
 
-    if lower in {"aumentar zoom", "aumenta zoom", "mais zoom", "zoom mais"}:
+    click_match = re.match(
+        r"^(?:clicar|clica|clique|selecionar|selecione|apertar|aperte)\s+(?:(?:em|no|na|o|a)\s+)?(.+)$",
+        lower,
+    )
+    if click_match:
+        target = click_match.group(1).strip()
+        if target and target not in {"centro", "pagina", "tela"}:
+            return {"intent": "browser_click_text", "target": target}
+
+    if lower in {"zoom", "aumentar zoom", "aumenta zoom", "mais zoom", "zoom mais", "ampliar tela", "ampliar a tela", "amplia tela", "amplia a tela", "umpliar a tela", "umpliar a teoria", "ampliar a teoria"}:
         return {"intent": "browser_zoom_in", "target": None}
 
     if lower in {"diminuir zoom", "diminui zoom", "menos zoom", "zoom menos"}:
@@ -721,7 +1011,7 @@ def detect_navigation_command(user_input: str):
             }
 
     site_search_match = re.match(
-        r"^(?:pesquise|pesquisar|procure|procurar|buscar|busque)\s+(.+?)\s+(?:no|na|em|dentro\s+do|dentro\s+da)\s+(.+)$",
+        r"^(?:pesquise|pesquisar|esquise|esquisar|procure|procurar|buscar|busque)\s+(.+?)\s+(?:no|na|em|dentro\s+do|dentro\s+da)\s+(.+)$",
         lower,
     )
     if site_search_match:
@@ -777,14 +1067,14 @@ def detect_browser_command(user_input: str):
     if lower in {"fechar aba", "fecha aba", "feche a aba", "fecha"} or "fechar aba" in lower:
         return {"intent": "browser_close_tab", "target": None}
 
-    if lower.startswith("pesquisar por ") or lower.startswith("pesquise por "):
-        query = re.sub(r"^(pesquisar|pesquise) por ", "", lower).strip()
+    if lower.startswith(("pesquisar por ", "pesquise por ", "esquisar por ", "esquise por ")):
+        query = re.sub(r"^(pesquisar|pesquise|esquisar|esquise) por ", "", lower).strip()
         query = re.sub(r"\s+no navegador$", "", query).strip()
         if query:
             return {"intent": "browser_search", "target": query}
 
-    if lower.startswith("pesquisar ") or lower.startswith("pesquise "):
-        query = re.sub(r"^(pesquisar|pesquise) ", "", lower).strip()
+    if lower.startswith(("pesquisar ", "pesquise ", "esquisar ", "esquise ")):
+        query = re.sub(r"^(pesquisar|pesquise|esquisar|esquise) ", "", lower).strip()
         query = re.sub(r"\s+no navegador$", "", query).strip()
         if query:
             return {"intent": "google_search", "target": query}
@@ -1325,6 +1615,7 @@ def route(user_input: str):
         detect_math,
         detect_bluetooth_command,
         detect_memory_command,
+        detect_voice_correction_command,
         detect_navigation_command,
         detect_media_command,
         detect_browser_command,
@@ -1346,7 +1637,6 @@ def route(user_input: str):
         detect_run_script,
         detect_profile_question,
         detect_short_unclear_text,
-        detect_ollama_chat,
         detect_light_conversation,
     ]
 

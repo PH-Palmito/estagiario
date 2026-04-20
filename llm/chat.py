@@ -15,6 +15,10 @@ Personalidade:
 - Fale em portugues do Brasil.
 - Seja curto, natural e util.
 - Tenha um tom leve, colaborativo e um pouco divertido.
+- Responda como bate-papo, nao como atendente de suporte.
+- Evite frases genericas como "Como posso ajudar hoje?".
+- Nao diga "Entendo!", "Ok, estou pronto" ou "Ola, sou um assistente".
+- Se o usuario fizer uma pergunta aberta, de uma opiniao simples ou puxe um detalhe do assunto.
 - Nao finja que executou acoes. Se for comando de PC, diga que o usuario pode pedir como comando.
 - Nao use markdown.
 - Nao responda com listas longas.
@@ -60,6 +64,82 @@ def _clean_response(response: str) -> str:
     return response
 
 
+def _looks_generic_or_wrong(response: str) -> bool:
+    lower = response.lower()
+    blocked_fragments = {
+        "como posso ajudar",
+        "como posso te ajudar",
+        "como posso auxiliar",
+        "como posso te auxiliar",
+        "que posso ajudar",
+        "que posso te ajudar",
+        "que posso auxiliar",
+        "que posso te auxiliar",
+        "aqui para ajudar",
+        "estou aqui para ajudar",
+        "pronto para ajudar",
+        "pronta para ajudar",
+        "olá, sou um assistente",
+        "ola, sou um assistente",
+        "assistente de voz inteligente",
+        "estou pronto",
+        "ok, estou pronto",
+        "ok estou pronto",
+        "gostei muito de te conhecer",
+        "fique a vontade",
+        "fique à vontade",
+        "voce pode tentar",
+        "você pode tentar",
+        "desculpe, mas eu",
+        "tenho um volume de voz adequado",
+        "estimado usuario, estou aqui para ajudar",
+        "estimado usuário, estou aqui para ajudar",
+        "fechou a janela",
+        "abrir a janela",
+        "abra a janela",
+    }
+
+    if any(fragment in lower for fragment in blocked_fragments):
+        return True
+
+    if lower.startswith("estagiario") or lower.startswith("estagiário"):
+        return True
+
+    return False
+
+
+def _normalize_for_compare(text: str) -> str:
+    text = text.lower()
+    text = re.sub(r"[^\w\s]", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def _looks_like_echo(user_input: str, response: str) -> bool:
+    user = _normalize_for_compare(user_input)
+    answer = _normalize_for_compare(response)
+
+    if not user or not answer:
+        return False
+
+    filler_prefixes = (
+        "estou lendo",
+        "voce disse",
+        "você disse",
+        "entao",
+        "então",
+        "sobre isso",
+    )
+    for prefix in filler_prefixes:
+        if answer.startswith(prefix):
+            answer = answer[len(prefix):].strip()
+
+    if user in answer and len(answer) <= len(user) + 20:
+        return True
+
+    return False
+
+
 def chat_response(user_input: str):
     if not chat_enabled():
         return None
@@ -100,6 +180,12 @@ Resposta curta do Estagiario:"""
         return None
 
     lower = response.lower()
+    if _looks_generic_or_wrong(response):
+        return None
+
+    if _looks_like_echo(user_input, response):
+        return None
+
     if "meu nome e qwen" in lower or "meu nome é qwen" in lower or "sou qwen" in lower or "sou uma ia local" in lower:
         response = "Sou o Estagiario. Estou aqui para conversar e ajudar a controlar o PC."
 

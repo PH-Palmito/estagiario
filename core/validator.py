@@ -25,8 +25,12 @@ ALLOWED_ACTIONS = {
     "browser_prev_tab",
     "browser_search",
     "browser_find",
+    "browser_click_text",
+    "browser_describe_listed_item",
     "browser_scroll_down",
+    "browser_scroll_down_small",
     "browser_scroll_up",
+    "browser_scroll_up_small",
     "browser_scroll_top",
     "browser_scroll_bottom",
     "browser_back",
@@ -35,7 +39,13 @@ ALLOWED_ACTIONS = {
     "browser_open_first_result",
     "browser_open_focused_item",
     "browser_click_center",
+    "browser_cheapest_listed_item",
     "browser_zoom_in",
+    "browser_describe_screen",
+    "browser_read_selection",
+    "browser_read_selected_products",
+    "browser_read_more",
+    "browser_click_listed_item",
     "browser_zoom_out",
     "browser_zoom_reset",
     "browser_search_site",
@@ -97,8 +107,12 @@ REQUIRED_FIELDS = {
     "browser_prev_tab": [],
     "browser_search": ["query"],
     "browser_find": ["query"],
+    "browser_click_text": ["query"],
+    "browser_describe_listed_item": ["index"],
     "browser_scroll_down": [],
+    "browser_scroll_down_small": [],
     "browser_scroll_up": [],
+    "browser_scroll_up_small": [],
     "browser_scroll_top": [],
     "browser_scroll_bottom": [],
     "browser_back": [],
@@ -107,6 +121,12 @@ REQUIRED_FIELDS = {
     "browser_open_first_result": [],
     "browser_open_focused_item": [],
     "browser_click_center": [],
+    "browser_cheapest_listed_item": [],
+    "browser_describe_screen": [],
+    "browser_read_selection": [],
+    "browser_read_selected_products": [],
+    "browser_read_more": [],
+    "browser_click_listed_item": ["index"],
     "browser_zoom_in": [],
     "browser_zoom_out": [],
     "browser_zoom_reset": [],
@@ -167,6 +187,8 @@ def validate_command(command: Command):
                 return False, "Qual pesquisa?"
             if field == "target":
                 return False, "Qual alvo?"
+            if field == "index":
+                return False, "Qual item?"
             if field == "kind":
                 return False, "Isso e app ou site?"
             if field == "site":
