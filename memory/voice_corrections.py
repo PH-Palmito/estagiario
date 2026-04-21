@@ -9,6 +9,17 @@ VOICE_CORRECTIONS_PATH = Path("memory") / "voice_corrections.json"
 
 STARTER_VOICE_CORRECTIONS = [
     {"heard": "chegar", "means": "fechar"},
+    {"heard": "que tem na tela", "means": "o que tem na tela"},
+    {"heard": "e que tem na tela", "means": "o que tem na tela"},
+    {"heard": "o que esta ai na tela", "means": "o que tem na tela"},
+    {"heard": "o que ta ai na tela", "means": "o que tem na tela"},
+    {"heard": "o que esta na tela", "means": "o que tem na tela"},
+    {"heard": "o que ta na tela", "means": "o que tem na tela"},
+    {"heard": "o kit tem na tela", "means": "o que tem na tela"},
+    {"heard": "uki teena tela", "means": "o que tem na tela"},
+    {"heard": "resume a tela", "means": "resuma a tela"},
+    {"heard": "resumir tela", "means": "resuma a tela"},
+    {"heard": "bezumia telap", "means": "resuma a tela"},
     {"heard": "lig ser licionado", "means": "ler selecionado"},
     {"heard": "os links selecionados", "means": "ler selecionado"},
     {"heard": "leica que foi seleccionario", "means": "ler selecionado"},

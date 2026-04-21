@@ -2,6 +2,7 @@ import base64
 import ctypes
 import hashlib
 import json
+import msvcrt
 import os
 import re
 import shutil
@@ -30,6 +31,7 @@ from scipy.io.wavfile import write as write_wav
 
 POWERSHELL_EXE = "powershell"
 user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
 SAMPLE_RATE = 16000
 COMMAND_MODEL_SIZE = "small"
 HOTWORD_MODEL_SIZE = "tiny"
@@ -42,6 +44,7 @@ _PIPER_WORKER_LOCK = Lock()
 _PIPER_WORKER_PROCESS = None
 _PIPER_WORKER_SIGNATURE = None
 _PIPER_WORKER_SAMPLE_RATE = 22050
+_PIPER_WORKER_WARM = False
 
 
 def _float_pref(name: str, default: float, minimum: float, maximum: float) -> float:
@@ -91,17 +94,6 @@ HOTWORD_MIN_SPEECH_SECONDS = _float_pref("hotword_min_speech_seconds", 0.12, 0.0
 CONVERSATION_TIMEOUT_SECONDS = _float_pref("conversation_timeout_seconds", 7.0, 1.0, 12.0)
 CONVERSATION_MAX_SILENCE_SECONDS = _float_pref("conversation_max_silence_seconds", 1.0, 0.25, 3.0)
 CONVERSATION_MIN_SPEECH_SECONDS = _float_pref("conversation_min_speech_seconds", 0.35, 0.08, 2.0)
-COMMAND_PROMPT = (
-    "Assistente local chamado estagiario. Transcreva comandos curtos em portugues do Brasil. "
-    "Vocabulário esperado: estagiario, abre, abrir, fecha, fechar, foca, focar, troca, "
-    "minimiza, minimizar, maximiza, maximizar, restaura, restaurar, nova aba, fechar aba, "
-    "proxima aba, aba anterior, de novo, pesquisar. "
-    "Aplicativos e sites esperados: chrome, google chrome, youtube, google, vscode, vs code, "
-    "code, spotify, whatsapp, zap, bloco de notas, notas, powershell, edge, explorador de arquivos, "
-    "github, git hub, android studio, epic games, steam. "
-    "Exemplos: estagiario abre o chrome; abre o vscode; minimiza o chrome; maximiza code; "
-    "fecha o spotify; abre nova aba; fechar aba; estagiario abre spotify."
-)
 COMMAND_PROMPT = (
     "Comandos curtos em portugues do Brasil para controlar o computador. "
     "Verbos comuns: abrir, fechar, focar, trocar, minimizar, maximizar, restaurar, pesquisar, ler, selecionar. "
@@ -533,8 +525,14 @@ def play_activation_sound():
         hz = int(VOICE_PREFERENCES.get("activation_sound_hz", 880))
         duration = int(VOICE_PREFERENCES.get("activation_sound_ms", 120))
         winsound.Beep(hz, duration)
-    except RuntimeError:
-        winsound.MessageBeep()
+    except Exception:
+        try:
+            winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS | winsound.SND_ASYNC)
+        except Exception:
+            try:
+                winsound.MessageBeep(winsound.MB_OK)
+            except Exception:
+                pass
 
 
 def _clamp_int(value, minimum: int, maximum: int, default: int) -> int:
@@ -616,6 +614,72 @@ _HUNDRED_WORDS = {
     900: "novecentos",
 }
 
+_SPELLED_LETTER_NAMES = {
+    "A": "á",
+    "B": "bê",
+    "C": "cê",
+    "D": "dê",
+    "E": "ê",
+    "F": "éfe",
+    "G": "gê",
+    "H": "agá",
+    "I": "i",
+    "J": "jóta",
+    "K": "cá",
+    "L": "éle",
+    "M": "ême",
+    "N": "êne",
+    "O": "ó",
+    "P": "pê",
+    "Q": "quê",
+    "R": "érre",
+    "S": "ésse",
+    "T": "tê",
+    "U": "u",
+    "V": "vê",
+    "W": "dáblio",
+    "X": "xis",
+    "Y": "ípsilon",
+    "Z": "zê",
+}
+
+_TTS_ABBREVIATION_RULES = {
+    "mAh": {"mode": "expand", "value": "miliampere hora"},
+    "MAh": {"mode": "expand", "value": "miliampere hora"},
+    "mah": {"mode": "expand", "value": "miliampere hora"},
+    "Wh": {"mode": "expand", "value": "watt hora"},
+    "kWh": {"mode": "expand", "value": "quilo watt hora"},
+    "km": {"mode": "expand", "value": "quilômetro"},
+    "kg": {"mode": "expand", "value": "quilo"},
+    "GB": {"mode": "expand", "value": "giga bytes"},
+    "gb": {"mode": "expand", "value": "giga bytes"},
+    "TB": {"mode": "expand", "value": "tera bytes"},
+    "tb": {"mode": "expand", "value": "tera bytes"},
+    "RAM": {"mode": "spell"},
+    "CPU": {"mode": "spell"},
+    "GPU": {"mode": "spell"},
+    "USB": {"mode": "spell"},
+    "NFC": {"mode": "spell"},
+    "SSD": {"mode": "spell"},
+    "HD": {"mode": "spell"},
+    "LED": {"mode": "spell"},
+    "LCD": {"mode": "spell"},
+    "LLM": {"mode": "spell"},
+    "IA": {"mode": "spell"},
+    "AI": {"mode": "spell"},
+    "NASA": {"mode": "word"},
+    "laser": {"mode": "word"},
+    "Laser": {"mode": "word"},
+}
+
+_PRONOUNCE_AS_WORD = {
+    "NASA",
+    "LASER",
+    "RADAR",
+    "WiFi",
+    "WIFI",
+}
+
 
 def _number_to_pt(value: int, feminine_one: bool = False) -> str:
     if feminine_one and value == 1:
@@ -635,6 +699,21 @@ def _number_to_pt(value: int, feminine_one: bool = False) -> str:
         if rest == 0:
             return _HUNDRED_WORDS.get(hundred, str(value))
         return f"{_HUNDRED_WORDS.get(hundred, str(hundred))} e {_number_to_pt(rest, feminine_one=feminine_one)}"
+
+    if value < 1_000_000:
+        thousands = value // 1000
+        rest = value % 1000
+
+        if thousands == 1:
+            prefix = "mil"
+        else:
+            prefix = f"{_number_to_pt(thousands, feminine_one=feminine_one)} mil"
+
+        if rest == 0:
+            return prefix
+
+        connector = " e " if rest < 100 else ", "
+        return f"{prefix}{connector}{_number_to_pt(rest, feminine_one=feminine_one)}"
 
     return str(value)
 
@@ -664,6 +743,70 @@ def _expand_degrees_expression(match: re.Match) -> str:
     value = int(match.group(1))
     unit = "grau" if value == 1 else "graus"
     return f"{_number_to_pt(value)} {unit}"
+
+
+def _spell_acronym(token: str) -> str:
+    parts = []
+    for char in token:
+        parts.append(_SPELLED_LETTER_NAMES.get(char.upper(), char.lower()))
+    return " ".join(parts)
+
+
+def _looks_pronounceable_acronym(token: str) -> bool:
+    upper = token.upper()
+    if upper in _PRONOUNCE_AS_WORD:
+        return True
+
+    if len(token) < 3 or len(token) > 5:
+        return False
+
+    vowels = sum(1 for char in upper if char in "AEIOU")
+    consonants = sum(1 for char in upper if "A" <= char <= "Z" and char not in "AEIOU")
+    return vowels >= 2 and consonants >= 1
+
+
+def _apply_abbreviation_rules(text: str) -> str:
+    for source, rule in _TTS_ABBREVIATION_RULES.items():
+        mode = str(rule.get("mode", "")).strip().lower()
+        if mode == "expand":
+            replacement = str(rule.get("value", "")).strip()
+        elif mode == "spell":
+            replacement = _spell_acronym(source)
+        elif mode == "word":
+            replacement = source.lower()
+        else:
+            continue
+
+        if replacement:
+            text = re.sub(rf"\b{re.escape(source)}\b", replacement, text)
+
+    return text
+
+
+def _apply_abbreviation_heuristics(text: str) -> str:
+    def replacer(match: re.Match) -> str:
+        token = match.group(0)
+        if token in _TTS_ABBREVIATION_RULES:
+            return token
+
+        if any(char.islower() for char in token) and any(char.isupper() for char in token):
+            lower = token.lower()
+            if lower.endswith("mah"):
+                return "miliampere hora"
+            if lower.endswith("kwh"):
+                return "quilo watt hora"
+            if lower.endswith("wh"):
+                return "watt hora"
+            return token
+
+        if token.isupper() and len(token) <= 4:
+            if _looks_pronounceable_acronym(token):
+                return token.lower()
+            return _spell_acronym(token)
+
+        return token
+
+    return re.sub(r"\b[A-Za-zÀ-ÿ]{2,5}\b", replacer, text)
 
 
 def _replace_quoted_segment(match: re.Match) -> str:
@@ -716,10 +859,7 @@ def _normalize_tts_punctuation(text: str) -> str:
     text = re.sub(r"([,.!?;:])(?=\S)", r"\1 ", text)
     text = re.sub(r"([!?]){2,}", r"\1", text)
     text = re.sub(r"(\.){4,}", "...", text)
-    text = re.sub(r"(\?)([.!])", r"\1", text)
-    text = re.sub(r"(!)([.?])", r"\1", text)
 
-    # Piper tends to read explicit separators better than punctuation clusters.
     text = re.sub(r"\s*;\s*", f".{sentence_break}", text)
     text = re.sub(r"\s*:\s*", f".{sentence_break}", text)
     text = re.sub(r"\s*,\s*", ", ", text)
@@ -748,6 +888,10 @@ def _expand_tts_reading_patterns(text: str) -> str:
         text,
     )
     text = re.sub(r"\b(\d{1,3})\s+graus\b", _expand_degrees_expression, text)
+    text = re.sub(r"\b(\d{1,5})\s*mAh\b", lambda m: f"{_number_to_pt(int(m.group(1)))} miliampere hora", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b(\d{1,5})\s*Wh\b", lambda m: f"{_number_to_pt(int(m.group(1)))} watt hora", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b(\d{1,5})\s*kWh\b", lambda m: f"{_number_to_pt(int(m.group(1)))} quilo watt hora", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b(\d{1,4})\s*km\b", lambda m: f"{_number_to_pt(int(m.group(1)))} quilômetros", text, flags=re.IGNORECASE)
     return text
 
 
@@ -787,6 +931,8 @@ def _prepare_tts_text(text: str) -> str:
     prepared = _normalize_tts_punctuation(text)
     prepared = _expand_tts_reading_patterns(prepared)
     prepared = _restore_common_ptbr_accents(prepared)
+    prepared = _apply_abbreviation_rules(prepared)
+    prepared = _apply_abbreviation_heuristics(prepared)
     for source, target in _load_tts_pronunciations().items():
         prepared = re.sub(rf"\b{re.escape(source)}\b", target, prepared)
 
@@ -848,16 +994,22 @@ def _piper_worker_signature(
 
 
 def _stop_piper_worker_locked():
-    global _PIPER_WORKER_PROCESS, _PIPER_WORKER_SIGNATURE
+    global _PIPER_WORKER_PROCESS, _PIPER_WORKER_SIGNATURE, _PIPER_WORKER_WARM
 
     process = _PIPER_WORKER_PROCESS
     _PIPER_WORKER_PROCESS = None
     _PIPER_WORKER_SIGNATURE = None
+    _PIPER_WORKER_WARM = False
 
     if not process:
         return
 
     try:
+        if process.stdin:
+            try:
+                process.stdin.close()
+            except Exception:
+                pass
         process.terminate()
         process.wait(timeout=1.5)
     except Exception:
@@ -876,7 +1028,7 @@ def _ensure_piper_worker(
     noise_scale: str,
     noise_w: str,
 ):
-    global _PIPER_WORKER_PROCESS, _PIPER_WORKER_SIGNATURE, _PIPER_WORKER_SAMPLE_RATE
+    global _PIPER_WORKER_PROCESS, _PIPER_WORKER_SIGNATURE, _PIPER_WORKER_SAMPLE_RATE, _PIPER_WORKER_WARM
 
     signature = _piper_worker_signature(
         piper_exe,
@@ -925,46 +1077,75 @@ def _ensure_piper_worker(
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            bufsize=0,
         )
+
         _PIPER_WORKER_PROCESS = process
         _PIPER_WORKER_SIGNATURE = signature
         _PIPER_WORKER_SAMPLE_RATE = _load_piper_sample_rate(config_path)
+        _PIPER_WORKER_WARM = False
         return process
 
 
 def _read_piper_worker_audio(process, timeout_seconds: float, idle_seconds: float):
+    global _PIPER_WORKER_WARM
+
     chunks = []
     started = time.monotonic()
     last_data_at = None
+    effective_idle = max(idle_seconds, 0.35 if not _PIPER_WORKER_WARM else idle_seconds)
 
-    while time.monotonic() - started < timeout_seconds:
+    stdout = process.stdout
+    if stdout is None:
+        return VoiceResult(ok=False, error="Worker Piper sem stdout."), b""
+
+    while True:
         if speech_interrupt_pressed():
             _stop_piper_worker_locked()
             return VoiceResult(ok=False, error="Fala interrompida."), b""
 
         if process.poll() is not None:
-            return None, b"".join(chunks)
+            break
+
+        now = time.monotonic()
+        if now - started > timeout_seconds:
+            break
 
         try:
-            available = process.stdout.peek(65536)
+            handle = msvcrt.get_osfhandle(stdout.fileno())
+            total_available = ctypes.c_ulong(0)
+            ok = kernel32.PeekNamedPipe(
+                ctypes.c_void_p(handle),
+                None,
+                0,
+                None,
+                ctypes.byref(total_available),
+                None,
+            )
+            available = int(total_available.value) if ok else 0
         except Exception:
-            available = b""
+            available = 0
 
-        if available:
+        if available > 0:
             try:
-                data = process.stdout.read(len(available))
+                data = os.read(stdout.fileno(), min(available, 65536))
             except Exception:
-                data = b""
+                break
+        else:
+            data = b""
 
-            if data:
-                chunks.append(data)
-                last_data_at = time.monotonic()
-                continue
+        if data:
+            chunks.append(data)
+            last_data_at = time.monotonic()
+            continue
 
-        if last_data_at is not None and (time.monotonic() - last_data_at) >= idle_seconds:
+        if last_data_at is not None and (now - last_data_at) >= effective_idle:
             break
 
         time.sleep(0.01)
+
+    if chunks:
+        _PIPER_WORKER_WARM = True
 
     return None, b"".join(chunks)
 
@@ -1069,6 +1250,11 @@ def _play_wav(path: str | Path) -> VoiceResult | None:
     return _wait_for_wav_playback(path)
 
 
+def _play_wav_chunk(path: str | Path) -> VoiceResult | None:
+    winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC)
+    return _wait_for_wav_playback(path)
+
+
 def _voice_effect_strength() -> float:
     try:
         value = float(VOICE_PREFERENCES.get("assistant_voice_effect_strength", 0.35))
@@ -1109,8 +1295,6 @@ def _apply_jarvis_audio_effect(path: str):
 
     processed = audio_2d.copy()
 
-    # A restrained "assistant console" color: clearer consonants, light ambience,
-    # and soft saturation. It is intentionally not a voice clone.
     emphasized = processed.copy()
     emphasized[1:] = processed[1:] - (0.16 * strength * processed[:-1])
     processed = ((1.0 - (0.22 * strength)) * processed) + ((0.22 * strength) * emphasized)
@@ -1191,16 +1375,20 @@ def _run_piper_synthesis(
             )
 
             payload = json.dumps({"text": text_for_tts}, ensure_ascii=False).encode("utf-8") + b"\n"
+
             with _PIPER_WORKER_LOCK:
+                if process.poll() is not None:
+                    raise RuntimeError("Worker Piper morreu antes da escrita.")
                 if process.stdin is None:
                     raise RuntimeError("Worker Piper sem stdin.")
                 process.stdin.write(payload)
                 process.stdin.flush()
-                interrupt_result, audio_bytes = _read_piper_worker_audio(
-                    process,
-                    timeout_seconds=worker_timeout,
-                    idle_seconds=worker_idle,
-                )
+
+            interrupt_result, audio_bytes = _read_piper_worker_audio(
+                process,
+                timeout_seconds=worker_timeout,
+                idle_seconds=worker_idle,
+            )
 
             if interrupt_result:
                 return interrupt_result
@@ -1212,9 +1400,13 @@ def _run_piper_synthesis(
 
             with _PIPER_WORKER_LOCK:
                 _stop_piper_worker_locked()
-        except Exception:
+
+        except Exception as exc:
             with _PIPER_WORKER_LOCK:
                 _stop_piper_worker_locked()
+
+            if not worker_fallback:
+                return VoiceResult(ok=False, error=f"Worker persistente do Piper falhou: {exc}")
 
         if not worker_fallback:
             return VoiceResult(ok=False, error="Worker persistente do Piper falhou.")
@@ -1416,7 +1608,7 @@ def _speak_with_piper(text: str) -> VoiceResult:
             if bool(VOICE_PREFERENCES.get("tts_cache_enabled", True)):
                 chunk_cache_path = _tts_cache_path("piper", chunk_text, cache_settings)
                 if chunk_cache_path.exists():
-                    interrupted = _play_wav(chunk_cache_path)
+                    interrupted = _play_wav_chunk(chunk_cache_path)
                     if interrupted:
                         return interrupted
                     continue
@@ -1444,7 +1636,7 @@ def _speak_with_piper(text: str) -> VoiceResult:
                     shutil.copy2(chunk_output_path, chunk_cache_path)
                     play_path = str(chunk_cache_path)
 
-                interrupted = _play_wav(play_path)
+                interrupted = _play_wav_chunk(play_path)
                 if interrupted:
                     return interrupted
             finally:

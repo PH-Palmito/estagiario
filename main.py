@@ -185,6 +185,10 @@ def should_style_response(message: str) -> bool:
 def style_response(message: str) -> str:
     assistant_style = str(VOICE_PREFERENCES.get("assistant_style", "")).strip().lower()
     if assistant_style not in {"jarvis", "assistente", "elegante"}:
+        humor_style = str(VOICE_PREFERENCES.get("assistant_humor_style", "")).strip().lower()
+        if bool(VOICE_PREFERENCES.get("assistant_humor_enabled", True)) and humor_style == "jarvis":
+            assistant_style = "jarvis"
+    if assistant_style not in {"jarvis", "assistente", "elegante"}:
         return message
 
     if not bool(VOICE_PREFERENCES.get("assistant_brief_confirmations", True)):
@@ -234,14 +238,27 @@ def style_response(message: str) -> str:
         "Abrindo spotify.": "Certamente. Abrindo Spotify.",
         "Abrindo chrome.": "Certamente. Abrindo Chrome.",
         "Abrindo code.": "Certamente. Abrindo VS Code.",
-        "Fechando spotify.": "Fechando Spotify.",
-        "Fechando code.": "Fechando VS Code.",
+        "Fechando spotify.": "Encerrando Spotify.",
+        "Fechando code.": "Encerrando VS Code.",
         "Nao entendi.": "Nao captei com precisao.",
-        "Pode repetir?": "Pode repetir, por favor?",
-        "Nao identifiquei o comando.": "Nao identifiquei o comando.",
-        "Escuta pausada.": "Escuta pausada.",
-        "Escuta retomada.": "Escuta retomada.",
+        "Pode repetir?": "Pode repetir com calma?",
+        "Nao identifiquei o comando.": "Esse comando nao ficou claro para mim.",
+        "Escuta pausada.": "Escuta em pausa.",
+        "Escuta retomada.": "Escuta restabelecida.",
         "Acao cancelada.": "Acao cancelada.",
+        "Pode falar.": "Estou ouvindo.",
+        "Pode falar...": "Estou ouvindo.",
+        "Pode responder...": "Pode responder.",
+        "Encerrando.": "Encerrando por agora.",
+        "Modo conversa encerrado. Voltei para comandos.": "Modo conversa encerrado. Voltei aos comandos.",
+        "Responda com sim ou nao.": "Preciso apenas de sim ou nao.",
+        "Responda com 'sim' ou 'nao'.": "Preciso apenas de sim ou nao.",
+        "Responda com app, site ou cancelar.": "Responda com app, site ou cancelar.",
+        "Responda com 'app' ou 'site'.": "Responda com app ou site.",
+        "Ok, nao abri.": "Certo. Nao abri.",
+        "Nao consegui entender a resposta. Cancelei essa pergunta.": "Nao consegui confirmar a resposta. Cancelei essa pergunta.",
+        "Nada para repetir.": "Nao ha nada recente para repetir.",
+        "Passo adicionado.": "Passo registrado.",
     }
     if message in replacements:
         return replacements[message]

@@ -32,7 +32,7 @@ DEFAULTS = {
     "piper_fallback_to_windows": True,
     "piper_persistent_worker_enabled": True,
     "piper_worker_timeout_seconds": 20.0,
-    "piper_worker_idle_seconds": 0.12,
+    "piper_worker_idle_seconds": 0.35,
     "piper_worker_fallback_to_cli": True,
     "assistant_humor_enabled": True,
     "assistant_humor_level": 2,

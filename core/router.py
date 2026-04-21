@@ -692,8 +692,29 @@ def detect_navigation_command(user_input: str):
     }:
         return {"intent": "browser_translate_last_selection", "target": None}
 
+    if re.match(
+        r"^(?:e\s+)?(?:o\s+)?que\s+(?:tem|ta|esta|aparece)(?:\s+ai)?\s+na\s+tela$",
+        lower,
+    ):
+        return {"intent": "browser_describe_screen", "target": None}
+
+    if lower in {
+        "resuma a tela",
+        "resumir tela",
+        "resumir a tela",
+        "me da um resumo da tela",
+        "me de um resumo da tela",
+        "qual o resumo da tela",
+        "resumo da tela",
+        "o que voce ve resumido",
+        "o que voce ve na tela resumido",
+    }:
+        return {"intent": "browser_summarize_screen", "target": None}
+
     if lower in {
         "o que tem na tela",
+        "que tem na tela",
+        "e que tem na tela",
         "o que aparece na tela",
         "ler tela",
         "leia a tela",
@@ -1053,7 +1074,7 @@ def detect_navigation_command(user_input: str):
             }
 
     site_search_match = re.match(
-        r"^(?:pesquise|pesquisar|esquise|esquisar|procure|procurar|buscar|busque)\s+(.+?)\s+(?:no|na|em|dentro\s+do|dentro\s+da)\s+(.+)$",
+        r"^(?:pesquisa|pesquise|pesquisar|esquise|esquisar|procure|procurar|buscar|busque)\s+(.+?)\s+(?:no|na|em|dentro\s+do|dentro\s+da)\s+(.+)$",
         lower,
     )
     if site_search_match:
@@ -1109,14 +1130,14 @@ def detect_browser_command(user_input: str):
     if lower in {"fechar aba", "fecha aba", "feche a aba", "fecha"} or "fechar aba" in lower:
         return {"intent": "browser_close_tab", "target": None}
 
-    if lower.startswith(("pesquisar por ", "pesquise por ", "esquisar por ", "esquise por ")):
-        query = re.sub(r"^(pesquisar|pesquise|esquisar|esquise) por ", "", lower).strip()
+    if lower.startswith(("pesquisa por ", "pesquisar por ", "pesquise por ", "esquisar por ", "esquise por ")):
+        query = re.sub(r"^(pesquisa|pesquisar|pesquise|esquisar|esquise) por ", "", lower).strip()
         query = re.sub(r"\s+no navegador$", "", query).strip()
         if query:
             return {"intent": "browser_search", "target": query}
 
-    if lower.startswith(("pesquisar ", "pesquise ", "esquisar ", "esquise ")):
-        query = re.sub(r"^(pesquisar|pesquise|esquisar|esquise) ", "", lower).strip()
+    if lower.startswith(("pesquisa ", "pesquisar ", "pesquise ", "esquisar ", "esquise ")):
+        query = re.sub(r"^(pesquisa|pesquisar|pesquise|esquisar|esquise) ", "", lower).strip()
         query = re.sub(r"\s+no navegador$", "", query).strip()
         if query:
             return {"intent": "google_search", "target": query}
@@ -1339,8 +1360,8 @@ def detect_open_url(user_input: str):
             url = "https://" + url
         return {"intent": "open_url", "target": url}
 
-    if lower.startswith("pesquise "):
-        query = user_input[len("pesquise "):].strip()
+    if lower.startswith(("pesquisa ", "pesquise ", "pesquisar ")):
+        query = re.sub(r"^(pesquisa|pesquise|pesquisar)\s+", "", user_input, flags=re.IGNORECASE).strip()
         if query:
             return {"intent": "google_search", "target": query}
 

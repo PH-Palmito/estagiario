@@ -121,6 +121,22 @@ BASE_COMMANDS = {
     "diagnosticare spotify": "diagnosticar spotify",
     "jagnoche car spotify": "diagnosticar spotify",
     "debug spotify": "diagnosticar spotify",
+    "pesquisa": "pesquisar",
+    "pesquisa notebook": "pesquisar notebook",
+    "resuma a tela": "resuma a tela",
+    "resume a tela": "resuma a tela",
+    "resumir tela": "resuma a tela",
+    "resumo da tela": "resuma a tela",
+    "o que tem na tela": "o que tem na tela",
+    "que tem na tela": "o que tem na tela",
+    "e que tem na tela": "o que tem na tela",
+    "o que esta na tela": "o que tem na tela",
+    "o que ta na tela": "o que tem na tela",
+    "o que esta ai na tela": "o que tem na tela",
+    "o que ta ai na tela": "o que tem na tela",
+    "o que aparece na tela": "o que tem na tela",
+    "o que esta ai": "o que tem na tela",
+    "o kit tem na tela": "o que tem na tela",
 }
 
 

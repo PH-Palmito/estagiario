@@ -2,11 +2,12 @@ import base64
 import ctypes
 import json
 import os
+import random
 import re
 import subprocess
 import time
 import webbrowser
-from urllib.parse import quote, quote_plus
+from urllib.parse import quote, quote_plus, unquote, urlparse
 
 from llm.ollama_client import ask_model
 from tools.system_tools import focus_app
@@ -61,13 +62,37 @@ SPOTIFY_TRACK_RESULT_CLICKS = (
     (0.56, 0.52),
 )
 LAST_BROWSER_ELEMENTS = []
+LAST_BROWSER_CONTEXT = ""
+LAST_BROWSER_CONTEXT_CHANGED_AT = 0.0
 LAST_SELECTED_TEXT = ""
 
 
-def _remember_text_items(lines):
-    global LAST_BROWSER_ELEMENTS
+class _WinRect(ctypes.Structure):
+    _fields_ = [
+        ("Left", ctypes.c_long),
+        ("Top", ctypes.c_long),
+        ("Right", ctypes.c_long),
+        ("Bottom", ctypes.c_long),
+    ]
 
-    LAST_BROWSER_ELEMENTS = [
+
+def _clear_browser_snapshot(context: str = ""):
+    global LAST_BROWSER_ELEMENTS, LAST_BROWSER_CONTEXT, LAST_BROWSER_CONTEXT_CHANGED_AT
+
+    LAST_BROWSER_ELEMENTS = []
+    LAST_BROWSER_CONTEXT = context
+    LAST_BROWSER_CONTEXT_CHANGED_AT = time.monotonic()
+
+
+def _set_browser_elements(elements, context: str = ""):
+    global LAST_BROWSER_ELEMENTS, LAST_BROWSER_CONTEXT
+
+    LAST_BROWSER_ELEMENTS = list(elements)
+    LAST_BROWSER_CONTEXT = context
+
+
+def _remember_text_items(lines, context: str = ""):
+    elements = [
         {
             "text": line,
             "x": None,
@@ -76,6 +101,136 @@ def _remember_text_items(lines):
         }
         for line in lines
     ]
+    _set_browser_elements(elements, context=context)
+
+
+def _get_foreground_window_title() -> str:
+    hwnd = user32.GetForegroundWindow()
+    if not hwnd:
+        return ""
+
+    length = user32.GetWindowTextLengthW(hwnd)
+    if length <= 0:
+        return ""
+
+    buffer = ctypes.create_unicode_buffer(length + 1)
+    user32.GetWindowTextW(hwnd, buffer, length + 1)
+    return buffer.value.strip()
+
+
+def _get_foreground_window_rect():
+    hwnd = user32.GetForegroundWindow()
+    if not hwnd:
+        return None
+
+    rect = _WinRect()
+    if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        return None
+
+    left = int(rect.Left)
+    top = int(rect.Top)
+    right = int(rect.Right)
+    bottom = int(rect.Bottom)
+    if right <= left or bottom <= top:
+        return None
+
+    return left, top, right, bottom
+
+
+def _get_foreground_window_capture_hash() -> str:
+    rect = _get_foreground_window_rect()
+    if not rect:
+        return ""
+
+    left, top, right, bottom = rect
+    width = right - left
+    height = bottom - top
+    if width < 80 or height < 80:
+        return ""
+
+    temp_dir = os.path.join(os.getcwd(), ".tmp")
+    try:
+        os.makedirs(temp_dir, exist_ok=True)
+    except Exception:
+        temp_dir = os.environ.get("TEMP", temp_dir)
+
+    image_path = os.path.join(temp_dir, f"screen-context-{time.monotonic_ns()}.png")
+    ps_image_path = image_path.replace("'", "''")
+    script = f"""
+Add-Type -AssemblyName System.Drawing
+$path = '{ps_image_path}'
+$bmp = New-Object System.Drawing.Bitmap({width}, {height})
+$graphics = [System.Drawing.Graphics]::FromImage($bmp)
+try {{
+    $graphics.CopyFromScreen({left}, {top}, 0, 0, $bmp.Size)
+    $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+    $hash = (Get-FileHash -Algorithm SHA1 -Path $path).Hash
+    Write-Output $hash
+}} finally {{
+    $graphics.Dispose()
+    $bmp.Dispose()
+    Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+}}
+"""
+    try:
+        completed = _run_powershell(script, timeout_seconds=5)
+    except Exception:
+        try:
+            if os.path.exists(image_path):
+                os.remove(image_path)
+        except Exception:
+            pass
+        return ""
+
+    try:
+        if os.path.exists(image_path):
+            os.remove(image_path)
+    except Exception:
+        pass
+
+    if completed.returncode != 0:
+        return ""
+
+    return (completed.stdout or "").strip().lower()
+
+
+def _browser_context_signature() -> str:
+    title = _get_foreground_window_title()
+    if not title:
+        return ""
+
+    title = re.sub(r"\s+", " ", title).strip()
+    title_signature = _normalize_text_for_match(title)
+    page_url = _get_browser_url()
+    if page_url:
+        parsed = urlparse(page_url)
+        url_signature = _normalize_text_for_match(f"{parsed.netloc}{parsed.path}")
+        if url_signature:
+            title_signature = f"{title_signature}|{url_signature}"
+    capture_hash = _get_foreground_window_capture_hash()
+    if capture_hash:
+        return f"{title_signature}|{capture_hash[:16]}"
+    return title_signature
+
+
+def _refresh_browser_context() -> str:
+    global LAST_BROWSER_CONTEXT, LAST_BROWSER_CONTEXT_CHANGED_AT
+
+    context = _browser_context_signature()
+    if context and LAST_BROWSER_CONTEXT and context != LAST_BROWSER_CONTEXT:
+        _clear_browser_snapshot(context=context)
+    elif context and not LAST_BROWSER_CONTEXT:
+        LAST_BROWSER_CONTEXT = context
+        LAST_BROWSER_CONTEXT_CHANGED_AT = time.monotonic()
+
+    return context
+
+
+def _browser_context_recently_changed(window_seconds: float = 1.2) -> bool:
+    if LAST_BROWSER_CONTEXT_CHANGED_AT <= 0:
+        return False
+    return (time.monotonic() - LAST_BROWSER_CONTEXT_CHANGED_AT) <= window_seconds
+
 
 
 def _run_powershell(script: str, timeout_seconds: int = 10) -> subprocess.CompletedProcess:
@@ -362,6 +517,16 @@ def _normalize_text_for_match(text: str) -> str:
     text = re.sub(r"[^\w\s]", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def _strip_gallery_suffix(text: str) -> str:
+    cleaned = re.sub(
+        r"\s+(?:imagen|imagem|image)\s*-\s*\d+\s*/\s*\d+\s*$",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"\s+", " ", cleaned).strip(" -")
 
 
 def _short_click_query(text: str) -> str:
@@ -817,6 +982,12 @@ def _useful_page_text_lines(text: str, limit: int = 10):
         if normalized.isdigit():
             continue
 
+        if re.match(r"^(?:r\$\s*)?[\d\.\,]+$", line.lower()):
+            continue
+
+        if re.match(r"^\d+x\s+de\s+r\$", line.lower()):
+            continue
+
         if any(pattern in normalized for pattern in ignore_patterns):
             continue
 
@@ -831,6 +1002,279 @@ def _useful_page_text_lines(text: str, limit: int = 10):
 
     lines.sort(key=lambda item: item[0], reverse=True)
     return [line for _score, line in lines[:limit]]
+
+
+def _screen_lines_quality(lines) -> int:
+    if not lines:
+        return 0
+
+    product_words = {
+        "celular", "smartphone", "notebook", "iphone", "galaxy", "moto", "motorola",
+        "xiaomi", "redmi", "samsung", "realme", "oppo", "lavadora", "lava", "relogio",
+        "relógio", "tv", "monitor", "fogao", "fogão", "geladeira",
+    }
+    noise_terms = {
+        "sem juros", "vez de r$", "vezes de r$", "frete", "cupom", "celulares",
+        "eletrodomesticos", "eletrodomésticos", "tipo de", "comprar agora",
+    }
+
+    score = 0
+    for line in lines:
+        normalized = _normalize_text_for_match(line)
+        if not normalized:
+            continue
+
+        has_letters = bool(re.search(r"[a-zA-Z\u00C0-\u017F]", line))
+        has_digits = bool(re.search(r"\d", line))
+        if has_letters:
+            score += 5
+        if len(normalized.split()) >= 4:
+            score += 2
+        if any(word in normalized for word in product_words):
+            score += 6
+        if re.search(r"r\$\s*\d|\d+,\d{2}", line.lower()):
+            score -= 2
+        if any(term in normalized for term in noise_terms):
+            score -= 4
+        if has_digits and not has_letters:
+            score -= 8
+
+    return score + len(lines)
+
+
+def _screen_list_intro() -> str:
+    return random.choice(
+        [
+            "Consegui ler texto da pagina",
+            "Isto foi o que achei na pagina",
+            "Encontrei estes pontos na tela",
+            "O que estou vendo na pagina e",
+        ]
+    )
+
+
+def _screen_summary_intro() -> str:
+    return random.choice(
+        [
+            "Resumo da tela",
+            "Panorama da tela",
+            "Visao rapida da tela",
+        ]
+    )
+
+
+def _get_browser_url() -> str:
+    if not _activate_browser_window():
+        return ""
+
+    old_clipboard = _get_clipboard_text()
+    sentinel = f"__ESTAGIARIO_BROWSER_URL__{time.monotonic_ns()}__"
+    copied = ""
+
+    try:
+        _set_clipboard_text(sentinel)
+        time.sleep(0.03)
+        _shortcut(VK_CONTROL, VK_L)
+        time.sleep(0.08)
+        _shortcut(VK_CONTROL, VK_C)
+        for _ in range(12):
+            time.sleep(0.08)
+            sample = _get_clipboard_text().strip()
+            if sample and sample != sentinel and sample != old_clipboard:
+                copied = sample
+                break
+    finally:
+        _tap(VK_ESCAPE)
+        _set_clipboard_text(old_clipboard)
+
+    if not copied:
+        return ""
+
+    if copied.startswith(("http://", "https://")):
+        return copied
+
+    return ""
+
+
+def _clean_browser_title(title: str) -> str:
+    cleaned = re.sub(r"\s+", " ", title or "").strip(" -|")
+    cleaned = re.sub(r"\s*-\s*(google chrome|chrome|microsoft edge|edge|mozilla firefox|firefox|opera|brave)$", "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
+def _parse_github_repo_from_url(page_url: str) -> str:
+    parsed = urlparse(page_url or "")
+    if "github.com" not in parsed.netloc.lower():
+        return ""
+
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) >= 2:
+        return f"{parts[0]}/{parts[1]}"
+    return ""
+
+
+def _parse_title_content(clean_title: str, page_url: str) -> str:
+    if not clean_title:
+        return ""
+
+    parsed = urlparse(page_url or "")
+    host = parsed.netloc.lower()
+
+    if "youtube.com" in host or "youtu.be" in host:
+        return re.sub(r"\s*-\s*youtube$", "", clean_title, flags=re.IGNORECASE).strip()
+
+    if "github.com" in host:
+        match = re.match(r"GitHub\s*-\s*([^:]+):\s*(.+)$", clean_title, flags=re.IGNORECASE)
+        if match:
+            return match.group(2).strip()
+
+    return clean_title
+
+
+def _detect_screen_category(lines, page_url: str = "", page_title: str = "") -> str:
+    normalized_blob = " ".join(_normalize_text_for_match(line) for line in lines if line)
+    parsed = urlparse(page_url or "")
+    host = parsed.netloc.lower()
+    path = parsed.path.lower()
+    title_blob = _normalize_text_for_match(page_title)
+
+    if "github.com" in host:
+        return "repositorio github"
+
+    if ("youtube.com" in host or "youtu.be" in host) and ("/watch" in path or "youtube" in title_blob):
+        return "video youtube"
+
+    category_patterns = [
+        ("repositorio github", ("repository navigation", "pull requests", "issues", "actions", "discussions", "github")),
+        ("video youtube", ("up next", "youtube", "inscrito", "inscrever-se", "comentarios", "comentários")),
+        ("smartphones", ("smartphone", "celular", "iphone", "galaxy", "redmi", "motorola", "oppo", "realme")),
+        ("notebooks", ("notebook", "ideapad", "vivobook", "aspire", "inspiron", "thinkpad", "macbook")),
+        ("lavadoras", ("lavadora", "lava loucas", "lava-loucas", "lava e seca", "samsung ww", "electrolux")),
+        ("televisores", ("smart tv", "televis", "polegadas", "suporte articulado", "monitor")),
+        ("relogios", ("relogio", "relogios", "watch", "smartwatch", "amazfit", "mi band")),
+    ]
+
+    for category, patterns in category_patterns:
+        if any(pattern in normalized_blob for pattern in patterns):
+            return category
+
+    return ""
+
+
+def _content_showcase(lines, limit: int = 3) -> list[str]:
+    showcase = []
+    for line in lines:
+        compact = re.sub(r"\s+", " ", line).strip()
+        if len(compact) > 110:
+            compact = compact[:107].rstrip() + "..."
+        if compact and compact not in showcase:
+            showcase.append(compact)
+        if len(showcase) >= limit:
+            break
+    return showcase
+
+
+def _summarize_screen_lines(lines, page_url: str = "", page_title: str = "") -> str:
+    if not lines:
+        return "Nao consegui extrair um resumo confiavel da tela."
+
+    normalized_lines = [_normalize_text_for_match(line) for line in lines if line]
+    category = _detect_screen_category(lines, page_url=page_url, page_title=page_title)
+    clean_title = _clean_browser_title(page_title)
+    title_content = _parse_title_content(clean_title, page_url)
+
+    if category == "repositorio github":
+        repo_name = _parse_github_repo_from_url(page_url)
+        content_lines = []
+        for line in lines:
+            compact = re.sub(r"\s+", " ", line).strip()
+            normalized_compact = _normalize_text_for_match(compact)
+            if normalized_compact.startswith("ir para o conte"):
+                continue
+            if normalized_compact in {
+                "repository navigation",
+                "code",
+                "issues",
+                "pull requests",
+                "actions",
+                "discussions",
+                "agents",
+                "security",
+                "insights",
+                "projects",
+                "wiki",
+                "releases",
+                "packages",
+            }:
+                continue
+            if len(compact) < 4:
+                continue
+            content_lines.append(compact)
+
+        content_lines = list(dict.fromkeys(content_lines))
+        showcase = _content_showcase(content_lines, limit=2)
+        if repo_name and title_content and title_content.lower() != repo_name.lower():
+            return f"É o repositorio {repo_name} no GitHub. Pelo titulo, o foco parece ser: {title_content}. No conteudo visivel, vejo: " + "; ".join(showcase) + "."
+        if repo_name and showcase:
+            return f"É o repositorio {repo_name} no GitHub. No conteudo visivel, vejo: " + "; ".join(showcase) + "."
+        if repo_name:
+            return f"É o repositorio {repo_name} no GitHub. Estou vendo a navegacao principal com Code, Issues, Pull requests, Discussions e Actions."
+        return "Parece um repositorio no GitHub. Estou vendo a navegacao principal e parte do conteudo do projeto."
+
+    if category == "video youtube":
+        title = title_content or clean_title or "um video no YouTube"
+        showcase = _content_showcase([line for line in lines if _normalize_text_for_match(line) not in {"up next", "youtube"}], limit=2)
+        if showcase:
+            return f"Parece a pagina de um video no YouTube: {title}. Na tela, vejo: " + "; ".join(showcase) + "."
+        return f"Parece a pagina de um video no YouTube: {title}."
+
+    pure_price_lines = 0
+    for line in lines:
+        line_lower = line.lower()
+        if re.search(r"r\$\s*\d|\d+,\d{2}", line_lower) and not re.search(r"[a-zA-Z\u00C0-\u017F]{4,}", line):
+            pure_price_lines += 1
+        if "sem juros" in line_lower or "vez" in line_lower:
+            pure_price_lines += 1
+
+    if pure_price_lines >= max(3, len(lines) // 2):
+        return "Vejo principalmente precos e parcelas. A tela parece comercial, mas ainda nao peguei bem os nomes principais dos itens."
+
+    showcase = _content_showcase(lines, limit=3)
+
+    if category in {"smartphones", "notebooks", "lavadoras", "televisores", "relogios"}:
+        return f"Parece uma lista de {category}. Destaques: " + "; ".join(showcase) + "."
+
+    if any("repository navigation" in line or "pull requests" in line for line in normalized_lines):
+        return "Parece uma pagina de repositorio com navegacao e abas principais, mais do que conteudo detalhado do projeto."
+
+    if title_content and title_content not in showcase:
+        return f"Pelo titulo da pagina, o foco parece ser: {title_content}. Na tela, vejo: " + "; ".join(showcase) + "."
+
+    return f"Vejo {len(lines)} itens principais na tela. Destaques: " + "; ".join(showcase) + "."
+
+
+def _should_auto_summarize(lines, quality_score: int, page_url: str = "", page_title: str = "") -> bool:
+    if not lines:
+        return False
+
+    if _detect_screen_category(lines, page_url=page_url, page_title=page_title) in {"repositorio github", "video youtube"}:
+        return True
+
+    summary_hint = _summarize_screen_lines(lines, page_url=page_url, page_title=page_title).lower()
+    if "precos e parcelas" in summary_hint:
+        return True
+
+    if quality_score < 22:
+        return True
+
+    long_lines = sum(1 for line in lines if len(line) >= 70)
+    if len(lines) >= 6 and long_lines >= 4:
+        return True
+
+    if len("; ".join(lines)) >= 520:
+        return True
+
+    return False
 
 
 def _rank_page_text_lines(text: str, limit: int = 10):
@@ -908,6 +1352,7 @@ def _rank_page_text_lines(text: str, limit: int = 10):
 
     for raw_line in (text or "").splitlines():
         line = re.sub(r"\s+", " ", raw_line).strip()
+        line = _strip_gallery_suffix(line)
 
         if len(line) < 4 or len(line) > 180:
             continue
@@ -1001,6 +1446,7 @@ def _selected_text_items(text: str, limit: int = 10):
     seen = set()
 
     for index, line in enumerate(raw_lines):
+        line = _strip_gallery_suffix(line)
         normalized = _normalize_text_for_match(line)
         words = normalized.split()
 
@@ -1178,18 +1624,43 @@ if(navigator.clipboard&&navigator.clipboard.writeText) {{
 
 def _read_page_text_via_clipboard(limit: int = 10):
     old_clipboard = _get_clipboard_text()
+    copied = ""
+    sentinel = f"__ESTAGIARIO_READ_PAGE__{time.monotonic_ns()}__"
+    last_sample = ""
+    stable_reads = 0
 
     try:
+        _set_clipboard_text(sentinel)
+        time.sleep(0.03)
         _shortcut(VK_CONTROL, VK_A)
-        time.sleep(0.08)
+        time.sleep(0.12)
         _shortcut(VK_CONTROL, VK_C)
-        time.sleep(0.25)
-        copied = _get_clipboard_text()
+        for _ in range(18):
+            time.sleep(0.12)
+            sample = _get_clipboard_text()
+            stripped = sample.strip()
+            if not stripped or stripped == sentinel or sample == old_clipboard:
+                stable_reads = 0
+                continue
+
+            copied = sample
+            if sample == last_sample:
+                stable_reads += 1
+            else:
+                last_sample = sample
+                stable_reads = 1
+
+            if stable_reads >= 2 and len(stripped) >= 20:
+                break
     finally:
         _tap(VK_ESCAPE)
         _set_clipboard_text(old_clipboard)
 
-    return _rank_page_text_lines(copied, limit=limit)
+    ranked_lines = _rank_page_text_lines(copied, limit=limit)
+    if ranked_lines:
+        return ranked_lines
+
+    return _useful_page_text_lines(copied, limit=limit)
 
 
 def _click_relative_to_app(app_name: str, relative_x: float, relative_y: float, clicks: int = 1):
@@ -1813,6 +2284,9 @@ def browser_click_listed_item(index: int):
     if index < 1:
         return "Qual item da lista?"
 
+    if _activate_browser_window():
+        _refresh_browser_context()
+
     if index > len(LAST_BROWSER_ELEMENTS):
         browser_describe_screen()
 
@@ -1848,6 +2322,9 @@ def browser_click_listed_item(index: int):
 def browser_describe_listed_item(index: int):
     if index < 1:
         return "Qual item?"
+
+    if _activate_browser_window():
+        _refresh_browser_context()
 
     if index > len(LAST_BROWSER_ELEMENTS):
         return "Ainda nao tenho esse item na lista. Selecione os produtos e diga: ler selecionado."
@@ -1889,11 +2366,11 @@ def browser_read_selection():
 
     text = _compact_selected_text(selected)
     if not text:
-        LAST_BROWSER_ELEMENTS.clear()
+        _clear_browser_snapshot()
         LAST_SELECTED_TEXT = ""
         return "Nao encontrei texto selecionado."
 
-    LAST_BROWSER_ELEMENTS.clear()
+    _clear_browser_snapshot()
     LAST_SELECTED_TEXT = text
     return "Texto selecionado: " + text
 
@@ -1946,7 +2423,7 @@ def browser_translate_selection():
 
     text = _compact_selected_text(selected, max_length=1800)
     if not text:
-        LAST_BROWSER_ELEMENTS.clear()
+        _clear_browser_snapshot()
         return "Nao encontrei texto selecionado para traduzir."
 
     LAST_SELECTED_TEXT = text
@@ -1960,7 +2437,7 @@ def browser_translate_selection():
     if not translated:
         return "Nao consegui gerar a traducao."
 
-    LAST_BROWSER_ELEMENTS.clear()
+    _clear_browser_snapshot()
     return "Traduzi: " + translated
 
 
@@ -1977,7 +2454,7 @@ def browser_translate_last_selection():
     if not translated:
         return "Nao consegui gerar a traducao."
 
-    LAST_BROWSER_ELEMENTS.clear()
+    _clear_browser_snapshot()
     return "Traduzi: " + translated
 
 
@@ -1991,7 +2468,7 @@ def browser_read_selected_products():
     LAST_SELECTED_TEXT = _compact_selected_text(selected, max_length=1800)
     items = _selected_text_items(selected, limit=10)
     if not items:
-        LAST_BROWSER_ELEMENTS.clear()
+        _clear_browser_snapshot()
         return "Nao consegui ler produtos no texto selecionado."
 
     _remember_text_items(items)
@@ -2000,6 +2477,9 @@ def browser_read_selected_products():
 
 
 def browser_cheapest_listed_item():
+    if _activate_browser_window():
+        _refresh_browser_context()
+
     if not LAST_BROWSER_ELEMENTS:
         browser_describe_screen()
 
@@ -2019,25 +2499,89 @@ def browser_cheapest_listed_item():
     return f"O mais barato que encontrei e o item {index}: {text}."
 
 
+def browser_summarize_screen():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para resumir a tela."
+
+    context = _refresh_browser_context()
+    page_url = _get_browser_url()
+    page_title = _clean_browser_title(_get_foreground_window_title())
+    items = _read_browser_elements(limit=10)
+    weak_items = not items or all(_normalize_text_for_match(item["text"]).isdigit() for item in items)
+
+    if weak_items:
+        if _browser_context_recently_changed():
+            time.sleep(0.35)
+
+        page_lines = _read_page_text_via_clipboard(limit=10)
+        best_lines = page_lines
+        best_score = _screen_lines_quality(page_lines)
+
+        need_second_pass = _browser_context_recently_changed(2.0) or not page_lines or best_score < 24
+        if need_second_pass:
+            time.sleep(0.25)
+            second_lines = _read_page_text_via_clipboard(limit=10)
+            second_score = _screen_lines_quality(second_lines)
+            if second_score > best_score:
+                best_lines = second_lines
+                best_score = second_score
+
+        page_lines = best_lines
+        if page_lines:
+            _remember_text_items(page_lines, context=context)
+            return _screen_summary_intro() + ": " + _summarize_screen_lines(page_lines, page_url=page_url, page_title=page_title)
+
+        _clear_browser_snapshot(context=context)
+        return "Nao consegui resumir a tela atual."
+
+    _set_browser_elements(items, context=context)
+    lines = [item["text"] for item in items]
+    return _screen_summary_intro() + ": " + _summarize_screen_lines(lines, page_url=page_url, page_title=page_title)
+
+
 def browser_describe_screen():
     global LAST_BROWSER_ELEMENTS
 
     if not _activate_browser_window():
         return "Nao encontrei um navegador aberto para ler a tela."
 
+    context = _refresh_browser_context()
+    page_url = _get_browser_url()
+    page_title = _clean_browser_title(_get_foreground_window_title())
     items = _read_browser_elements(limit=10)
     weak_items = not items or all(_normalize_text_for_match(item["text"]).isdigit() for item in items)
     if weak_items:
-        page_lines = _read_page_text_via_clipboard(limit=10)
-        if page_lines:
-            _remember_text_items(page_lines)
-            rows = [f"{idx}. {line}" for idx, line in enumerate(page_lines, start=1)]
-            return "Consegui ler texto da pagina: " + "; ".join(rows)
+        if _browser_context_recently_changed():
+            time.sleep(0.35)
 
-        LAST_BROWSER_ELEMENTS = []
+        page_lines = _read_page_text_via_clipboard(limit=10)
+        best_lines = page_lines
+        best_score = _screen_lines_quality(page_lines)
+
+        need_second_pass = _browser_context_recently_changed(2.0) or not page_lines or best_score < 24
+        if need_second_pass:
+            time.sleep(0.25)
+            second_lines = _read_page_text_via_clipboard(limit=10)
+            second_score = _screen_lines_quality(second_lines)
+            if second_score > best_score:
+                best_lines = second_lines
+                best_score = second_score
+
+        page_lines = best_lines
+        if page_lines:
+            _remember_text_items(page_lines, context=context)
+            if _should_auto_summarize(page_lines, best_score, page_url=page_url, page_title=page_title):
+                return _screen_summary_intro() + ": " + _summarize_screen_lines(page_lines, page_url=page_url, page_title=page_title)
+            rows = [f"{idx}. {line}" for idx, line in enumerate(page_lines, start=1)]
+            return _screen_list_intro() + ": " + "; ".join(rows)
+
+        _clear_browser_snapshot(context=context)
         return "Nao consegui ler itens clicaveis visiveis nessa tela."
 
-    LAST_BROWSER_ELEMENTS = items
+    _set_browser_elements(items, context=context)
+    lines = [item["text"] for item in items]
+    if _should_auto_summarize(lines, _screen_lines_quality(lines), page_url=page_url, page_title=page_title):
+        return _screen_summary_intro() + ": " + _summarize_screen_lines(lines, page_url=page_url, page_title=page_title)
     rows = [f"{idx}. {item['text']}" for idx, item in enumerate(items, start=1)]
     return "Vejo na tela: " + "; ".join(rows)
 

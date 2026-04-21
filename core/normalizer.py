@@ -190,6 +190,7 @@ def normalize_action(old_action: dict) -> Command:
         "browser_click_center",
         "browser_cheapest_listed_item",
         "browser_describe_screen",
+        "browser_summarize_screen",
         "browser_read_selection",
         "browser_read_selected_products",
         "browser_translate_last_selection",
