@@ -712,6 +712,21 @@ def detect_navigation_command(user_input: str):
         return {"intent": "browser_summarize_screen", "target": None}
 
     if lower in {
+        "detalha",
+        "detalhar",
+        "detalha a tela",
+        "detalhar a tela",
+        "explique a tela",
+        "me explique a tela",
+        "quero detalhes da tela",
+        "me de detalhes da tela",
+        "me dê detalhes da tela",
+        "o que ha na tela em detalhe",
+        "o que há na tela em detalhe",
+    }:
+        return {"intent": "browser_explain_screen", "target": None}
+
+    if lower in {
         "o que tem na tela",
         "que tem na tela",
         "e que tem na tela",

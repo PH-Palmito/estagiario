@@ -20,6 +20,8 @@ STARTER_VOICE_CORRECTIONS = [
     {"heard": "resume a tela", "means": "resuma a tela"},
     {"heard": "resumir tela", "means": "resuma a tela"},
     {"heard": "bezumia telap", "means": "resuma a tela"},
+    {"heard": "detalha", "means": "detalha a tela"},
+    {"heard": "detalhar", "means": "detalha a tela"},
     {"heard": "lig ser licionado", "means": "ler selecionado"},
     {"heard": "os links selecionados", "means": "ler selecionado"},
     {"heard": "leica que foi seleccionario", "means": "ler selecionado"},

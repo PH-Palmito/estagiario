@@ -1174,6 +1174,13 @@ def _content_showcase(lines, limit: int = 3) -> list[str]:
     return showcase
 
 
+def _trim_detail_text(text: str, max_length: int = 220) -> str:
+    compact = re.sub(r"\s+", " ", text or "").strip()
+    if len(compact) <= max_length:
+        return compact
+    return compact[: max_length - 3].rstrip() + "..."
+
+
 def _summarize_screen_lines(lines, page_url: str = "", page_title: str = "") -> str:
     if not lines:
         return "Nao consegui extrair um resumo confiavel da tela."
@@ -1251,6 +1258,70 @@ def _summarize_screen_lines(lines, page_url: str = "", page_title: str = "") -> 
         return f"Pelo titulo da pagina, o foco parece ser: {title_content}. Na tela, vejo: " + "; ".join(showcase) + "."
 
     return f"Vejo {len(lines)} itens principais na tela. Destaques: " + "; ".join(showcase) + "."
+
+
+def _explain_screen_lines(lines, page_url: str = "", page_title: str = "") -> str:
+    if not lines:
+        return "Ainda nao consegui extrair detalhes confiaveis da tela."
+
+    category = _detect_screen_category(lines, page_url=page_url, page_title=page_title)
+    clean_title = _clean_browser_title(page_title)
+    title_content = _trim_detail_text(_parse_title_content(clean_title, page_url), max_length=260)
+    showcase = _content_showcase(lines, limit=5)
+
+    if category == "repositorio github":
+        repo_name = _parse_github_repo_from_url(page_url) or "um repositorio no GitHub"
+        filtered = []
+        for line in lines:
+            compact = re.sub(r"\s+", " ", line).strip()
+            normalized = _normalize_text_for_match(compact)
+            if not compact or normalized.startswith("ir para o conte"):
+                continue
+            if normalized in {
+                "repository navigation",
+                "code",
+                "issues",
+                "pull requests",
+                "actions",
+                "discussions",
+                "agents",
+                "security",
+                "insights",
+                "projects",
+                "wiki",
+                "releases",
+                "packages",
+            }:
+                continue
+            filtered.append(compact)
+
+        filtered = list(dict.fromkeys(filtered))
+        visible = _content_showcase(filtered, limit=4)
+
+        if title_content and visible:
+            return f"Na tela está o repositório {repo_name}. Pelo título, ele parece ser sobre {title_content}. No trecho visível, encontrei: " + "; ".join(visible) + "."
+        if title_content:
+            return f"Na tela está o repositório {repo_name}. Pelo título, ele parece ser sobre {title_content}."
+        if visible:
+            return f"Na tela está o repositório {repo_name}. No trecho visível, encontrei: " + "; ".join(visible) + "."
+        return f"Na tela está o repositório {repo_name}. Estou vendo a navegação principal do GitHub, mas ainda com pouco conteúdo do projeto exposto."
+
+    if category == "video youtube":
+        title = title_content or clean_title or "um vídeo no YouTube"
+        filtered = [line for line in showcase if _normalize_text_for_match(line) not in {"up next", "youtube"}]
+        if filtered:
+            return f"Na tela está a página de vídeo {title}. No que ficou visível, encontrei: " + "; ".join(filtered[:3]) + "."
+        return f"Na tela está a página de vídeo {title}."
+
+    if category in {"smartphones", "notebooks", "lavadoras", "televisores", "relogios"}:
+        if title_content and title_content not in showcase:
+            return f"Parece uma lista de {category}. Pelo título da página, o foco parece ser {title_content}. Entre os itens visíveis, vejo: " + "; ".join(showcase[:4]) + "."
+        return f"Parece uma lista de {category}. Entre os itens visíveis, vejo: " + "; ".join(showcase[:4]) + "."
+
+    if title_content and showcase:
+        return f"Pelo título da página, o foco parece ser {title_content}. No conteúdo visível, encontrei: " + "; ".join(showcase[:4]) + "."
+
+    return f"No conteúdo visível, encontrei: " + "; ".join(showcase[:4]) + "."
 
 
 def _should_auto_summarize(lines, quality_score: int, page_url: str = "", page_title: str = "") -> bool:
@@ -2537,6 +2608,45 @@ def browser_summarize_screen():
     _set_browser_elements(items, context=context)
     lines = [item["text"] for item in items]
     return _screen_summary_intro() + ": " + _summarize_screen_lines(lines, page_url=page_url, page_title=page_title)
+
+
+def browser_explain_screen():
+    if not _activate_browser_window():
+        return "Nao encontrei um navegador aberto para detalhar a tela."
+
+    context = _refresh_browser_context()
+    page_url = _get_browser_url()
+    page_title = _clean_browser_title(_get_foreground_window_title())
+    items = _read_browser_elements(limit=12)
+    weak_items = not items or all(_normalize_text_for_match(item["text"]).isdigit() for item in items)
+
+    if weak_items:
+        if _browser_context_recently_changed():
+            time.sleep(0.35)
+
+        page_lines = _read_page_text_via_clipboard(limit=12)
+        best_lines = page_lines
+        best_score = _screen_lines_quality(page_lines)
+
+        need_second_pass = _browser_context_recently_changed(2.0) or not page_lines or best_score < 26
+        if need_second_pass:
+            time.sleep(0.25)
+            second_lines = _read_page_text_via_clipboard(limit=12)
+            second_score = _screen_lines_quality(second_lines)
+            if second_score > best_score:
+                best_lines = second_lines
+
+        page_lines = best_lines
+        if page_lines:
+            _remember_text_items(page_lines, context=context)
+            return "Detalhando a tela: " + _explain_screen_lines(page_lines, page_url=page_url, page_title=page_title)
+
+        _clear_browser_snapshot(context=context)
+        return "Nao consegui detalhar a tela atual."
+
+    _set_browser_elements(items, context=context)
+    lines = [item["text"] for item in items]
+    return "Detalhando a tela: " + _explain_screen_lines(lines, page_url=page_url, page_title=page_title)
 
 
 def browser_describe_screen():
