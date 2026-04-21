@@ -693,8 +693,8 @@ _PRONOUNCE_AS_WORD = {
 }
 
 _BUILTIN_TTS_PRONUNCIATIONS = {
-    "GitHub": "guiti hub",
-    "github": "guiti hub",
+    "GitHub": "guít hub",
+    "github": "guít hub",
     "YouTube": "iutchubi",
     "youtube": "iutchubi",
     "WhatsApp": "uótsap",
@@ -723,6 +723,8 @@ _BUILTIN_TTS_PRONUNCIATIONS = {
     "wi-fi": "uái fai",
     "Wi Fi": "uái fai",
     "wi fi": "uái fai",
+    "WiFi": "uái fai",
+    "wifi": "uái fai",
     "Bluetooth": "blutúfi",
     "bluetooth": "blutúfi",
     "screenpilot": "screen pilot",
@@ -865,6 +867,18 @@ def _replace_quoted_segment(match: re.Match) -> str:
     return f", {content}, "
 
 
+def _normalize_tts_tech_terms(text: str) -> str:
+    replacements = {
+        r"\bWi[\-\s]?Fi\b": "WiFi",
+        r"\bwi[\-\s]?fi\b": "wifi",
+        r"\bVS[\-\s]?Code\b": "VS Code",
+        r"\bvs[\-\s]?code\b": "vscode",
+    }
+    for pattern, replacement in replacements.items():
+        text = re.sub(pattern, replacement, text)
+    return text
+
+
 def _normalize_tts_quotes_and_brackets(text: str) -> str:
     text = re.sub(r'(?<!\w)"([^"\n]{1,120})"(?!\w)', _replace_quoted_segment, text)
     text = re.sub(r"(?<!\w)'([^'\n]{1,120})'(?!\w)", _replace_quoted_segment, text)
@@ -999,16 +1013,22 @@ def _restore_common_ptbr_accents(text: str) -> str:
     return text
 
 
+def _apply_pronunciation_map(text: str, mapping: dict[str, str]) -> str:
+    ordered_items = sorted(mapping.items(), key=lambda item: len(item[0]), reverse=True)
+    for source, target in ordered_items:
+        text = re.sub(rf"\b{re.escape(source)}\b", target, text)
+    return text
+
+
 def _prepare_tts_text(text: str) -> str:
-    prepared = _normalize_tts_punctuation(text)
+    prepared = _normalize_tts_tech_terms(text)
+    prepared = _normalize_tts_punctuation(prepared)
     prepared = _expand_tts_reading_patterns(prepared)
     prepared = _restore_common_ptbr_accents(prepared)
     prepared = _apply_abbreviation_rules(prepared)
     prepared = _apply_abbreviation_heuristics(prepared)
-    for source, target in _BUILTIN_TTS_PRONUNCIATIONS.items():
-        prepared = re.sub(rf"\b{re.escape(source)}\b", target, prepared)
-    for source, target in _load_tts_pronunciations().items():
-        prepared = re.sub(rf"\b{re.escape(source)}\b", target, prepared)
+    prepared = _apply_pronunciation_map(prepared, _BUILTIN_TTS_PRONUNCIATIONS)
+    prepared = _apply_pronunciation_map(prepared, _load_tts_pronunciations())
 
     return prepared
 

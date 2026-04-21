@@ -204,12 +204,12 @@ def style_response(message: str) -> str:
             "Abrindo code.": "Abrindo VS Code.",
             "Fechando spotify.": "Fechando Spotify.",
             "Fechando code.": "Fechando VS Code.",
-            "Nao entendi.": "Nao captei com precisao.",
+            "Nao entendi.": "Não captei com precisão.",
             "Pode repetir?": "Pode repetir, por favor?",
-            "Nao identifiquei o comando.": "Nao identifiquei o comando.",
+            "Nao identifiquei o comando.": "Não identifiquei o comando.",
             "Escuta pausada.": "Escuta pausada.",
             "Escuta retomada.": "Escuta retomada.",
-            "Acao cancelada.": "Acao cancelada.",
+            "Acao cancelada.": "Ação cancelada.",
         }
         if message in replacements:
             return replacements[message]
@@ -240,24 +240,24 @@ def style_response(message: str) -> str:
         "Abrindo code.": "Certamente. Abrindo VS Code.",
         "Fechando spotify.": "Encerrando Spotify.",
         "Fechando code.": "Encerrando VS Code.",
-        "Nao entendi.": "Nao captei com precisao.",
+        "Nao entendi.": "Não captei com precisão.",
         "Pode repetir?": "Pode repetir com calma?",
-        "Nao identifiquei o comando.": "Esse comando nao ficou claro para mim.",
+        "Nao identifiquei o comando.": "Esse comando não ficou claro para mim.",
         "Escuta pausada.": "Escuta em pausa.",
         "Escuta retomada.": "Escuta restabelecida.",
-        "Acao cancelada.": "Acao cancelada.",
+        "Acao cancelada.": "Ação cancelada.",
         "Pode falar.": "Estou ouvindo.",
         "Pode falar...": "Estou ouvindo.",
         "Pode responder...": "Pode responder.",
         "Encerrando.": "Encerrando por agora.",
         "Modo conversa encerrado. Voltei para comandos.": "Modo conversa encerrado. Voltei aos comandos.",
-        "Responda com sim ou nao.": "Preciso apenas de sim ou nao.",
-        "Responda com 'sim' ou 'nao'.": "Preciso apenas de sim ou nao.",
+        "Responda com sim ou nao.": "Preciso apenas de sim ou não.",
+        "Responda com 'sim' ou 'nao'.": "Preciso apenas de sim ou não.",
         "Responda com app, site ou cancelar.": "Responda com app, site ou cancelar.",
         "Responda com 'app' ou 'site'.": "Responda com app ou site.",
-        "Ok, nao abri.": "Certo. Nao abri.",
-        "Nao consegui entender a resposta. Cancelei essa pergunta.": "Nao consegui confirmar a resposta. Cancelei essa pergunta.",
-        "Nada para repetir.": "Nao ha nada recente para repetir.",
+        "Ok, nao abri.": "Certo. Não abri.",
+        "Nao consegui entender a resposta. Cancelei essa pergunta.": "Não consegui confirmar a resposta. Cancelei essa pergunta.",
+        "Nada para repetir.": "Não há nada recente para repetir.",
         "Passo adicionado.": "Passo registrado.",
     }
     if message in replacements:
@@ -459,6 +459,36 @@ def humor_test_response() -> str:
         return "Teste de humor: sistemas online. Tudo em ordem, sem drama e com uma boa vontade quase suspeita. Estou agradavelmente operacional."
 
     return "Teste de humor: sistemas online. Seco, preciso e com um comentario minimo no ponto certo. A elegancia sobreviveu ao boot."
+
+
+def pronunciation_test_response() -> str:
+    return (
+        "Teste de pronúncia. "
+        "GitHub, YouTube, WhatsApp Web, Steam, Chrome, Python, Google Colab, OpenAI, PowerShell, Android Studio, Wi-Fi e Bluetooth. "
+        "Agora, siglas técnicas. "
+        "LLM, CPU, GPU, NFC, SSD, USB, HDMI, OCR, API, URL, HTTP e HTTPS. "
+        "E por fim, unidades. "
+        "Seis mil e quinhentos miliampere hora. "
+        "Cento e vinte watt hora."
+    )
+
+
+def maybe_handle_pronunciation_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+    if normalized in {
+        "testar pronuncia",
+        "teste de pronuncia",
+        "teste pronuncia",
+        "testar pronunciacao",
+        "teste de pronunciacao",
+        "testar ingles",
+        "teste ingles",
+        "testar siglas",
+        "teste siglas",
+    }:
+        return pronunciation_test_response()
+
+    return None
 
 
 
@@ -1235,6 +1265,11 @@ def main():
         correction_response = maybe_learn_correction_for_last_voice(user_input)
         if correction_response:
             output_response(correction_response, voice_mode)
+            continue
+
+        pronunciation_response = maybe_handle_pronunciation_command(user_input)
+        if pronunciation_response:
+            output_response(pronunciation_response, voice_mode)
             continue
 
         humor_response = maybe_handle_humor_command(user_input)

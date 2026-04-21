@@ -1113,6 +1113,25 @@ def _parse_github_repo_from_url(page_url: str) -> str:
     return ""
 
 
+def _parse_github_profile_from_url(page_url: str) -> str:
+    parsed = urlparse(page_url or "")
+    if "github.com" not in parsed.netloc.lower():
+        return ""
+
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) == 1:
+        return parts[0]
+    return ""
+
+
+def _github_page_kind(page_url: str) -> str:
+    if _parse_github_repo_from_url(page_url):
+        return "repo"
+    if _parse_github_profile_from_url(page_url):
+        return "profile"
+    return "generic"
+
+
 def _parse_title_content(clean_title: str, page_url: str) -> str:
     if not clean_title:
         return ""
@@ -1129,6 +1148,102 @@ def _parse_title_content(clean_title: str, page_url: str) -> str:
             return match.group(2).strip()
 
     return clean_title
+
+
+def _is_generic_github_line(normalized: str) -> bool:
+    if not normalized:
+        return True
+
+    exact_noise = {
+        "repository navigation",
+        "code",
+        "issues",
+        "pull requests",
+        "actions",
+        "discussions",
+        "agents",
+        "security",
+        "insights",
+        "projects",
+        "wiki",
+        "releases",
+        "packages",
+        "overview",
+        "repositories",
+        "stars",
+        "followers",
+        "following",
+        "navegacao do usuario",
+        "visao geral",
+        "repositorios",
+        "repositorios",
+        "popular repositories",
+        "pinned",
+        "contributions",
+        "contribuicoes",
+    }
+    if normalized in exact_noise:
+        return True
+
+    contains_noise = (
+        "skip to content",
+        "ir para o conte",
+        "sign in",
+        "sign up",
+        "repository navigation",
+        "navegacao do usuario",
+        "jump to",
+        "search code",
+        "search issues",
+        "github stars",
+    )
+    return any(token in normalized for token in contains_noise)
+
+
+def _extract_github_focus_lines(lines, page_url: str = "", limit: int = 5) -> list[str]:
+    repo_name = _parse_github_repo_from_url(page_url)
+    profile_name = _parse_github_profile_from_url(page_url)
+    prioritized = []
+
+    for index, line in enumerate(lines):
+        compact = re.sub(r"\s+", " ", line).strip()
+        normalized = _normalize_text_for_match(compact)
+        if not compact or len(compact) < 4:
+            continue
+        if _is_generic_github_line(normalized):
+            continue
+
+        score = 0
+        if len(compact) >= 24:
+            score += 2
+        if len(compact) >= 50:
+            score += 2
+        if any(token in normalized for token in ("readme", "sobre", "about", "descricao", "description", "getting started", "instal", "usage", "feature", "topic", "python", "ai", "vision", "automation", "agent", "screen", "project", "projeto")):
+            score += 5
+        if repo_name and any(piece in normalized for piece in _normalize_text_for_match(repo_name).split("/")):
+            score += 2
+        if profile_name and _normalize_text_for_match(profile_name) in normalized:
+            score += 1
+        if re.search(r"[a-zA-Z\u00C0-\u017F]{4,}.*[a-zA-Z\u00C0-\u017F]{4,}", compact):
+            score += 1
+        if re.search(r"[.!:]", compact):
+            score += 1
+        if re.fullmatch(r"[\W\d_]+", compact):
+            score -= 4
+
+        prioritized.append((score, index, compact))
+
+    prioritized.sort(key=lambda item: (-item[0], item[1]))
+    chosen = []
+    for score, _index, compact in prioritized:
+        if score < 1 and chosen:
+            continue
+        if compact not in chosen:
+            chosen.append(compact)
+        if len(chosen) >= limit:
+            break
+
+    return chosen
 
 
 def _detect_screen_category(lines, page_url: str = "", page_title: str = "") -> str:
@@ -1192,40 +1307,18 @@ def _summarize_screen_lines(lines, page_url: str = "", page_title: str = "") -> 
 
     if category == "repositorio github":
         repo_name = _parse_github_repo_from_url(page_url)
-        content_lines = []
-        for line in lines:
-            compact = re.sub(r"\s+", " ", line).strip()
-            normalized_compact = _normalize_text_for_match(compact)
-            if normalized_compact.startswith("ir para o conte"):
-                continue
-            if normalized_compact in {
-                "repository navigation",
-                "code",
-                "issues",
-                "pull requests",
-                "actions",
-                "discussions",
-                "agents",
-                "security",
-                "insights",
-                "projects",
-                "wiki",
-                "releases",
-                "packages",
-            }:
-                continue
-            if len(compact) < 4:
-                continue
-            content_lines.append(compact)
-
-        content_lines = list(dict.fromkeys(content_lines))
-        showcase = _content_showcase(content_lines, limit=2)
+        profile_name = _parse_github_profile_from_url(page_url)
+        showcase = _content_showcase(_extract_github_focus_lines(lines, page_url=page_url, limit=4), limit=3)
         if repo_name and title_content and title_content.lower() != repo_name.lower():
             return f"É o repositorio {repo_name} no GitHub. Pelo titulo, o foco parece ser: {title_content}. No conteudo visivel, vejo: " + "; ".join(showcase) + "."
         if repo_name and showcase:
             return f"É o repositorio {repo_name} no GitHub. No conteudo visivel, vejo: " + "; ".join(showcase) + "."
         if repo_name:
             return f"É o repositorio {repo_name} no GitHub. Estou vendo a navegacao principal com Code, Issues, Pull requests, Discussions e Actions."
+        if profile_name and title_content:
+            return f"É o perfil {profile_name} no GitHub. Pelo titulo, o foco parece ser: {title_content}."
+        if profile_name and showcase:
+            return f"É o perfil {profile_name} no GitHub. No que ficou visivel, vejo: " + "; ".join(showcase) + "."
         return "Parece um repositorio no GitHub. Estou vendo a navegacao principal e parte do conteudo do projeto."
 
     if category == "video youtube":
@@ -1270,41 +1363,31 @@ def _explain_screen_lines(lines, page_url: str = "", page_title: str = "") -> st
     showcase = _content_showcase(lines, limit=5)
 
     if category == "repositorio github":
-        repo_name = _parse_github_repo_from_url(page_url) or "um repositorio no GitHub"
-        filtered = []
-        for line in lines:
-            compact = re.sub(r"\s+", " ", line).strip()
-            normalized = _normalize_text_for_match(compact)
-            if not compact or normalized.startswith("ir para o conte"):
-                continue
-            if normalized in {
-                "repository navigation",
-                "code",
-                "issues",
-                "pull requests",
-                "actions",
-                "discussions",
-                "agents",
-                "security",
-                "insights",
-                "projects",
-                "wiki",
-                "releases",
-                "packages",
-            }:
-                continue
-            filtered.append(compact)
+        repo_name = _parse_github_repo_from_url(page_url)
+        profile_name = _parse_github_profile_from_url(page_url)
+        visible = _content_showcase(_extract_github_focus_lines(lines, page_url=page_url, limit=6), limit=5)
 
-        filtered = list(dict.fromkeys(filtered))
-        visible = _content_showcase(filtered, limit=4)
+        if repo_name:
+            if title_content and visible:
+                return f"Na tela está o repositório {repo_name}. Pelo título, ele parece ser sobre {title_content}. Do que ficou visível, os pontos mais úteis são: " + "; ".join(visible) + "."
+            if title_content:
+                return f"Na tela está o repositório {repo_name}. Pelo título, ele parece ser sobre {title_content}."
+            if visible:
+                return f"Na tela está o repositório {repo_name}. Do que ficou visível, os pontos mais úteis são: " + "; ".join(visible) + "."
+            return f"Na tela está o repositório {repo_name}. Ainda estou vendo mais a moldura do GitHub do que README ou conteúdo do projeto."
+
+        if profile_name:
+            if title_content and visible:
+                return f"Na tela está o perfil {profile_name} no GitHub. Pelo título, ele parece ser sobre {title_content}. No trecho visível, encontrei: " + "; ".join(visible) + "."
+            if visible:
+                return f"Na tela está o perfil {profile_name} no GitHub. No trecho visível, encontrei: " + "; ".join(visible) + "."
+            return f"Na tela está o perfil {profile_name} no GitHub. Estou vendo visão geral, repositórios e navegação principal do perfil."
 
         if title_content and visible:
-            return f"Na tela está o repositório {repo_name}. Pelo título, ele parece ser sobre {title_content}. No trecho visível, encontrei: " + "; ".join(visible) + "."
-        if title_content:
-            return f"Na tela está o repositório {repo_name}. Pelo título, ele parece ser sobre {title_content}."
+            return f"Na tela está uma página do GitHub. Pelo título, ela parece ser sobre {title_content}. No trecho visível, encontrei: " + "; ".join(visible) + "."
         if visible:
-            return f"Na tela está o repositório {repo_name}. No trecho visível, encontrei: " + "; ".join(visible) + "."
-        return f"Na tela está o repositório {repo_name}. Estou vendo a navegação principal do GitHub, mas ainda com pouco conteúdo do projeto exposto."
+            return f"Na tela está uma página do GitHub. No trecho visível, encontrei: " + "; ".join(visible) + "."
+        return "Na tela está uma página do GitHub, mas ainda com pouco conteúdo útil exposto."
 
     if category == "video youtube":
         title = title_content or clean_title or "um vídeo no YouTube"
