@@ -18,6 +18,10 @@ DEFAULTS = {
     "tts_volume": 100,
     "tts_voice_name": "",
     "tts_voice_culture": "pt-BR",
+    "tts_cache_enabled": True,
+    "tts_wait_for_playback": False,
+    "tts_warm_cache_on_startup": True,
+    "tts_pronunciations_enabled": True,
     "piper_exe_path": "piper",
     "piper_model_path": "",
     "piper_config_path": "",
@@ -26,6 +30,13 @@ DEFAULTS = {
     "piper_noise_scale": 0.667,
     "piper_noise_w": 0.8,
     "piper_fallback_to_windows": True,
+    "piper_persistent_worker_enabled": True,
+    "piper_worker_timeout_seconds": 20.0,
+    "piper_worker_idle_seconds": 0.12,
+    "piper_worker_fallback_to_cli": True,
+    "assistant_humor_enabled": True,
+    "assistant_humor_level": 2,
+    "assistant_humor_style": "jarvis",
     "chat_enabled": True,
     "chat_model": "qwen2.5:0.5b",
     "chat_timeout_seconds": 8,
@@ -67,3 +78,18 @@ def load_voice_preferences():
     merged = dict(DEFAULTS)
     merged.update(data)
     return merged
+
+
+def save_voice_preferences(preferences: dict):
+    FILE.parent.mkdir(parents=True, exist_ok=True)
+    FILE.write_text(
+        json.dumps(preferences, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def update_voice_preferences(changes: dict):
+    preferences = load_voice_preferences()
+    preferences.update(changes)
+    save_voice_preferences(preferences)
+    return preferences

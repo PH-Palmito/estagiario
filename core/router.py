@@ -680,6 +680,19 @@ def detect_navigation_command(user_input: str):
         return {"intent": "spotify_diagnostic", "target": None}
 
     if lower in {
+        "traduzir isso",
+        "traduza isso",
+        "traduz isso",
+        "traduzir esse texto",
+        "traduza esse texto",
+        "traduz esse texto",
+        "traduzir o que li",
+        "traduza o que li",
+        "traduz o que li",
+    }:
+        return {"intent": "browser_translate_last_selection", "target": None}
+
+    if lower in {
         "o que tem na tela",
         "o que aparece na tela",
         "ler tela",
@@ -706,6 +719,35 @@ def detect_navigation_command(user_input: str):
         "quais links",
     }:
         return {"intent": "browser_describe_screen", "target": None}
+
+    if lower in {
+        "traduzir selecionado",
+        "traduz selecionado",
+        "traduza selecionado",
+        "traduzir selecao",
+        "traduzir seleção",
+        "traduz a selecao",
+        "traduz a seleção",
+        "traduza a selecao",
+        "traduza a seleção",
+        "traduzir texto selecionado",
+        "traduza o texto selecionado",
+        "traduzir isso",
+        "traduza isso",
+        "traduz isso",
+        "traducao do selecionado",
+        "tradução do selecionado",
+    }:
+        if "isso" in lower or "que li" in lower:
+            return {"intent": "browser_translate_last_selection", "target": None}
+        return {"intent": "browser_translate_selection", "target": None}
+
+    if any(token in lower for token in {"traduz", "traduza", "traducao", "tradução"}) and any(
+        token in lower for token in {"selecion", "seleccion", "licion", "isso", "texto"}
+    ):
+        if "isso" in lower or "que li" in lower:
+            return {"intent": "browser_translate_last_selection", "target": None}
+        return {"intent": "browser_translate_selection", "target": None}
 
     if lower in {
         "ler produtos selecionados",

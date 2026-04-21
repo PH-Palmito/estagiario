@@ -192,6 +192,8 @@ def normalize_action(old_action: dict) -> Command:
         "browser_describe_screen",
         "browser_read_selection",
         "browser_read_selected_products",
+        "browser_translate_last_selection",
+        "browser_translate_selection",
         "browser_read_more",
         "browser_zoom_in",
         "browser_zoom_out",

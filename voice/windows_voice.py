@@ -1,7 +1,10 @@
 import base64
 import ctypes
+import hashlib
+import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unicodedata
@@ -12,6 +15,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 
 import difflib
 import numpy as np
@@ -20,6 +24,7 @@ from faster_whisper import WhisperModel
 from huggingface_hub import snapshot_download
 from huggingface_hub.errors import LocalEntryNotFoundError
 from memory.voice_preferences import load_voice_preferences
+from scipy.io.wavfile import read as read_wav
 from scipy.io.wavfile import write as write_wav
 
 
@@ -32,6 +37,11 @@ FRAME_SIZE = 1024
 DEFAULT_MAX_RECORD_SECONDS = 6.0
 VOICE_PREFERENCES = load_voice_preferences()
 CONVERSATION_MODEL_SIZE = str(VOICE_PREFERENCES.get("conversation_model_size", COMMAND_MODEL_SIZE))
+TTS_PRONUNCIATIONS_PATH = Path("memory") / "tts_pronunciations.json"
+_PIPER_WORKER_LOCK = Lock()
+_PIPER_WORKER_PROCESS = None
+_PIPER_WORKER_SIGNATURE = None
+_PIPER_WORKER_SAMPLE_RATE = 22050
 
 
 def _float_pref(name: str, default: float, minimum: float, maximum: float) -> float:
@@ -543,25 +553,241 @@ def _float_setting(name: str, default: float) -> str:
         return str(default)
 
 
-def _prepare_tts_text(text: str) -> str:
-    replacements = {
-        "spotify": "ispótifai",
-        "Spotify": "Ispótifai",
-        "github": "guít rãb",
-        "GitHub": "Guít rãb",
-        "youtube": "iutúbi",
-        "YouTube": "Iutúbi",
-        "chatgpt": "chát g p t",
-        "ChatGPT": "Chát g p t",
-        "vscode": "v s côd",
-        "VSCode": "v s côd",
-        "code": "côd",
-        "Chrome": "Crôme",
-        "chrome": "crôme",
+def _load_tts_pronunciations() -> dict[str, str]:
+    if not bool(VOICE_PREFERENCES.get("tts_pronunciations_enabled", True)):
+        return {}
+
+    try:
+        data = json.loads(TTS_PRONUNCIATIONS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    if not isinstance(data, dict):
+        return {}
+
+    return {
+        str(source): str(target)
+        for source, target in data.items()
+        if str(source).strip() and str(target).strip()
     }
 
-    prepared = text
+
+_NUMBER_WORDS = {
+    0: "zero",
+    1: "um",
+    2: "dois",
+    3: "três",
+    4: "quatro",
+    5: "cinco",
+    6: "seis",
+    7: "sete",
+    8: "oito",
+    9: "nove",
+    10: "dez",
+    11: "onze",
+    12: "doze",
+    13: "treze",
+    14: "quatorze",
+    15: "quinze",
+    16: "dezesseis",
+    17: "dezessete",
+    18: "dezoito",
+    19: "dezenove",
+    20: "vinte",
+    30: "trinta",
+    40: "quarenta",
+    50: "cinquenta",
+    60: "sessenta",
+    70: "setenta",
+    80: "oitenta",
+    90: "noventa",
+    100: "cem",
+}
+
+_HUNDRED_WORDS = {
+    100: "cento",
+    200: "duzentos",
+    300: "trezentos",
+    400: "quatrocentos",
+    500: "quinhentos",
+    600: "seiscentos",
+    700: "setecentos",
+    800: "oitocentos",
+    900: "novecentos",
+}
+
+
+def _number_to_pt(value: int, feminine_one: bool = False) -> str:
+    if feminine_one and value == 1:
+        return "uma"
+
+    if value in _NUMBER_WORDS:
+        return _NUMBER_WORDS[value]
+
+    if value < 100:
+        ten = (value // 10) * 10
+        unit = value % 10
+        return f"{_NUMBER_WORDS[ten]} e {_number_to_pt(unit, feminine_one=feminine_one)}"
+
+    if value < 1000:
+        hundred = (value // 100) * 100
+        rest = value % 100
+        if rest == 0:
+            return _HUNDRED_WORDS.get(hundred, str(value))
+        return f"{_HUNDRED_WORDS.get(hundred, str(hundred))} e {_number_to_pt(rest, feminine_one=feminine_one)}"
+
+    return str(value)
+
+
+def _expand_time_expression(match: re.Match) -> str:
+    hour = int(match.group(1))
+    minute = match.group(2) if len(match.groups()) >= 2 else None
+    hour_word = _number_to_pt(hour, feminine_one=True)
+
+    if minute is None:
+        unit = "hora" if hour == 1 else "horas"
+        return f"{hour_word} {unit}"
+
+    minute_value = int(minute)
+    minute_word = _number_to_pt(minute_value, feminine_one=True)
+    minute_unit = "minuto" if minute_value == 1 else "minutos"
+    return f"{hour_word} horas e {minute_word} {minute_unit}"
+
+
+def _expand_temperature_expression(match: re.Match) -> str:
+    value = int(match.group(1))
+    unit = "grau" if value == 1 else "graus"
+    return f"{_number_to_pt(value)} {unit} Célsius"
+
+
+def _expand_degrees_expression(match: re.Match) -> str:
+    value = int(match.group(1))
+    unit = "grau" if value == 1 else "graus"
+    return f"{_number_to_pt(value)} {unit}"
+
+
+def _replace_quoted_segment(match: re.Match) -> str:
+    content = re.sub(r"\s+", " ", match.group(1) or "").strip(" ,")
+    if not content:
+        return ""
+    return f", {content}, "
+
+
+def _normalize_tts_quotes_and_brackets(text: str) -> str:
+    text = re.sub(r'(?<!\w)"([^"\n]{1,120})"(?!\w)', _replace_quoted_segment, text)
+    text = re.sub(r"(?<!\w)'([^'\n]{1,120})'(?!\w)", _replace_quoted_segment, text)
+    text = re.sub(r"\(([^()\n]{1,120})\)", lambda match: f", {match.group(1).strip(' ,')}, ", text)
+    text = re.sub(r"\[([^\[\]\n]{1,120})\]", lambda match: f", {match.group(1).strip(' ,')}, ", text)
+    text = re.sub(r"\{([^\{\}\n]{1,120})\}", lambda match: f", {match.group(1).strip(' ,')}, ", text)
+    return text
+
+
+def _capitalize_tts_sentences(text: str) -> str:
+    def replacer(match: re.Match) -> str:
+        prefix = match.group(1)
+        letter = match.group(2)
+        return f"{prefix}{letter.upper()}"
+
+    text = re.sub(r"(^|[.!?]\s+)([a-zà-ÿ])", replacer, text)
+    return text
+
+
+def _normalize_tts_punctuation(text: str) -> str:
+    ellipsis_token = " __TTS_ELLIPSIS__ "
+    sentence_break = "\n"
+    replacements = {
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2026": "...",
+    }
     for source, target in replacements.items():
+        text = text.replace(source, target)
+
+    text = _normalize_tts_quotes_and_brackets(text)
+    text = re.sub(r"\s*(?:\.{3,}|\u2026)\s*", ellipsis_token, text)
+    text = re.sub(r"\s*[–—-]\s*", ", ", text)
+    text = re.sub(r"\s*/\s*", ", ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\s+([,.!?;:])", r"\1", text)
+    text = re.sub(r"([,.!?;:])(?=\S)", r"\1 ", text)
+    text = re.sub(r"([!?]){2,}", r"\1", text)
+    text = re.sub(r"(\.){4,}", "...", text)
+    text = re.sub(r"(\?)([.!])", r"\1", text)
+    text = re.sub(r"(!)([.?])", r"\1", text)
+
+    # Piper tends to read explicit separators better than punctuation clusters.
+    text = re.sub(r"\s*;\s*", f".{sentence_break}", text)
+    text = re.sub(r"\s*:\s*", f".{sentence_break}", text)
+    text = re.sub(r"\s*,\s*", ", ", text)
+    text = re.sub(r"\s*\.\s*", f".{sentence_break}", text)
+    text = re.sub(r"\s*\?\s*", f"?{sentence_break}", text)
+    text = re.sub(r"\s*!\s*", f"!{sentence_break}", text)
+    text = text.replace(ellipsis_token.strip(), f"...{sentence_break}")
+    text = re.sub(r"\s*\.\.\.\s*", f"...{sentence_break}", text)
+    text = re.sub(r"(?:,\s*){2,}", ", ", text)
+    text = re.sub(r",\s*\.", f".{sentence_break}", text)
+    text = re.sub(r"\.\s*,", f".{sentence_break}", text)
+    text = re.sub(r",\s*([!?])", rf"\1{sentence_break}", text)
+    text = re.sub(rf"{sentence_break}{{2,}}", sentence_break, text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(rf"[ \t]*{sentence_break}[ \t]*", sentence_break, text)
+    text = text.strip()
+    return _capitalize_tts_sentences(text)
+
+
+def _expand_tts_reading_patterns(text: str) -> str:
+    text = re.sub(r"\b([01]?\d|2[0-3])h([0-5]\d)\b", _expand_time_expression, text)
+    text = re.sub(r"\b([01]?\d|2[0-3])h\b", _expand_time_expression, text)
+    text = re.sub(
+        r"\b(\d{1,3})\s*(?:°\s*C|graus?\s+Celsius|graus?\s+celsius)\b",
+        _expand_temperature_expression,
+        text,
+    )
+    text = re.sub(r"\b(\d{1,3})\s+graus\b", _expand_degrees_expression, text)
+    return text
+
+
+def _restore_common_ptbr_accents(text: str) -> str:
+    replacements = {
+        "pagina": "página",
+        "paginas": "páginas",
+        "musica": "música",
+        "musicas": "músicas",
+        "video": "vídeo",
+        "videos": "vídeos",
+        "audio": "áudio",
+        "audios": "áudios",
+        "traducao": "tradução",
+        "informacao": "informação",
+        "informacoes": "informações",
+        "selecao": "seleção",
+        "selecoes": "seleções",
+        "opcao": "opção",
+        "opcoes": "opções",
+        "proxima": "próxima",
+        "proximo": "próximo",
+        "numero": "número",
+        "numeros": "números",
+        "nao": "não",
+        "voce": "você",
+        "voces": "vocês",
+    }
+
+    for source, target in replacements.items():
+        text = re.sub(rf"\b{source}\b", target, text, flags=re.IGNORECASE)
+
+    return text
+
+
+def _prepare_tts_text(text: str) -> str:
+    prepared = _normalize_tts_punctuation(text)
+    prepared = _expand_tts_reading_patterns(prepared)
+    prepared = _restore_common_ptbr_accents(prepared)
+    for source, target in _load_tts_pronunciations().items():
         prepared = re.sub(rf"\b{re.escape(source)}\b", target, prepared)
 
     return prepared
@@ -580,25 +806,418 @@ def _wav_duration_seconds(path: str | Path) -> float:
     return 10.0
 
 
-def _speak_with_piper(text: str) -> VoiceResult:
-    text_for_tts = _prepare_tts_text(text)
-    piper_exe = str(VOICE_PREFERENCES.get("piper_exe_path", "piper")).strip() or "piper"
-    model_path = str(VOICE_PREFERENCES.get("piper_model_path", "")).strip()
-    config_path = str(VOICE_PREFERENCES.get("piper_config_path", "")).strip()
-    speaker_id = str(VOICE_PREFERENCES.get("piper_speaker_id", "")).strip()
+def _tts_cache_path(engine: str, text: str, settings: list[str]) -> Path:
+    cache_root = Path(".tmp") / "tts_cache"
+    cache_root.mkdir(parents=True, exist_ok=True)
+    digest_source = "\n".join([engine, text, *settings])
+    digest = hashlib.sha256(digest_source.encode("utf-8", errors="replace")).hexdigest()
+    return cache_root / f"{digest}.wav"
 
-    if not model_path:
-        return VoiceResult(ok=False, error="Modelo do Piper nao configurado.")
 
-    model = Path(model_path)
-    if not model.exists():
-        return VoiceResult(ok=False, error=f"Modelo do Piper nao encontrado: {model_path}")
+def _load_piper_sample_rate(config_path: str) -> int:
+    try:
+        data = json.loads(Path(config_path).read_text(encoding="utf-8"))
+        audio = data.get("audio", {}) if isinstance(data, dict) else {}
+        sample_rate = int(audio.get("sample_rate", 22050))
+        if sample_rate > 0:
+            return sample_rate
+    except Exception:
+        pass
 
-    if config_path and not Path(config_path).exists():
-        return VoiceResult(ok=False, error=f"Config do Piper nao encontrado: {config_path}")
+    return 22050
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
-        output_path = temp_file.name
+
+def _piper_worker_signature(
+    piper_exe: str,
+    model_path: str,
+    config_path: str,
+    speaker_id: str,
+    length_scale: str,
+    noise_scale: str,
+    noise_w: str,
+) -> tuple[str, ...]:
+    return (
+        piper_exe,
+        model_path,
+        config_path,
+        speaker_id,
+        length_scale,
+        noise_scale,
+        noise_w,
+    )
+
+
+def _stop_piper_worker_locked():
+    global _PIPER_WORKER_PROCESS, _PIPER_WORKER_SIGNATURE
+
+    process = _PIPER_WORKER_PROCESS
+    _PIPER_WORKER_PROCESS = None
+    _PIPER_WORKER_SIGNATURE = None
+
+    if not process:
+        return
+
+    try:
+        process.terminate()
+        process.wait(timeout=1.5)
+    except Exception:
+        try:
+            process.kill()
+        except Exception:
+            pass
+
+
+def _ensure_piper_worker(
+    piper_exe: str,
+    model_path: str,
+    config_path: str,
+    speaker_id: str,
+    length_scale: str,
+    noise_scale: str,
+    noise_w: str,
+):
+    global _PIPER_WORKER_PROCESS, _PIPER_WORKER_SIGNATURE, _PIPER_WORKER_SAMPLE_RATE
+
+    signature = _piper_worker_signature(
+        piper_exe,
+        model_path,
+        config_path,
+        speaker_id,
+        length_scale,
+        noise_scale,
+        noise_w,
+    )
+
+    with _PIPER_WORKER_LOCK:
+        process = _PIPER_WORKER_PROCESS
+        if (
+            process is not None
+            and process.poll() is None
+            and _PIPER_WORKER_SIGNATURE == signature
+        ):
+            return process
+
+        _stop_piper_worker_locked()
+
+        command = [
+            piper_exe,
+            "--model",
+            model_path,
+            "--output_raw",
+            "--json-input",
+            "--quiet",
+            "--length_scale",
+            length_scale,
+            "--noise_scale",
+            noise_scale,
+            "--noise_w",
+            noise_w,
+        ]
+
+        if config_path:
+            command.extend(["--config", config_path])
+
+        if speaker_id:
+            command.extend(["--speaker", speaker_id])
+
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        _PIPER_WORKER_PROCESS = process
+        _PIPER_WORKER_SIGNATURE = signature
+        _PIPER_WORKER_SAMPLE_RATE = _load_piper_sample_rate(config_path)
+        return process
+
+
+def _read_piper_worker_audio(process, timeout_seconds: float, idle_seconds: float):
+    chunks = []
+    started = time.monotonic()
+    last_data_at = None
+
+    while time.monotonic() - started < timeout_seconds:
+        if speech_interrupt_pressed():
+            _stop_piper_worker_locked()
+            return VoiceResult(ok=False, error="Fala interrompida."), b""
+
+        if process.poll() is not None:
+            return None, b"".join(chunks)
+
+        try:
+            available = process.stdout.peek(65536)
+        except Exception:
+            available = b""
+
+        if available:
+            try:
+                data = process.stdout.read(len(available))
+            except Exception:
+                data = b""
+
+            if data:
+                chunks.append(data)
+                last_data_at = time.monotonic()
+                continue
+
+        if last_data_at is not None and (time.monotonic() - last_data_at) >= idle_seconds:
+            break
+
+        time.sleep(0.01)
+
+    return None, b"".join(chunks)
+
+
+def _write_raw_pcm_to_wav(output_path: str, audio_bytes: bytes, sample_rate: int):
+    with wave.open(output_path, "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(audio_bytes)
+
+
+def _split_tts_text_for_piper(text: str, max_chars: int = 170) -> list[str]:
+    parts = []
+    raw_segments = [segment.strip() for segment in re.split(r"\n+", text) if segment.strip()]
+
+    for segment in raw_segments:
+        if len(segment) <= max_chars:
+            parts.append(segment)
+            continue
+
+        comma_segments = [piece.strip() for piece in re.split(r"(?<=,)\s+", segment) if piece.strip()]
+        current = ""
+
+        for piece in comma_segments:
+            candidate = piece if not current else f"{current} {piece}"
+            if len(candidate) <= max_chars:
+                current = candidate
+                continue
+
+            if current:
+                parts.append(current)
+                current = ""
+
+            if len(piece) <= max_chars:
+                current = piece
+                continue
+
+            words = piece.split()
+            buffer = ""
+            for word in words:
+                candidate = word if not buffer else f"{buffer} {word}"
+                if len(candidate) <= max_chars:
+                    buffer = candidate
+                else:
+                    if buffer:
+                        parts.append(buffer)
+                    buffer = word
+            if buffer:
+                current = buffer
+
+        if current:
+            parts.append(current)
+
+    normalized_parts = [part.strip() for part in parts if part.strip()]
+    merged_parts = []
+    pending_prefix = ""
+
+    for part in normalized_parts:
+        compact = part.strip()
+        is_tiny = len(compact) <= 6 or bool(re.fullmatch(r"\d+[.]?", compact))
+        if is_tiny:
+            pending_prefix = f"{pending_prefix} {compact}".strip()
+            continue
+
+        if pending_prefix:
+            compact = f"{pending_prefix} {compact}".strip()
+            pending_prefix = ""
+
+        if merged_parts and re.search(r"\d+\.$", merged_parts[-1]) and re.match(r"^\d", compact):
+            merged_parts[-1] = f"{merged_parts[-1][:-1]},{compact}".strip()
+            continue
+
+        merged_parts.append(compact)
+
+    if pending_prefix:
+        if merged_parts:
+            merged_parts[-1] = f"{merged_parts[-1]} {pending_prefix}".strip()
+        else:
+            merged_parts.append(pending_prefix)
+
+    return merged_parts
+
+
+def _wait_for_wav_playback(path: str | Path) -> VoiceResult | None:
+    duration_seconds = _wav_duration_seconds(path)
+    started_at = time.monotonic()
+    while time.monotonic() - started_at < duration_seconds + 0.15:
+        if speech_interrupt_pressed():
+            winsound.PlaySound(None, 0)
+            return VoiceResult(ok=False, error="Fala interrompida.")
+        time.sleep(0.03)
+
+    return None
+
+
+def _play_wav(path: str | Path) -> VoiceResult | None:
+    winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC)
+    if not bool(VOICE_PREFERENCES.get("tts_wait_for_playback", True)):
+        return None
+
+    return _wait_for_wav_playback(path)
+
+
+def _voice_effect_strength() -> float:
+    try:
+        value = float(VOICE_PREFERENCES.get("assistant_voice_effect_strength", 0.35))
+    except (TypeError, ValueError):
+        return 0.35
+
+    return max(0.0, min(1.0, value))
+
+
+def _apply_jarvis_audio_effect(path: str):
+    effect = str(VOICE_PREFERENCES.get("assistant_voice_effect", "")).strip().lower()
+    if effect not in {"jarvis", "subtle_jarvis"}:
+        return
+
+    strength = _voice_effect_strength()
+    if strength <= 0:
+        return
+
+    try:
+        sample_rate, data = read_wav(path)
+    except Exception:
+        return
+
+    if data.size == 0:
+        return
+
+    original_dtype = data.dtype
+    audio = data.astype(np.float32)
+
+    if np.issubdtype(original_dtype, np.integer):
+        max_value = float(np.iinfo(original_dtype).max)
+        audio = audio / max_value
+
+    if audio.ndim == 1:
+        audio_2d = audio[:, None]
+    else:
+        audio_2d = audio
+
+    processed = audio_2d.copy()
+
+    # A restrained "assistant console" color: clearer consonants, light ambience,
+    # and soft saturation. It is intentionally not a voice clone.
+    emphasized = processed.copy()
+    emphasized[1:] = processed[1:] - (0.16 * strength * processed[:-1])
+    processed = ((1.0 - (0.22 * strength)) * processed) + ((0.22 * strength) * emphasized)
+
+    for delay_ms, gain in ((14, 0.055), (31, 0.035)):
+        delay = max(1, int(sample_rate * delay_ms / 1000))
+        delayed = np.zeros_like(processed)
+        delayed[delay:] = processed[:-delay]
+        processed += delayed * gain * strength
+
+    drive = 1.0 + (1.2 * strength)
+    processed = np.tanh(processed * drive) / np.tanh(drive)
+
+    peak = float(np.max(np.abs(processed))) if processed.size else 0.0
+    if peak > 0:
+        processed = processed * min(0.92 / peak, 1.0)
+
+    if audio.ndim == 1:
+        processed = processed[:, 0]
+
+    output = np.clip(processed, -1.0, 1.0)
+    output = (output * 32767.0).astype(np.int16)
+
+    try:
+        write_wav(path, sample_rate, output)
+    except Exception:
+        pass
+
+
+def _piper_cache_settings(
+    model_path: str,
+    config_path: str,
+    speaker_id: str,
+    length_scale: str,
+    noise_scale: str,
+    noise_w: str,
+) -> list[str]:
+    effect = str(VOICE_PREFERENCES.get("assistant_voice_effect", "")).strip().lower()
+    effect_strength = str(VOICE_PREFERENCES.get("assistant_voice_effect_strength", 0.0))
+    return [
+        model_path,
+        config_path,
+        speaker_id,
+        length_scale,
+        noise_scale,
+        noise_w,
+        effect,
+        effect_strength,
+    ]
+
+
+def _run_piper_synthesis(
+    text_for_tts: str,
+    output_path: str,
+    piper_exe: str,
+    model: Path,
+    config_path: str,
+    speaker_id: str,
+    length_scale: str,
+    noise_scale: str,
+    noise_w: str,
+) -> VoiceResult | None:
+    worker_enabled = bool(VOICE_PREFERENCES.get("piper_persistent_worker_enabled", True))
+    worker_fallback = bool(VOICE_PREFERENCES.get("piper_worker_fallback_to_cli", True))
+    worker_timeout = _float_pref("piper_worker_timeout_seconds", 20.0, 3.0, 60.0)
+    worker_idle = _float_pref("piper_worker_idle_seconds", 0.12, 0.03, 1.0)
+
+    if worker_enabled:
+        try:
+            process = _ensure_piper_worker(
+                piper_exe,
+                str(model),
+                config_path,
+                speaker_id,
+                length_scale,
+                noise_scale,
+                noise_w,
+            )
+
+            payload = json.dumps({"text": text_for_tts}, ensure_ascii=False).encode("utf-8") + b"\n"
+            with _PIPER_WORKER_LOCK:
+                if process.stdin is None:
+                    raise RuntimeError("Worker Piper sem stdin.")
+                process.stdin.write(payload)
+                process.stdin.flush()
+                interrupt_result, audio_bytes = _read_piper_worker_audio(
+                    process,
+                    timeout_seconds=worker_timeout,
+                    idle_seconds=worker_idle,
+                )
+
+            if interrupt_result:
+                return interrupt_result
+
+            if audio_bytes:
+                _write_raw_pcm_to_wav(output_path, audio_bytes, _PIPER_WORKER_SAMPLE_RATE)
+                _apply_jarvis_audio_effect(output_path)
+                return None
+
+            with _PIPER_WORKER_LOCK:
+                _stop_piper_worker_locked()
+        except Exception:
+            with _PIPER_WORKER_LOCK:
+                _stop_piper_worker_locked()
+
+        if not worker_fallback:
+            return VoiceResult(ok=False, error="Worker persistente do Piper falhou.")
 
     command = [
         piper_exe,
@@ -607,11 +1226,11 @@ def _speak_with_piper(text: str) -> VoiceResult:
         "--output_file",
         output_path,
         "--length_scale",
-        _float_setting("piper_length_scale", 1.0),
+        length_scale,
         "--noise_scale",
-        _float_setting("piper_noise_scale", 0.667),
+        noise_scale,
         "--noise_w",
-        _float_setting("piper_noise_w", 0.8),
+        noise_w,
     ]
 
     if config_path:
@@ -630,28 +1249,239 @@ def _speak_with_piper(text: str) -> VoiceResult:
             errors="replace",
             timeout=30,
         )
-
-        if completed.returncode != 0:
-            error = (completed.stderr or completed.stdout or "").strip()
-            return VoiceResult(ok=False, error=error or "Piper nao conseguiu gerar audio.")
-
-        duration_seconds = _wav_duration_seconds(output_path)
-        winsound.PlaySound(output_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
-
-        started_at = time.monotonic()
-        while time.monotonic() - started_at < duration_seconds + 0.15:
-            if speech_interrupt_pressed():
-                winsound.PlaySound(None, 0)
-                return VoiceResult(ok=False, error="Fala interrompida.")
-            time.sleep(0.03)
-
-        return VoiceResult(ok=True, text=text)
     except FileNotFoundError:
         return VoiceResult(ok=False, error=f"Piper nao encontrado: {piper_exe}")
     except subprocess.TimeoutExpired:
         return VoiceResult(ok=False, error="Tempo limite atingido ao falar com Piper.")
     except Exception as exc:
         return VoiceResult(ok=False, error=f"Falha ao usar Piper: {exc}")
+
+    if completed.returncode != 0:
+        error = (completed.stderr or completed.stdout or "").strip()
+        return VoiceResult(ok=False, error=error or "Piper nao conseguiu gerar audio.")
+
+    _apply_jarvis_audio_effect(output_path)
+    return None
+
+
+def prime_piper_cache(phrases: list[str]) -> VoiceResult:
+    piper_exe = str(VOICE_PREFERENCES.get("piper_exe_path", "piper")).strip() or "piper"
+    model_path = str(VOICE_PREFERENCES.get("piper_model_path", "")).strip()
+    config_path = str(VOICE_PREFERENCES.get("piper_config_path", "")).strip()
+    speaker_id = str(VOICE_PREFERENCES.get("piper_speaker_id", "")).strip()
+    length_scale = _float_setting("piper_length_scale", 1.0)
+    noise_scale = _float_setting("piper_noise_scale", 0.667)
+    noise_w = _float_setting("piper_noise_w", 0.8)
+
+    if not model_path:
+        return VoiceResult(ok=False, error="Modelo do Piper nao configurado.")
+
+    model = Path(model_path)
+    if not model.exists():
+        return VoiceResult(ok=False, error=f"Modelo do Piper nao encontrado: {model_path}")
+
+    if config_path and not Path(config_path).exists():
+        return VoiceResult(ok=False, error=f"Config do Piper nao encontrado: {config_path}")
+
+    warmed = 0
+    skipped = 0
+    errors = []
+
+    for phrase in phrases:
+        phrase = str(phrase).strip()
+        if not phrase:
+            continue
+
+        text_for_tts = _prepare_tts_text(phrase)
+        cache_path = _tts_cache_path(
+            "piper",
+            text_for_tts,
+            _piper_cache_settings(
+                str(model),
+                config_path,
+                speaker_id,
+                length_scale,
+                noise_scale,
+                noise_w,
+            ),
+        )
+        if cache_path.exists():
+            skipped += 1
+            continue
+
+        command = [
+            piper_exe,
+            "--model",
+            str(model),
+            "--output_file",
+            str(cache_path),
+            "--length_scale",
+            length_scale,
+            "--noise_scale",
+            noise_scale,
+            "--noise_w",
+            noise_w,
+        ]
+
+        if config_path:
+            command.extend(["--config", config_path])
+
+        if speaker_id:
+            command.extend(["--speaker", speaker_id])
+
+        try:
+            completed = subprocess.run(
+                command,
+                input=text_for_tts,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+            )
+        except Exception as exc:
+            errors.append(str(exc))
+            continue
+
+        if completed.returncode != 0:
+            errors.append((completed.stderr or completed.stdout or "Piper falhou.").strip())
+            try:
+                cache_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            continue
+
+        _apply_jarvis_audio_effect(str(cache_path))
+        warmed += 1
+
+    if errors:
+        return VoiceResult(
+            ok=False,
+            text=f"Cache TTS: {warmed} criado(s), {skipped} ja existia(m).",
+            error=errors[0],
+        )
+
+    return VoiceResult(ok=True, text=f"Cache TTS: {warmed} criado(s), {skipped} ja existia(m).")
+
+
+def _speak_with_piper(text: str) -> VoiceResult:
+    text_for_tts = _prepare_tts_text(text)
+    piper_exe = str(VOICE_PREFERENCES.get("piper_exe_path", "piper")).strip() or "piper"
+    model_path = str(VOICE_PREFERENCES.get("piper_model_path", "")).strip()
+    config_path = str(VOICE_PREFERENCES.get("piper_config_path", "")).strip()
+    speaker_id = str(VOICE_PREFERENCES.get("piper_speaker_id", "")).strip()
+    length_scale = _float_setting("piper_length_scale", 1.0)
+    noise_scale = _float_setting("piper_noise_scale", 0.667)
+    noise_w = _float_setting("piper_noise_w", 0.8)
+
+    if not model_path:
+        return VoiceResult(ok=False, error="Modelo do Piper nao configurado.")
+
+    model = Path(model_path)
+    if not model.exists():
+        return VoiceResult(ok=False, error=f"Modelo do Piper nao encontrado: {model_path}")
+
+    if config_path and not Path(config_path).exists():
+        return VoiceResult(ok=False, error=f"Config do Piper nao encontrado: {config_path}")
+
+    cache_settings = _piper_cache_settings(
+        str(model),
+        config_path,
+        speaker_id,
+        length_scale,
+        noise_scale,
+        noise_w,
+    )
+
+    cache_path = None
+    if bool(VOICE_PREFERENCES.get("tts_cache_enabled", True)):
+        cache_path = _tts_cache_path(
+            "piper",
+            text_for_tts,
+            cache_settings,
+        )
+        if cache_path.exists():
+            interrupted = _play_wav(cache_path)
+            if interrupted:
+                return interrupted
+            return VoiceResult(ok=True, text=text)
+
+    chunk_threshold = 140
+    chunked_parts = _split_tts_text_for_piper(text_for_tts)
+    should_chunk = len(chunked_parts) > 1 and len(text_for_tts) >= chunk_threshold
+
+    if should_chunk:
+        for chunk_text in chunked_parts:
+            chunk_cache_path = None
+            if bool(VOICE_PREFERENCES.get("tts_cache_enabled", True)):
+                chunk_cache_path = _tts_cache_path("piper", chunk_text, cache_settings)
+                if chunk_cache_path.exists():
+                    interrupted = _play_wav(chunk_cache_path)
+                    if interrupted:
+                        return interrupted
+                    continue
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
+                chunk_output_path = temp_file.name
+
+            try:
+                error_result = _run_piper_synthesis(
+                    chunk_text,
+                    chunk_output_path,
+                    piper_exe,
+                    model,
+                    config_path,
+                    speaker_id,
+                    length_scale,
+                    noise_scale,
+                    noise_w,
+                )
+                if error_result:
+                    return error_result
+
+                play_path = chunk_output_path
+                if chunk_cache_path:
+                    shutil.copy2(chunk_output_path, chunk_cache_path)
+                    play_path = str(chunk_cache_path)
+
+                interrupted = _play_wav(play_path)
+                if interrupted:
+                    return interrupted
+            finally:
+                try:
+                    Path(chunk_output_path).unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+        return VoiceResult(ok=True, text=text)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
+        output_path = temp_file.name
+
+    try:
+        error_result = _run_piper_synthesis(
+            text_for_tts,
+            output_path,
+            piper_exe,
+            model,
+            config_path,
+            speaker_id,
+            length_scale,
+            noise_scale,
+            noise_w,
+        )
+        if error_result:
+            return error_result
+        play_path = output_path
+        if cache_path:
+            shutil.copy2(output_path, cache_path)
+            play_path = str(cache_path)
+
+        interrupted = _play_wav(play_path)
+        if interrupted:
+            return interrupted
+
+        return VoiceResult(ok=True, text=text)
     finally:
         try:
             Path(output_path).unlink(missing_ok=True)

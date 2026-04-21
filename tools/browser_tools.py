@@ -8,6 +8,7 @@ import time
 import webbrowser
 from urllib.parse import quote, quote_plus
 
+from llm.ollama_client import ask_model
 from tools.system_tools import focus_app
 
 
@@ -60,6 +61,7 @@ SPOTIFY_TRACK_RESULT_CLICKS = (
     (0.56, 0.52),
 )
 LAST_BROWSER_ELEMENTS = []
+LAST_SELECTED_TEXT = ""
 
 
 def _remember_text_items(lines):
@@ -77,7 +79,11 @@ def _remember_text_items(lines):
 
 
 def _run_powershell(script: str, timeout_seconds: int = 10) -> subprocess.CompletedProcess:
-    encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    utf8_preamble = """
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+"""
+    encoded = base64.b64encode((utf8_preamble + script).encode("utf-16le")).decode("ascii")
     return subprocess.run(
         [
             POWERSHELL_EXE,
@@ -367,6 +373,39 @@ def _short_click_query(text: str) -> str:
         normalized = " ".join(words[:8])
 
     return normalized
+
+
+def _click_query_variants(text: str) -> list[str]:
+    base = _short_click_query(text)
+    if not base:
+        return []
+
+    words = [word for word in base.split() if word]
+    variants = []
+
+    def add_variant(candidate: str):
+        candidate = re.sub(r"\s+", " ", candidate).strip(" ,.-")
+        if len(candidate) >= 3 and candidate not in variants:
+            variants.append(candidate)
+
+    add_variant(base)
+
+    for size in (6, 5, 4, 3):
+        if len(words) >= size:
+            add_variant(" ".join(words[:size]))
+
+    if "-" in base:
+        add_variant(base.split("-", 1)[0])
+
+    return variants
+
+
+def _click_browser_item_from_text(text: str) -> bool:
+    for query in _click_query_variants(text):
+        if _click_browser_element_by_text(query):
+            return True
+
+    return False
 
 
 def _extract_brl_price(text: str):
@@ -1004,6 +1043,8 @@ def _read_product_cards_via_javascript(limit: int = 10):
     script = f"""void ((()=>{{
 const marker={json.dumps(marker)};
 const limit={int(limit)};
+const viewportOffsetX=Math.max(0, Math.round((window.outerWidth - window.innerWidth)/2));
+const viewportOffsetY=Math.max(0, Math.round(window.outerHeight - window.innerHeight));
 const norm=s=>(s||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^\\p{{L}}\\p{{N}}\\s]/gu," ").replace(/\\s+/g," ").trim();
 const clean=s=>(s||"").replace(/\\s+/g," ").trim();
 const visible=el=>{{
@@ -1066,10 +1107,17 @@ for(const a of anchors) {{
   seen.add(href);
   seen.add(n);
   const r=a.getBoundingClientRect();
-  rows.push({{top:r.top,left:r.left,text}});
+  rows.push({{
+    top:r.top,
+    left:r.left,
+    x:Math.round(window.screenX + viewportOffsetX + r.left + Math.min(Math.max(r.width/2, 20), 220)),
+    y:Math.round(window.screenY + viewportOffsetY + r.top + Math.min(Math.max(r.height/2, 16), 90)),
+    text,
+    type:"Hyperlink"
+  }});
 }}
 rows.sort((a,b)=>a.top-b.top||a.left-b.left);
-const output=marker+rows.slice(0,limit).map(row=>row.text).join("\\n");
+const output=marker+JSON.stringify(rows.slice(0,limit));
 const fallback=()=>{{
   const ta=document.createElement("textarea");
   ta.value=output;
@@ -1089,23 +1137,43 @@ if(navigator.clipboard&&navigator.clipboard.writeText) {{
 }})())"""
 
     copied = _run_browser_javascript_and_read_clipboard(script, marker)
-    lines = []
+    try:
+        rows = json.loads(copied)
+    except json.JSONDecodeError:
+        return []
+
+    items = []
     seen = set()
 
-    for raw_line in copied.splitlines():
-        line = re.sub(r"\s+", " ", raw_line).strip()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+
+        line = re.sub(r"\s+", " ", str(row.get("text", ""))).strip()
         normalized = _normalize_text_for_match(line)
 
         if len(line) < 8 or not normalized or normalized in seen:
             continue
 
-        lines.append(line)
+        try:
+            items.append(
+                {
+                    "text": line,
+                    "x": int(row.get("x")),
+                    "y": int(row.get("y")),
+                    "type": str(row.get("type", "Hyperlink")).strip() or "Hyperlink",
+                    "source": "dom_product",
+                }
+            )
+        except (TypeError, ValueError):
+            continue
+
         seen.add(normalized)
 
-        if len(lines) >= limit:
+        if len(items) >= limit:
             break
 
-    return lines
+    return items
 
 
 def _read_page_text_via_clipboard(limit: int = 10):
@@ -1758,11 +1826,14 @@ def browser_click_listed_item(index: int):
 
         query = _short_click_query(item["text"])
 
-        if query and _click_browser_element_by_text(query):
+        if _click_browser_item_from_text(item["text"]):
             return f"Clicando no item {index}: {item['text']}."
 
         if query:
             browser_find(query)
+            time.sleep(0.12)
+            if _click_browser_item_from_text(item["text"]):
+                return f"Clicando no item {index}: {item['text']}."
             return (
                 f"Encontrei o texto do item {index}, mas nao consegui clicar direto nele. "
                 "Deixei ele procurado na pagina."
@@ -1810,6 +1881,8 @@ def _compact_selected_text(text: str, max_length: int = 650):
 
 
 def browser_read_selection():
+    global LAST_SELECTED_TEXT
+
     selected = _read_selected_text_from_browser()
     if selected is None:
         return "Nao encontrei um navegador aberto para ler a selecao."
@@ -1817,17 +1890,105 @@ def browser_read_selection():
     text = _compact_selected_text(selected)
     if not text:
         LAST_BROWSER_ELEMENTS.clear()
+        LAST_SELECTED_TEXT = ""
         return "Nao encontrei texto selecionado."
 
     LAST_BROWSER_ELEMENTS.clear()
+    LAST_SELECTED_TEXT = text
     return "Texto selecionado: " + text
 
 
+def _translate_with_ollama(text: str, target_language: str = "portugues do Brasil"):
+    prompt = f"""
+Voce e um tradutor cuidadoso.
+Traduza o texto abaixo para {target_language}.
+Se o texto ja estiver em portugues, apenas corrija acentos e pequenos erros obvios sem inventar conteudo.
+Responda somente com o texto final.
+Nao escreva introducoes como "a traducao e".
+Nao use aspas.
+
+Texto:
+{text}
+""".strip()
+
+    return ask_model(
+        prompt,
+        timeout_seconds=20,
+        num_predict=500,
+        temperature=0.1,
+    ).strip()
+
+
+def _clean_translation_output(text: str):
+    quote_chars = "\"' \u201c\u201d\u2018\u2019"
+    cleaned = re.sub(r"\s+", " ", text or "").strip()
+    cleaned = cleaned.strip(quote_chars)
+
+    prefix_patterns = [
+        r"^(?:a\s+)?tradu[c\u00e7][a\u00e3]o\s+(?:do\s+texto\s+)?(?:para\s+portugu[e\u00ea]s(?:\s+do\s+brasil)?\s+)?(?:e|\u00e9|eh)\s*:?\s*",
+        r"^em\s+portugu[e\u00ea]s(?:\s+do\s+brasil)?\s*:?\s*",
+        r"^texto\s+traduzido\s*:?\s*",
+        r"^traduzido\s*:?\s*",
+    ]
+
+    for pattern in prefix_patterns:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE).strip()
+
+    return cleaned.strip(quote_chars)
+
+
+def browser_translate_selection():
+    global LAST_SELECTED_TEXT
+
+    selected = _read_selected_text_from_browser()
+    if selected is None:
+        return "Nao encontrei um navegador aberto para traduzir a selecao."
+
+    text = _compact_selected_text(selected, max_length=1800)
+    if not text:
+        LAST_BROWSER_ELEMENTS.clear()
+        return "Nao encontrei texto selecionado para traduzir."
+
+    LAST_SELECTED_TEXT = text
+
+    try:
+        translated = _translate_with_ollama(text)
+    except Exception:
+        return "Nao consegui traduzir agora. Verifique se o Ollama esta aberto."
+
+    translated = _compact_selected_text(_clean_translation_output(translated), max_length=900)
+    if not translated:
+        return "Nao consegui gerar a traducao."
+
+    LAST_BROWSER_ELEMENTS.clear()
+    return "Traduzi: " + translated
+
+
+def browser_translate_last_selection():
+    if not LAST_SELECTED_TEXT:
+        return "Ainda nao tenho um texto guardado. Primeiro diga: ler selecionado."
+
+    try:
+        translated = _translate_with_ollama(LAST_SELECTED_TEXT)
+    except Exception:
+        return "Nao consegui traduzir agora. Verifique se o Ollama esta aberto."
+
+    translated = _compact_selected_text(_clean_translation_output(translated), max_length=900)
+    if not translated:
+        return "Nao consegui gerar a traducao."
+
+    LAST_BROWSER_ELEMENTS.clear()
+    return "Traduzi: " + translated
+
+
 def browser_read_selected_products():
+    global LAST_SELECTED_TEXT
+
     selected = _read_selected_text_from_browser()
     if selected is None:
         return "Nao encontrei um navegador aberto para ler a selecao."
 
+    LAST_SELECTED_TEXT = _compact_selected_text(selected, max_length=1800)
     items = _selected_text_items(selected, limit=10)
     if not items:
         LAST_BROWSER_ELEMENTS.clear()

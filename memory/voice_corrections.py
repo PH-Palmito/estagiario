@@ -7,6 +7,16 @@ from pathlib import Path
 
 VOICE_CORRECTIONS_PATH = Path("memory") / "voice_corrections.json"
 
+STARTER_VOICE_CORRECTIONS = [
+    {"heard": "chegar", "means": "fechar"},
+    {"heard": "lig ser licionado", "means": "ler selecionado"},
+    {"heard": "os links selecionados", "means": "ler selecionado"},
+    {"heard": "leica que foi seleccionario", "means": "ler selecionado"},
+    {"heard": "humor javes", "means": "humor jarvis"},
+    {"heard": "humor jarves", "means": "humor jarvis"},
+    {"heard": "modo mordomo", "means": "humor jarvis"},
+]
+
 
 def normalize_text(text: str) -> str:
     text = unicodedata.normalize("NFD", text.strip().lower())
@@ -48,6 +58,20 @@ def load_voice_corrections():
         )
 
     return corrections
+
+
+def load_starter_voice_corrections():
+    return [
+        {
+            "heard": item["heard"],
+            "heard_normalized": normalize_text(item["heard"]),
+            "means": item["means"],
+            "uses": 0,
+            "starter": True,
+        }
+        for item in STARTER_VOICE_CORRECTIONS
+        if item.get("heard") and item.get("means")
+    ]
 
 
 def save_voice_corrections(corrections):
@@ -110,10 +134,12 @@ def apply_voice_correction(text: str):
     if not normalized:
         return None
 
+    stored_corrections = load_voice_corrections()
+    all_corrections = stored_corrections + load_starter_voice_corrections()
     best_item = None
     best_score = 0.0
 
-    for item in load_voice_corrections():
+    for item in all_corrections:
         heard = item["heard_normalized"]
         if not heard:
             continue
@@ -133,12 +159,12 @@ def apply_voice_correction(text: str):
     if best_score < threshold:
         return None
 
-    best_item["uses"] = int(best_item.get("uses", 0) or 0) + 1
-    corrections = load_voice_corrections()
-    for item in corrections:
-        if item["heard_normalized"] == best_item["heard_normalized"]:
-            item["uses"] = best_item["uses"]
-            break
-    save_voice_corrections(corrections)
+    if not best_item.get("starter"):
+        best_item["uses"] = int(best_item.get("uses", 0) or 0) + 1
+        for item in stored_corrections:
+            if item["heard_normalized"] == best_item["heard_normalized"]:
+                item["uses"] = best_item["uses"]
+                break
+        save_voice_corrections(stored_corrections)
 
     return best_item["means"]

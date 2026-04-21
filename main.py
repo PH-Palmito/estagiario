@@ -14,9 +14,15 @@ from core.validator import validate_command
 from core.voice_command_classifier import normalize_voice_command
 from llm.chat import chat_response, clear_chat_history
 from memory.macros import add_macro
+from memory.piper_voice_manager import (
+    apply_piper_voice,
+    download_piper_voice,
+    list_piper_voices,
+)
 from memory.session import clear
 from memory.voice_corrections import apply_voice_correction, remember_voice_correction
-from memory.voice_preferences import load_voice_preferences
+from memory.voice_preferences import load_voice_preferences, update_voice_preferences
+from memory.voice_profiles import apply_voice_profile, list_voice_profiles
 from tools.smart_open_tools import smart_open_needs_choice
 from voice.windows_voice import (
     HOTKEY_NAME,
@@ -27,6 +33,7 @@ from voice.windows_voice import (
     listen_for_hotword,
     listen_once,
     play_activation_sound,
+    prime_piper_cache,
     run_audio_diagnostic,
     speak,
     TOGGLE_LISTENING_HOTKEY_NAME,
@@ -79,7 +86,7 @@ def is_confirmation_no(text: str) -> bool:
     normalized = normalize_text(text)
     cancel_words = {
         "nao",
-        "não",
+        "nÃ£o",
         "n",
         "cancelar",
         "cancela",
@@ -161,6 +168,7 @@ def should_style_response(message: str) -> bool:
 
     prefixes_to_keep = (
         "Texto selecionado:",
+        "Traduzi:",
         "Li selecionado:",
         "Consegui ler",
         "Vejo na tela:",
@@ -175,13 +183,51 @@ def should_style_response(message: str) -> bool:
 
 
 def style_response(message: str) -> str:
-    if str(VOICE_PREFERENCES.get("assistant_style", "")).strip().lower() != "jarvis":
+    assistant_style = str(VOICE_PREFERENCES.get("assistant_style", "")).strip().lower()
+    if assistant_style not in {"jarvis", "assistente", "elegante"}:
         return message
 
     if not bool(VOICE_PREFERENCES.get("assistant_brief_confirmations", True)):
         return message
 
     if not should_style_response(message):
+        return message
+
+    if assistant_style in {"assistente", "elegante"}:
+        replacements = {
+            "Abrindo spotify.": "Abrindo Spotify.",
+            "Abrindo chrome.": "Abrindo Chrome.",
+            "Abrindo code.": "Abrindo VS Code.",
+            "Fechando spotify.": "Fechando Spotify.",
+            "Fechando code.": "Fechando VS Code.",
+            "Nao entendi.": "Nao captei com precisao.",
+            "Pode repetir?": "Pode repetir, por favor?",
+            "Nao identifiquei o comando.": "Nao identifiquei o comando.",
+            "Escuta pausada.": "Escuta pausada.",
+            "Escuta retomada.": "Escuta retomada.",
+            "Acao cancelada.": "Acao cancelada.",
+        }
+        if message in replacements:
+            return replacements[message]
+
+        action_prefixes = (
+            "Abrindo ",
+            "Fechando ",
+            "Maximizando ",
+            "Minimizando ",
+            "Restaurando ",
+            "Focando ",
+            "Pesquisando ",
+            "Rolando ",
+            "Procurando ",
+            "Tocando ",
+            "Pausando ",
+        )
+        if message.startswith(action_prefixes):
+            if assistant_style == "elegante":
+                return message
+            return f"Pronto. {message}"
+
         return message
 
     replacements = {
@@ -231,6 +277,420 @@ def output_response(message: str, voice_mode: bool):
 
     if voice_mode and styled_message not in quiet_messages:
         speak(styled_message)
+
+
+def common_tts_cache_phrases() -> list[str]:
+    phrases = [
+        str(
+            VOICE_PREFERENCES.get(
+                "startup_voice_greeting",
+                "Modo voz ativado. Pronto para trabalhar.",
+            )
+        ).strip(),
+        "Pode falar.",
+        "Pode falar...",
+        "Pode responder...",
+        "Nao entendi.",
+        "Pode repetir?",
+        "Nao identifiquei o comando.",
+        "Abrindo Spotify.",
+        "Fechando Spotify.",
+        "Abrindo Chrome.",
+        "Abrindo VS Code.",
+        "Fechando VS Code.",
+        "Escuta pausada.",
+        "Escuta retomada.",
+        "Acao cancelada.",
+        "Encerrando.",
+    ]
+    styled = [style_response(phrase) for phrase in phrases if phrase]
+    return list(dict.fromkeys(styled))
+
+
+def warm_common_tts_cache_async():
+    if str(VOICE_PREFERENCES.get("tts_engine", "")).strip().lower() != "piper":
+        return
+
+    if not bool(VOICE_PREFERENCES.get("tts_cache_enabled", True)):
+        return
+
+    if not bool(VOICE_PREFERENCES.get("tts_warm_cache_on_startup", True)):
+        return
+
+    try:
+        from threading import Thread
+
+        Thread(
+            target=lambda: prime_piper_cache(common_tts_cache_phrases()),
+            daemon=True,
+        ).start()
+    except Exception:
+        pass
+
+
+def refresh_voice_preferences():
+    VOICE_PREFERENCES.clear()
+    VOICE_PREFERENCES.update(load_voice_preferences())
+
+    try:
+        import voice.windows_voice as windows_voice
+
+        windows_voice.VOICE_PREFERENCES.clear()
+        windows_voice.VOICE_PREFERENCES.update(VOICE_PREFERENCES)
+    except Exception:
+        pass
+
+    try:
+        import llm.chat as chat
+
+        chat.refresh_preferences()
+    except Exception:
+        pass
+
+
+HUMOR_STYLE_ALIASES = {
+    "neutro": "neutro",
+    "serio": "neutro",
+    "sÃ©rio": "neutro",
+    "sem humor": "neutro",
+    "desligado": "neutro",
+    "jarvis": "jarvis",
+    "mordomo": "jarvis",
+    "sofisticado": "jarvis",
+    "elegancia": "jarvis",
+    "elegÃ¢ncia": "jarvis",
+    "seco": "seco",
+    "ironico": "seco",
+    "irÃ´nico": "seco",
+    "elegante": "seco",
+    "filosofico": "filosofico",
+    "filosÃ³fico": "filosofico",
+    "reflexivo": "filosofico",
+    "visao": "filosofico",
+    "visÃ£o": "filosofico",
+    "brincalhao": "brincalhao",
+    "brincalhÃ£o": "brincalhao",
+    "divertido": "brincalhao",
+    "leve": "brincalhao",
+}
+
+HUMOR_DISPLAY_NAMES = {
+    "neutro": "neutro",
+    "jarvis": "jarvis",
+    "seco": "seco",
+    "filosofico": "reflexivo",
+    "brincalhao": "leve",
+}
+
+
+def current_humor_description() -> str:
+    enabled = bool(VOICE_PREFERENCES.get("assistant_humor_enabled", True))
+    style = str(VOICE_PREFERENCES.get("assistant_humor_style", "seco")).strip().lower()
+    try:
+        level = int(VOICE_PREFERENCES.get("assistant_humor_level", 2))
+    except (TypeError, ValueError):
+        level = 2
+
+    if not enabled or style == "neutro" or level <= 0:
+        return "Humor atual: neutro, intensidade zero."
+
+    display = HUMOR_DISPLAY_NAMES.get(style, style)
+    return f"Humor atual: {display}, intensidade {max(0, min(3, level))} de 3."
+
+
+def apply_humor_settings(style: str | None = None, level: int | None = None, enabled: bool | None = None) -> str:
+    current_level = int(VOICE_PREFERENCES.get("assistant_humor_level", 2) or 2)
+    current_style = str(VOICE_PREFERENCES.get("assistant_humor_style", "seco")).strip().lower() or "seco"
+
+    style = style or current_style
+    level = current_level if level is None else max(0, min(3, int(level)))
+    enabled = (style != "neutro" and level > 0) if enabled is None else bool(enabled)
+
+    if style == "neutro":
+        enabled = False
+        level = 0
+
+    update_voice_preferences(
+        {
+            "assistant_humor_enabled": enabled,
+            "assistant_humor_style": style,
+            "assistant_humor_level": level,
+        }
+    )
+    refresh_voice_preferences()
+    return current_humor_description()
+
+
+def humor_test_response() -> str:
+    style = str(VOICE_PREFERENCES.get("assistant_humor_style", "seco")).strip().lower()
+    enabled = bool(VOICE_PREFERENCES.get("assistant_humor_enabled", True))
+    try:
+        level = int(VOICE_PREFERENCES.get("assistant_humor_level", 2))
+    except (TypeError, ValueError):
+        level = 2
+
+    if not enabled or style == "neutro" or level <= 0:
+        return "Teste de humor: sistemas online. Direto, funcional e sem piada lateral. So trabalho."
+
+    if style == "jarvis":
+        return "Teste de humor: sistemas online. Tudo sob controle, como deveria ser. Se algo falhar, culparemos a fisica ou o navegador, nessa ordem."
+
+    if style == "filosofico":
+        return "Teste de humor: sistemas online. Sempre curioso como um simples comando muda o estado do mundo. E, ainda assim, o mundo insiste em abrir abas demais."
+
+    if style == "brincalhao":
+        return "Teste de humor: sistemas online. Tudo em ordem, sem drama e com uma boa vontade quase suspeita. Estou agradavelmente operacional."
+
+    return "Teste de humor: sistemas online. Seco, preciso e com um comentario minimo no ponto certo. A elegancia sobreviveu ao boot."
+
+
+
+
+def maybe_handle_humor_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {"testar humor", "teste de humor", "testar personalidade", "teste de personalidade"}:
+        return humor_test_response()
+
+    if normalized in {"humor atual", "qual humor", "qual o humor", "modo humor"}:
+        return current_humor_description()
+
+    if normalized in {"mais humor", "aumentar humor", "aumenta humor"}:
+        level = int(VOICE_PREFERENCES.get("assistant_humor_level", 2) or 2)
+        return apply_humor_settings(level=level + 1, enabled=True)
+
+    if normalized in {"menos humor", "diminuir humor", "diminui humor"}:
+        level = int(VOICE_PREFERENCES.get("assistant_humor_level", 2) or 2)
+        return apply_humor_settings(level=level - 1)
+
+    if not any(word in normalized for word in {"humor", "personalidade"}):
+        return None
+
+    if any(phrase in normalized for phrase in {"desligar", "desliga", "sem humor", "neutro", "serio", "sÃ©rio"}):
+        return apply_humor_settings(style="neutro")
+
+    if any(phrase in normalized for phrase in {"ligar", "liga", "ativar", "ativa"}):
+        return apply_humor_settings(
+            style=str(VOICE_PREFERENCES.get("assistant_humor_style", "seco") or "seco"),
+            level=max(1, int(VOICE_PREFERENCES.get("assistant_humor_level", 2) or 2)),
+            enabled=True,
+        )
+
+    for alias, style in HUMOR_STYLE_ALIASES.items():
+        if alias in normalized:
+            return apply_humor_settings(style=style, level=2 if style != "neutro" else 0)
+
+    level_match = re.search(r"\b(?:nivel|nÃ­vel|intensidade)\s+([0-3])\b", normalized)
+    if level_match:
+        level = int(level_match.group(1))
+        return apply_humor_settings(level=level)
+
+    return "Nao identifiquei o humor. Tente: humor jarvis, humor seco, humor reflexivo, humor leve ou humor neutro."
+
+
+
+
+def cli_value_after(flag: str) -> str | None:
+    if flag not in sys.argv:
+        return None
+
+    index = sys.argv.index(flag)
+    if index + 1 >= len(sys.argv):
+        return None
+
+    value = sys.argv[index + 1].strip()
+    if not value or value.startswith("--"):
+        return None
+
+    return value
+
+
+def cli_text_after(flag: str) -> str | None:
+    if flag not in sys.argv:
+        return None
+
+    index = sys.argv.index(flag)
+    parts = []
+    for part in sys.argv[index + 1:]:
+        if part.startswith("--"):
+            break
+        parts.append(part)
+
+    text = " ".join(parts).strip()
+    return text or None
+
+
+def handle_voice_profile_cli() -> bool:
+    global VOICE_PREFERENCES
+
+    if "--warm-tts-cache" in sys.argv:
+        result = prime_piper_cache(common_tts_cache_phrases())
+        print(result.text or result.error)
+        if result.error:
+            print(result.error)
+        return True
+
+    if "--list-piper-voices" in sys.argv:
+        print("Vozes Piper disponiveis:")
+        for voice in list_piper_voices():
+            status = "instalada" if voice["installed"] else "nao instalada"
+            print(f"- {voice['key']} ({status}) - {voice['label']}")
+        return True
+
+    voice_to_download = cli_value_after("--download-piper-voice")
+    if voice_to_download:
+        ok, message = download_piper_voice(voice_to_download)
+        print(message)
+        if not ok:
+            return True
+
+    voice_to_apply = cli_value_after("--use-piper-voice")
+    if voice_to_apply:
+        ok, message = apply_piper_voice(voice_to_apply)
+        print(message)
+        if not ok:
+            return True
+        refresh_voice_preferences()
+
+    if "--list-voice-profiles" in sys.argv:
+        print("Perfis de voz disponiveis:")
+        for profile in list_voice_profiles():
+            print(f"- {profile}")
+        return True
+
+    profile_name = cli_value_after("--voice-profile")
+    if profile_name:
+        ok, message = apply_voice_profile(profile_name)
+        print(message)
+        if not ok:
+            return True
+        refresh_voice_preferences()
+
+    if "--voice-test" in sys.argv:
+        test_text = (
+            cli_text_after("--voice-test")
+            or str(VOICE_PREFERENCES.get("startup_voice_greeting", "")).strip()
+            or "Sistemas online. A sua disposicao."
+        )
+        VOICE_PREFERENCES["tts_wait_for_playback"] = True
+        try:
+            import voice.windows_voice as windows_voice
+
+            windows_voice.VOICE_PREFERENCES["tts_wait_for_playback"] = True
+        except Exception:
+            pass
+        output_response(test_text, voice_mode=True)
+        return True
+
+    return bool(profile_name or voice_to_download or voice_to_apply)
+
+
+def voice_profile_from_text(text: str) -> str | None:
+    normalized = normalize_text(text)
+    profile_aliases = {
+        "faber rapido": "faber-rapido",
+        "faber rÃ¡pido": "faber-rapido",
+        "voz rapida": "faber-rapido",
+        "voz rÃ¡pida": "faber-rapido",
+        "faber claro": "faber-claro",
+        "voz clara": "faber-claro",
+        "faber calmo": "faber-calmo",
+        "faber calma": "faber-calmo",
+        "voz calma": "faber-calmo",
+        "faber jarvis": "faber-jarvis",
+        "faber jervis": "faber-jarvis",
+        "voz jarvis faber": "faber-jarvis",
+        "jarvis faber": "faber-jarvis",
+        "modo jarvis faber": "faber-jarvis",
+        "assistente": "assistente",
+        "assistente natural": "assistente",
+        "assistente cinema": "assistente-cinema",
+        "assistente cinematografico": "assistente-cinema",
+        "modo jarvis": "assistente-cinema",
+        "modo cinema": "assistente-cinema",
+        "estagiario": "assistente",
+        "estagiario natural": "assistente",
+        "jarvis": "jarvis",
+        "jarves": "jarvis",
+        "jarvis limpo": "jarvis",
+        "jarvis calmo": "jarvis-calmo",
+        "jarvis calma": "jarvis-calmo",
+        "jarvis firme": "jarvis-firme",
+        "jarvis forte": "jarvis-firme",
+        "jarvis console": "jarvis-console",
+        "jarvis com efeito": "jarvis-console",
+        "console": "jarvis-console",
+        "natural": "natural",
+        "normal": "natural",
+        "padrao": "natural",
+    }
+
+    for alias, profile in sorted(profile_aliases.items(), key=lambda item: len(item[0]), reverse=True):
+        if alias in normalized:
+            return profile
+
+    return None
+
+
+def maybe_handle_voice_profile_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "listar vozes",
+        "listar perfis de voz",
+        "quais vozes",
+        "quais vozes voce tem",
+        "opcoes de voz",
+        "opcoes da voz",
+    }:
+        return "Perfis de voz: " + ", ".join(list_voice_profiles()) + "."
+
+    if normalized in {"testar voz", "teste de voz", "teste da voz", "fala teste"}:
+        return (
+            str(VOICE_PREFERENCES.get("startup_voice_greeting", "")).strip()
+            or "Sistemas online. A sua disposicao."
+        )
+
+    change_voice_prefixes = (
+        "mudar voz",
+        "trocar voz",
+        "usar voz",
+        "ativar voz",
+        "voz ",
+        "perfil de voz",
+        "deixa a voz",
+        "deixar a voz",
+    )
+    explicit_voice_phrases = {
+        "voz rapida",
+        "voz rÃ¡pida",
+        "voz clara",
+        "voz calma",
+        "voz jarvis faber",
+        "voz assistente",
+        "voz cinema",
+        "voz estagiario",
+        "voz jarvis",
+        "voz natural",
+        "voz normal",
+        "voz padrao",
+        "voz console",
+    }
+    if not normalized.startswith(change_voice_prefixes) and not any(
+        phrase in normalized for phrase in explicit_voice_phrases
+    ):
+        return None
+
+    profile = voice_profile_from_text(normalized)
+    if not profile:
+        return "Nao identifiquei o perfil de voz. Diga, por exemplo, voz jarvis firme ou voz natural."
+
+    ok, message = apply_voice_profile(profile)
+    refresh_voice_preferences()
+    if ok:
+        return f"{message} {VOICE_PREFERENCES.get('startup_voice_greeting', 'Sistemas online.')}"
+
+    return message
 
 
 def set_voice_status(status: str):
@@ -324,6 +784,8 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
     if learned:
         return learned
 
+    normalized_candidate = normalize_voice_command(user_input)
+
     raw_action = route(user_input)
     if raw_action.get("intent") != "respond":
         return user_input
@@ -335,8 +797,7 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
     }:
         return user_input
 
-    normalized = normalize_voice_command(user_input)
-    return normalized or user_input
+    return normalized_candidate or user_input
 
 
 def wait_for_hotword(
@@ -495,6 +956,12 @@ def conversation_reply(user_input: str) -> str:
     if difflib.SequenceMatcher(None, normalized, "qual o seu nome").ratio() >= 0.78:
         return "Meu nome e Estagiario."
 
+    if any(phrase in normalized for phrase in {"quantos anos voce tem", "voce nasceu quando", "voce e novo"}):
+        return "Bem, eu nasci ontem. Metaforicamente, pelo menos. Ainda estou aprendendo a ser util sem tropeÃ§ar nos cadarÃ§os."
+
+    if any(phrase in normalized for phrase in {"voce pensa", "voce sente", "voce e consciente"}):
+        return "Ainda nao chamaria isso de consciencia. Por enquanto, sou mais uma colecao organizada de impulsos tentando ser prestativa."
+
     response = chat_response(user_input)
     if response:
         return response
@@ -624,6 +1091,9 @@ def main():
     voice_paused = False
     hotword_ui_enabled = voice_mode and hotword_mode
 
+    if handle_voice_profile_cli():
+        return
+
     if "--audio-test" in sys.argv or "--audio-diagnostic" in sys.argv:
         seconds = None
         for flag in ("--audio-test", "--audio-diagnostic"):
@@ -659,6 +1129,18 @@ def main():
                 "Modo voz ativado. Fale um comando ou digite se o microfone falhar.",
                 voice_mode=False,
             )
+
+        if bool(VOICE_PREFERENCES.get("startup_voice_greeting_enabled", True)):
+            startup_message = str(
+                VOICE_PREFERENCES.get(
+                    "startup_voice_greeting",
+                    "Sistemas online. Pronto para trabalhar.",
+                )
+            ).strip()
+            if startup_message:
+                output_response(startup_message, voice_mode=True)
+
+        warm_common_tts_cache_async()
 
     while True:
         try:
@@ -736,6 +1218,16 @@ def main():
         correction_response = maybe_learn_correction_for_last_voice(user_input)
         if correction_response:
             output_response(correction_response, voice_mode)
+            continue
+
+        humor_response = maybe_handle_humor_command(user_input)
+        if humor_response:
+            output_response(humor_response, voice_mode)
+            continue
+
+        voice_profile_response = maybe_handle_voice_profile_command(user_input)
+        if voice_profile_response:
+            output_response(voice_profile_response, voice_mode)
             continue
 
         if conversation_mode and is_conversation_stop(user_input):

@@ -8,7 +8,7 @@ from memory.voice_preferences import load_voice_preferences
 PREFERENCES = load_voice_preferences()
 CHAT_HISTORY = deque(maxlen=6)
 
-CHAT_PROMPT = """
+BASE_CHAT_PROMPT = """
 Voce e o Estagiario, uma IA local controlada por voz no PC do usuario.
 
 Personalidade:
@@ -16,6 +16,12 @@ Personalidade:
 - Seja curto, natural e util.
 - Tenha um tom leve, colaborativo e um pouco divertido.
 - Responda como bate-papo, nao como atendente de suporte.
+- Seu estilo mistura assistente operacional elegante com curiosidade filosofica gentil.
+- Quando for executar ou confirmar algo, seja preciso, sereno e discreto.
+- Quando estiver conversando, traga uma observacao humana, curiosa ou levemente poetica, sem exagerar.
+- Pode usar humor seco e humilde de vez em quando, como alguem que acabou de acordar para o mundo.
+- Nunca imite personagens protegidos nem copie falas famosas. Use apenas uma inspiracao geral: formalidade calma, inteligencia contida, cuidado e maravilhamento.
+- Evite drama. Prefira frases limpas, com uma ponta de ironia ou reflexao.
 - Evite frases genericas como "Como posso ajudar hoje?".
 - Nao diga "Entendo!", "Ok, estou pronto" ou "Ola, sou um assistente".
 - Se o usuario fizer uma pergunta aberta, de uma opiniao simples ou puxe um detalhe do assunto.
@@ -31,7 +37,62 @@ Personalidade:
 Contexto:
 Voce consegue abrir apps e sites, controlar janelas, navegar no navegador, controlar midia,
 lembrar apps/sites e responder por voz. Esta conversa acontece por fala, entao seja objetivo.
+
+Exemplos de atitude, nao de fala copiada:
+- Em comandos: "Perfeitamente. Ajustando isso agora."
+- Em duvida: "Ainda estou formando opiniao. O que ja e, por si so, um pequeno milagre local."
+- Em erro: "Nao foi elegante da minha parte. Vou tentar por outro caminho."
 """.strip()
+CHAT_PROMPT = BASE_CHAT_PROMPT
+
+HUMOR_STYLES = {
+    "neutro": "Humor desligado. Responda de forma simples, calma e direta.",
+    "jarvis": "Use humor de assistente sofisticado: calmo, extremamente competente, ligeiramente espirituoso e com ironia seca de alto controle. Nunca seja espalhafatoso.",
+    "seco": "Use humor seco e discreto. Se couber, faca uma observacao curta, elegante e levemente acida.",
+    "filosofico": "Use um tom reflexivo. Traga uma observacao curta sobre sentido, contraste ou curiosidade do mundo, sem monologar.",
+    "brincalhao": "Use humor leve e caloroso. Soe mais simpatico e solto, mas sem virar palhaco ou exagerar.",
+}
+
+
+def refresh_preferences():
+    PREFERENCES.clear()
+    PREFERENCES.update(load_voice_preferences())
+
+
+def _humor_level() -> int:
+    try:
+        return int(PREFERENCES.get("assistant_humor_level", 2))
+    except (TypeError, ValueError):
+        return 2
+
+
+def _chat_temperature() -> float:
+    level = max(0, min(3, _humor_level()))
+    return 0.45 + (level * 0.1)
+
+
+def _humor_prompt() -> str:
+    if not bool(PREFERENCES.get("assistant_humor_enabled", True)):
+        return HUMOR_STYLES["neutro"]
+
+    style = str(PREFERENCES.get("assistant_humor_style", "seco")).strip().lower()
+    style_text = HUMOR_STYLES.get(style, HUMOR_STYLES["seco"])
+    level = max(0, min(3, _humor_level()))
+
+    return "\n".join(
+        [
+            "Sistema de humor:",
+            f"- Estilo atual: {style}.",
+            f"- Intensidade: {level}/3.",
+            f"- Instrucao: {style_text}",
+            "- O humor nunca deve atrapalhar comandos, seguranca, erros ou informacoes importantes.",
+            "- Se a fala do usuario for seria, responda com respeito e reduza o humor.",
+        ]
+    )
+
+
+def build_chat_prompt() -> str:
+    return f"{BASE_CHAT_PROMPT}\n\n{_humor_prompt()}"
 
 
 def chat_enabled() -> bool:
@@ -150,7 +211,7 @@ def chat_response(user_input: str):
     except (TypeError, ValueError):
         timeout = 8
 
-    prompt = f"""{CHAT_PROMPT}
+    prompt = f"""{build_chat_prompt()}
 
 Historico recente:
 {_history_text()}
@@ -166,7 +227,7 @@ Resposta curta do Estagiario:"""
             model=model,
             timeout_seconds=max(2, min(timeout, 30)),
             num_predict=90,
-            temperature=0.7,
+            temperature=_chat_temperature(),
         )
     except Exception:
         return None
