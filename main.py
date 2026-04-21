@@ -461,10 +461,27 @@ def humor_test_response() -> str:
     return "Teste de humor: sistemas online. Seco, preciso e com um comentario minimo no ponto certo. A elegancia sobreviveu ao boot."
 
 
-def pronunciation_test_response() -> str:
+def pronunciation_test_response(detailed: bool = False) -> str:
+    if detailed:
+        return (
+            "Teste detalhado de pronúncia. "
+            "Primeiro bloco, plataformas e sites. "
+            "GitHub, YouTube, WhatsApp, WhatsApp Web, Mercado Livre, Magalu, OpenAI e Google Colab. "
+            "Segundo bloco, aplicativos e ferramentas. "
+            "Spotify, VS Code, Android Studio, PowerShell, Whisper, Piper, Ollama e ScreenPilot. "
+            "Terceiro bloco, conexões e tecnologia. "
+            "Wi-Fi, Bluetooth, Chrome, Python e Steam. "
+            "Quarto bloco, siglas técnicas. "
+            "LLM, CPU, GPU, NFC, SSD, USB, HDMI, OCR, API, URL, HTTP, HTTPS, JSON, PDF, UI, UX e RPA. "
+            "Quinto bloco, unidades. "
+            "Seis mil e quinhentos miliampere hora. "
+            "Cento e vinte watt hora. "
+            "Cinco quilômetros."
+        )
+
     return (
         "Teste de pronúncia. "
-        "GitHub, YouTube, WhatsApp Web, Steam, Chrome, Python, Google Colab, OpenAI, PowerShell, Android Studio, Wi-Fi e Bluetooth. "
+        "GitHub, YouTube, WhatsApp Web, Android Studio, PowerShell, Wi-Fi e Bluetooth. "
         "Agora, siglas técnicas. "
         "LLM, CPU, GPU, NFC, SSD, USB, HDMI, OCR, API, URL, HTTP e HTTPS. "
         "E por fim, unidades. "
@@ -475,7 +492,7 @@ def pronunciation_test_response() -> str:
 
 def maybe_handle_pronunciation_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
-    if normalized in {
+    direct_matches = {
         "testar pronuncia",
         "teste de pronuncia",
         "teste pronuncia",
@@ -485,7 +502,46 @@ def maybe_handle_pronunciation_command(user_input: str) -> str | None:
         "teste ingles",
         "testar siglas",
         "teste siglas",
+    }
+    if normalized in direct_matches:
+        return pronunciation_test_response()
+
+    if normalized in {
+        "testar pronuncia detalhada",
+        "teste de pronuncia detalhada",
+        "testar pronunciacao detalhada",
+        "teste detalhado de pronuncia",
+        "testar palavras ingles",
+        "teste ingles detalhado",
     }:
+        return pronunciation_test_response(detailed=True)
+
+    compact = re.sub(r"[^a-z0-9]", "", normalized)
+    if compact.startswith(("testar", "testede", "teste")):
+        aliases = {
+            "testarpronuncia",
+            "testedepronuncia",
+            "testepronuncia",
+            "testarpronunciacao",
+            "testedepronunciacao",
+            "testaringles",
+            "testeingles",
+            "testarsiglas",
+            "testesiglas",
+            "testarproanuncio",
+            "testarpronunciado",
+            "testarpronunciadetalhada",
+            "testedepronunciadetalhada",
+            "testardepronunciadetalhada",
+            "testarpalavrasingles",
+            "testeinglesdetalhado",
+        }
+        if compact in aliases:
+            return pronunciation_test_response(detailed="detalh" in normalized or "palavras" in normalized)
+
+    if any(token in normalized for token in {"pronunc", "pron n", "pronun", "ingl", "sigl"}) and any(
+        token in normalized for token in {"testar", "teste"}
+    ):
         return pronunciation_test_response()
 
     return None
@@ -832,6 +888,14 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         return learned
 
     normalized_candidate = normalize_voice_command(user_input)
+    protected_voice_commands = {
+        "o que tem na tela",
+        "resuma a tela",
+        "detalha a tela",
+        "testar pronuncia",
+    }
+    if normalized_candidate in protected_voice_commands:
+        return normalized_candidate
 
     raw_action = route(user_input)
     if raw_action.get("intent") != "respond":

@@ -693,14 +693,14 @@ _PRONOUNCE_AS_WORD = {
 }
 
 _BUILTIN_TTS_PRONUNCIATIONS = {
-    "GitHub": "guít hub",
-    "github": "guít hub",
-    "YouTube": "iutchubi",
-    "youtube": "iutchubi",
+    "GitHub": "guíti rãb",
+    "github": "guíti rãb",
+    "YouTube": "iútubi",
+    "youtube": "iútubi",
     "WhatsApp": "uótsap",
     "whatsapp": "uótsap",
-    "WhatsApp Web": "uótsap uéb",
-    "whatsapp web": "uótsap uéb",
+    "WhatsApp Web": "uótsápi uébi",
+    "whatsapp web": "uótsápi uébi",
     "Steam": "stim",
     "steam": "stim",
     "Chrome": "crôum",
@@ -711,10 +711,10 @@ _BUILTIN_TTS_PRONUNCIATIONS = {
     "google": "gúgou",
     "Colab": "cólab",
     "colab": "cólab",
-    "Android": "êndroid",
-    "android": "êndroid",
-    "Android Studio": "êndroid stúdio",
-    "android studio": "êndroid stúdio",
+    "Android": "êndróid",
+    "android": "êndróid",
+    "Android Studio": "êndróid stúdio",
+    "android studio": "êndróid stúdio",
     "PowerShell": "páuer shel",
     "powershell": "páuer shel",
     "OpenAI": "ôupen êi ái",
@@ -727,6 +727,21 @@ _BUILTIN_TTS_PRONUNCIATIONS = {
     "wifi": "uái fai",
     "Bluetooth": "blutúfi",
     "bluetooth": "blutúfi",
+    "Mercado Livre": "mercádo lívre",
+    "mercado livre": "mercádo lívre",
+    "Magalu": "magalú",
+    "magalu": "magalú",
+    "Spotify": "ispótifai",
+    "spotify": "ispótifai",
+    "VS Code": "vê ésse côde",
+    "VSCode": "vê ésse côde",
+    "vscode": "vê ésse côde",
+    "Whisper": "uísper",
+    "whisper": "uísper",
+    "Piper": "paiper",
+    "piper": "paiper",
+    "Ollama": "olâma",
+    "ollama": "olâma",
     "screenpilot": "screen pilot",
     "ScreenPilot": "screen pilot",
 }
@@ -1029,6 +1044,8 @@ def _prepare_tts_text(text: str) -> str:
     prepared = _apply_abbreviation_heuristics(prepared)
     prepared = _apply_pronunciation_map(prepared, _BUILTIN_TTS_PRONUNCIATIONS)
     prepared = _apply_pronunciation_map(prepared, _load_tts_pronunciations())
+    prepared = re.sub(r"\bv[ęê] ésse côde\b", "vê ésse côde", prepared, flags=re.IGNORECASE)
+    prepared = re.sub(r"\bvê ésse code\b", "vê ésse côde", prepared, flags=re.IGNORECASE)
 
     return prepared
 

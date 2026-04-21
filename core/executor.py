@@ -74,6 +74,7 @@ from tools.system_tools import (
     open_url,
     restore_app,
     run_script,
+    type_text,
 )
 from tools.file_tools import (
     list_files,
@@ -126,6 +127,7 @@ ACTIONS = {
     "maximize_app": lambda p: maximize_app(p["target"]),
     "restore_app": lambda p: restore_app(p["target"]),
     "run_script": lambda p: run_script(p["target"]),
+    "type_text": lambda p: type_text(p["content"]),
     "open_url": lambda p: open_url(p["target"]),
     "browser_new_tab": lambda p: browser_new_tab(),
     "browser_close_tab": lambda p: browser_close_tab(),

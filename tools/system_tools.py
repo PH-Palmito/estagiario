@@ -3,8 +3,16 @@ import shutil
 import subprocess
 import sys
 import webbrowser
+import ctypes
+import time
 from pathlib import Path
 from urllib.parse import urlparse
+from tools.clipboard_tools import get_clipboard, set_clipboard
+
+user32 = ctypes.windll.user32
+KEYEVENTF_KEYUP = 0x0002
+VK_CONTROL = 0x11
+VK_V = 0x56
 
 SAFE_DIR = Path.cwd() / "scripts"
 
@@ -81,6 +89,24 @@ WINDOW_ACTIONS = {
     "maximize": 3,
     "restore": 9,
 }
+
+
+def _tap(vk_code: int):
+    user32.keybd_event(vk_code, 0, 0, 0)
+    time.sleep(0.02)
+    user32.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
+
+
+def _shortcut(*vk_codes: int):
+    for code in vk_codes:
+        user32.keybd_event(code, 0, 0, 0)
+        time.sleep(0.01)
+
+    time.sleep(0.03)
+
+    for code in reversed(vk_codes):
+        user32.keybd_event(code, 0, KEYEVENTF_KEYUP, 0)
+        time.sleep(0.01)
 
 
 def _resolve_app_command(candidates):
@@ -227,6 +253,29 @@ def restore_app(app_name: str):
         return "Nao consegui identificar qual aplicativo restaurar."
 
     return _run_window_action(app_name.lower().strip(), "restore")
+
+
+def type_text(text: str):
+    content = (text or "").strip()
+    if not content:
+        return "Qual texto devo inserir?"
+
+    previous_clipboard = get_clipboard()
+    try:
+        set_clipboard(content)
+        time.sleep(0.04)
+        _shortcut(VK_CONTROL, VK_V)
+        time.sleep(0.05)
+    except Exception as e:
+        return f"Erro ao inserir texto: {e}"
+    finally:
+        try:
+            if previous_clipboard is not None:
+                set_clipboard(previous_clipboard)
+        except Exception:
+            pass
+
+    return "Texto inserido no campo ativo."
 
 
 def _close_processes_with_powershell(process_names: list[str]) -> bool:
