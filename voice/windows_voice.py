@@ -96,9 +96,18 @@ CONVERSATION_MAX_SILENCE_SECONDS = _float_pref("conversation_max_silence_seconds
 CONVERSATION_MIN_SPEECH_SECONDS = _float_pref("conversation_min_speech_seconds", 0.35, 0.08, 2.0)
 COMMAND_PROMPT = (
     "Comandos curtos em portugues do Brasil para controlar o computador. "
+    "Transcreva sempre em portugues do Brasil, nunca em ingles. "
     "Verbos comuns: abrir, fechar, focar, trocar, minimizar, maximizar, restaurar, pesquisar, ler, selecionar. "
     "Alvos comuns: chrome, youtube, google, vscode, code, spotify, whatsapp, zap, bloco de notas, "
     "powershell, edge, github, android studio, steam, mercado livre, magalu."
+)
+COMMAND_RESCUE_PROMPT = (
+    "Transcreva apenas em portugues do Brasil. "
+    "Nao invente palavras em ingles. "
+    "Priorize comandos curtos e simples. "
+    "Exemplos provaveis: o que tem na tela, resuma a tela, detalha a tela, "
+    "abrir youtube, abrir chrome, abrir spotify, fechar spotify, "
+    "pesquisar notebook no mercado livre, abrir github, abrir whatsapp."
 )
 CONVERSATION_PROMPT = str(
     VOICE_PREFERENCES.get(
@@ -107,6 +116,75 @@ CONVERSATION_PROMPT = str(
     )
 ).strip()
 HOTWORD_PROMPT = f"Palavra de ativacao: {HOTWORD}."
+COMMAND_VOCAB = {
+    "abre",
+    "abrir",
+    "abri",
+    "abriu",
+    "abrei",
+    "fecha",
+    "fechar",
+    "foca",
+    "focar",
+    "minimiza",
+    "maximiza",
+    "restaura",
+    "pesquisa",
+    "pesquisar",
+    "procura",
+    "procurar",
+    "buscar",
+    "busca",
+    "tela",
+    "pagina",
+    "janela",
+    "resuma",
+    "resume",
+    "resumir",
+    "resumo",
+    "detalha",
+    "detalhar",
+    "explica",
+    "github",
+    "youtube",
+    "spotify",
+    "chrome",
+    "google",
+    "whatsapp",
+    "zap",
+    "mercado",
+    "livre",
+    "magalu",
+    "bloco",
+    "notas",
+    "android",
+    "studio",
+    "vscode",
+    "code",
+    "edge",
+}
+ENGLISH_NOISE_TOKENS = {
+    "how",
+    "did",
+    "do",
+    "does",
+    "you",
+    "your",
+    "he",
+    "she",
+    "his",
+    "her",
+    "me",
+    "on",
+    "in",
+    "the",
+    "this",
+    "that",
+    "whats",
+    "what",
+    "is",
+    "are",
+}
 
 _models = {}
 _last_key_down = {}
@@ -201,6 +279,114 @@ def _chunk_has_speech(chunk: np.ndarray, threshold: float) -> bool:
     return peak >= threshold or rms >= threshold * 0.35
 
 
+def _normalized_device_name(text: str) -> str:
+    return _normalize_recognized_text(text or "")
+
+
+def list_input_devices() -> list[dict]:
+    try:
+        devices = sd.query_devices()
+    except Exception:
+        return []
+
+    default_input = None
+    try:
+        default_input = sd.default.device[0]
+    except Exception:
+        default_input = None
+
+    rows = []
+    for index, device in enumerate(devices):
+        try:
+            max_inputs = int(device.get("max_input_channels", 0) or 0)
+        except Exception:
+            max_inputs = 0
+        if max_inputs <= 0:
+            continue
+
+        rows.append(
+            {
+                "index": index,
+                "name": str(device.get("name", f"Dispositivo {index}")).strip(),
+                "channels": max_inputs,
+                "default_samplerate": int(device.get("default_samplerate", SAMPLE_RATE) or SAMPLE_RATE),
+                "is_default": default_input == index,
+            }
+        )
+
+    return rows
+
+
+def _resolve_input_device() -> tuple[int | None, dict | None]:
+    devices = list_input_devices()
+    if not devices:
+        return None, None
+
+    preferences = load_voice_preferences()
+    preferred_name = _normalized_device_name(str(preferences.get("audio_input_device", "")).strip())
+
+    if preferred_name:
+        exact_match = next(
+            (device for device in devices if _normalized_device_name(device["name"]) == preferred_name),
+            None,
+        )
+        if exact_match:
+            return int(exact_match["index"]), exact_match
+
+        contains_match = next(
+            (device for device in devices if preferred_name in _normalized_device_name(device["name"])),
+            None,
+        )
+        if contains_match:
+            return int(contains_match["index"]), contains_match
+
+        best_match = None
+        best_score = 0.0
+        for device in devices:
+            score = difflib.SequenceMatcher(
+                None,
+                preferred_name,
+                _normalized_device_name(device["name"]),
+            ).ratio()
+            if score > best_score:
+                best_score = score
+                best_match = device
+        if best_match and best_score >= 0.62:
+            return int(best_match["index"]), best_match
+
+    default_device = next((device for device in devices if device.get("is_default")), None)
+    if default_device:
+        return int(default_device["index"]), default_device
+
+    return int(devices[0]["index"]), devices[0]
+
+
+def get_active_input_device_info() -> dict | None:
+    _index, device = _resolve_input_device()
+    return device
+
+
+def format_input_devices() -> str:
+    devices = list_input_devices()
+    if not devices:
+        return "Não encontrei microfones disponíveis."
+
+    active = get_active_input_device_info()
+    rows = []
+    for device in devices[:12]:
+        label = device["name"]
+        tags = []
+        if device.get("is_default"):
+            tags.append("padrão do Windows")
+        if active and device["index"] == active["index"]:
+            tags.append("em uso pelo assistente")
+        if tags:
+            label += " (" + ", ".join(tags) + ")"
+        rows.append(f"{device['index']}. {label}")
+
+    return "Microfones disponíveis: " + "; ".join(rows) + "."
+
+
 def _preprocess_audio(audio: np.ndarray) -> np.ndarray:
     if audio.size == 0:
         return audio
@@ -224,7 +410,7 @@ def _record_audio(
     min_speech_seconds: float = DEFAULT_MIN_SPEECH_SECONDS,
     max_silence_seconds: float = DEFAULT_MAX_SILENCE_SECONDS,
 ) -> np.ndarray:
-    input_device = sd.default.device[0]
+    input_device, _device_info = _resolve_input_device()
     chunks = []
     preroll_chunks = deque(maxlen=max(1, int((SAMPLE_RATE * AUDIO_PREROLL_SECONDS) / FRAME_SIZE)))
     speech_detected = False
@@ -289,7 +475,7 @@ def _record_audio(
 
 
 def _record_fixed_audio(duration_seconds: float) -> np.ndarray:
-    input_device = sd.default.device[0]
+    input_device, _device_info = _resolve_input_device()
     chunks = []
     total_frames = int(SAMPLE_RATE * duration_seconds)
 
@@ -332,6 +518,58 @@ def _normalize_recognized_text(text: str) -> str:
     normalized = re.sub(r"[^\w\s]", " ", normalized)
     normalized = re.sub(r"\s+", " ", normalized)
     return normalized.strip()
+
+
+def _command_token_similarity(token: str) -> float:
+    if not token:
+        return 0.0
+    return max((difflib.SequenceMatcher(None, token, candidate).ratio() for candidate in COMMAND_VOCAB), default=0.0)
+
+
+def _command_transcription_score(text: str) -> float:
+    normalized = _normalize_recognized_text(text)
+    tokens = [token for token in normalized.split() if token]
+    if not tokens:
+        return 0.0
+
+    score = 0.0
+    for token in tokens:
+        similarity = _command_token_similarity(token)
+        if similarity >= 0.9:
+            score += 2.2
+        elif similarity >= 0.78:
+            score += 1.2
+        elif similarity >= 0.68:
+            score += 0.5
+
+        if token in ENGLISH_NOISE_TOKENS:
+            score -= 1.4
+
+    if any(token in {"tela", "pagina", "youtube", "github", "spotify", "chrome"} for token in tokens):
+        score += 0.8
+
+    return score / max(1, len(tokens))
+
+
+def _should_retry_command_transcription(text: str) -> bool:
+    normalized = _normalize_recognized_text(text)
+    tokens = [token for token in normalized.split() if token]
+    if not tokens:
+        return False
+
+    if len(tokens) == 1 and _command_token_similarity(tokens[0]) >= 0.84:
+        return False
+
+    score = _command_transcription_score(text)
+    english_hits = sum(1 for token in tokens if token in ENGLISH_NOISE_TOKENS)
+
+    if english_hits >= 1 and score < 0.45:
+        return True
+
+    if len(tokens) <= 5 and score < 0.28:
+        return True
+
+    return False
 
 
 def _extract_inline_command(text: str, hotword: str) -> str:
@@ -388,6 +626,7 @@ def _format_audio_stats(label: str, audio: np.ndarray) -> str:
 def run_audio_diagnostic(seconds: float | None = None) -> str:
     duration = seconds if seconds is not None else AUDIO_DIAGNOSTIC_SECONDS
     duration = max(1.0, min(15.0, float(duration)))
+    active_device = get_active_input_device_info()
 
     try:
         raw_audio = _record_fixed_audio(duration)
@@ -427,6 +666,11 @@ def run_audio_diagnostic(seconds: float | None = None) -> str:
     return "\n".join(
         [
             "Diagnostico de audio concluido.",
+            (
+                f"Microfone usado: {active_device['name']}"
+                if active_device
+                else "Microfone usado: padrão do Windows"
+            ),
             _format_audio_stats("Bruto", raw_audio),
             _format_audio_stats("Processado", processed_audio),
             f"Whisper bruto: {raw_text}",
@@ -449,27 +693,48 @@ def _transcribe_audio(
     if not _audio_has_signal(audio):
         return VoiceResult(ok=False, error="Nao detectei fala no microfone.")
 
+    def _transcribe_once(active_prompt: str | None, active_beam: int, active_best_of: int, active_vad: bool):
+        processed_audio = _preprocess_audio(audio) if preprocess else audio
+        active_temp_path = _save_temp_wav(processed_audio)
+        try:
+            model = _get_model(model_size)
+            segments, info = model.transcribe(
+                active_temp_path,
+                language="pt",
+                task="transcribe",
+                vad_filter=active_vad,
+                beam_size=active_beam,
+                best_of=active_best_of,
+                temperature=0.0,
+                initial_prompt=active_prompt or None,
+                condition_on_previous_text=False,
+            )
+            text = " ".join(segment.text.strip() for segment in segments).strip()
+            return text, info
+        finally:
+            if active_temp_path and os.path.exists(active_temp_path):
+                os.remove(active_temp_path)
+
     temp_path = None
     try:
-        processed_audio = _preprocess_audio(audio) if preprocess else audio
-        temp_path = _save_temp_wav(processed_audio)
-        model = _get_model(model_size)
-        segments, info = model.transcribe(
-            temp_path,
-            language="pt",
-            task="transcribe",
-            vad_filter=vad_filter,
-            beam_size=beam_size,
-            best_of=best_of,
-            temperature=0.0,
-            initial_prompt=prompt or None,
-            condition_on_previous_text=False,
-        )
-
-        text = " ".join(segment.text.strip() for segment in segments).strip()
+        text, info = _transcribe_once(prompt, beam_size, best_of, vad_filter)
 
         if not text:
             return VoiceResult(ok=False, error="Nenhuma fala reconhecida.")
+
+        if (
+            model_size == COMMAND_MODEL_SIZE
+            and prompt == COMMAND_PROMPT
+            and _should_retry_command_transcription(text)
+        ):
+            rescue_text, _rescue_info = _transcribe_once(
+                COMMAND_RESCUE_PROMPT,
+                max(beam_size, 6),
+                max(best_of, 6),
+                False,
+            )
+            if rescue_text and _command_transcription_score(rescue_text) > _command_transcription_score(text):
+                text = rescue_text
 
         if info.language_probability is not None and info.language_probability < 0.25:
             return VoiceResult(ok=True, text=text)
@@ -477,9 +742,6 @@ def _transcribe_audio(
         return VoiceResult(ok=True, text=text)
     except Exception as exc:
         return VoiceResult(ok=False, error=f"Falha ao transcrever audio: {exc}")
-    finally:
-        if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
 
 
 def _contains_hotword(text: str, hotword: str) -> bool:
@@ -651,10 +913,12 @@ _TTS_ABBREVIATION_RULES = {
     "kWh": {"mode": "expand", "value": "quilo watt hora"},
     "km": {"mode": "expand", "value": "quilômetro"},
     "kg": {"mode": "expand", "value": "quilo"},
-    "GB": {"mode": "expand", "value": "giga bytes"},
-    "gb": {"mode": "expand", "value": "giga bytes"},
-    "TB": {"mode": "expand", "value": "tera bytes"},
-    "tb": {"mode": "expand", "value": "tera bytes"},
+    "MB": {"mode": "expand", "value": "megabyte"},
+    "mb": {"mode": "expand", "value": "megabyte"},
+    "GB": {"mode": "expand", "value": "gigabyte"},
+    "gb": {"mode": "expand", "value": "gigabyte"},
+    "TB": {"mode": "expand", "value": "terabyte"},
+    "tb": {"mode": "expand", "value": "terabyte"},
     "RAM": {"mode": "spell"},
     "CPU": {"mode": "spell"},
     "GPU": {"mode": "spell"},
@@ -697,10 +961,6 @@ _BUILTIN_TTS_PRONUNCIATIONS = {
     "github": "guíti rãb",
     "YouTube": "iútubi",
     "youtube": "iútubi",
-    "WhatsApp": "uótsap",
-    "whatsapp": "uótsap",
-    "WhatsApp Web": "uótsápi uébi",
-    "whatsapp web": "uótsápi uébi",
     "Steam": "stim",
     "steam": "stim",
     "Chrome": "crôum",
@@ -809,6 +1069,22 @@ def _expand_degrees_expression(match: re.Match) -> str:
     value = int(match.group(1))
     unit = "grau" if value == 1 else "graus"
     return f"{_number_to_pt(value)} {unit}"
+
+
+def _expand_storage_expression(match: re.Match) -> str:
+    value = int(match.group(1))
+    unit = (match.group(2) or "").upper()
+
+    if unit == "MB":
+        unit_text = "megabyte" if value == 1 else "megabytes"
+    elif unit == "GB":
+        unit_text = "gigabyte" if value == 1 else "gigabytes"
+    elif unit == "TB":
+        unit_text = "terabyte" if value == 1 else "terabytes"
+    else:
+        return match.group(0)
+
+    return f"{_number_to_pt(value)} {unit_text}"
 
 
 def _spell_acronym(token: str) -> str:
@@ -969,6 +1245,7 @@ def _expand_tts_reading_patterns(text: str) -> str:
     text = re.sub(r"\b(\d{1,5})\s*mAh\b", lambda m: f"{_number_to_pt(int(m.group(1)))} miliampere hora", text, flags=re.IGNORECASE)
     text = re.sub(r"\b(\d{1,5})\s*Wh\b", lambda m: f"{_number_to_pt(int(m.group(1)))} watt hora", text, flags=re.IGNORECASE)
     text = re.sub(r"\b(\d{1,5})\s*kWh\b", lambda m: f"{_number_to_pt(int(m.group(1)))} quilo watt hora", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b(\d{1,5})\s*(MB|GB|TB)\b", _expand_storage_expression, text, flags=re.IGNORECASE)
     text = re.sub(r"\b(\d{1,4})\s*km\b", lambda m: f"{_number_to_pt(int(m.group(1)))} quilômetros", text, flags=re.IGNORECASE)
     return text
 

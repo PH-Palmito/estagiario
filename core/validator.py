@@ -18,6 +18,7 @@ ALLOWED_ACTIONS = {
     "maximize_app",
     "restore_app",
     "run_script",
+    "type_text",
     "open_url",
     "browser_new_tab",
     "browser_close_tab",
@@ -104,6 +105,7 @@ REQUIRED_FIELDS = {
     "maximize_app": ["target"],
     "restore_app": ["target"],
     "run_script": ["target"],
+    "type_text": ["content"],
     "open_url": ["target"],
     "browser_new_tab": [],
     "browser_close_tab": [],
@@ -195,6 +197,8 @@ def validate_command(command: Command):
                 return False, "Qual pesquisa?"
             if field == "target":
                 return False, "Qual alvo?"
+            if field == "content":
+                return False, "Qual texto?"
             if field == "index":
                 return False, "Qual item?"
             if field == "kind":

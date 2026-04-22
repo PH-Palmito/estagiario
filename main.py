@@ -23,12 +23,21 @@ from memory.session import clear
 from memory.voice_corrections import apply_voice_correction, remember_voice_correction
 from memory.voice_preferences import load_voice_preferences, update_voice_preferences
 from memory.voice_profiles import apply_voice_profile, list_voice_profiles
+from memory.tts_pronunciations import (
+    get_tts_pronunciation,
+    load_tts_pronunciations,
+    remove_tts_pronunciation,
+    set_tts_pronunciation,
+)
 from tools.smart_open_tools import smart_open_needs_choice
 from voice.windows_voice import (
     HOTKEY_NAME,
     HOTWORD_LISTENING_ENABLED,
     consume_hotkey_press,
     consume_toggle_listening_hotkey_press,
+    format_input_devices,
+    get_active_input_device_info,
+    list_input_devices,
     listen_conversation_once,
     listen_for_hotword,
     listen_once,
@@ -461,88 +470,87 @@ def humor_test_response() -> str:
     return "Teste de humor: sistemas online. Seco, preciso e com um comentario minimo no ponto certo. A elegancia sobreviveu ao boot."
 
 
-def pronunciation_test_response(detailed: bool = False) -> str:
-    if detailed:
-        return (
-            "Teste detalhado de pronúncia. "
-            "Primeiro bloco, plataformas e sites. "
-            "GitHub, YouTube, WhatsApp, WhatsApp Web, Mercado Livre, Magalu, OpenAI e Google Colab. "
-            "Segundo bloco, aplicativos e ferramentas. "
-            "Spotify, VS Code, Android Studio, PowerShell, Whisper, Piper, Ollama e ScreenPilot. "
-            "Terceiro bloco, conexões e tecnologia. "
-            "Wi-Fi, Bluetooth, Chrome, Python e Steam. "
-            "Quarto bloco, siglas técnicas. "
-            "LLM, CPU, GPU, NFC, SSD, USB, HDMI, OCR, API, URL, HTTP, HTTPS, JSON, PDF, UI, UX e RPA. "
-            "Quinto bloco, unidades. "
-            "Seis mil e quinhentos miliampere hora. "
-            "Cento e vinte watt hora. "
-            "Cinco quilômetros."
-        )
+def list_pronunciation_response() -> str:
+    pronunciations = load_tts_pronunciations()
+    if not pronunciations:
+        return "Não há pronúncias personalizadas salvas."
 
-    return (
-        "Teste de pronúncia. "
-        "GitHub, YouTube, WhatsApp Web, Android Studio, PowerShell, Wi-Fi e Bluetooth. "
-        "Agora, siglas técnicas. "
-        "LLM, CPU, GPU, NFC, SSD, USB, HDMI, OCR, API, URL, HTTP e HTTPS. "
-        "E por fim, unidades. "
-        "Seis mil e quinhentos miliampere hora. "
-        "Cento e vinte watt hora."
-    )
+    items = []
+    for term, pronunciation in sorted(pronunciations.items(), key=lambda item: item[0].lower()):
+        items.append(f"{term} -> {pronunciation}")
+        if len(items) >= 12:
+            break
+
+    return "Pronúncias salvas: " + "; ".join(items) + "."
 
 
 def maybe_handle_pronunciation_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
-    direct_matches = {
-        "testar pronuncia",
-        "teste de pronuncia",
-        "teste pronuncia",
-        "testar pronunciacao",
-        "teste de pronunciacao",
-        "testar ingles",
-        "teste ingles",
-        "testar siglas",
-        "teste siglas",
-    }
-    if normalized in direct_matches:
-        return pronunciation_test_response()
+    raw = user_input.strip()
+
+    save_patterns = [
+        r"^\s*pronuncia(?:cao)?\s+de\s+(.+?)\s+como\s+(.+?)\s*$",
+        r"^\s*pronuncia(?:cao)?\s+de\s+(.+?)\s+para\s+(.+?)\s*$",
+        r"^\s*ajustar\s+pronuncia(?:cao)?\s+de\s+(.+?)\s+para\s+(.+?)\s*$",
+        r"^\s*salvar\s+pronuncia(?:cao)?\s+de\s+(.+?)\s+como\s+(.+?)\s*$",
+        r"^\s*chama\s+(.+?)\s+de\s+(.+?)\s*$",
+        r"^\s*fala\s+(.+?)\s+como\s+(.+?)\s*$",
+        r"^\s*le\s+(.+?)\s+como\s+(.+?)\s*$",
+    ]
+    for pattern in save_patterns:
+        match = re.match(pattern, raw, flags=re.IGNORECASE)
+        if match:
+            term = match.group(1).strip(" \t,.:;!?\"'")
+            pronunciation = match.group(2).strip(" \t,.:;!?\"'")
+            if not term or not pronunciation:
+                return "Preciso da palavra e da pronúncia."
+            set_tts_pronunciation(term, pronunciation)
+            return f"Pronúncia salva para {term}."
+
+    remove_patterns = [
+        r"^\s*remover\s+pronuncia(?:cao)?\s+de\s+(.+?)\s*$",
+        r"^\s*apagar\s+pronuncia(?:cao)?\s+de\s+(.+?)\s*$",
+        r"^\s*tira\s+a\s+pronuncia(?:cao)?\s+de\s+(.+?)\s*$",
+        r"^\s*esquece\s+a\s+pronuncia(?:cao)?\s+de\s+(.+?)\s*$",
+    ]
+    for pattern in remove_patterns:
+        match = re.match(pattern, raw, flags=re.IGNORECASE)
+        if match:
+            term = match.group(1).strip(" \t,.:;!?\"'")
+            if not term:
+                return "Qual palavra devo remover?"
+            removed = remove_tts_pronunciation(term)
+            if removed:
+                return f"Pronúncia removida para {term}."
+            return f"Não encontrei pronúncia salva para {term}."
 
     if normalized in {
-        "testar pronuncia detalhada",
-        "teste de pronuncia detalhada",
-        "testar pronunciacao detalhada",
-        "teste detalhado de pronuncia",
-        "testar palavras ingles",
-        "teste ingles detalhado",
+        "listar pronuncias",
+        "listar pronunciacoes",
+        "mostrar pronuncias",
+        "mostrar pronunciacoes",
+        "pronuncias salvas",
+        "pronunciacoes salvas",
+        "quais pronuncias estao salvas",
+        "quais pronunciacoes estao salvas",
     }:
-        return pronunciation_test_response(detailed=True)
+        return list_pronunciation_response()
 
-    compact = re.sub(r"[^a-z0-9]", "", normalized)
-    if compact.startswith(("testar", "testede", "teste")):
-        aliases = {
-            "testarpronuncia",
-            "testedepronuncia",
-            "testepronuncia",
-            "testarpronunciacao",
-            "testedepronunciacao",
-            "testaringles",
-            "testeingles",
-            "testarsiglas",
-            "testesiglas",
-            "testarproanuncio",
-            "testarpronunciado",
-            "testarpronunciadetalhada",
-            "testedepronunciadetalhada",
-            "testardepronunciadetalhada",
-            "testarpalavrasingles",
-            "testeinglesdetalhado",
-        }
-        if compact in aliases:
-            return pronunciation_test_response(detailed="detalh" in normalized or "palavras" in normalized)
-
-    if any(token in normalized for token in {"pronunc", "pron n", "pronun", "ingl", "sigl"}) and any(
-        token in normalized for token in {"testar", "teste"}
-    ):
-        return pronunciation_test_response()
+    query_patterns = [
+        r"^\s*qual\s+a\s+pronuncia(?:cao)?\s+de\s+(.+?)\s*$",
+        r"^\s*como\s+voce\s+fala\s+(.+?)\s*$",
+        r"^\s*como\s+fala\s+(.+?)\s*$",
+    ]
+    for pattern in query_patterns:
+        match = re.match(pattern, raw, flags=re.IGNORECASE)
+        if match:
+            term = match.group(1).strip(" \t,.:;!?\"'")
+            if not term:
+                return "Qual palavra você quer consultar?"
+            pronunciation = get_tts_pronunciation(term)
+            if pronunciation:
+                return f"A pronúncia salva para {term} é {pronunciation}."
+            return f"Ainda não há pronúncia personalizada para {term}."
 
     return None
 
@@ -796,6 +804,122 @@ def maybe_handle_voice_profile_command(user_input: str) -> str | None:
     return message
 
 
+def _normalize_device_label(text: str) -> str:
+    return normalize_text(text).strip()
+
+
+def maybe_handle_input_device_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input).strip(" .,:;!?")
+    raw = user_input.strip()
+
+    if normalized in {
+        "listar microfones",
+        "listar microfone",
+        "mostrar microfones",
+        "mostrar microfone",
+        "quais microfones",
+        "quais microfones voce tem",
+        "microfones disponiveis",
+        "microfones disponíveis",
+        "entradas de audio",
+        "entradas de áudio",
+        "listar entradas de audio",
+        "listar entradas de áudio",
+    }:
+        return format_input_devices()
+
+    if normalized in {
+        "qual microfone esta ativo",
+        "qual microfone está ativo",
+        "qual microfone ativo",
+        "microfone atual",
+        "microfone em uso",
+        "entrada de audio atual",
+        "entrada de áudio atual",
+    }:
+        active = get_active_input_device_info()
+        if not active:
+            return "Não encontrei um microfone ativo no momento."
+        return f"Microfone ativo: {active['name']}."
+
+    if normalized in {
+        "usar microfone padrao",
+        "usar microfone padrão",
+        "usar padrao do windows",
+        "usar padrão do windows",
+        "usar microfone do windows",
+        "limpar microfone preferido",
+        "remover microfone preferido",
+    }:
+        update_voice_preferences({"audio_input_device": ""})
+        refresh_voice_preferences()
+        active = get_active_input_device_info()
+        if active:
+            return f"Voltei para o microfone padrão do Windows: {active['name']}."
+        return "Voltei para o microfone padrão do Windows."
+
+    patterns = [
+        r"^\s*usar\s+microfone\s+(.+?)\s*$",
+        r"^\s*trocar\s+microfone\s+para\s+(.+?)\s*$",
+        r"^\s*selecionar\s+microfone\s+(.+?)\s*$",
+        r"^\s*escolher\s+microfone\s+(.+?)\s*$",
+        r"^\s*microfone\s+(.+?)\s*$",
+    ]
+    requested_name = None
+    for pattern in patterns:
+        match = re.match(pattern, raw, flags=re.IGNORECASE)
+        if match:
+            requested_name = match.group(1).strip(" \t,.:;!?\"'")
+            break
+
+    if not requested_name:
+        return None
+
+    requested_normalized = _normalize_device_label(requested_name)
+    if not requested_normalized:
+        return "Qual microfone você quer usar?"
+
+    devices_text = format_input_devices()
+    devices = list_input_devices()
+    active = get_active_input_device_info()
+
+    if not devices:
+        return "Não encontrei microfones disponíveis para selecionar."
+
+    exact = next((device for device in devices if _normalize_device_label(device["name"]) == requested_normalized), None)
+    contains = next(
+        (
+            device
+            for device in devices
+            if requested_normalized in _normalize_device_label(device["name"])
+        ),
+        None,
+    )
+
+    best = None
+    best_score = 0.0
+    for device in devices:
+        score = difflib.SequenceMatcher(
+            None,
+            requested_normalized,
+            _normalize_device_label(device["name"]),
+        ).ratio()
+        if score > best_score:
+            best_score = score
+            best = device
+
+    chosen = exact or contains or (best if best_score >= 0.58 else None)
+    if not chosen:
+        return f"Não encontrei um microfone parecido com {requested_name}. {devices_text}"
+
+    update_voice_preferences({"audio_input_device": chosen["name"]})
+    refresh_voice_preferences()
+
+    if active and active["name"] == chosen["name"]:
+        return f"Microfone confirmado: {chosen['name']}."
+    return f"Agora vou usar este microfone: {chosen['name']}."
+
+
 def set_voice_status(status: str):
     global voice_status
 
@@ -892,9 +1016,8 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "o que tem na tela",
         "resuma a tela",
         "detalha a tela",
-        "testar pronuncia",
     }
-    if normalized_candidate in protected_voice_commands:
+    if normalized_candidate in protected_voice_commands or normalized_candidate.startswith("pesquisar"):
         return normalized_candidate
 
     raw_action = route(user_input)
@@ -1339,6 +1462,11 @@ def main():
         humor_response = maybe_handle_humor_command(user_input)
         if humor_response:
             output_response(humor_response, voice_mode)
+            continue
+
+        input_device_response = maybe_handle_input_device_command(user_input)
+        if input_device_response:
+            output_response(input_device_response, voice_mode)
             continue
 
         voice_profile_response = maybe_handle_voice_profile_command(user_input)

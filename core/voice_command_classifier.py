@@ -123,22 +123,23 @@ BASE_COMMANDS = {
     "debug spotify": "diagnosticar spotify",
     "pesquisa": "pesquisar",
     "pesquisa notebook": "pesquisar notebook",
+    "procura": "pesquisar",
+    "procurar": "pesquisar",
+    "buscar": "pesquisar",
+    "busca": "pesquisar",
     "resuma a tela": "resuma a tela",
     "resume a tela": "resuma a tela",
     "resumir tela": "resuma a tela",
+    "resuma o conteudo": "resuma a tela",
+    "resuma o conteudo da tela": "resuma a tela",
+    "resumo do conteudo da tela": "resuma a tela",
     "resumo da tela": "resuma a tela",
-    "testar pronuncia": "testar pronuncia",
-    "teste de pronuncia": "testar pronuncia",
-    "teste pronuncia": "testar pronuncia",
-    "testar pronunciacao": "testar pronuncia",
-    "teste de pronunciacao": "testar pronuncia",
-    "testar ingles": "testar pronuncia",
-    "teste ingles": "testar pronuncia",
-    "testar siglas": "testar pronuncia",
-    "teste siglas": "testar pronuncia",
     "detalha a tela": "detalha a tela",
     "detalhar a tela": "detalha a tela",
     "detalha": "detalha a tela",
+    "conteudo principal": "detalha a tela",
+    "conteudo principal da tela": "detalha a tela",
+    "o que importa na tela": "detalha a tela",
     "o que tem na tela": "o que tem na tela",
     "que tem na tela": "o que tem na tela",
     "e que tem na tela": "o que tem na tela",
@@ -149,6 +150,55 @@ BASE_COMMANDS = {
     "o que aparece na tela": "o que tem na tela",
     "o que esta ai": "o que tem na tela",
     "o kit tem na tela": "o que tem na tela",
+}
+
+SCREEN_TARGET_HINTS = {
+    "tela",
+    "pagina",
+    "site",
+    "janela",
+    "github",
+    "repositorio",
+    "perfil",
+    "video",
+    "youtube",
+    "conteudo",
+}
+
+SCREEN_SUMMARY_HINTS = {
+    "resuma",
+    "resume",
+    "resumi",
+    "resumir",
+    "resumo",
+    "resumida",
+    "resumido",
+}
+
+SCREEN_DETAIL_HINTS = {
+    "detalha",
+    "detalhar",
+    "detalhe",
+    "explica",
+    "explicar",
+    "explique",
+    "importa",
+    "importante",
+    "principal",
+    "conteudo",
+}
+
+SCREEN_DESCRIBE_HINTS = {
+    "oq",
+    "oque",
+    "que",
+    "mostra",
+    "mostrar",
+    "aparece",
+    "tem",
+    "ve",
+    "ver",
+    "vendo",
 }
 
 
@@ -212,11 +262,69 @@ def _threshold_for(text: str, canonical: str) -> float:
     return 0.82 if word_count <= 2 else 0.76
 
 
+def _token_similarity(token: str, candidates: set[str]) -> float:
+    if not token:
+        return 0.0
+    return max((difflib.SequenceMatcher(None, token, candidate).ratio() for candidate in candidates), default=0.0)
+
+
+def _contains_like(tokens: list[str], candidates: set[str], threshold: float) -> bool:
+    return any(_token_similarity(token, candidates) >= threshold for token in tokens)
+
+
+def _screen_target_score(tokens: list[str]) -> float:
+    return max((_token_similarity(token, SCREEN_TARGET_HINTS) for token in tokens), default=0.0)
+
+
+def _normalize_search_intent(text: str) -> str | None:
+    prefixes = ("pesquisa ", "procura ", "procurar ", "buscar ", "busca ")
+    for prefix in prefixes:
+        if text.startswith(prefix):
+            remainder = text[len(prefix):].strip()
+            return f"pesquisar {remainder}".strip()
+
+    if text in {"pesquisa", "procura", "procurar", "buscar", "busca"}:
+        return "pesquisar"
+
+    return None
+
+
+def _normalize_screen_intent(text: str) -> str | None:
+    tokens = [token for token in text.split() if token]
+    if not tokens:
+        return None
+
+    target_score = _screen_target_score(tokens)
+
+    if _contains_like(tokens, SCREEN_SUMMARY_HINTS, 0.70):
+        if target_score >= 0.56 or len(tokens) <= 3:
+            return "resuma a tela"
+
+    if _contains_like(tokens, SCREEN_DETAIL_HINTS, 0.72):
+        if target_score >= 0.56 or len(tokens) <= 2:
+            return "detalha a tela"
+
+    describe_target = target_score >= 0.56
+    describe_prompt = _contains_like(tokens, SCREEN_DESCRIBE_HINTS, 0.74)
+    if describe_target and describe_prompt:
+        return "o que tem na tela"
+
+    return None
+
+
 def normalize_voice_command(user_input: str) -> str:
     text = normalize_text(user_input)
 
     if not text or text in UNSAFE_SHORT_INPUTS:
         return user_input
+
+    search_intent = _normalize_search_intent(text)
+    if search_intent:
+        return search_intent
+
+    screen_intent = _normalize_screen_intent(text)
+    if screen_intent:
+        return screen_intent
 
     command_candidates = _build_command_candidates()
 

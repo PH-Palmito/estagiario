@@ -126,6 +126,13 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent == "type_text":
+        return Command(
+            action="type_text",
+            params={"content": content or target},
+            source="router",
+        )
+
     if intent == "open_url":
         return Command(
             action="open_url",

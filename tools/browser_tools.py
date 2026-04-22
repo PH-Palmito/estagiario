@@ -239,6 +239,32 @@ def _run_powershell(script: str, timeout_seconds: int = 10) -> subprocess.Comple
 $OutputEncoding = [System.Text.Encoding]::UTF8
 """
     encoded = base64.b64encode((utf8_preamble + script).encode("utf-16le")).decode("ascii")
+    """
+    return subprocess.run(
+        [
+            POWERSHELL_EXE,
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-EncodedCommand",
+            encoded,
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout_seconds,
+        # "todos os direitos reservados",
+        # "leia mais no texto original",
+        "lei nº",
+        # "lei n",
+        # "redistribuicao",
+        "redistribuição",
+    )
+
+
+    """
     return subprocess.run(
         [
             POWERSHELL_EXE,
@@ -951,7 +977,7 @@ $rows |
     return items
 
 
-def _useful_page_text_lines(text: str, limit: int = 10):
+def _useful_page_text_lines(text: str, limit: int = 10, page_url: str = "", page_title: str = ""):
     ignore_patterns = (
         "javascript",
         "cookie",
@@ -966,6 +992,26 @@ def _useful_page_text_lines(text: str, limit: int = 10):
         "buscar",
         "pesquisar",
     )
+    finance_category = _detect_screen_category([], page_url=page_url, page_title=page_title) == "financas"
+    finance_tokens = {
+        "investidor10",
+        "carteira",
+        "wallet",
+        "patrimonio",
+        "valor investido",
+        "valor atual",
+        "rentabilidade",
+        "proventos",
+        "dividendos",
+        "saldo",
+        "preco medio",
+        "lucro",
+        "prejuizo",
+        "aporte",
+        "ticker",
+        "fii",
+        "cotacao",
+    }
     lines = []
     seen = set()
 
@@ -979,6 +1025,11 @@ def _useful_page_text_lines(text: str, limit: int = 10):
         if not normalized or normalized in seen:
             continue
 
+        if re.match(r"^https?://", line, flags=re.IGNORECASE):
+            continue
+        if "http://" in line.lower() or "https://" in line.lower():
+            continue
+
         if normalized.isdigit():
             continue
 
@@ -990,12 +1041,18 @@ def _useful_page_text_lines(text: str, limit: int = 10):
 
         if any(pattern in normalized for pattern in ignore_patterns):
             continue
+        if "direitos reservados" in normalized or "copyright" in normalized or "leia mais no texto original" in normalized:
+            continue
 
         score = 0
         if re.search(r"r\$\s*\d|\d+,\d{2}", line.lower()):
             score += 80
         if any(word in normalized for word in {"celular", "notebook", "smartphone", "iphone", "samsung", "motorola", "xiaomi", "comprar", "frete", "oferta"}):
             score += 50
+        if finance_category and any(token in normalized for token in finance_tokens):
+            score += 90
+        if finance_category and "%" in line:
+            score += 40
         score += max(0, 60 - len(lines))
         lines.append((score, line))
         seen.add(normalized)
@@ -1150,6 +1207,154 @@ def _parse_title_content(clean_title: str, page_url: str) -> str:
     return clean_title
 
 
+def _strip_repo_prefix_from_title(title_content: str, repo_name: str) -> str:
+    compact = re.sub(r"\s+", " ", title_content or "").strip()
+    if not compact or not repo_name:
+        return compact
+
+    pattern = rf"^{re.escape(repo_name)}\s*[:\-–|]\s*"
+    stripped = re.sub(pattern, "", compact, flags=re.IGNORECASE).strip()
+    return stripped or compact
+
+
+def _relevance_terms_from_context(page_url: str = "", page_title: str = "") -> set[str]:
+    stopwords = {
+        "para", "com", "sem", "por", "uma", "uns", "umas", "the", "and", "from",
+        "that", "this", "como", "mais", "menos", "sobre", "resumo", "detalhe",
+        "home", "inicio", "início", "page", "pagina", "página", "site", "oficial",
+        "google", "chrome", "edge", "firefox", "youtube", "github", "investidor10",
+    }
+    tokens = set()
+
+    clean_title = _clean_browser_title(page_title)
+    title_content = _parse_title_content(clean_title, page_url)
+    normalized_title = _normalize_text_for_match(title_content)
+    for token in normalized_title.split():
+        if len(token) >= 4 and token not in stopwords and not token.isdigit():
+            tokens.add(token)
+
+    parsed = urlparse(page_url or "")
+    host = parsed.netloc.lower()
+    for piece in re.split(r"[\.\-_/]+", host):
+        piece = piece.strip()
+        if len(piece) >= 4 and piece not in {"www", "com", "br"} and piece not in stopwords:
+            tokens.add(piece)
+
+    return tokens
+
+
+def _extract_generic_focus_lines(lines, page_url: str = "", page_title: str = "", limit: int = 5) -> list[str]:
+    prioritized = []
+    relevance_terms = _relevance_terms_from_context(page_url=page_url, page_title=page_title)
+    generic_noise = (
+        "cookie",
+        "politica de privacidade",
+        "política de privacidade",
+        "termos de uso",
+        "menu",
+        "entrar",
+        "login",
+        "minha conta",
+        "carrinho",
+        "sacola",
+        "buscar",
+        "pesquisar",
+        "departamentos",
+        "atendimento",
+        "pular navegacao",
+        "pular navegação",
+        "ir para o conte",
+        "repository navigation",
+        "visao geral",
+        "visão geral",
+    )
+
+    for index, line in enumerate(lines):
+        compact = re.sub(r"\s+", " ", line).strip()
+        normalized = _normalize_text_for_match(compact)
+        if not compact or len(compact) < 4:
+            continue
+        if normalized.isdigit():
+            continue
+        if re.match(r"^https?://", compact, flags=re.IGNORECASE):
+            continue
+        if any(token in normalized for token in generic_noise):
+            continue
+        if "http://" in compact.lower() or "https://" in compact.lower():
+            continue
+        if (
+            "direitos reservados" in normalized
+            or "copyright" in normalized
+            or "leia mais no texto original" in normalized
+            or ("lei" in normalized and "9 610 98" in normalized)
+        ):
+            continue
+
+        score = 0
+        words = normalized.split()
+        if len(words) >= 3:
+            score += 2
+        if len(words) >= 6:
+            score += 2
+        if len(compact) >= 28:
+            score += 1
+        if re.search(r"[.!:%]", compact):
+            score += 1
+        if any(term in normalized for term in relevance_terms):
+            score += 6
+        if re.search(r"[a-zA-Z\u00C0-\u017F]{4,}.*[a-zA-Z\u00C0-\u017F]{4,}", compact):
+            score += 1
+        if "copyright" in normalized or "direitos reservados" in normalized:
+            score -= 8
+        if re.fullmatch(r"[\W\d_]+", compact):
+            score -= 6
+        if compact in {"0", "0,0", "0.0"}:
+            score -= 6
+        if len(words) <= 2 and not any(term in normalized for term in relevance_terms):
+            score -= 4
+
+        prioritized.append((score, index, compact))
+
+    prioritized.sort(key=lambda item: (-item[0], item[1]))
+    chosen = []
+    for score, _index, compact in prioritized:
+        if score < 1 and chosen:
+            continue
+        if compact not in chosen:
+            chosen.append(compact)
+        if len(chosen) >= limit:
+            break
+
+    if chosen:
+        return chosen
+
+    relaxed = []
+    for line in lines:
+        compact = re.sub(r"\s+", " ", line).strip()
+        normalized = _normalize_text_for_match(compact)
+        if not compact or len(compact) < 8:
+            continue
+        if re.match(r"^https?://", compact, flags=re.IGNORECASE):
+            continue
+        if "http://" in compact.lower() or "https://" in compact.lower():
+            continue
+        if (
+            "direitos reservados" in normalized
+            or "copyright" in normalized
+            or "leia mais no texto original" in normalized
+        ):
+            continue
+        if compact not in relaxed:
+            relaxed.append(compact)
+        if len(relaxed) >= limit:
+            break
+
+    if relaxed:
+        return relaxed
+
+    return chosen
+
+
 def _is_generic_github_line(normalized: str) -> bool:
     if not normalized:
         return True
@@ -1212,14 +1417,24 @@ def _extract_github_focus_lines(lines, page_url: str = "", limit: int = 5) -> li
             continue
         if _is_generic_github_line(normalized):
             continue
+        if "http://" in compact.lower() or "https://" in compact.lower():
+            continue
+        if normalized.startswith("git clone"):
+            continue
 
         score = 0
         if len(compact) >= 24:
             score += 2
         if len(compact) >= 50:
             score += 2
-        if any(token in normalized for token in ("readme", "sobre", "about", "descricao", "description", "getting started", "instal", "usage", "feature", "topic", "python", "ai", "vision", "automation", "agent", "screen", "project", "projeto")):
-            score += 5
+        if any(token in normalized for token in (
+            "readme", "sobre", "about", "descricao", "description", "getting started",
+            "instal", "installation", "setup", "como usar", "usage", "feature",
+            "features", "topic", "python", "ai", "vision", "automation", "agent",
+            "screen", "project", "projeto", "requirements", "requisitos", "example",
+            "exemplo", "quick start", "overview", "demo"
+        )):
+            score += 6
         if repo_name and any(piece in normalized for piece in _normalize_text_for_match(repo_name).split("/")):
             score += 2
         if profile_name and _normalize_text_for_match(profile_name) in normalized:
@@ -1228,6 +1443,12 @@ def _extract_github_focus_lines(lines, page_url: str = "", limit: int = 5) -> li
             score += 1
         if re.search(r"[.!:]", compact):
             score += 1
+        if re.search(r"^(readme|about|descricao|description|installation|setup|usage|features|overview)\b", normalized):
+            score += 3
+        if any(token in normalized for token in ("followers", "following", "stars", "repositories", "overview", "contributions")):
+            score -= 3
+        if len(compact) <= 18:
+            score -= 2
         if re.fullmatch(r"[\W\d_]+", compact):
             score -= 4
 
@@ -1259,9 +1480,19 @@ def _detect_screen_category(lines, page_url: str = "", page_title: str = "") -> 
     if ("youtube.com" in host or "youtu.be" in host) and ("/watch" in path or "youtube" in title_blob):
         return "video youtube"
 
+    if (
+        "investidor10.com.br" in host
+        or any(
+            token in title_blob
+            for token in ("investidor10", "patrimonio", "valor investido", "rentabilidade", "proventos", "dividendos")
+        )
+    ):
+        return "financas"
+
     category_patterns = [
         ("repositorio github", ("repository navigation", "pull requests", "issues", "actions", "discussions", "github")),
         ("video youtube", ("up next", "youtube", "inscrito", "inscrever-se", "comentarios", "comentários")),
+        ("financas", ("investidor10", "patrimonio", "valor investido", "rentabilidade", "proventos", "dividendos", "saldo", "preco medio")),
         ("smartphones", ("smartphone", "celular", "iphone", "galaxy", "redmi", "motorola", "oppo", "realme")),
         ("notebooks", ("notebook", "ideapad", "vivobook", "aspire", "inspiron", "thinkpad", "macbook")),
         ("lavadoras", ("lavadora", "lava loucas", "lava-loucas", "lava e seca", "samsung ww", "electrolux")),
@@ -1289,6 +1520,162 @@ def _content_showcase(lines, limit: int = 3) -> list[str]:
     return showcase
 
 
+def _extract_finance_focus_lines(lines, limit: int = 5) -> list[str]:
+    prioritized = []
+    finance_tokens = (
+        "patrimonio",
+        "patrimônio",
+        "valor investido",
+        "valor atual",
+        "rentabilidade",
+        "proventos",
+        "dividendos",
+        "saldo",
+        "carteira",
+        "preco medio",
+        "preço médio",
+        "lucro",
+        "prejuizo",
+        "prejuízo",
+        "aporte",
+        "acao",
+        "ações",
+        "fii",
+        "ticker",
+        "cotacao",
+        "cotação",
+    )
+
+    for index, line in enumerate(lines):
+        compact = re.sub(r"\s+", " ", line).strip()
+        normalized = _normalize_text_for_match(compact)
+        if not compact or len(compact) < 3:
+            continue
+        if normalized.isdigit():
+            continue
+        if re.match(r"^https?://", compact, flags=re.IGNORECASE):
+            continue
+
+        score = 0
+        if any(token in normalized for token in finance_tokens):
+            score += 6
+        if re.search(r"r\$\s*[\d\.\,]+", compact, flags=re.IGNORECASE):
+            score += 5
+        if "%" in compact:
+            score += 3
+        if len(normalized.split()) >= 2:
+            score += 1
+        if compact in {"0", "0,0", "0.0"}:
+            score -= 6
+
+        prioritized.append((score, index, compact))
+
+    prioritized.sort(key=lambda item: (-item[0], item[1]))
+    chosen = []
+    for score, _index, compact in prioritized:
+        if score < 2 and chosen:
+            continue
+        if compact not in chosen:
+            chosen.append(compact)
+        if len(chosen) >= limit:
+            break
+
+    return chosen
+
+
+def _merge_screen_lines(primary_lines, secondary_lines, limit: int = 12) -> list[str]:
+    merged = []
+    seen = set()
+
+    for group in (primary_lines or [], secondary_lines or []):
+        for source in group:
+            compact = re.sub(r"\s+", " ", source or "").strip()
+            normalized = _normalize_text_for_match(compact)
+            if not compact or not normalized or normalized in seen:
+                continue
+            merged.append(compact)
+            seen.add(normalized)
+            if len(merged) >= limit:
+                return merged
+
+    return merged
+
+
+def _items_are_navigation_heavy(lines, page_url: str = "", page_title: str = "") -> bool:
+    if not lines:
+        return True
+
+    category = _detect_screen_category(lines, page_url=page_url, page_title=page_title)
+    if category in {"repositorio github", "video youtube", "financas"}:
+        return True
+
+    generic_hits = 0
+    useful_hits = 0
+    for line in lines:
+        normalized = _normalize_text_for_match(line)
+        if not normalized:
+            continue
+        if _is_generic_github_line(normalized):
+            generic_hits += 1
+        if len(normalized.split()) >= 4:
+            useful_hits += 1
+        if any(token in normalized for token in {"readme", "sobre", "descricao", "description", "instal", "usage", "projeto", "project"}):
+            useful_hits += 2
+
+    return generic_hits >= max(2, useful_hits)
+
+
+def _read_screen_content_lines(
+    item_limit: int,
+    page_limit: int,
+    page_url: str,
+    page_title: str,
+):
+    items = _read_browser_elements(limit=item_limit) or []
+    item_lines = [item["text"] for item in items]
+    item_quality = _screen_lines_quality(item_lines)
+    category = _detect_screen_category([], page_url=page_url, page_title=page_title)
+    prefer_page_text = (
+        not items
+        or _items_are_navigation_heavy(item_lines, page_url=page_url, page_title=page_title)
+        or item_quality < 24
+        or category == "financas"
+    )
+
+    page_lines = []
+    best_page_score = 0
+    if prefer_page_text:
+        if _browser_context_recently_changed():
+            time.sleep(0.35)
+
+        first_pass = _read_page_text_via_clipboard(limit=page_limit, page_url=page_url, page_title=page_title)
+        page_lines = first_pass
+        best_page_score = _screen_lines_quality(first_pass)
+
+        need_second_pass = _browser_context_recently_changed(2.0) or not first_pass or best_page_score < 24
+        if need_second_pass:
+            time.sleep(0.25)
+            second_pass = _read_page_text_via_clipboard(limit=page_limit, page_url=page_url, page_title=page_title)
+            second_score = _screen_lines_quality(second_pass)
+            if second_score > best_page_score:
+                page_lines = second_pass
+                best_page_score = second_score
+
+    combined_lines = _merge_screen_lines(page_lines, item_lines, limit=max(item_limit, page_limit))
+    combined_quality = _screen_lines_quality(combined_lines)
+
+    return {
+        "items": items,
+        "item_lines": item_lines,
+        "item_quality": item_quality,
+        "page_lines": page_lines,
+        "page_quality": best_page_score,
+        "combined_lines": combined_lines,
+        "combined_quality": combined_quality,
+        "prefer_page_text": prefer_page_text,
+    }
+
+
 def _trim_detail_text(text: str, max_length: int = 220) -> str:
     compact = re.sub(r"\s+", " ", text or "").strip()
     if len(compact) <= max_length:
@@ -1308,6 +1695,7 @@ def _summarize_screen_lines(lines, page_url: str = "", page_title: str = "") -> 
     if category == "repositorio github":
         repo_name = _parse_github_repo_from_url(page_url)
         profile_name = _parse_github_profile_from_url(page_url)
+        title_content = _strip_repo_prefix_from_title(title_content, repo_name)
         showcase = _content_showcase(_extract_github_focus_lines(lines, page_url=page_url, limit=4), limit=3)
         if repo_name and title_content and title_content.lower() != repo_name.lower():
             return f"É o repositorio {repo_name} no GitHub. Pelo titulo, o foco parece ser: {title_content}. No conteudo visivel, vejo: " + "; ".join(showcase) + "."
@@ -1328,6 +1716,16 @@ def _summarize_screen_lines(lines, page_url: str = "", page_title: str = "") -> 
             return f"Parece a pagina de um video no YouTube: {title}. Na tela, vejo: " + "; ".join(showcase) + "."
         return f"Parece a pagina de um video no YouTube: {title}."
 
+    if category == "financas":
+        showcase = _content_showcase(_extract_finance_focus_lines(lines, limit=5), limit=4)
+        if title_content and showcase:
+            return f"Parece uma pagina financeira. Pelo titulo, o foco parece ser: {title_content}. Pontos uteis visiveis: " + "; ".join(showcase) + "."
+        if showcase:
+            return "Parece uma pagina financeira. Pontos uteis visiveis: " + "; ".join(showcase) + "."
+        if title_content:
+            return f"Parece uma pagina financeira. Pelo titulo, o foco parece ser: {title_content}."
+        return "Parece uma pagina financeira, mas ainda nao consegui capturar os valores e rotulos mais importantes."
+
     pure_price_lines = 0
     for line in lines:
         line_lower = line.lower()
@@ -1339,7 +1737,17 @@ def _summarize_screen_lines(lines, page_url: str = "", page_title: str = "") -> 
     if pure_price_lines >= max(3, len(lines) // 2):
         return "Vejo principalmente precos e parcelas. A tela parece comercial, mas ainda nao peguei bem os nomes principais dos itens."
 
-    showcase = _content_showcase(lines, limit=3)
+    showcase = _content_showcase(_extract_generic_focus_lines(lines, page_url=page_url, page_title=page_title, limit=5), limit=3)
+
+    if category == "financas":
+        visible = _content_showcase(_extract_finance_focus_lines(lines, limit=6), limit=5)
+        if title_content and visible:
+            return f"Na tela esta uma pagina financeira. Pelo titulo, ela parece ser sobre {title_content}. Do que ficou visivel, os pontos mais uteis sao: " + "; ".join(visible) + "."
+        if visible:
+            return "Na tela esta uma pagina financeira. Do que ficou visivel, os pontos mais uteis sao: " + "; ".join(visible) + "."
+        if title_content:
+            return f"Na tela esta uma pagina financeira. Pelo titulo, ela parece ser sobre {title_content}, mas ainda nao capturei os valores e rotulos principais."
+        return "Na tela esta uma pagina financeira, mas ainda nao capturei os valores e rotulos principais."
 
     if category in {"smartphones", "notebooks", "lavadoras", "televisores", "relogios"}:
         return f"Parece uma lista de {category}. Destaques: " + "; ".join(showcase) + "."
@@ -1347,8 +1755,14 @@ def _summarize_screen_lines(lines, page_url: str = "", page_title: str = "") -> 
     if any("repository navigation" in line or "pull requests" in line for line in normalized_lines):
         return "Parece uma pagina de repositorio com navegacao e abas principais, mais do que conteudo detalhado do projeto."
 
-    if title_content and title_content not in showcase:
+    if title_content and title_content not in showcase and showcase:
         return f"Pelo titulo da pagina, o foco parece ser: {title_content}. Na tela, vejo: " + "; ".join(showcase) + "."
+
+    if title_content and not showcase:
+        return f"Pelo titulo da pagina, o foco parece ser: {title_content}."
+
+    if not showcase:
+        return "Ainda nao consegui separar os pontos mais relevantes dessa pagina."
 
     return f"Vejo {len(lines)} itens principais na tela. Destaques: " + "; ".join(showcase) + "."
 
@@ -1360,11 +1774,12 @@ def _explain_screen_lines(lines, page_url: str = "", page_title: str = "") -> st
     category = _detect_screen_category(lines, page_url=page_url, page_title=page_title)
     clean_title = _clean_browser_title(page_title)
     title_content = _trim_detail_text(_parse_title_content(clean_title, page_url), max_length=260)
-    showcase = _content_showcase(lines, limit=5)
+    showcase = _content_showcase(_extract_generic_focus_lines(lines, page_url=page_url, page_title=page_title, limit=6), limit=5)
 
     if category == "repositorio github":
         repo_name = _parse_github_repo_from_url(page_url)
         profile_name = _parse_github_profile_from_url(page_url)
+        title_content = _strip_repo_prefix_from_title(title_content, repo_name)
         visible = _content_showcase(_extract_github_focus_lines(lines, page_url=page_url, limit=6), limit=5)
 
         if repo_name:
@@ -1401,6 +1816,16 @@ def _explain_screen_lines(lines, page_url: str = "", page_title: str = "") -> st
             return f"Parece uma lista de {category}. Pelo título da página, o foco parece ser {title_content}. Entre os itens visíveis, vejo: " + "; ".join(showcase[:4]) + "."
         return f"Parece uma lista de {category}. Entre os itens visíveis, vejo: " + "; ".join(showcase[:4]) + "."
 
+    if category == "financas":
+        visible = _content_showcase(_extract_finance_focus_lines(lines, limit=6), limit=5)
+        if title_content and visible:
+            return f"Na tela esta uma pagina financeira. Pelo titulo, ela parece ser sobre {title_content}. Do que ficou visivel, os pontos mais uteis sao: " + "; ".join(visible) + "."
+        if visible:
+            return "Na tela esta uma pagina financeira. Do que ficou visivel, os pontos mais uteis sao: " + "; ".join(visible) + "."
+        if title_content:
+            return f"Na tela esta uma pagina financeira. Pelo titulo, ela parece ser sobre {title_content}, mas ainda nao capturei os valores e rotulos principais."
+        return "Na tela esta uma pagina financeira, mas ainda nao capturei os valores e rotulos principais."
+
     if title_content and showcase:
         return f"Pelo título da página, o foco parece ser {title_content}. No conteúdo visível, encontrei: " + "; ".join(showcase[:4]) + "."
 
@@ -1411,7 +1836,7 @@ def _should_auto_summarize(lines, quality_score: int, page_url: str = "", page_t
     if not lines:
         return False
 
-    if _detect_screen_category(lines, page_url=page_url, page_title=page_title) in {"repositorio github", "video youtube"}:
+    if _detect_screen_category(lines, page_url=page_url, page_title=page_title) in {"repositorio github", "video youtube", "financas"}:
         return True
 
     summary_hint = _summarize_screen_lines(lines, page_url=page_url, page_title=page_title).lower()
@@ -1431,7 +1856,7 @@ def _should_auto_summarize(lines, quality_score: int, page_url: str = "", page_t
     return False
 
 
-def _rank_page_text_lines(text: str, limit: int = 10):
+def _rank_page_text_lines(text: str, limit: int = 10, page_url: str = "", page_title: str = ""):
     ignore_patterns = (
         "javascript",
         "cookie",
@@ -1501,6 +1926,34 @@ def _rank_page_text_lines(text: str, limit: int = 10):
         "camera",
         "processador",
     }
+    finance_tokens = {
+        "investidor10",
+        "carteira",
+        "wallet",
+        "patrimonio",
+        "patrimônio",
+        "valor investido",
+        "valor atual",
+        "rentabilidade",
+        "proventos",
+        "dividendos",
+        "saldo",
+        "preco medio",
+        "preço medio",
+        "preço médio",
+        "lucro",
+        "prejuizo",
+        "prejuízo",
+        "aporte",
+        "ticker",
+        "fii",
+        "acao",
+        "ações",
+        "cotacao",
+        "cotação",
+    }
+    finance_category = _detect_screen_category([], page_url=page_url, page_title=page_title) == "financas"
+    relevance_terms = _relevance_terms_from_context(page_url=page_url, page_title=page_title)
     lines = []
     seen = set()
 
@@ -1518,12 +1971,19 @@ def _rank_page_text_lines(text: str, limit: int = 10):
         if normalized.isdigit():
             continue
 
+        if re.match(r"^https?://", line, flags=re.IGNORECASE):
+            continue
+
         words = normalized.split()
         has_price = bool(re.search(r"r\$\s*\d|\d+,\d{2}", line.lower()))
         price_only = bool(re.match(r"^r\$\s*[\d\.\,]+$", line.lower()))
         looks_like_slug = line.count("-") >= 2 and " " not in line.strip()
         has_product_word = any(word in product_words for word in words)
         has_spec_word = any(word in spec_words for word in words)
+        has_finance_word = any(token in normalized for token in finance_tokens)
+        has_percent = "%" in line
+        has_currency = bool(re.search(r"r\$\s*[\d\.\,]+", line, flags=re.IGNORECASE))
+        has_relevance_word = any(term in normalized for term in relevance_terms)
 
         if looks_like_slug:
             continue
@@ -1546,8 +2006,38 @@ def _rank_page_text_lines(text: str, limit: int = 10):
         if re.match(r"^\d+x\s+de\s+r\$", line.lower()):
             continue
 
-        if not has_product_word:
-            continue
+        if finance_category:
+            score = 0
+            if has_finance_word:
+                score += 8
+            if has_currency:
+                score += 5
+            if has_percent:
+                score += 4
+            if len(words) >= 2:
+                score += 1
+            if normalized in {"0", "0,0", "0.0"}:
+                score -= 8
+            if score < 2:
+                continue
+        else:
+            score = 0
+            if has_product_word:
+                score += 6
+            if has_spec_word:
+                score += 2
+            if has_relevance_word:
+                score += 7
+            if len(words) >= 3:
+                score += 2
+            if len(words) >= 6:
+                score += 1
+            if has_price:
+                score += 1
+            if len(words) <= 2 and not has_relevance_word and not has_product_word:
+                score -= 5
+            if score < 3:
+                continue
 
         if len(line) > 145:
             line = line[:142].rstrip() + "..."
@@ -1557,6 +2047,9 @@ def _rank_page_text_lines(text: str, limit: int = 10):
 
         if len(lines) >= limit:
             break
+
+    if finance_category:
+        return _extract_finance_focus_lines(lines, limit=limit)
 
     return lines
 
@@ -1776,7 +2269,7 @@ if(navigator.clipboard&&navigator.clipboard.writeText) {{
     return items
 
 
-def _read_page_text_via_clipboard(limit: int = 10):
+def _read_page_text_via_clipboard(limit: int = 10, page_url: str = "", page_title: str = ""):
     old_clipboard = _get_clipboard_text()
     copied = ""
     sentinel = f"__ESTAGIARIO_READ_PAGE__{time.monotonic_ns()}__"
@@ -1810,11 +2303,11 @@ def _read_page_text_via_clipboard(limit: int = 10):
         _tap(VK_ESCAPE)
         _set_clipboard_text(old_clipboard)
 
-    ranked_lines = _rank_page_text_lines(copied, limit=limit)
+    ranked_lines = _rank_page_text_lines(copied, limit=limit, page_url=page_url, page_title=page_title)
     if ranked_lines:
         return ranked_lines
 
-    return _useful_page_text_lines(copied, limit=limit)
+    return _useful_page_text_lines(copied, limit=limit, page_url=page_url, page_title=page_title)
 
 
 def _click_relative_to_app(app_name: str, relative_x: float, relative_y: float, clicks: int = 1):
@@ -2660,36 +3153,19 @@ def browser_summarize_screen():
     context = _refresh_browser_context()
     page_url = _get_browser_url()
     page_title = _clean_browser_title(_get_foreground_window_title())
-    items = _read_browser_elements(limit=10)
-    weak_items = not items or all(_normalize_text_for_match(item["text"]).isdigit() for item in items)
+    capture = _read_screen_content_lines(item_limit=10, page_limit=10, page_url=page_url, page_title=page_title)
+    items = capture["items"]
+    lines = capture["combined_lines"]
 
-    if weak_items:
-        if _browser_context_recently_changed():
-            time.sleep(0.35)
-
-        page_lines = _read_page_text_via_clipboard(limit=10)
-        best_lines = page_lines
-        best_score = _screen_lines_quality(page_lines)
-
-        need_second_pass = _browser_context_recently_changed(2.0) or not page_lines or best_score < 24
-        if need_second_pass:
-            time.sleep(0.25)
-            second_lines = _read_page_text_via_clipboard(limit=10)
-            second_score = _screen_lines_quality(second_lines)
-            if second_score > best_score:
-                best_lines = second_lines
-                best_score = second_score
-
-        page_lines = best_lines
-        if page_lines:
-            _remember_text_items(page_lines, context=context)
-            return _screen_summary_intro() + ": " + _summarize_screen_lines(page_lines, page_url=page_url, page_title=page_title)
-
+    if not lines:
         _clear_browser_snapshot(context=context)
         return "Nao consegui resumir a tela atual."
 
-    _set_browser_elements(items, context=context)
-    lines = [item["text"] for item in items]
+    if items:
+        _set_browser_elements(items, context=context)
+    else:
+        _remember_text_items(lines, context=context)
+
     return _screen_summary_intro() + ": " + _summarize_screen_lines(lines, page_url=page_url, page_title=page_title)
 
 
@@ -2700,35 +3176,19 @@ def browser_explain_screen():
     context = _refresh_browser_context()
     page_url = _get_browser_url()
     page_title = _clean_browser_title(_get_foreground_window_title())
-    items = _read_browser_elements(limit=12)
-    weak_items = not items or all(_normalize_text_for_match(item["text"]).isdigit() for item in items)
+    capture = _read_screen_content_lines(item_limit=12, page_limit=12, page_url=page_url, page_title=page_title)
+    items = capture["items"]
+    lines = capture["combined_lines"]
 
-    if weak_items:
-        if _browser_context_recently_changed():
-            time.sleep(0.35)
-
-        page_lines = _read_page_text_via_clipboard(limit=12)
-        best_lines = page_lines
-        best_score = _screen_lines_quality(page_lines)
-
-        need_second_pass = _browser_context_recently_changed(2.0) or not page_lines or best_score < 26
-        if need_second_pass:
-            time.sleep(0.25)
-            second_lines = _read_page_text_via_clipboard(limit=12)
-            second_score = _screen_lines_quality(second_lines)
-            if second_score > best_score:
-                best_lines = second_lines
-
-        page_lines = best_lines
-        if page_lines:
-            _remember_text_items(page_lines, context=context)
-            return "Detalhando a tela: " + _explain_screen_lines(page_lines, page_url=page_url, page_title=page_title)
-
+    if not lines:
         _clear_browser_snapshot(context=context)
         return "Nao consegui detalhar a tela atual."
 
-    _set_browser_elements(items, context=context)
-    lines = [item["text"] for item in items]
+    if items:
+        _set_browser_elements(items, context=context)
+    else:
+        _remember_text_items(lines, context=context)
+
     return "Detalhando a tela: " + _explain_screen_lines(lines, page_url=page_url, page_title=page_title)
 
 
@@ -2741,41 +3201,32 @@ def browser_describe_screen():
     context = _refresh_browser_context()
     page_url = _get_browser_url()
     page_title = _clean_browser_title(_get_foreground_window_title())
-    items = _read_browser_elements(limit=10)
-    weak_items = not items or all(_normalize_text_for_match(item["text"]).isdigit() for item in items)
-    if weak_items:
-        if _browser_context_recently_changed():
-            time.sleep(0.35)
+    capture = _read_screen_content_lines(item_limit=10, page_limit=10, page_url=page_url, page_title=page_title)
+    items = capture["items"]
+    lines = capture["combined_lines"]
+    quality = capture["combined_quality"]
+    category = _detect_screen_category(lines, page_url=page_url, page_title=page_title)
+    prefer_page_text = capture.get("prefer_page_text", False)
 
-        page_lines = _read_page_text_via_clipboard(limit=10)
-        best_lines = page_lines
-        best_score = _screen_lines_quality(page_lines)
-
-        need_second_pass = _browser_context_recently_changed(2.0) or not page_lines or best_score < 24
-        if need_second_pass:
-            time.sleep(0.25)
-            second_lines = _read_page_text_via_clipboard(limit=10)
-            second_score = _screen_lines_quality(second_lines)
-            if second_score > best_score:
-                best_lines = second_lines
-                best_score = second_score
-
-        page_lines = best_lines
-        if page_lines:
-            _remember_text_items(page_lines, context=context)
-            if _should_auto_summarize(page_lines, best_score, page_url=page_url, page_title=page_title):
-                return _screen_summary_intro() + ": " + _summarize_screen_lines(page_lines, page_url=page_url, page_title=page_title)
-            rows = [f"{idx}. {line}" for idx, line in enumerate(page_lines, start=1)]
-            return _screen_list_intro() + ": " + "; ".join(rows)
-
+    if not lines:
         _clear_browser_snapshot(context=context)
         return "Nao consegui ler itens clicaveis visiveis nessa tela."
 
-    _set_browser_elements(items, context=context)
-    lines = [item["text"] for item in items]
-    if _should_auto_summarize(lines, _screen_lines_quality(lines), page_url=page_url, page_title=page_title):
+    if items:
+        _set_browser_elements(items, context=context)
+    else:
+        _remember_text_items(lines, context=context)
+
+    if category in {"repositorio github", "video youtube", "financas"} or prefer_page_text:
+        return _screen_summary_intro() + ": " + _explain_screen_lines(lines, page_url=page_url, page_title=page_title)
+
+    if _should_auto_summarize(lines, quality, page_url=page_url, page_title=page_title):
         return _screen_summary_intro() + ": " + _summarize_screen_lines(lines, page_url=page_url, page_title=page_title)
-    rows = [f"{idx}. {item['text']}" for idx, item in enumerate(items, start=1)]
+
+    if items:
+        rows = [f"{idx}. {item['text']}" for idx, item in enumerate(items, start=1)]
+    else:
+        rows = [f"{idx}. {line}" for idx, line in enumerate(lines, start=1)]
     return "Vejo na tela: " + "; ".join(rows)
 
 

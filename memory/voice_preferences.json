@@ -46,6 +46,7 @@
   "audio_target_peak": 0.75,
   "audio_max_gain": 4.0,
   "audio_diagnostic_seconds": 4.0,
+  "audio_input_device": "",
   "whisper_command_vad_filter": false,
   "whisper_hotword_vad_filter": true,
   "whisper_command_beam_size": 5,

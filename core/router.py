@@ -113,6 +113,22 @@ OPEN_PREFIXES = (
     "abre as ",
 )
 
+TEXT_INPUT_PREFIXES = (
+    "digitar ",
+    "digite ",
+    "digita ",
+    "escrever ",
+    "escreva ",
+    "escreve ",
+    "ditar ",
+    "dita ",
+    "colar ",
+    "cole ",
+    "cola ",
+    "inserir texto ",
+    "insira texto ",
+)
+
 CLOSE_PREFIXES = (
     "feche ",
     "fechar ",
@@ -702,6 +718,10 @@ def detect_navigation_command(user_input: str):
         "resuma a tela",
         "resumir tela",
         "resumir a tela",
+        "resuma o conteudo",
+        "resuma o conteúdo",
+        "resuma o conteudo da tela",
+        "resuma o conteúdo da tela",
         "me da um resumo da tela",
         "me de um resumo da tela",
         "qual o resumo da tela",
@@ -716,6 +736,13 @@ def detect_navigation_command(user_input: str):
         "detalhar",
         "detalha a tela",
         "detalhar a tela",
+        "conteudo principal",
+        "conteúdo principal",
+        "conteudo principal da tela",
+        "conteúdo principal da tela",
+        "o que importa na tela",
+        "o que e importante na tela",
+        "o que é importante na tela",
         "explique a tela",
         "me explique a tela",
         "quero detalhes da tela",
@@ -1681,6 +1708,24 @@ def detect_ollama_chat(user_input: str):
     return None
 
 
+def detect_type_text(user_input: str):
+    lower = normalize_text(user_input)
+    compact_lower = re.sub(r"[:\-]+", " ", lower)
+    compact_lower = re.sub(r"\s+", " ", compact_lower).strip()
+    for prefix in TEXT_INPUT_PREFIXES:
+        if compact_lower.startswith(prefix):
+            content = user_input[len(prefix):].strip(" \t,:;-")
+            if not content:
+                return {
+                    "intent": "respond",
+                    "target": None,
+                    "response": "Qual texto devo inserir?",
+                }
+            return {"intent": "type_text", "target": None, "content": content}
+
+    return None
+
+
 def route(user_input: str):
     detectors = [
         detect_create_macro_start,
@@ -1688,6 +1733,7 @@ def route(user_input: str):
         detect_run_macro,
         detect_list_macros,
         detect_delete_macro,
+        detect_type_text,
         detect_user_name,
         detect_greeting,
         detect_math,
