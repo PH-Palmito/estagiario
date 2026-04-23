@@ -1,20 +1,9 @@
 {
-  "generated_at": 1776945887.5118172,
-  "status": "ready_for_codex",
-  "title": "Executar proposta de patch: Lapidar robustez geral do Axel",
-  "source": "patch-proposals",
-  "risk": "Baixo.",
-  "files": [
-    "main.py",
-    "ui/assistant_hud.py"
-  ],
-  "steps": [
-    "Continuar instrumentando o historico para detectar melhor os proximos pontos fracos.",
-    "Manter a ponte com o Codex atualizada com dados do uso recente."
-  ],
-  "validation": [
-    ".\\venv\\Scripts\\python.exe -m py_compile .\\main.py .\\ui/assistant_hud.py",
-    ".\\venv\\Scripts\\python.exe .\\main.py --voice --hotword"
-  ],
-  "message": "Pacote de execucao pronto para aplicacao supervisionada. O Axel ainda nao deve aplicar sozinho; o Codex deve revisar, editar e validar."
+  "generated_at": 1776947823.8105433,
+  "status": "waiting_for_approval",
+  "title": "",
+  "message": "Nenhuma acao candidata aprovada para empacotar.",
+  "files": [],
+  "steps": [],
+  "validation": []
 }

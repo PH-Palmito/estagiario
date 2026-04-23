@@ -1,33 +1,93 @@
 {
   "assistant_name": "Axel",
-  "visible": true,
+  "visible": false,
   "status": "BOTAO F8",
   "mode": "comando",
-  "last_heard": "",
-  "last_response": "Pode falar.",
-  "last_command": "open_app (target=spotify)",
+  "last_heard": "O que tem na tela?",
+  "last_response": "Encerrando.",
+  "last_command": "browser_describe_screen",
   "microphone": "Microfone (WO Mic Device)",
   "assistant_style": "elegante",
   "voice_profile": "faber",
-  "hotword_enabled": true,
+  "hotword_enabled": false,
   "conversation_mode": false,
   "dictation_mode": false,
   "history": [
     {
       "role": "assistant",
       "text": "Modo voz ativado. Aperte F8 para falar. Aperte F9 para pausar/retomar.",
-      "at": 1776945876.6831603
+      "at": 1776947374.2078257
     },
     {
       "role": "assistant",
       "text": "Sistemas online. Pronto para trabalhar.",
-      "at": 1776945876.7171664
+      "at": 1776947374.2397268
     },
     {
       "role": "assistant",
       "text": "Pode falar.",
-      "at": 1776945887.4457052
+      "at": 1776947415.9230645
+    },
+    {
+      "role": "user",
+      "text": "O que tem na tela?",
+      "at": 1776947425.5498548
+    },
+    {
+      "role": "assistant",
+      "text": "Visao rapida da tela: Na tela está a página de vídeo choco - Pesquisa Google. No que ficou visível, encontrei: Aqui estão os principais detalhes sobre o choco:; Reprodução: Após a reprodução, os chocos geralmente morrem. Seus ovos são chamados de \"uvas do mar\" por ser...; Este vídeo mostra a impressionante capacidade de camuflagem do choco:.",
+      "at": 1776947433.426848
+    },
+    {
+      "role": "assistant",
+      "text": "Pode falar.",
+      "at": 1776947466.732
+    },
+    {
+      "role": "user",
+      "text": "Detalhar.",
+      "at": 1776947472.63893
+    },
+    {
+      "role": "assistant",
+      "text": "Detalhando a tela: Na tela está a página de vídeo choco - Pesquisa Google. No que ficou visível, encontrei: Aqui estão os principais detalhes sobre o choco:; Reprodução: Após a reprodução, os chocos geralmente morrem. Seus ovos são chamados de \"uvas do mar\" por ser...; Este vídeo mostra a impressionante capacidade de camuflagem do choco:.",
+      "at": 1776947480.5419242
+    },
+    {
+      "role": "assistant",
+      "text": "Pode falar.",
+      "at": 1776947499.3005943
+    },
+    {
+      "role": "user",
+      "text": "Resumir.",
+      "at": 1776947504.7652097
+    },
+    {
+      "role": "assistant",
+      "text": "Visao rapida da tela: Parece a pagina de um video no YouTube: choco - Pesquisa Google. Na tela, vejo: Ir para o conteúdo principalAjuda sobre acessibilidade; O que é um choco?.",
+      "at": 1776947512.6160076
+    },
+    {
+      "role": "assistant",
+      "text": "Pode falar.",
+      "at": 1776947538.7432806
+    },
+    {
+      "role": "user",
+      "text": "O que tem na tela?",
+      "at": 1776947545.5966647
+    },
+    {
+      "role": "assistant",
+      "text": "Panorama da tela: Na tela esta uma pagina financeira. Pelo titulo, ela parece ser sobre Investidor10 | Resumo, mas ainda nao capturei os valores e rotulos principais.",
+      "at": 1776947554.1514852
+    },
+    {
+      "role": "assistant",
+      "text": "Encerrando.",
+      "at": 1776947823.7546124
     }
   ],
-  "updated_at": 1776945893.72937
+  "updated_at": 1776948011.771466
 }

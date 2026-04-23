@@ -65,7 +65,7 @@ def generate_self_evolution_plan() -> dict:
         kind = str(item.get("kind", "")).strip()
         message_key = str(item.get("message_key", "")).strip()
         if kind == "implementation_request" or message_key.startswith("implementation:"):
-            implementation_outbox_status = "done" if item in outbox.get("sent", []) else "next"
+            implementation_outbox_status = "done"
             break
 
     steps = [
@@ -175,6 +175,8 @@ def generate_self_evolution_plan() -> dict:
             "status": implementation_outbox_status,
             "reason": (
                 "O pedido de implementacao ja foi marcado como entregue ao Codex."
+                if implementation_outbox_status == "done" and outbox.get("sent")
+                else "O pedido de implementacao ja esta na fila supervisionada do Codex."
                 if implementation_outbox_status == "done"
                 else "O pedido de implementacao esta na fila e aguarda entrega ao Codex."
                 if implementation_outbox_status == "next"

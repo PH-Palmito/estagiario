@@ -76,6 +76,8 @@ def mark_handoff_started(note: str = "") -> dict:
     state = sync_handoff_application()
     if state.get("handoff", {}).get("status") != "ready":
         return state
+    if state.get("status") in {"applied", "validated"}:
+        return state
     state["status"] = "in_progress"
     state["last_note"] = str(note or "").strip()
     state["started_at"] = time.time()
@@ -86,6 +88,8 @@ def mark_handoff_started(note: str = "") -> dict:
 def mark_handoff_applied(note: str = "") -> dict:
     state = sync_handoff_application()
     if state.get("handoff", {}).get("status") != "ready":
+        return state
+    if state.get("status") == "validated":
         return state
     state["status"] = "applied"
     state["last_note"] = str(note or "").strip()
@@ -108,6 +112,8 @@ def mark_handoff_validated(note: str = "") -> dict:
 def mark_handoff_failed(note: str = "") -> dict:
     state = sync_handoff_application()
     if state.get("handoff", {}).get("status") != "ready":
+        return state
+    if state.get("status") == "validated":
         return state
     state["status"] = "failed"
     state["last_note"] = str(note or "").strip()

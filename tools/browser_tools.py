@@ -6,6 +6,7 @@ import random
 import re
 import subprocess
 import time
+import unicodedata
 import webbrowser
 from urllib.parse import quote, quote_plus, unquote, urlparse
 
@@ -539,6 +540,8 @@ Write-Output ("__POINT__:{0},{1}" -f $candidate.X, $candidate.Y)
 
 
 def _normalize_text_for_match(text: str) -> str:
+    text = unicodedata.normalize("NFKD", text or "")
+    text = "".join(char for char in text if not unicodedata.combining(char))
     text = text.lower()
     text = re.sub(r"[^\w\s]", " ", text)
     text = re.sub(r"\s+", " ", text)
@@ -1489,10 +1492,17 @@ def _detect_screen_category(lines, page_url: str = "", page_title: str = "") -> 
     ):
         return "financas"
 
+    if any(
+        token in host
+        for token in ("poder360", "g1.globo", "cnnbrasil", "uol.com.br", "folha.uol", "estadao", "bbc.com")
+    ) or any(token in title_blob for token in ("noticia", "jornal", "reportagem", "politica", "internacional")):
+        return "noticia"
+
     category_patterns = [
         ("repositorio github", ("repository navigation", "pull requests", "issues", "actions", "discussions", "github")),
         ("video youtube", ("up next", "youtube", "inscrito", "inscrever-se", "comentarios", "comentários")),
         ("financas", ("investidor10", "patrimonio", "valor investido", "rentabilidade", "proventos", "dividendos", "saldo", "preco medio")),
+        ("noticia", ("noticia", "jornal", "reportagem", "publicado", "atualizado", "leia mais")),
         ("smartphones", ("smartphone", "celular", "iphone", "galaxy", "redmi", "motorola", "oppo", "realme")),
         ("notebooks", ("notebook", "ideapad", "vivobook", "aspire", "inspiron", "thinkpad", "macbook")),
         ("lavadoras", ("lavadora", "lava loucas", "lava-loucas", "lava e seca", "samsung ww", "electrolux")),
@@ -1639,7 +1649,7 @@ def _read_screen_content_lines(
         not items
         or _items_are_navigation_heavy(item_lines, page_url=page_url, page_title=page_title)
         or item_quality < 24
-        or category == "financas"
+        or category in {"financas", "noticia"}
     )
 
     page_lines = []
@@ -1715,6 +1725,16 @@ def _summarize_screen_lines(lines, page_url: str = "", page_title: str = "") -> 
         if showcase:
             return f"Parece a pagina de um video no YouTube: {title}. Na tela, vejo: " + "; ".join(showcase) + "."
         return f"Parece a pagina de um video no YouTube: {title}."
+
+    if category == "noticia":
+        showcase = _content_showcase(_extract_generic_focus_lines(lines, page_url=page_url, page_title=page_title, limit=6), limit=4)
+        if title_content and showcase:
+            return f"Parece uma noticia. O titulo sugere: {title_content}. Pontos principais visiveis: " + "; ".join(showcase) + "."
+        if title_content:
+            return f"Parece uma noticia. O titulo sugere: {title_content}."
+        if showcase:
+            return "Parece uma noticia. Pontos principais visiveis: " + "; ".join(showcase) + "."
+        return "Parece uma noticia, mas ainda nao capturei o trecho principal com confianca."
 
     if category == "financas":
         showcase = _content_showcase(_extract_finance_focus_lines(lines, limit=5), limit=4)
@@ -1811,6 +1831,16 @@ def _explain_screen_lines(lines, page_url: str = "", page_title: str = "") -> st
             return f"Na tela está a página de vídeo {title}. No que ficou visível, encontrei: " + "; ".join(filtered[:3]) + "."
         return f"Na tela está a página de vídeo {title}."
 
+    if category == "noticia":
+        visible = _content_showcase(_extract_generic_focus_lines(lines, page_url=page_url, page_title=page_title, limit=8), limit=5)
+        if title_content and visible:
+            return f"Na tela parece haver uma noticia sobre {title_content}. Do trecho visivel, os pontos mais uteis sao: " + "; ".join(visible) + "."
+        if title_content:
+            return f"Na tela parece haver uma noticia sobre {title_content}."
+        if visible:
+            return "Na tela parece haver uma noticia. Do trecho visivel, os pontos mais uteis sao: " + "; ".join(visible) + "."
+        return "Na tela parece haver uma noticia, mas ainda nao separei o corpo principal do restante da pagina."
+
     if category in {"smartphones", "notebooks", "lavadoras", "televisores", "relogios"}:
         if title_content and title_content not in showcase:
             return f"Parece uma lista de {category}. Pelo título da página, o foco parece ser {title_content}. Entre os itens visíveis, vejo: " + "; ".join(showcase[:4]) + "."
@@ -1836,7 +1866,7 @@ def _should_auto_summarize(lines, quality_score: int, page_url: str = "", page_t
     if not lines:
         return False
 
-    if _detect_screen_category(lines, page_url=page_url, page_title=page_title) in {"repositorio github", "video youtube", "financas"}:
+    if _detect_screen_category(lines, page_url=page_url, page_title=page_title) in {"repositorio github", "video youtube", "financas", "noticia"}:
         return True
 
     summary_hint = _summarize_screen_lines(lines, page_url=page_url, page_title=page_title).lower()
@@ -1861,6 +1891,7 @@ def _rank_page_text_lines(text: str, limit: int = 10, page_url: str = "", page_t
         "javascript",
         "cookie",
         "politica de privacidade",
+        "politica de cookies",
         "termos de uso",
         "menu",
         "entrar",
@@ -1884,6 +1915,9 @@ def _rank_page_text_lines(text: str, limit: int = 10, page_url: str = "", page_t
         "sem juros",
         "cashback",
         "desconto",
+        "direitos reservados",
+        "copyright",
+        "leia mais no texto original",
     )
     category_noise = {
         "celulares",
@@ -1952,12 +1986,14 @@ def _rank_page_text_lines(text: str, limit: int = 10, page_url: str = "", page_t
         "cotacao",
         "cotação",
     }
-    finance_category = _detect_screen_category([], page_url=page_url, page_title=page_title) == "financas"
+    page_category = _detect_screen_category([], page_url=page_url, page_title=page_title)
+    finance_category = page_category == "financas"
+    priority_category = page_category in {"repositorio github", "video youtube", "financas", "noticia"}
     relevance_terms = _relevance_terms_from_context(page_url=page_url, page_title=page_title)
-    lines = []
+    candidates = []
     seen = set()
 
-    for raw_line in (text or "").splitlines():
+    for index, raw_line in enumerate((text or "").splitlines()):
         line = re.sub(r"\s+", " ", raw_line).strip()
         line = _strip_gallery_suffix(line)
 
@@ -2003,6 +2039,9 @@ def _rank_page_text_lines(text: str, limit: int = 10, page_url: str = "", page_t
         if any(pattern in normalized for pattern in ignore_patterns):
             continue
 
+        if "lei" in normalized and "9 610 98" in normalized:
+            continue
+
         if re.match(r"^\d+x\s+de\s+r\$", line.lower()):
             continue
 
@@ -2036,22 +2075,46 @@ def _rank_page_text_lines(text: str, limit: int = 10, page_url: str = "", page_t
                 score += 1
             if len(words) <= 2 and not has_relevance_word and not has_product_word:
                 score -= 5
+            if page_category == "repositorio github":
+                if any(token in normalized for token in ("readme", "about", "sobre", "descricao", "description", "instalacao", "installation", "usage", "features", "projeto", "project")):
+                    score += 9
+                if any(token in normalized for token in ("git clone", "repository navigation", "pull requests", "issues", "actions")):
+                    score -= 8
+            if page_category == "video youtube":
+                if any(token in normalized for token in ("inscrever", "up next", "compartilhar", "comentarios")):
+                    score -= 5
+                if len(words) >= 4:
+                    score += 3
+            if page_category == "noticia":
+                if len(words) >= 8:
+                    score += 6
+                if any(token in normalized for token in ("publicado", "atualizado", "segundo", "afirma", "disse", "jornal", "governo", "negociacao")):
+                    score += 4
+                if any(token in normalized for token in ("todos os direitos", "lei", "publicacao redistribuicao")):
+                    score -= 10
             if score < 3:
                 continue
 
         if len(line) > 145:
             line = line[:142].rstrip() + "..."
 
-        lines.append(line)
+        candidates.append((score, index, line))
         seen.add(normalized)
 
-        if len(lines) >= limit:
+        if len(candidates) >= max(limit * 6, 60):
             break
 
     if finance_category:
-        return _extract_finance_focus_lines(lines, limit=limit)
+        ranked = [line for _score, _index, line in sorted(candidates, key=lambda item: (-item[0], item[1]))]
+        return _extract_finance_focus_lines(ranked, limit=limit)
 
-    return lines
+    if priority_category:
+        return [
+            line
+            for _score, _index, line in sorted(candidates, key=lambda item: (-item[0], item[1]))[:limit]
+        ]
+
+    return [line for _score, _index, line in sorted(candidates, key=lambda item: item[1])[:limit]]
 
 
 def _selected_text_items(text: str, limit: int = 10):
@@ -3153,7 +3216,7 @@ def browser_summarize_screen():
     context = _refresh_browser_context()
     page_url = _get_browser_url()
     page_title = _clean_browser_title(_get_foreground_window_title())
-    capture = _read_screen_content_lines(item_limit=10, page_limit=10, page_url=page_url, page_title=page_title)
+    capture = _read_screen_content_lines(item_limit=10, page_limit=18, page_url=page_url, page_title=page_title)
     items = capture["items"]
     lines = capture["combined_lines"]
 
@@ -3176,7 +3239,7 @@ def browser_explain_screen():
     context = _refresh_browser_context()
     page_url = _get_browser_url()
     page_title = _clean_browser_title(_get_foreground_window_title())
-    capture = _read_screen_content_lines(item_limit=12, page_limit=12, page_url=page_url, page_title=page_title)
+    capture = _read_screen_content_lines(item_limit=12, page_limit=22, page_url=page_url, page_title=page_title)
     items = capture["items"]
     lines = capture["combined_lines"]
 
@@ -3201,7 +3264,7 @@ def browser_describe_screen():
     context = _refresh_browser_context()
     page_url = _get_browser_url()
     page_title = _clean_browser_title(_get_foreground_window_title())
-    capture = _read_screen_content_lines(item_limit=10, page_limit=10, page_url=page_url, page_title=page_title)
+    capture = _read_screen_content_lines(item_limit=10, page_limit=18, page_url=page_url, page_title=page_title)
     items = capture["items"]
     lines = capture["combined_lines"]
     quality = capture["combined_quality"]
@@ -3217,7 +3280,7 @@ def browser_describe_screen():
     else:
         _remember_text_items(lines, context=context)
 
-    if category in {"repositorio github", "video youtube", "financas"} or prefer_page_text:
+    if category in {"repositorio github", "video youtube", "financas", "noticia"} or prefer_page_text:
         return _screen_summary_intro() + ": " + _explain_screen_lines(lines, page_url=page_url, page_title=page_title)
 
     if _should_auto_summarize(lines, quality, page_url=page_url, page_title=page_title):

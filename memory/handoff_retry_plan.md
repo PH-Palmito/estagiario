@@ -1,7 +1,7 @@
 # Plano de nova tentativa do handoff
 
 **Status:** blocked
-**Titulo:** Executar proposta de patch: Lapidar robustez geral do Axel
+**Titulo:** 
 
 ## Evidencias
 

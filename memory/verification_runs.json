@@ -1,28 +1,32 @@
 {
-  "generated_at": 1776944136.8355842,
-  "status": "success",
-  "proposal_key": "lapidar robustez geral do axel|main.py,ui/assistant_hud.py",
+  "generated_at": 1776947554.2852273,
+  "status": "idle",
+  "proposal_key": "melhorar leitura de tela com foco no conteudo util|tools/browser_tools.py,ui/assistant_hud.py,main.py",
   "proposal": {
-    "kind": "general",
-    "priority": 0,
-    "title": "Lapidar robustez geral do Axel",
-    "why": "Ainda nao ha gargalos fortes suficientes para uma proposta mais especifica.",
+    "kind": "screen_reading",
+    "priority": 1,
+    "title": "Melhorar leitura de tela com foco no conteudo util",
+    "why": "A leitura de paginas ainda perde partes relevantes e as vezes traz ruido ou contexto incompleto.",
     "files": [
-      "main.py",
-      "ui/assistant_hud.py"
+      "tools/browser_tools.py",
+      "ui/assistant_hud.py",
+      "main.py"
     ],
     "changes": [
-      "Continuar instrumentando o historico para detectar melhor os proximos pontos fracos.",
-      "Manter a ponte com o Codex atualizada com dados do uso recente."
+      "Priorizar conteudo principal, blocos centrais e sinais de dominio/contexto.",
+      "Refinar filtros de ruido para menus, rodape, copyright e links crus.",
+      "Adicionar fallback progressivo antes de declarar falha de leitura."
     ],
-    "risk": "Baixo.",
-    "examples": []
+    "risk": "Baixo, porque a mudanca e incremental e facil de validar no uso.",
+    "examples": [
+      "o que tem na tela?"
+    ]
   },
-  "approval_status": "approved",
-  "last_result": "success",
+  "approval_status": "pending",
+  "last_result": "",
   "last_note": "",
-  "last_checked_at": 1776944292.530112,
-  "attempts": 1,
+  "last_checked_at": 0.0,
+  "attempts": 0,
   "checklist": [
     "Compilar ou carregar os arquivos alterados sem erro.",
     "Validar o fluxo principal relacionado ao gargalo.",

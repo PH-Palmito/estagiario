@@ -1,19 +1,19 @@
 {
-  "generated_at": 1776945887.6299477,
-  "title": "Lapidar robustez geral do Axel",
+  "generated_at": 1776947823.92682,
+  "title": "Melhorar leitura de tela com foco no conteudo util",
   "trigger": "manual_bridge",
   "urgency": "normal",
   "status": "draft",
-  "approval_status": "approved",
-  "verification_status": "success",
-  "top_patch_title": "Lapidar robustez geral do Axel",
+  "approval_status": "pending",
+  "verification_status": "idle",
+  "top_patch_title": "Melhorar leitura de tela com foco no conteudo util",
   "codex_decision": "",
   "codex_next_step": "",
   "next_action": "Aguardar aprovacao humana antes de pedir alteracao de codigo.",
   "should_notify": false,
   "notify_reason": "Ainda nao ha um momento forte para acionar o Codex.",
-  "message": "O assistente local se chama Axel.\nO operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.\nMelhoria sugerida agora: Criar um planejador de auto-avanco com prioridade.\nMotivo: O proprio backlog ja pede um modo em que o Axel proponha melhorias ao Codex com mais criterio.\nOrigem da sugestao: lista-manual.\nUltima resposta do assistente: Pode falar..\nHistorico recente:\nAxel: Modo voz ativado. Aperte F8 para falar. Aperte F9 para pausar/retomar.\nAxel: Sistemas online. Pronto para trabalhar.\nAxel: Pode falar.\nPropostas iniciais de patch:\n- Lapidar robustez geral do Axel | arquivos: main.py, ui/assistant_hud.py\nStatus da aprovacao humana: approved.\nProposta em revisao: Lapidar robustez geral do Axel.\nStatus da verificacao da melhoria: success.\nPacote de execucao supervisionada pronto:\n- Titulo: Executar proposta de patch: Lapidar robustez geral do Axel\n- Arquivos alvo: main.py, ui/assistant_hud.py\n- Validacao sugerida: .\\venv\\Scripts\\python.exe -m py_compile .\\main.py .\\ui/assistant_hud.py; .\\venv\\Scripts\\python.exe .\\main.py --voice --hotword\nHandoff de implementacao pronto:\n- Titulo: Executar proposta de patch: Lapidar robustez geral do Axel\n- Arquivos: main.py, ui/assistant_hud.py\n- Primeiras instrucoes: Leia os arquivos alvo antes de editar.; Aplique a menor mudanca util possivel.; Nao altere comportamento fora do escopo da acao candidata.\nStatus da aplicacao supervisionada do handoff: applied.\nNota da aplicacao: historico estendido e gargalos com exemplos.\nQuero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.",
-  "message_key": "lapidar robustez geral do axel|manual_bridge|draft",
+  "message": "O assistente local se chama Axel.\nO operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.\nMelhoria sugerida agora: Resolver gargalo: Leitura de tela inconsistente.\nMotivo: O detector automatico marcou esse problema 1 vez(es) no uso recente.\nOrigem da sugestao: detector-de-gargalos.\nUltima fala relevante do usuario: O que tem na tela?.\nUltima resposta do assistente: Encerrando..\nHistorico recente:\nAxel: Detalhando a tela: Na tela está a página de vídeo choco - Pesquisa Google. No que ficou visível, encontrei: Aqui estão os principais detalhes sobre o choco:; Reprodução: Após a reprodução, os chocos geralmente morrem. Seus ovos são chamados de \"uvas do mar\" por ser...; Este vídeo mostra a impressionante capacidade de camuflagem do choco:.\nAxel: Pode falar.\nUsuario: Resumir.\nAxel: Visao rapida da tela: Parece a pagina de um video no YouTube: choco - Pesquisa Google. Na tela, vejo: Ir para o conteúdo principalAjuda sobre acessibilidade; O que é um choco?.\nAxel: Pode falar.\nUsuario: O que tem na tela?\nGargalos detectados recentemente:\n- Leitura de tela inconsistente (1 ocorrencia(s))\nPropostas iniciais de patch:\n- Melhorar leitura de tela com foco no conteudo util | arquivos: tools/browser_tools.py, ui/assistant_hud.py, main.py\nStatus da aprovacao humana: pending.\nProposta em revisao: Melhorar leitura de tela com foco no conteudo util.\nStatus da verificacao da melhoria: idle.\nStatus da aplicacao supervisionada do handoff: blocked.\nQuero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.",
+  "message_key": "melhorar leitura de tela com foco no conteudo util|manual_bridge|draft",
   "history": [
     {
       "message_key": "criar um planejador de auto-avanco com prioridade|manual_bridge|draft",
@@ -46,6 +46,22 @@
       "status": "draft",
       "urgency": "normal",
       "at": 1776945660.4501078
+    },
+    {
+      "message_key": "melhorar leitura de tela com foco no conteudo util|manual_bridge|draft",
+      "title": "Melhorar leitura de tela com foco no conteudo util",
+      "trigger": "manual_bridge",
+      "status": "draft",
+      "urgency": "normal",
+      "at": 1776946619.133274
+    },
+    {
+      "message_key": "melhorar leitura de tela com foco no conteudo util|approved_change_ready|ready",
+      "title": "Melhorar leitura de tela com foco no conteudo util",
+      "trigger": "approved_change_ready",
+      "status": "ready",
+      "urgency": "high",
+      "at": 1776946770.342226
     }
   ]
 }
