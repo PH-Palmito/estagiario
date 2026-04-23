@@ -6,7 +6,9 @@ from pathlib import Path
 from memory.approval_gate import load_approval_gate
 from memory.auto_advances import load_auto_advances
 from memory.bottlenecks import load_bottlenecks
+from memory.codex_inbox import latest_codex_inbox_item
 from memory.patch_proposals import load_patch_proposals
+from memory.verification_runs import load_verification_runs
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,6 +66,9 @@ def generate_codex_request() -> dict:
     bottlenecks = load_bottlenecks()
     proposals = load_patch_proposals()
     approval = load_approval_gate()
+    verification = load_verification_runs()
+    codex_decision = latest_codex_inbox_item("decision")
+    codex_next_step = latest_codex_inbox_item("next_step")
     top = advances[0] if advances else {}
 
     operator = str(profile.get("nome", "Pedro Henrique")).strip() or "Pedro Henrique"
@@ -118,6 +123,20 @@ def generate_codex_request() -> dict:
     if approval_title:
         prompt_lines.append(f"Status da aprovacao humana: {approval_status}.")
         prompt_lines.append(f"Proposta em revisao: {approval_title}.")
+
+    verification_status = str(verification.get("status", "idle")).strip()
+    verification_note = str(verification.get("last_note", "")).strip()
+    if approval_title:
+        prompt_lines.append(f"Status da verificacao da melhoria: {verification_status}.")
+    if verification_note:
+        prompt_lines.append(f"Observacao da verificacao: {verification_note}.")
+
+    decision_text = str(codex_decision.get("text", "")).strip()
+    next_step_text = str(codex_next_step.get("text", "")).strip()
+    if decision_text:
+        prompt_lines.append(f"Ultima decisao registrada do Codex: {decision_text}.")
+    if next_step_text:
+        prompt_lines.append(f"Ultimo proximo passo sugerido pelo Codex: {next_step_text}.")
 
     prompt_lines.append("Quero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.")
 

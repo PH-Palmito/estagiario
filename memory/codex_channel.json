@@ -1,0 +1,43 @@
+{
+  "generated_at": 1776912142.084049,
+  "title": "Criar um planejador de auto-avanco com prioridade",
+  "trigger": "codex_guidance_available",
+  "urgency": "normal",
+  "status": "guided",
+  "approval_status": "pending",
+  "verification_status": "idle",
+  "top_patch_title": "Lapidar robustez geral do Axel",
+  "codex_decision": "Priorizar robustez do entendimento de comandos curtos.",
+  "codex_next_step": "Refinar o classificador de voz antes de novas macros.",
+  "next_action": "Refinar o classificador de voz antes de novas macros.",
+  "should_notify": false,
+  "notify_reason": "Existe uma orientacao recente do Codex que o Axel pode seguir agora.",
+  "message": "O assistente local se chama Axel.\nO operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.\nMelhoria sugerida agora: Criar um planejador de auto-avanco com prioridade.\nMotivo: O proprio backlog ja pede um modo em que o Axel proponha melhorias ao Codex com mais criterio.\nOrigem da sugestao: lista-manual.\nUltima fala relevante do usuario: atualizar plano de auto evolucao.\nUltima resposta do assistente: Não captei com precisão..\nHistorico recente:\nUsuario: pedir melhoria ao codex\nAxel: Preparei um pedido ao Codex. Foco atual: Criar um planejador de auto-avanco com prioridade.\nUsuario: pedir melhoria ao codex\nAxel: Preparei um pedido ao Codex. Foco atual: Criar um planejador de auto-avanco com prioridade.\nUsuario: plano de auto evolucao\nAxel: Não captei com precisão.\nQuero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.",
+  "message_key": "criar um planejador de auto-avanco com prioridade|codex_guidance_available|guided",
+  "history": [
+    {
+      "message_key": "criar um planejador de auto-avanco com prioridade|manual_bridge|draft",
+      "title": "Criar um planejador de auto-avanco com prioridade",
+      "trigger": "manual_bridge",
+      "status": "draft",
+      "urgency": "normal",
+      "at": 1776911325.941439
+    },
+    {
+      "message_key": "criar um planejador de auto-avanco com prioridade|approved_change_ready|ready",
+      "title": "Criar um planejador de auto-avanco com prioridade",
+      "trigger": "approved_change_ready",
+      "status": "ready",
+      "urgency": "high",
+      "at": 1776911543.7612216
+    },
+    {
+      "message_key": "criar um planejador de auto-avanco com prioridade|codex_guidance_available|guided",
+      "title": "Criar um planejador de auto-avanco com prioridade",
+      "trigger": "codex_guidance_available",
+      "status": "guided",
+      "urgency": "normal",
+      "at": 1776912142.084049
+    }
+  ]
+}

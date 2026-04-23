@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 from memory.bottlenecks import load_bottlenecks
+from memory.verification_runs import load_verification_runs
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,7 +85,35 @@ def _save_json(path: Path, payload: dict):
 
 def generate_patch_proposals(limit: int = 4) -> list[dict]:
     bottlenecks = load_bottlenecks()
+    verification = load_verification_runs()
     proposals = []
+
+    verification_status = str(verification.get("status", "idle")).strip()
+    verification_proposal = verification.get("proposal") or {}
+    verification_title = str(verification_proposal.get("title", "")).strip()
+    verification_note = str(verification.get("last_note", "")).strip()
+
+    if verification_status == "failed" and verification_title:
+        retry_changes = [
+            "Inspecionar exatamente o trecho que nao melhorou apos a ultima tentativa.",
+            "Adicionar instrumentacao ou logs no fluxo afetado para confirmar onde o efeito se perdeu.",
+            "Reformular a proposta com foco mais estreito antes de aplicar nova rodada.",
+        ]
+        if verification_note:
+            retry_changes.append(f"Levar em conta a observacao da verificacao: {verification_note}")
+
+        proposals.append(
+            {
+                "kind": "verification_retry",
+                "priority": 999,
+                "title": f"Refinar melhoria apos falha de verificacao: {verification_title}",
+                "why": "A proposta anterior foi aprovada, mas nao passou na verificacao. O Axel precisa aprender com a tentativa anterior.",
+                "files": list(verification_proposal.get("files", [])) or ["main.py"],
+                "changes": retry_changes,
+                "risk": "Medio, porque repetir a mesma ideia sem ajustar a causa pode gerar ciclo improdutivo.",
+                "examples": [verification_note] if verification_note else [],
+            }
+        )
 
     for bottleneck in bottlenecks[:limit]:
         if not isinstance(bottleneck, dict):
@@ -148,4 +177,3 @@ def load_patch_proposals() -> list[dict]:
         except Exception:
             pass
     return save_patch_proposals()
-

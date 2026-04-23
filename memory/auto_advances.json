@@ -1,6 +1,11 @@
 {
-  "generated_at": 1776908592.4007423,
+  "generated_at": 1776912142.0619464,
   "items": [
+    {
+      "title": "Executar decisao do Codex: Priorizar robustez do entendimento de comandos curtos.",
+      "reason": "O Codex ja deixou uma decisao registrada na inbox do Axel e isso deve influenciar o proximo movimento do projeto.",
+      "source": "codex-inbox"
+    },
     {
       "title": "Criar um planejador de auto-avanco com prioridade",
       "reason": "O proprio backlog ja pede um modo em que o Axel proponha melhorias ao Codex com mais criterio.",
@@ -25,11 +30,6 @@
       "title": "Criar rotinas prontas para estudo e desenvolvimento mobile/front-end",
       "reason": "Seu perfil tecnico pede fluxos de abertura de projeto, navegador, docs e debug com menos atrito.",
       "source": "perfil"
-    },
-    {
-      "title": "Preparar inicializacao automatica com Windows",
-      "reason": "Isso transforma o Axel de projeto em ferramenta do dia a dia.",
-      "source": "lista-manual"
     }
   ]
 }

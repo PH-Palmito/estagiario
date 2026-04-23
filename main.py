@@ -19,6 +19,16 @@ from memory.approval_gate import approve_current_proposal, load_approval_gate, r
 from memory.auto_advances import load_auto_advances, save_auto_advances
 from memory.bottlenecks import load_bottlenecks, save_bottlenecks
 from memory.codex_bridge import load_codex_request, save_codex_request
+from memory.codex_channel import load_codex_channel, save_codex_channel
+from memory.codex_notifications import consume_codex_suggestion, reset_codex_suggestion_memory
+from memory.codex_outbox import (
+    clear_codex_outbox_pending,
+    enqueue_current_codex_message,
+    load_codex_outbox,
+    mark_next_codex_message_sent,
+    sync_codex_outbox,
+)
+from memory.codex_inbox import add_codex_inbox_item, clear_codex_inbox, load_codex_inbox
 from memory.macros import add_macro
 from memory.patch_proposals import load_patch_proposals, save_patch_proposals
 from memory.piper_voice_manager import (
@@ -30,6 +40,14 @@ from memory.session import clear
 from memory.self_evolution import load_self_evolution_plan, save_self_evolution_plan
 from memory.ui_commands import dequeue_ui_command
 from memory.ui_state import append_ui_history, load_ui_state, reset_ui_state, update_ui_state
+from memory.verification_runs import (
+    load_verification_runs,
+    mark_verification_failed,
+    mark_verification_success,
+    retry_verification,
+    start_verification,
+    sync_verification_runs,
+)
 from memory.voice_corrections import apply_voice_correction, remember_voice_correction
 from memory.voice_preferences import load_voice_preferences, update_voice_preferences
 from memory.voice_profiles import apply_voice_profile, list_voice_profiles
@@ -692,8 +710,115 @@ def maybe_handle_approval_gate_command(user_input: str) -> str | None:
     return None
 
 
+def maybe_handle_verification_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "status da verificacao",
+        "mostrar verificacao",
+        "status da melhoria",
+        "como esta a verificacao",
+        "verificacao atual",
+    }:
+        state = load_verification_runs()
+        proposal = state.get("proposal") or {}
+        title = str(proposal.get("title", "")).strip()
+        status = str(state.get("status", "idle")).strip()
+        attempts = int(state.get("attempts", 0) or 0)
+        note = str(state.get("last_note", "")).strip()
+        if not title:
+            return "Ainda nao ha melhoria aprovada aguardando verificacao."
+        base = f"Verificacao atual: {status}. Alvo: {title}. Tentativas: {attempts}."
+        if note:
+            base += f" Observacao: {note}."
+        return base
+
+    if normalized in {
+        "verificar melhoria",
+        "iniciar verificacao",
+        "comecar verificacao",
+        "verificar proposta",
+    }:
+        state = start_verification()
+        proposal = state.get("proposal") or {}
+        title = str(proposal.get("title", "")).strip()
+        if not title or str(state.get("approval_status", "none")).strip() != "approved":
+            return "Ainda nao ha uma proposta aprovada para verificar."
+        checklist = state.get("checklist") or []
+        checklist_text = "; ".join(str(item) for item in checklist[:3])
+        return f"Verificacao iniciada para {title}. Checklist: {checklist_text}."
+
+    if normalized in {
+        "melhoria funcionou",
+        "verificacao passou",
+        "deu certo",
+        "funcionou",
+        "passou na verificacao",
+    }:
+        state = mark_verification_success()
+        proposal = state.get("proposal") or {}
+        title = str(proposal.get("title", "")).strip()
+        if not title:
+            return "Nao encontrei uma melhoria aprovada para marcar como sucesso."
+        return f"Perfeito. Registrei que a melhoria passou na verificacao: {title}."
+
+    if normalized in {
+        "melhoria falhou",
+        "verificacao falhou",
+        "nao funcionou",
+        "falhou",
+        "deu errado",
+    }:
+        state = mark_verification_failed()
+        proposal = state.get("proposal") or {}
+        title = str(proposal.get("title", "")).strip()
+        if not title:
+            return "Nao encontrei uma melhoria aprovada para marcar como falha."
+        return f"Registrei falha na verificacao da melhoria: {title}. O Axel deve preparar nova tentativa."
+
+    if normalized in {
+        "tentar novamente",
+        "nova tentativa",
+        "retestar melhoria",
+        "verificar de novo",
+    }:
+        state = retry_verification()
+        proposal = state.get("proposal") or {}
+        title = str(proposal.get("title", "")).strip()
+        if not title:
+            return "Ainda nao ha uma melhoria aprovada para tentar de novo."
+        return f"Nova tentativa de verificacao iniciada para {title}."
+
+    if normalized in {
+        "aprender da falha",
+        "replanejar melhoria",
+        "gerar nova proposta apos falha",
+        "corrigir falha da melhoria",
+    }:
+        state = load_verification_runs()
+        title = str((state.get("proposal") or {}).get("title", "")).strip()
+        status = str(state.get("status", "idle")).strip()
+        if status != "failed" or not title:
+            return "Ainda nao ha uma falha de verificacao forte o suficiente para replanejar."
+        save_patch_proposals()
+        save_auto_advances()
+        save_codex_request()
+        return f"Perfeito. O Axel replanejou a melhoria apos a falha de verificacao em {title}."
+
+    return None
+
+
 def maybe_handle_codex_bridge_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
+
+    def extract_tail(prefixes: tuple[str, ...]) -> str:
+        raw = str(user_input or "").strip()
+        raw_lower = raw.lower()
+        for prefix in prefixes:
+            lowered = prefix.lower()
+            if raw_lower.startswith(lowered):
+                return raw[len(prefix) :].strip(" :.-")
+        return ""
 
     if normalized in {
         "pedir melhoria ao codex",
@@ -704,9 +829,11 @@ def maybe_handle_codex_bridge_command(user_input: str) -> str | None:
         "preparar conversa com codex",
     }:
         payload = save_codex_request()
+        channel = save_codex_channel()
         title = str(payload.get("title", "")).strip()
+        status = str(channel.get("status", "")).strip()
         if title:
-            return f"Preparei um pedido ao Codex. Foco atual: {title}. Deixei a conversa pronta na ponte do Codex."
+            return f"Preparei um pedido ao Codex. Foco atual: {title}. Canal atual: {status or 'draft'}."
         return "Preparei um pedido ao Codex."
 
     if normalized in {
@@ -719,6 +846,142 @@ def maybe_handle_codex_bridge_command(user_input: str) -> str | None:
         if prompt:
             return f"Pedido ao Codex: {prompt}"
         return "Ainda nao ha um pedido ao Codex pronto."
+
+    if normalized in {
+        "conversa com codex",
+        "mostrar conversa com codex",
+        "canal com codex",
+        "status do canal com codex",
+    }:
+        channel = load_codex_channel()
+        title = str(channel.get("title", "")).strip()
+        status = str(channel.get("status", "")).strip()
+        urgency = str(channel.get("urgency", "")).strip()
+        next_action = str(channel.get("next_action", "")).strip()
+        if not title:
+            return "O canal do Axel com o Codex ainda nao tem mensagem pronta."
+        return f"Canal com o Codex: {title}. Estado: {status}. Urgencia: {urgency}. Proxima acao: {next_action}."
+
+    if normalized in {
+        "sugestao do codex",
+        "axel acha que deve chamar codex",
+        "vale chamar codex",
+        "devo chamar codex",
+    }:
+        suggestion = consume_codex_suggestion()
+        if suggestion:
+            return suggestion
+        channel = load_codex_channel()
+        reason = str(channel.get("notify_reason", "")).strip()
+        if reason:
+            return f"Ainda nao e o melhor momento para acionar o Codex. Motivo atual: {reason}."
+        return "Ainda nao ha recomendacao forte para acionar o Codex."
+
+    if normalized in {
+        "atualizar conversa com codex",
+        "atualizar canal com codex",
+        "sincronizar conversa com codex",
+    }:
+        channel = save_codex_channel()
+        title = str(channel.get("title", "")).strip()
+        trigger = str(channel.get("trigger", "")).strip()
+        return f"Atualizei o canal com o Codex. Foco: {title}. Gatilho atual: {trigger}."
+
+    if normalized in {
+        "fila do codex",
+        "mensagens para o codex",
+        "caixa de saida do codex",
+        "outbox do codex",
+    }:
+        outbox = load_codex_outbox()
+        pending = outbox.get("pending") or []
+        sent = outbox.get("sent") or []
+        if not pending and not sent:
+            return "A fila do Codex ainda esta vazia."
+        parts = [f"Fila do Codex: {len(pending)} pendente(s) e {len(sent)} entregue(s)."]
+        if pending:
+            first = pending[0] if isinstance(pending[0], dict) else {}
+            title = str(first.get("title", "")).strip()
+            if title:
+                parts.append(f"Proxima mensagem: {title}.")
+        return " ".join(parts)
+
+    if normalized in {
+        "enfileirar mensagem ao codex",
+        "preparar envio ao codex",
+        "colocar mensagem na fila do codex",
+    }:
+        outbox = enqueue_current_codex_message()
+        pending = outbox.get("pending") or []
+        if not pending:
+            return "Nao encontrei mensagem atual forte o suficiente para enfileirar ao Codex."
+        first = pending[-1] if isinstance(pending[-1], dict) else {}
+        title = str(first.get("title", "")).strip()
+        return f"Coloquei uma mensagem na fila do Codex. Alvo atual: {title or 'melhoria sem titulo'}."
+
+    if normalized in {
+        "marcar mensagem ao codex como enviada",
+        "mensagem enviada ao codex",
+        "entreguei ao codex",
+    }:
+        before = load_codex_outbox()
+        if not (before.get("pending") or []):
+            return "Nao ha mensagem pendente para marcar como enviada ao Codex."
+        outbox = mark_next_codex_message_sent()
+        pending = len(outbox.get("pending") or [])
+        return f"Registrei a entrega da mensagem ao Codex. Restam {pending} pendente(s)."
+
+    if normalized in {
+        "limpar fila do codex",
+        "zerar fila do codex",
+    }:
+        clear_codex_outbox_pending()
+        return "Limpei as mensagens pendentes da fila do Codex."
+
+    if normalized in {
+        "limpar sugestao do codex",
+        "resetar sugestao do codex",
+    }:
+        reset_codex_suggestion_memory()
+        return "Limpei a memoria da sugestao do Codex. O Axel pode avisar de novo no proximo ciclo forte."
+
+    if normalized in {
+        "inbox do codex",
+        "entrada do codex",
+        "respostas do codex",
+        "caixa de entrada do codex",
+    }:
+        inbox = load_codex_inbox()
+        items = inbox.get("items") or []
+        if not items:
+            return "A caixa de entrada do Codex ainda esta vazia."
+        latest = items[-1] if isinstance(items[-1], dict) else {}
+        kind = str(latest.get("kind", "")).strip()
+        text = str(latest.get("text", "")).strip()
+        return f"Inbox do Codex: {len(items)} resposta(s) registrada(s). Ultimo tipo: {kind or 'reply'}. Conteudo: {text or 'sem texto'}."
+
+    codex_reply = extract_tail(("codex respondeu", "resposta do codex", "registrar resposta do codex"))
+    if codex_reply:
+        add_codex_inbox_item("reply", codex_reply)
+        return "Registrei a resposta do Codex na caixa de entrada do Axel."
+
+    codex_decision = extract_tail(("decisao do codex", "decisão do codex", "codex decidiu"))
+    if codex_decision:
+        add_codex_inbox_item("decision", codex_decision)
+        return "Registrei a decisao do Codex para o Axel."
+
+    codex_next_step = extract_tail(("proximo passo do codex", "próximo passo do codex", "codex sugeriu o proximo passo", "codex sugeriu o próximo passo"))
+    if codex_next_step:
+        add_codex_inbox_item("next_step", codex_next_step)
+        return "Registrei o proximo passo sugerido pelo Codex."
+
+    if normalized in {
+        "limpar inbox do codex",
+        "limpar caixa de entrada do codex",
+        "zerar inbox do codex",
+    }:
+        clear_codex_inbox()
+        return "Limpei a caixa de entrada do Codex."
 
     return None
 
@@ -773,11 +1036,20 @@ def refresh_improvement_brain(force: bool = False):
         save_auto_advances()
         save_patch_proposals()
         sync_approval_gate()
+        sync_verification_runs()
         save_codex_request()
+        save_codex_channel()
+        sync_codex_outbox()
         save_self_evolution_plan()
         last_improvement_refresh = now
     except Exception:
         pass
+
+
+def maybe_announce_codex_suggestion(voice_mode: bool):
+    suggestion = consume_codex_suggestion()
+    if suggestion:
+        output_response(suggestion, voice_mode)
 
 
 def poll_ui_text_command() -> str:
@@ -1444,6 +1716,11 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "detalha a tela",
         "proximos avancos",
         "pedido ao codex",
+        "conversa com codex",
+        "canal com codex",
+        "sugestao do codex",
+        "fila do codex",
+        "inbox do codex",
         "plano de auto evolucao",
         "mostrar gargalos",
         "atualizar gargalos",
@@ -1452,6 +1729,11 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "proposta atual",
         "aprovar proposta atual",
         "rejeitar proposta atual",
+        "status da verificacao",
+        "verificar melhoria",
+        "melhoria funcionou",
+        "melhoria falhou",
+        "replanejar melhoria",
     }
     if normalized_candidate in protected_voice_commands or normalized_candidate.startswith("pesquisar"):
         return normalized_candidate
@@ -2010,36 +2292,49 @@ def main():
         if auto_advance_response:
             refresh_improvement_brain(force=True)
             output_response(auto_advance_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
             continue
 
         bottleneck_response = maybe_handle_bottleneck_command(user_input)
         if bottleneck_response:
             refresh_improvement_brain(force=True)
             output_response(bottleneck_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
             continue
 
         patch_proposal_response = maybe_handle_patch_proposal_command(user_input)
         if patch_proposal_response:
             refresh_improvement_brain(force=True)
             output_response(patch_proposal_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
             continue
 
         approval_gate_response = maybe_handle_approval_gate_command(user_input)
         if approval_gate_response:
             refresh_improvement_brain(force=True)
             output_response(approval_gate_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
+            continue
+
+        verification_response = maybe_handle_verification_command(user_input)
+        if verification_response:
+            refresh_improvement_brain(force=True)
+            output_response(verification_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
             continue
 
         codex_bridge_response = maybe_handle_codex_bridge_command(user_input)
         if codex_bridge_response:
             refresh_improvement_brain(force=True)
             output_response(codex_bridge_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
             continue
 
         self_evolution_response = maybe_handle_self_evolution_command(user_input)
         if self_evolution_response:
             refresh_improvement_brain(force=True)
             output_response(self_evolution_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
             continue
 
         if is_dictation_stop(user_input):

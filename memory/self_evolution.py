@@ -6,6 +6,8 @@ from pathlib import Path
 from memory.approval_gate import load_approval_gate
 from memory.auto_advances import load_auto_advances
 from memory.codex_bridge import load_codex_request
+from memory.codex_inbox import latest_codex_inbox_item
+from memory.verification_runs import load_verification_runs
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,8 +33,14 @@ def generate_self_evolution_plan() -> dict:
     advances = load_auto_advances()
     bridge = load_codex_request()
     approval = load_approval_gate()
-    current_focus = advances[0]["title"] if advances else "Lapidar a proxima melhoria"
+    verification = load_verification_runs()
+    codex_decision = latest_codex_inbox_item("decision")
+    codex_next_step = latest_codex_inbox_item("next_step")
+    current_focus = str(codex_decision.get("text", "")).strip() or str(codex_next_step.get("text", "")).strip()
+    if not current_focus:
+        current_focus = advances[0]["title"] if advances else "Lapidar a proxima melhoria"
     approval_status = str(approval.get("status", "none")).strip()
+    verification_status = str(verification.get("status", "idle")).strip()
 
     steps = [
         {
@@ -78,8 +86,20 @@ def generate_self_evolution_plan() -> dict:
         {
             "id": "verify_and_retry",
             "title": "Verificacao automatica apos cada melhoria",
-            "status": "next" if approval_status == "approved" else "planned",
-            "reason": "Toda melhoria precisa compilar, testar e comparar efeito antes de ser considerada boa.",
+            "status": (
+                "done"
+                if verification_status == "success"
+                else "next"
+                if approval_status == "approved"
+                else "planned"
+            ),
+            "reason": (
+                "A melhoria aprovada ja foi verificada e passou no ciclo de confirmacao."
+                if verification_status == "success"
+                else "A melhoria aprovada falhou na verificacao e precisa de nova tentativa."
+                if verification_status == "failed"
+                else "Toda melhoria precisa compilar, testar e comparar efeito antes de ser considerada boa."
+            ),
         },
     ]
 

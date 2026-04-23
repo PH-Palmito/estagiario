@@ -4,6 +4,8 @@ import time
 from pathlib import Path
 
 from memory.bottlenecks import load_bottlenecks
+from memory.codex_inbox import latest_codex_inbox_item
+from memory.verification_runs import load_verification_runs
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,7 +75,44 @@ def generate_auto_advances(limit: int = 6) -> list[dict]:
     pending = _load_manual_pending()
     recent = _recent_history_text()
     bottlenecks = load_bottlenecks()
+    verification = load_verification_runs()
+    codex_decision = latest_codex_inbox_item("decision")
+    codex_next_step = latest_codex_inbox_item("next_step")
     items: list[dict] = []
+
+    decision_text = str(codex_decision.get("text", "")).strip()
+    next_step_text = str(codex_next_step.get("text", "")).strip()
+
+    if decision_text:
+        _push(
+            items,
+            f"Executar decisao do Codex: {decision_text[:72]}",
+            "O Codex ja deixou uma decisao registrada na inbox do Axel e isso deve influenciar o proximo movimento do projeto.",
+            "codex-inbox",
+        )
+    elif next_step_text:
+        _push(
+            items,
+            f"Seguir proximo passo do Codex: {next_step_text[:72]}",
+            "O Codex ja sugeriu um proximo passo concreto e o Axel pode usar isso para priorizar a trilha de melhoria.",
+            "codex-inbox",
+        )
+
+    verification_status = str(verification.get("status", "idle")).strip()
+    verification_proposal = verification.get("proposal") or {}
+    verification_title = str(verification_proposal.get("title", "")).strip()
+    verification_note = str(verification.get("last_note", "")).strip()
+
+    if verification_status == "failed" and verification_title:
+        reason = f"A ultima melhoria aprovada falhou na verificacao: {verification_title}."
+        if verification_note:
+            reason += f" Observacao registrada: {verification_note}."
+        _push(
+            items,
+            f"Corrigir falha na melhoria aprovada: {verification_title}",
+            reason,
+            "verificacao",
+        )
 
     for bottleneck in bottlenecks[:2]:
         if not isinstance(bottleneck, dict):

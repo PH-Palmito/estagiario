@@ -17,7 +17,11 @@ PROFILE_PATH = MEMORY_DIR / "profile.json"
 AUTO_ADVANCES_PATH = MEMORY_DIR / "auto_advances.json"
 PATCH_PROPOSALS_PATH = MEMORY_DIR / "patch_proposals.json"
 APPROVAL_GATE_PATH = MEMORY_DIR / "approval_gate.json"
+VERIFICATION_RUNS_PATH = MEMORY_DIR / "verification_runs.json"
 CODEX_BRIDGE_PATH = MEMORY_DIR / "codex_bridge.json"
+CODEX_CHANNEL_PATH = MEMORY_DIR / "codex_channel.json"
+CODEX_OUTBOX_PATH = MEMORY_DIR / "codex_outbox.json"
+CODEX_INBOX_PATH = MEMORY_DIR / "codex_inbox.json"
 SELF_EVOLUTION_PATH = MEMORY_DIR / "self_evolution.json"
 BOTTLENECKS_PATH = MEMORY_DIR / "bottlenecks.json"
 
@@ -136,6 +140,69 @@ def _load_codex_bridge_lines(limit: int = 6) -> list[str]:
     return lines[:limit]
 
 
+def _load_codex_channel_lines(limit: int = 6) -> list[str]:
+    data = _load_json(CODEX_CHANNEL_PATH)
+    if not isinstance(data, dict):
+        return []
+    title = str(data.get("title", "")).strip()
+    trigger = str(data.get("trigger", "")).strip()
+    urgency = str(data.get("urgency", "")).strip()
+    status = str(data.get("status", "")).strip()
+    next_action = str(data.get("next_action", "")).strip()
+    should_notify = bool(data.get("should_notify"))
+    notify_reason = str(data.get("notify_reason", "")).strip()
+    lines = []
+    if title:
+        lines.append(f"Canal Codex: {title}")
+    if status:
+        lines.append(f"Estado: {status} | urgencia: {urgency or 'normal'}")
+    if should_notify:
+        lines.append("Sugestao ativa: acionar Codex")
+    if trigger:
+        lines.append(f"Gatilho: {trigger}")
+    if notify_reason and len(lines) < limit:
+        lines.append(notify_reason)
+    if next_action and len(lines) < limit:
+        lines.append(next_action)
+    return lines[:limit]
+
+
+def _load_codex_outbox_lines(limit: int = 6) -> list[str]:
+    data = _load_json(CODEX_OUTBOX_PATH)
+    if not isinstance(data, dict):
+        return []
+    pending = data.get("pending") if isinstance(data.get("pending"), list) else []
+    sent = data.get("sent") if isinstance(data.get("sent"), list) else []
+    lines = [f"Fila Codex: {len(pending)} pendente(s), {len(sent)} entregue(s)"]
+    if pending:
+        first = pending[0] if isinstance(pending[0], dict) else {}
+        title = str(first.get("title", "")).strip()
+        urgency = str(first.get("urgency", "")).strip()
+        if title:
+            lines.append(f"Proxima: {title}")
+        if urgency:
+            lines.append(f"Urgencia: {urgency}")
+    return lines[:limit]
+
+
+def _load_codex_inbox_lines(limit: int = 5) -> list[str]:
+    data = _load_json(CODEX_INBOX_PATH)
+    if not isinstance(data, dict):
+        return []
+    items = data.get("items") if isinstance(data.get("items"), list) else []
+    if not items:
+        return []
+    lines = [f"Inbox Codex: {len(items)} resposta(s) registrada(s)"]
+    latest = items[-1] if isinstance(items[-1], dict) else {}
+    kind = str(latest.get("kind", "")).strip()
+    text = str(latest.get("text", "")).strip()
+    if kind:
+        lines.append(f"Ultimo tipo: {kind}")
+    if text:
+        lines.append(text)
+    return lines[:limit]
+
+
 def _load_self_evolution_lines(limit: int = 6) -> list[str]:
     data = _load_json(SELF_EVOLUTION_PATH)
     if not isinstance(data, dict):
@@ -202,6 +269,27 @@ def _load_approval_lines(limit: int = 4) -> list[str]:
     if not title:
         return []
     lines = [f"Aprovacao: {status}", f"Proposta: {title}"]
+    if note:
+        lines.append(f"Nota: {note}")
+    return lines[:limit]
+
+
+def _load_verification_lines(limit: int = 4) -> list[str]:
+    data = _load_json(VERIFICATION_RUNS_PATH)
+    if not isinstance(data, dict):
+        return []
+    status = str(data.get("status", "idle")).strip()
+    proposal = data.get("proposal") or {}
+    title = str(proposal.get("title", "")).strip()
+    attempts = int(data.get("attempts", 0) or 0)
+    note = str(data.get("last_note", "")).strip()
+    if not title and status == "idle":
+        return []
+    lines = [f"Verificacao: {status}"]
+    if title:
+        lines.append(f"Alvo: {title}")
+    if attempts:
+        lines.append(f"Tentativas: {attempts}")
     if note:
         lines.append(f"Nota: {note}")
     return lines[:limit]
@@ -712,10 +800,26 @@ class AssistantHud:
         routines = [f"- {name}" for name in _load_routine_names()] or ["- Nenhuma rotina salva ainda."]
         macros = [f"- {name}" for name in _load_macro_names()] or ["- Nenhuma macro salva ainda."]
         todos = _load_auto_advances() or _load_todo_lines() or ["- [ ] Sem proximos avancos anotados."]
-        console_lines = _load_codex_bridge_lines(limit=4)
+        console_lines = _load_codex_channel_lines(limit=4)
+        outbox_lines = _load_codex_outbox_lines(limit=3)
+        if outbox_lines:
+            if console_lines:
+                console_lines.append("")
+            console_lines.extend(outbox_lines)
+        inbox_lines = _load_codex_inbox_lines(limit=3)
+        if inbox_lines:
+            if console_lines:
+                console_lines.append("")
+            console_lines.extend(inbox_lines)
+        bridge_lines = _load_codex_bridge_lines(limit=3)
+        if bridge_lines:
+            if console_lines:
+                console_lines.append("")
+            console_lines.extend(bridge_lines)
         bottleneck_lines = _load_bottleneck_lines(limit=3)
         patch_lines = _load_patch_proposal_lines(limit=2)
         approval_lines = _load_approval_lines(limit=3)
+        verification_lines = _load_verification_lines(limit=4)
         evolution_lines = _load_self_evolution_lines(limit=4)
         if bottleneck_lines:
             if console_lines:
@@ -729,6 +833,10 @@ class AssistantHud:
             if console_lines:
                 console_lines.append("")
             console_lines.extend(approval_lines)
+        if verification_lines:
+            if console_lines:
+                console_lines.append("")
+            console_lines.extend(verification_lines)
         if evolution_lines:
             if console_lines:
                 console_lines.append("")

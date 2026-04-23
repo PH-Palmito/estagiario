@@ -1,23 +1,18 @@
 {
   "assistant_name": "Axel",
-  "visible": true,
+  "visible": false,
   "status": "BOTAO F8",
   "mode": "comando",
   "last_heard": "plano de auto evolucao",
-  "last_response": "Não captei com precisão.",
+  "last_response": "Encerrando.",
   "last_command": "",
   "microphone": "Microfone (WO Mic Device)",
   "assistant_style": "elegante",
   "voice_profile": "faber",
-  "hotword_enabled": true,
+  "hotword_enabled": false,
   "conversation_mode": false,
   "dictation_mode": false,
   "history": [
-    {
-      "role": "user",
-      "text": "plano de auto evolucao",
-      "at": 1776909414.4825842
-    },
     {
       "role": "assistant",
       "text": "Não captei com precisão.",
@@ -52,7 +47,12 @@
       "role": "assistant",
       "text": "Não captei com precisão.",
       "at": 1776910107.7078242
+    },
+    {
+      "role": "assistant",
+      "text": "Encerrando.",
+      "at": 1776910618.628256
     }
   ],
-  "updated_at": 1776910107.7323718
+  "updated_at": 1776912101.6578467
 }
