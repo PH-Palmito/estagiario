@@ -1,5 +1,5 @@
 {
-  "generated_at": 1776910537.1673648,
+  "generated_at": 1776910553.998245,
   "goal": "Permitir que o Axel evolua o proprio projeto com supervisao e seguranca.",
   "current_focus": "Criar um planejador de auto-avanco com prioridade",
   "codex_request_title": "Criar um planejador de auto-avanco com prioridade",
@@ -37,13 +37,13 @@
     {
       "id": "approval_gate",
       "title": "Aprovacao humana antes de alterar codigo",
-      "status": "done",
-      "reason": "Ja existe uma proposta aprovada para seguir adiante com seguranca."
+      "status": "next",
+      "reason": "Auto-reescrita sem aprovacao nao e segura. O Axel precisa propor, nao impor."
     },
     {
       "id": "verify_and_retry",
       "title": "Verificacao automatica apos cada melhoria",
-      "status": "next",
+      "status": "planned",
       "reason": "Toda melhoria precisa compilar, testar e comparar efeito antes de ser considerada boa."
     }
   ]
