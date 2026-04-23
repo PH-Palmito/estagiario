@@ -16,6 +16,7 @@ MACROS_PATH = MEMORY_DIR / "macros.json"
 PROFILE_PATH = MEMORY_DIR / "profile.json"
 AUTO_ADVANCES_PATH = MEMORY_DIR / "auto_advances.json"
 PATCH_PROPOSALS_PATH = MEMORY_DIR / "patch_proposals.json"
+ACTION_CANDIDATES_PATH = MEMORY_DIR / "action_candidates.json"
 APPROVAL_GATE_PATH = MEMORY_DIR / "approval_gate.json"
 VERIFICATION_RUNS_PATH = MEMORY_DIR / "verification_runs.json"
 CODEX_BRIDGE_PATH = MEMORY_DIR / "codex_bridge.json"
@@ -256,6 +257,25 @@ def _load_patch_proposal_lines(limit: int = 3) -> list[str]:
             if files:
                 lines.append("Arquivos: " + ", ".join(str(file) for file in files[:3]))
     return lines[: max(1, limit * 2)]
+
+
+def _load_action_candidate_lines(limit: int = 4) -> list[str]:
+    data = _load_json(ACTION_CANDIDATES_PATH)
+    items = data.get("items") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        return []
+    lines = []
+    for item in items[:limit]:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title", "")).strip()
+        status = str(item.get("status", "pending")).strip()
+        files = item.get("files") or []
+        if title:
+            lines.append(f"Acao: {status} | {title}")
+            if files and len(lines) < limit:
+                lines.append("Alvos: " + ", ".join(str(file) for file in files[:3]))
+    return lines[:limit]
 
 
 def _load_approval_lines(limit: int = 4) -> list[str]:
@@ -818,6 +838,7 @@ class AssistantHud:
             console_lines.extend(bridge_lines)
         bottleneck_lines = _load_bottleneck_lines(limit=3)
         patch_lines = _load_patch_proposal_lines(limit=2)
+        action_lines = _load_action_candidate_lines(limit=3)
         approval_lines = _load_approval_lines(limit=3)
         verification_lines = _load_verification_lines(limit=4)
         evolution_lines = _load_self_evolution_lines(limit=4)
@@ -829,6 +850,10 @@ class AssistantHud:
             if console_lines:
                 console_lines.append("")
             console_lines.extend(patch_lines)
+        if action_lines:
+            if console_lines:
+                console_lines.append("")
+            console_lines.extend(action_lines)
         if approval_lines:
             if console_lines:
                 console_lines.append("")

@@ -1,0 +1,20 @@
+{
+  "generated_at": 1776941396.5006244,
+  "items": [
+    {
+      "title": "Executar proposta de patch: Lapidar robustez geral do Axel",
+      "kind": "patch_proposal",
+      "status": "pending",
+      "risk": "Baixo.",
+      "files": [
+        "main.py",
+        "ui/assistant_hud.py"
+      ],
+      "steps": [
+        "Continuar instrumentando o historico para detectar melhor os proximos pontos fracos.",
+        "Manter a ponte com o Codex atualizada com dados do uso recente."
+      ],
+      "source": "patch-proposals"
+    }
+  ]
+}

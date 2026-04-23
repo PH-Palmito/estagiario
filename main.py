@@ -16,6 +16,12 @@ from core.validator import validate_command
 from core.voice_command_classifier import normalize_voice_command
 from llm.chat import chat_response, clear_chat_history
 from memory.approval_gate import approve_current_proposal, load_approval_gate, reject_current_proposal, sync_approval_gate
+from memory.action_candidates import (
+    approve_first_action_candidate,
+    load_action_candidates,
+    reject_first_action_candidate,
+    save_action_candidates,
+)
 from memory.auto_advances import load_auto_advances, save_auto_advances
 from memory.bottlenecks import load_bottlenecks, save_bottlenecks
 from memory.codex_bridge import load_codex_request, save_codex_request
@@ -664,6 +670,70 @@ def maybe_handle_patch_proposal_command(user_input: str) -> str | None:
     return None
 
 
+def maybe_handle_action_candidate_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "gerar acoes candidatas",
+        "atualizar acoes candidatas",
+        "gerar acoes do axel",
+    }:
+        items = save_action_candidates()
+        if not items:
+            return "Ainda nao encontrei acoes candidatas para estruturar."
+        top = str(items[0].get("title", "")).strip()
+        return f"Atualizei as acoes candidatas do Axel. Primeira acao: {top}."
+
+    if normalized in {
+        "acoes candidatas",
+        "mostrar acoes candidatas",
+        "acoes do axel",
+        "qual a proxima acao candidata",
+    }:
+        items = load_action_candidates()
+        if not items:
+            return "Ainda nao ha acoes candidatas."
+        parts = []
+        for index, item in enumerate(items[:3], start=1):
+            title = str(item.get("title", "")).strip()
+            status = str(item.get("status", "pending")).strip()
+            files = item.get("files") or []
+            if title:
+                files_text = ", ".join(str(file) for file in files[:3])
+                parts.append(f"{index}. {title}. Status: {status}. Alvos: {files_text}")
+        return "Acoes candidatas: " + "; ".join(parts)
+
+    if normalized in {
+        "aprovar acao candidata",
+        "aprovar primeira acao",
+        "aprovar acao do axel",
+    }:
+        item = approve_first_action_candidate()
+        title = str(item.get("title", "")).strip()
+        if not title:
+            return "Nao encontrei acao candidata para aprovar."
+        return f"Acao candidata aprovada: {title}. Ainda nao executei; deixei pronta para aplicacao supervisionada."
+
+    if normalized in {
+        "rejeitar acao candidata",
+        "rejeitar primeira acao",
+        "rejeitar acao do axel",
+    }:
+        item = reject_first_action_candidate()
+        title = str(item.get("title", "")).strip()
+        if not title:
+            return "Nao encontrei acao candidata para rejeitar."
+        return f"Acao candidata rejeitada: {title}."
+
+    if normalized in {
+        "executar acao candidata",
+        "executar primeira acao",
+    }:
+        return "Ainda nao executo acao candidata sozinho. O caminho seguro e aprovar, levar ao Codex e verificar o resultado."
+
+    return None
+
+
 def maybe_handle_approval_gate_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
 
@@ -1035,6 +1105,7 @@ def refresh_improvement_brain(force: bool = False):
         save_bottlenecks()
         save_auto_advances()
         save_patch_proposals()
+        save_action_candidates()
         sync_approval_gate()
         sync_verification_runs()
         save_codex_request()
@@ -1726,6 +1797,8 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "atualizar gargalos",
         "propostas de patch",
         "mostrar propostas de patch",
+        "acoes candidatas",
+        "mostrar acoes candidatas",
         "proposta atual",
         "aprovar proposta atual",
         "rejeitar proposta atual",
@@ -2306,6 +2379,13 @@ def main():
         if patch_proposal_response:
             refresh_improvement_brain(force=True)
             output_response(patch_proposal_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
+            continue
+
+        action_candidate_response = maybe_handle_action_candidate_command(user_input)
+        if action_candidate_response:
+            refresh_improvement_brain(force=True)
+            output_response(action_candidate_response, voice_mode)
             maybe_announce_codex_suggestion(voice_mode)
             continue
 

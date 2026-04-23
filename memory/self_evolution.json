@@ -1,8 +1,8 @@
 {
-  "generated_at": 1776912142.0769026,
+  "generated_at": 1776941388.1835167,
   "goal": "Permitir que o Axel evolua o proprio projeto com supervisao e seguranca.",
-  "current_focus": "Priorizar robustez do entendimento de comandos curtos.",
-  "codex_request_title": "Criar um planejador de auto-avanco com prioridade",
+  "current_focus": "Executar decisao do Codex: Priorizar robustez do entendimento de comandos curtos.",
+  "codex_request_title": "Lapidar robustez geral do Axel",
   "steps": [
     {
       "id": "hud_runtime_state",
@@ -45,6 +45,12 @@
       "title": "Verificacao automatica apos cada melhoria",
       "status": "planned",
       "reason": "Toda melhoria precisa compilar, testar e comparar efeito antes de ser considerada boa."
+    },
+    {
+      "id": "action_candidates",
+      "title": "Acoes candidatas antes de executar mudancas",
+      "status": "done",
+      "reason": "O Axel ja consegue transformar orientacoes em acoes candidatas com arquivos alvo."
     }
   ]
 }

@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 from memory.approval_gate import load_approval_gate
+from memory.action_candidates import load_action_candidates
 from memory.auto_advances import load_auto_advances
 from memory.codex_bridge import load_codex_request
 from memory.codex_inbox import latest_codex_inbox_item
@@ -34,6 +35,7 @@ def generate_self_evolution_plan() -> dict:
     bridge = load_codex_request()
     approval = load_approval_gate()
     verification = load_verification_runs()
+    action_candidates = load_action_candidates()
     codex_decision = latest_codex_inbox_item("decision")
     codex_next_step = latest_codex_inbox_item("next_step")
     current_focus = str(codex_decision.get("text", "")).strip() or str(codex_next_step.get("text", "")).strip()
@@ -99,6 +101,16 @@ def generate_self_evolution_plan() -> dict:
                 else "A melhoria aprovada falhou na verificacao e precisa de nova tentativa."
                 if verification_status == "failed"
                 else "Toda melhoria precisa compilar, testar e comparar efeito antes de ser considerada boa."
+            ),
+        },
+        {
+            "id": "action_candidates",
+            "title": "Acoes candidatas antes de executar mudancas",
+            "status": "done" if action_candidates else "planned",
+            "reason": (
+                "O Axel ja consegue transformar orientacoes em acoes candidatas com arquivos alvo."
+                if action_candidates
+                else "O Axel ainda precisa converter decisoes em passos concretos antes de alterar codigo."
             ),
         },
     ]
