@@ -20,6 +20,7 @@ ACTION_CANDIDATES_PATH = MEMORY_DIR / "action_candidates.json"
 EXECUTION_PACKAGES_PATH = MEMORY_DIR / "execution_packages.json"
 IMPLEMENTATION_HANDOFF_PATH = MEMORY_DIR / "implementation_handoff.json"
 HANDOFF_APPLICATIONS_PATH = MEMORY_DIR / "handoff_applications.json"
+HANDOFF_VALIDATION_PATH = MEMORY_DIR / "handoff_validation.json"
 CODEX_IMPLEMENTATION_REQUEST_PATH = MEMORY_DIR / "codex_implementation_request.json"
 APPROVAL_GATE_PATH = MEMORY_DIR / "approval_gate.json"
 VERIFICATION_RUNS_PATH = MEMORY_DIR / "verification_runs.json"
@@ -331,6 +332,23 @@ def _load_handoff_application_lines(limit: int = 4) -> list[str]:
         lines.append(f"Handoff: {title}")
     if note:
         lines.append(f"Nota: {note}")
+    return lines[:limit]
+
+
+def _load_handoff_validation_lines(limit: int = 4) -> list[str]:
+    data = _load_json(HANDOFF_VALIDATION_PATH)
+    if not isinstance(data, dict):
+        return []
+    status = str(data.get("status", "")).strip()
+    title = str(data.get("title", "")).strip()
+    checklist = data.get("checklist") if isinstance(data.get("checklist"), list) else []
+    if not status or status == "blocked":
+        return []
+    lines = [f"Validacao: {status}"]
+    if title:
+        lines.append(f"Alvo: {title}")
+    if checklist:
+        lines.append("Teste: " + str(checklist[0])[:96])
     return lines[:limit]
 
 
@@ -915,6 +933,7 @@ class AssistantHud:
         execution_lines = _load_execution_package_lines(limit=3)
         handoff_lines = _load_implementation_handoff_lines(limit=3)
         application_lines = _load_handoff_application_lines(limit=3)
+        handoff_validation_lines = _load_handoff_validation_lines(limit=3)
         implementation_request_lines = _load_codex_implementation_request_lines(limit=3)
         approval_lines = _load_approval_lines(limit=3)
         verification_lines = _load_verification_lines(limit=4)
@@ -943,6 +962,10 @@ class AssistantHud:
             if console_lines:
                 console_lines.append("")
             console_lines.extend(application_lines)
+        if handoff_validation_lines:
+            if console_lines:
+                console_lines.append("")
+            console_lines.extend(handoff_validation_lines)
         if implementation_request_lines:
             if console_lines:
                 console_lines.append("")

@@ -8,7 +8,9 @@ from memory.action_candidates import load_action_candidates
 from memory.auto_advances import load_auto_advances
 from memory.codex_bridge import load_codex_request
 from memory.codex_implementation_request import load_codex_implementation_request
+from memory.codex_outbox import load_codex_outbox
 from memory.handoff_applications import load_handoff_application
+from memory.handoff_validation import load_handoff_validation
 from memory.codex_inbox import latest_codex_inbox_item
 from memory.verification_runs import load_verification_runs
 
@@ -39,7 +41,9 @@ def generate_self_evolution_plan() -> dict:
     verification = load_verification_runs()
     action_candidates = load_action_candidates()
     handoff_application = load_handoff_application()
+    handoff_validation = load_handoff_validation()
     implementation_request = load_codex_implementation_request()
+    outbox = load_codex_outbox()
     codex_decision = latest_codex_inbox_item("decision")
     codex_next_step = latest_codex_inbox_item("next_step")
     current_focus = str(codex_decision.get("text", "")).strip() or str(codex_next_step.get("text", "")).strip()
@@ -48,7 +52,18 @@ def generate_self_evolution_plan() -> dict:
     approval_status = str(approval.get("status", "none")).strip()
     verification_status = str(verification.get("status", "idle")).strip()
     application_status = str(handoff_application.get("status", "blocked")).strip()
+    handoff_validation_status = str(handoff_validation.get("status", "blocked")).strip()
     implementation_request_status = str(implementation_request.get("status", "blocked")).strip()
+    outbox_items = list(outbox.get("pending", [])) + list(outbox.get("sent", []))
+    implementation_outbox_status = "planned"
+    for item in outbox_items:
+        if not isinstance(item, dict):
+            continue
+        kind = str(item.get("kind", "")).strip()
+        message_key = str(item.get("message_key", "")).strip()
+        if kind == "implementation_request" or message_key.startswith("implementation:"):
+            implementation_outbox_status = "done" if item in outbox.get("sent", []) else "next"
+            break
 
     steps = [
         {
@@ -149,6 +164,36 @@ def generate_self_evolution_plan() -> dict:
                 "O Axel ja consegue gerar uma mensagem objetiva para o Codex aplicar o handoff."
                 if implementation_request_status == "ready_for_codex"
                 else "Quando houver handoff pronto, o Axel deve gerar uma mensagem limpa para implementacao."
+            ),
+        },
+        {
+            "id": "codex_implementation_outbox",
+            "title": "Fila supervisionada de implementacao para o Codex",
+            "status": implementation_outbox_status,
+            "reason": (
+                "O pedido de implementacao ja foi marcado como entregue ao Codex."
+                if implementation_outbox_status == "done"
+                else "O pedido de implementacao esta na fila e aguarda entrega ao Codex."
+                if implementation_outbox_status == "next"
+                else "Depois de gerar o pedido, o Axel ainda precisa coloca-lo na fila supervisionada."
+            ),
+        },
+        {
+            "id": "handoff_validation_checklist",
+            "title": "Checklist de validacao apos aplicacao",
+            "status": (
+                "done"
+                if application_status == "validated"
+                else "next"
+                if handoff_validation_status == "ready"
+                else "planned"
+            ),
+            "reason": (
+                "A aplicacao ja foi validada pelo operador."
+                if application_status == "validated"
+                else "O Axel ja tem um roteiro objetivo para validar a melhoria aplicada."
+                if handoff_validation_status == "ready"
+                else "Quando o Codex aplicar o handoff, o Axel deve guiar a validacao no uso real."
             ),
         },
     ]

@@ -50,6 +50,7 @@ from memory.handoff_applications import (
     mark_handoff_validated,
     sync_handoff_application,
 )
+from memory.handoff_validation import load_handoff_validation, save_handoff_validation
 from memory.macros import add_macro
 from memory.patch_proposals import load_patch_proposals, save_patch_proposals
 from memory.piper_voice_manager import (
@@ -916,6 +917,43 @@ def maybe_handle_handoff_application_command(user_input: str) -> str | None:
     return None
 
 
+def maybe_handle_handoff_validation_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "como validar handoff",
+        "validar handoff",
+        "checklist do handoff",
+        "checklist de validacao",
+        "validacao do handoff",
+        "validacao da aplicacao",
+    }:
+        payload = save_handoff_validation()
+        status = str(payload.get("status", "")).strip()
+        title = str(payload.get("title", "")).strip()
+        checklist = payload.get("checklist") or []
+        if status == "blocked":
+            return "Ainda nao ha handoff aplicado para validar."
+        summary = "; ".join(str(item) for item in checklist[:4])
+        return f"Checklist para validar {title}: {summary}."
+
+    if normalized in {
+        "mostrar checklist do handoff",
+        "mostrar validacao do handoff",
+        "mostrar roteiro de validacao",
+    }:
+        payload = load_handoff_validation()
+        status = str(payload.get("status", "")).strip()
+        title = str(payload.get("title", "")).strip()
+        checklist = payload.get("checklist") or []
+        if status == "blocked":
+            return "O roteiro de validacao ainda esta bloqueado. Primeiro o Codex precisa aplicar o handoff."
+        summary = "; ".join(str(item) for item in checklist[:6])
+        return f"Roteiro de validacao para {title}: {summary}."
+
+    return None
+
+
 def maybe_handle_codex_implementation_request_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
 
@@ -1232,6 +1270,10 @@ def maybe_handle_codex_bridge_command(user_input: str) -> str | None:
             return "Nao ha mensagem pendente para marcar como enviada ao Codex."
         outbox = mark_next_codex_message_sent()
         pending = len(outbox.get("pending") or [])
+        latest_sent = (outbox.get("sent") or [])[-1] if outbox.get("sent") else {}
+        if isinstance(latest_sent, dict) and str(latest_sent.get("kind", "")).strip() == "implementation_request":
+            mark_handoff_started("pedido de implementacao entregue ao Codex")
+            return f"Registrei a entrega do pedido de implementacao ao Codex. Restam {pending} pendente(s)."
         return f"Registrei a entrega da mensagem ao Codex. Restam {pending} pendente(s)."
 
     if normalized in {
@@ -1277,6 +1319,35 @@ def maybe_handle_codex_bridge_command(user_input: str) -> str | None:
     if codex_next_step:
         add_codex_inbox_item("next_step", codex_next_step)
         return "Registrei o proximo passo sugerido pelo Codex."
+
+    codex_applied = extract_tail((
+        "codex aplicou",
+        "codex implementou",
+        "codex concluiu",
+        "codex terminou",
+        "resultado do codex",
+    ))
+    if codex_applied:
+        add_codex_inbox_item("implementation_applied", codex_applied)
+        state = mark_handoff_applied(codex_applied)
+        title = str((state.get("handoff") or {}).get("title", "")).strip()
+        if title:
+            return f"Registrei que o Codex aplicou o handoff: {title}. Agora falta validar no uso real."
+        return "Registrei que o Codex aplicou uma implementacao."
+
+    codex_failed = extract_tail((
+        "codex falhou",
+        "codex nao conseguiu",
+        "falha do codex",
+        "erro do codex",
+    ))
+    if codex_failed:
+        add_codex_inbox_item("implementation_failed", codex_failed)
+        state = mark_handoff_failed(codex_failed)
+        title = str((state.get("handoff") or {}).get("title", "")).strip()
+        if title:
+            return f"Registrei falha do Codex no handoff: {title}. Isso entra na proxima tentativa."
+        return "Registrei uma falha de implementacao do Codex."
 
     if normalized in {
         "limpar inbox do codex",
@@ -1342,6 +1413,7 @@ def refresh_improvement_brain(force: bool = False):
         save_execution_package()
         save_implementation_handoff()
         sync_handoff_application()
+        save_handoff_validation()
         save_codex_implementation_request()
         sync_approval_gate()
         sync_verification_runs()
@@ -2029,6 +2101,9 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "sugestao do codex",
         "fila do codex",
         "inbox do codex",
+        "codex aplicou",
+        "codex implementou",
+        "codex falhou",
         "plano de auto evolucao",
         "mostrar gargalos",
         "atualizar gargalos",
@@ -2046,6 +2121,9 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "handoff falhou",
         "handoff validado",
         "aplicacao validada",
+        "como validar handoff",
+        "validar handoff",
+        "checklist do handoff",
         "preparar pedido de implementacao",
         "gerar pedido de implementacao",
         "pedido de implementacao ao codex",
@@ -2064,7 +2142,11 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "melhoria falhou",
         "replanejar melhoria",
     }
-    if normalized_candidate in protected_voice_commands or normalized_candidate.startswith("pesquisar"):
+    if (
+        normalized_candidate in protected_voice_commands
+        or normalized_candidate.startswith("pesquisar")
+        or normalized_candidate.startswith(("codex aplicou", "codex implementou", "codex falhou"))
+    ):
         return normalized_candidate
 
     raw_action = route(user_input)
@@ -2663,6 +2745,13 @@ def main():
         if handoff_application_response:
             refresh_improvement_brain(force=True)
             output_response(handoff_application_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
+            continue
+
+        handoff_validation_response = maybe_handle_handoff_validation_command(user_input)
+        if handoff_validation_response:
+            refresh_improvement_brain(force=True)
+            output_response(handoff_validation_response, voice_mode)
             maybe_announce_codex_suggestion(voice_mode)
             continue
 
