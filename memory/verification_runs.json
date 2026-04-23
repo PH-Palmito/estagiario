@@ -1,6 +1,6 @@
 {
-  "generated_at": 1776911767.7561877,
-  "status": "idle",
+  "generated_at": 1776944136.8355842,
+  "status": "success",
   "proposal_key": "lapidar robustez geral do axel|main.py,ui/assistant_hud.py",
   "proposal": {
     "kind": "general",
@@ -18,11 +18,11 @@
     "risk": "Baixo.",
     "examples": []
   },
-  "approval_status": "pending",
-  "last_result": "",
+  "approval_status": "approved",
+  "last_result": "success",
   "last_note": "",
-  "last_checked_at": 0.0,
-  "attempts": 0,
+  "last_checked_at": 1776944292.530112,
+  "attempts": 1,
   "checklist": [
     "Compilar ou carregar os arquivos alterados sem erro.",
     "Validar o fluxo principal relacionado ao gargalo.",

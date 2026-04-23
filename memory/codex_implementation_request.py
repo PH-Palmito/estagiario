@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 from memory.handoff_applications import load_handoff_application
+from memory.handoff_retry_plan import load_handoff_retry_plan
 from memory.implementation_handoff import load_implementation_handoff
 
 
@@ -31,7 +32,67 @@ def _bullet_lines(items: list[str]) -> list[str]:
     return [f"- {item}" for item in items if str(item).strip()]
 
 
+def _request_from_retry_plan(retry: dict) -> dict:
+    title = str(retry.get("title", "")).strip()
+    files = [str(file) for file in retry.get("files", []) if str(file).strip()]
+    evidence = [str(item) for item in retry.get("evidence", []) if str(item).strip()]
+    steps = [str(item) for item in retry.get("steps", []) if str(item).strip()]
+    validation = [str(item) for item in retry.get("validation", []) if str(item).strip()]
+
+    prompt_lines = [
+        "Codex, aplique uma nova tentativa para corrigir um handoff que falhou no projeto Axel.",
+        "",
+        f"Objetivo: {title}.",
+        "Contexto: a tentativa anterior falhou ou ficou incompleta; use as evidencias abaixo antes de editar.",
+    ]
+
+    if evidence:
+        prompt_lines.extend(["", "Evidencias da falha:"])
+        prompt_lines.extend(_bullet_lines(evidence))
+
+    if files:
+        prompt_lines.extend(["", "Arquivos alvo:"])
+        prompt_lines.extend(_bullet_lines(files))
+
+    if steps:
+        prompt_lines.extend(["", "Plano de nova tentativa:"])
+        prompt_lines.extend(_bullet_lines(steps))
+
+    if validation:
+        prompt_lines.extend(["", "Validacao sugerida:"])
+        prompt_lines.extend(_bullet_lines(validation))
+
+    prompt_lines.extend(
+        [
+            "",
+            "Regras:",
+            "- Reproduza ou explique a falha antes de corrigir.",
+            "- Aplique um patch menor e mais especifico que a tentativa anterior.",
+            "- Preserve mudancas existentes do usuario.",
+            "- Ao terminar, diga o que mudou, como validou e qual risco ainda resta.",
+        ]
+    )
+
+    prompt = "\n".join(prompt_lines)
+    return {
+        "generated_at": time.time(),
+        "status": "ready_for_codex",
+        "source": "handoff_retry_plan",
+        "title": title,
+        "files": files,
+        "risk": "Medio. Nova tentativa apos falha registrada.",
+        "application_status": "failed",
+        "validation": validation,
+        "prompt": prompt,
+        "message": "Pedido de nova tentativa pronto para enviar ao Codex.",
+    }
+
+
 def generate_codex_implementation_request() -> dict:
+    retry = load_handoff_retry_plan()
+    if retry.get("status") == "ready_for_codex":
+        return _request_from_retry_plan(retry)
+
     handoff = load_implementation_handoff()
     application = load_handoff_application()
 
@@ -94,6 +155,7 @@ def generate_codex_implementation_request() -> dict:
     return {
         "generated_at": time.time(),
         "status": "ready_for_codex",
+        "source": "implementation_handoff",
         "title": title,
         "files": files,
         "risk": risk,

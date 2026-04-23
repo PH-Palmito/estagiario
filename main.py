@@ -50,6 +50,7 @@ from memory.handoff_applications import (
     mark_handoff_validated,
     sync_handoff_application,
 )
+from memory.handoff_retry_plan import load_handoff_retry_plan, save_handoff_retry_plan
 from memory.handoff_validation import load_handoff_validation, save_handoff_validation
 from memory.macros import add_macro
 from memory.patch_proposals import load_patch_proposals, save_patch_proposals
@@ -115,6 +116,7 @@ direct_response_ready_announced = False
 last_voice_text = ""
 ui_hud_started = False
 last_improvement_refresh = 0.0
+UI_HISTORY_MAX_ITEMS = 40
 
 creating_macro = False
 macro_name = None
@@ -349,7 +351,7 @@ def style_response(message: str) -> str:
 def output_response(message: str, voice_mode: bool):
     styled_message = style_response(message)
     terminal_print(f"IA: {styled_message}")
-    append_ui_history("assistant", styled_message)
+    append_ui_history("assistant", styled_message, max_items=UI_HISTORY_MAX_ITEMS)
     refresh_ui_runtime_state({"last_response": styled_message})
     refresh_improvement_brain()
 
@@ -731,6 +733,36 @@ def maybe_handle_action_candidate_command(user_input: str) -> str | None:
         return f"Acao candidata aprovada: {title}. Ainda nao executei; deixei pronta para aplicacao supervisionada."
 
     if normalized in {
+        "aprovar proximo avanco",
+        "aprovar proximo avanço",
+        "aprovar e preparar proximo avanco",
+        "aprovar e preparar proximo avanço",
+        "aprovar proximo passo",
+        "preparar proximo avanco aprovado",
+        "preparar proximo avanço aprovado",
+    }:
+        proposal_state = approve_current_proposal("aprovado pelo operador para preparacao supervisionada")
+        candidate = approve_first_action_candidate("aprovado pelo operador para preparacao supervisionada")
+        package = save_execution_package()
+        handoff = save_implementation_handoff()
+        sync_handoff_application()
+        request = save_codex_implementation_request()
+
+        proposal_title = str((proposal_state.get("proposal") or {}).get("title", "")).strip()
+        candidate_title = str(candidate.get("title", "")).strip()
+        title = candidate_title or proposal_title
+        if not title:
+            return "Nao encontrei um proximo avanco para aprovar."
+
+        package_status = str(package.get("status", "")).strip()
+        handoff_status = str(handoff.get("status", "")).strip()
+        request_status = str(request.get("status", "")).strip()
+        return (
+            f"Aprovei e preparei o proximo avanco: {title}. "
+            f"Pacote: {package_status}; handoff: {handoff_status}; pedido ao Codex: {request_status}."
+        )
+
+    if normalized in {
         "rejeitar acao candidata",
         "rejeitar primeira acao",
         "rejeitar acao do axel",
@@ -954,6 +986,46 @@ def maybe_handle_handoff_validation_command(user_input: str) -> str | None:
     return None
 
 
+def maybe_handle_handoff_retry_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "plano de nova tentativa",
+        "nova tentativa do handoff",
+        "replanejar handoff",
+        "corrigir handoff",
+        "preparar nova tentativa",
+        "preparar nova tentativa para codex",
+    }:
+        payload = save_handoff_retry_plan()
+        status = str(payload.get("status", "")).strip()
+        title = str(payload.get("title", "")).strip()
+        evidence = payload.get("evidence") or []
+        if status == "blocked":
+            return "Ainda nao ha uma falha de handoff forte o suficiente para montar nova tentativa."
+        request = save_codex_implementation_request()
+        clue = str(evidence[0]) if evidence else "falha registrada no handoff"
+        if request.get("source") == "handoff_retry_plan":
+            return f"Plano de nova tentativa pronto para o Codex: {title}. Principal pista: {clue}."
+        return f"Plano de nova tentativa pronto: {title}. Principal pista: {clue}."
+
+    if normalized in {
+        "mostrar plano de nova tentativa",
+        "mostrar tentativa do handoff",
+        "mostrar replanejamento do handoff",
+    }:
+        payload = load_handoff_retry_plan()
+        status = str(payload.get("status", "")).strip()
+        title = str(payload.get("title", "")).strip()
+        steps = payload.get("steps") or []
+        if status == "blocked":
+            return "O plano de nova tentativa ainda esta bloqueado. Primeiro registre uma falha do handoff."
+        summary = "; ".join(str(item) for item in steps[:4])
+        return f"Nova tentativa para {title}: {summary}."
+
+    return None
+
+
 def maybe_handle_codex_implementation_request_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
 
@@ -992,6 +1064,8 @@ def maybe_handle_codex_implementation_request_command(user_input: str) -> str | 
         "colocar pedido de implementacao na fila",
         "colocar pedido na fila do codex",
         "mandar pedido para o codex",
+        "enviar nova tentativa ao codex",
+        "mandar nova tentativa para o codex",
     }:
         payload = save_codex_implementation_request()
         if payload.get("status") == "blocked":
@@ -1363,6 +1437,15 @@ def maybe_handle_codex_bridge_command(user_input: str) -> str | None:
 def maybe_handle_self_evolution_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
 
+    def summarize_plan_counts(plan: dict) -> tuple[int, int, int, int, list[dict]]:
+        steps = plan.get("steps") or []
+        steps = steps if isinstance(steps, list) else []
+        done = sum(1 for step in steps if isinstance(step, dict) and step.get("status") == "done")
+        next_items = [step for step in steps if isinstance(step, dict) and step.get("status") == "next"]
+        planned = sum(1 for step in steps if isinstance(step, dict) and step.get("status") == "planned")
+        left = max(0, len(steps) - done)
+        return len(steps), done, left, planned, next_items
+
     if normalized in {
         "plano de auto evolucao",
         "mostrar plano de auto evolucao",
@@ -1384,6 +1467,63 @@ def maybe_handle_self_evolution_command(user_input: str) -> str | None:
         focus = str(plan.get("current_focus", "")).strip()
         prefix = f"Foco atual: {focus}. " if focus else ""
         return prefix + "Plano de auto evolucao do Axel: " + "; ".join(lines)
+
+    if normalized in {
+        "quantos passos faltam",
+        "quantos passos faltam para auto evolucao",
+        "status da auto evolucao",
+        "progresso da auto evolucao",
+        "andamento da auto evolucao",
+    }:
+        plan = save_self_evolution_plan()
+        total, done, left, planned, next_items = summarize_plan_counts(plan)
+        next_title = str((next_items[0] if next_items else {}).get("title", "")).strip()
+        suffix = f" Proximo passo: {next_title}." if next_title else ""
+        return f"Auto evolucao do Axel: {done}/{total} passos concluidos. Faltam {left}; {planned} ainda planejados.{suffix}"
+
+    if normalized in {
+        "listar passos faltantes",
+        "mostrar passos faltantes",
+        "quais passos faltam",
+        "passos restantes",
+        "passos que faltam",
+    }:
+        plan = save_self_evolution_plan()
+        missing = [
+            step
+            for step in plan.get("steps", [])
+            if isinstance(step, dict) and step.get("status") != "done"
+        ]
+        if not missing:
+            return "Todos os passos conhecidos da auto evolucao estao concluidos."
+        parts = []
+        for index, step in enumerate(missing[:8], start=1):
+            status = str(step.get("status", "planned")).strip()
+            title = str(step.get("title", "")).strip()
+            if title:
+                parts.append(f"{index}. {status}: {title}")
+        return "Passos faltantes: " + "; ".join(parts)
+
+    if normalized in {
+        "proximo passo da auto evolucao",
+        "qual o proximo passo",
+        "qual o proximo passo da auto evolucao",
+        "avancar auto evolucao",
+    }:
+        plan = save_self_evolution_plan()
+        _, _, _, _, next_items = summarize_plan_counts(plan)
+        if next_items:
+            step = next_items[0]
+        else:
+            planned_items = [item for item in plan.get("steps", []) if isinstance(item, dict) and item.get("status") == "planned"]
+            step = planned_items[0] if planned_items else {}
+        title = str(step.get("title", "")).strip()
+        reason = str(step.get("reason", "")).strip()
+        if title and reason:
+            return f"Proximo passo da auto evolucao: {title}. Motivo: {reason}"
+        if title:
+            return f"Proximo passo da auto evolucao: {title}."
+        return "Todos os passos conhecidos da auto evolucao estao concluidos ou sem proximo item definido."
 
     if normalized in {
         "atualizar plano de auto evolucao",
@@ -1414,6 +1554,7 @@ def refresh_improvement_brain(force: bool = False):
         save_implementation_handoff()
         sync_handoff_application()
         save_handoff_validation()
+        save_handoff_retry_plan()
         save_codex_implementation_request()
         sync_approval_gate()
         sync_verification_runs()
@@ -1437,7 +1578,7 @@ def poll_ui_text_command() -> str:
     if not queued:
         return ""
 
-    append_ui_history("user", queued)
+    append_ui_history("user", queued, max_items=UI_HISTORY_MAX_ITEMS)
     refresh_ui_runtime_state({"last_heard": queued})
     return queued
 
@@ -2045,7 +2186,7 @@ def read_user_input(
     if not voice_mode:
         typed = terminal_input("Voce: ")
         if typed:
-            append_ui_history("user", typed)
+            append_ui_history("user", typed, max_items=UI_HISTORY_MAX_ITEMS)
             refresh_ui_runtime_state({"last_heard": typed})
         return typed
 
@@ -2059,7 +2200,7 @@ def read_user_input(
         if ignored_text_filter and ignored_text_filter(text):
             return ""
         terminal_print(f"Voce (voz): {text}")
-        append_ui_history("user", text)
+        append_ui_history("user", text, max_items=UI_HISTORY_MAX_ITEMS)
         refresh_ui_runtime_state({"last_heard": text})
         return text
 
@@ -2076,7 +2217,7 @@ def read_user_input(
 
     typed = terminal_input("Voce (texto): ")
     if typed:
-        append_ui_history("user", typed)
+        append_ui_history("user", typed, max_items=UI_HISTORY_MAX_ITEMS)
         refresh_ui_runtime_state({"last_heard": typed})
     return typed
 
@@ -2105,12 +2246,23 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "codex implementou",
         "codex falhou",
         "plano de auto evolucao",
+        "quantos passos faltam",
+        "status da auto evolucao",
+        "progresso da auto evolucao",
+        "listar passos faltantes",
+        "mostrar passos faltantes",
+        "passos restantes",
+        "proximo passo da auto evolucao",
         "mostrar gargalos",
         "atualizar gargalos",
         "propostas de patch",
         "mostrar propostas de patch",
         "acoes candidatas",
         "mostrar acoes candidatas",
+        "aprovar proximo avanco",
+        "aprovar proximo avanço",
+        "aprovar e preparar proximo avanco",
+        "aprovar e preparar proximo avanço",
         "pacote de execucao",
         "mostrar pacote de execucao",
         "handoff",
@@ -2124,6 +2276,10 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "como validar handoff",
         "validar handoff",
         "checklist do handoff",
+        "plano de nova tentativa",
+        "replanejar handoff",
+        "preparar nova tentativa",
+        "preparar nova tentativa para codex",
         "preparar pedido de implementacao",
         "gerar pedido de implementacao",
         "pedido de implementacao ao codex",
@@ -2133,6 +2289,8 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "enviar pedido de implementacao ao codex",
         "colocar pedido na fila do codex",
         "mandar pedido para o codex",
+        "enviar nova tentativa ao codex",
+        "mandar nova tentativa para o codex",
         "proposta atual",
         "aprovar proposta atual",
         "rejeitar proposta atual",
@@ -2570,6 +2728,7 @@ def main():
 
     while True:
         try:
+            inline_command = ""
             queued_user_input = poll_ui_text_command()
             if queued_user_input:
                 terminal_print(f"Voce (painel): {queued_user_input}")
@@ -2645,7 +2804,7 @@ def main():
             if not direct_response_mode and not conversation_listen_mode and not dictation_listen_mode and voice_mode and hotword_mode and inline_command:
                 terminal_print(f"Voce (voz): {inline_command}")
                 user_input = inline_command
-            elif not direct_response_mode and not conversation_listen_mode and not dictation_listen_mode:
+            elif not queued_user_input and not direct_response_mode and not conversation_listen_mode and not dictation_listen_mode:
                 user_input = read_user_input(
                     voice_mode,
                     announce_ready=not hotword_mode,
@@ -2752,6 +2911,13 @@ def main():
         if handoff_validation_response:
             refresh_improvement_brain(force=True)
             output_response(handoff_validation_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
+            continue
+
+        handoff_retry_response = maybe_handle_handoff_retry_command(user_input)
+        if handoff_retry_response:
+            refresh_improvement_brain(force=True)
+            output_response(handoff_retry_response, voice_mode)
             maybe_announce_codex_suggestion(voice_mode)
             continue
 

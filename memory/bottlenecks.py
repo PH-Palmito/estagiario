@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 from collections import Counter
 from pathlib import Path
 
@@ -35,6 +36,9 @@ def _history() -> list[dict]:
 
 def _normalize(text: str) -> str:
     text = str(text or "").strip().lower()
+    text = "".join(
+        char for char in unicodedata.normalize("NFKD", text) if not unicodedata.combining(char)
+    )
     text = re.sub(r"\s+", " ", text)
     return text
 
@@ -54,10 +58,14 @@ def _classify(message: str) -> tuple[str, str, str] | None:
 
     if any(fragment in normalized for fragment in {
         "nao captei com precisao",
+        "n?o captei com precis?o",
         "nao entendi",
+        "n?o entendi",
         "pode repetir",
         "nao identifiquei o comando",
+        "n?o identifiquei o comando",
         "esse comando nao ficou claro",
+        "esse comando n?o ficou claro",
     }):
         return (
             "voice_understanding",
@@ -170,4 +178,3 @@ def load_bottlenecks() -> list[dict]:
     if isinstance(items, list) and items:
         return items
     return save_bottlenecks()
-

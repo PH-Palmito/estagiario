@@ -21,6 +21,7 @@ EXECUTION_PACKAGES_PATH = MEMORY_DIR / "execution_packages.json"
 IMPLEMENTATION_HANDOFF_PATH = MEMORY_DIR / "implementation_handoff.json"
 HANDOFF_APPLICATIONS_PATH = MEMORY_DIR / "handoff_applications.json"
 HANDOFF_VALIDATION_PATH = MEMORY_DIR / "handoff_validation.json"
+HANDOFF_RETRY_PLAN_PATH = MEMORY_DIR / "handoff_retry_plan.json"
 CODEX_IMPLEMENTATION_REQUEST_PATH = MEMORY_DIR / "codex_implementation_request.json"
 APPROVAL_GATE_PATH = MEMORY_DIR / "approval_gate.json"
 VERIFICATION_RUNS_PATH = MEMORY_DIR / "verification_runs.json"
@@ -243,6 +244,12 @@ def _load_bottleneck_lines(limit: int = 4) -> list[str]:
         count = int(item.get("count", 0) or 0)
         if title:
             lines.append(f"Gargalo: {title} ({count})")
+            examples = item.get("examples") if isinstance(item.get("examples"), list) else []
+            assistant_signals = item.get("assistant_signals") if isinstance(item.get("assistant_signals"), list) else []
+            if examples:
+                lines.append(f"Exemplo: {str(examples[0])[:90]}")
+            elif assistant_signals:
+                lines.append(f"Sinal: {str(assistant_signals[0])[:90]}")
     return lines
 
 
@@ -349,6 +356,23 @@ def _load_handoff_validation_lines(limit: int = 4) -> list[str]:
         lines.append(f"Alvo: {title}")
     if checklist:
         lines.append("Teste: " + str(checklist[0])[:96])
+    return lines[:limit]
+
+
+def _load_handoff_retry_lines(limit: int = 4) -> list[str]:
+    data = _load_json(HANDOFF_RETRY_PLAN_PATH)
+    if not isinstance(data, dict):
+        return []
+    status = str(data.get("status", "")).strip()
+    title = str(data.get("title", "")).strip()
+    evidence = data.get("evidence") if isinstance(data.get("evidence"), list) else []
+    if not status or status == "blocked":
+        return []
+    lines = [f"Nova tentativa: {status}"]
+    if title:
+        lines.append(title)
+    if evidence:
+        lines.append("Pista: " + str(evidence[0])[:96])
     return lines[:limit]
 
 
@@ -934,6 +958,7 @@ class AssistantHud:
         handoff_lines = _load_implementation_handoff_lines(limit=3)
         application_lines = _load_handoff_application_lines(limit=3)
         handoff_validation_lines = _load_handoff_validation_lines(limit=3)
+        handoff_retry_lines = _load_handoff_retry_lines(limit=3)
         implementation_request_lines = _load_codex_implementation_request_lines(limit=3)
         approval_lines = _load_approval_lines(limit=3)
         verification_lines = _load_verification_lines(limit=4)
@@ -966,6 +991,10 @@ class AssistantHud:
             if console_lines:
                 console_lines.append("")
             console_lines.extend(handoff_validation_lines)
+        if handoff_retry_lines:
+            if console_lines:
+                console_lines.append("")
+            console_lines.extend(handoff_retry_lines)
         if implementation_request_lines:
             if console_lines:
                 console_lines.append("")

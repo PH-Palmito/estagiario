@@ -10,6 +10,7 @@ from memory.codex_bridge import load_codex_request
 from memory.codex_implementation_request import load_codex_implementation_request
 from memory.codex_outbox import load_codex_outbox
 from memory.handoff_applications import load_handoff_application
+from memory.handoff_retry_plan import load_handoff_retry_plan
 from memory.handoff_validation import load_handoff_validation
 from memory.codex_inbox import latest_codex_inbox_item
 from memory.verification_runs import load_verification_runs
@@ -41,6 +42,7 @@ def generate_self_evolution_plan() -> dict:
     verification = load_verification_runs()
     action_candidates = load_action_candidates()
     handoff_application = load_handoff_application()
+    handoff_retry = load_handoff_retry_plan()
     handoff_validation = load_handoff_validation()
     implementation_request = load_codex_implementation_request()
     outbox = load_codex_outbox()
@@ -53,6 +55,7 @@ def generate_self_evolution_plan() -> dict:
     verification_status = str(verification.get("status", "idle")).strip()
     application_status = str(handoff_application.get("status", "blocked")).strip()
     handoff_validation_status = str(handoff_validation.get("status", "blocked")).strip()
+    handoff_retry_status = str(handoff_retry.get("status", "blocked")).strip()
     implementation_request_status = str(implementation_request.get("status", "blocked")).strip()
     outbox_items = list(outbox.get("pending", [])) + list(outbox.get("sent", []))
     implementation_outbox_status = "planned"
@@ -194,6 +197,24 @@ def generate_self_evolution_plan() -> dict:
                 else "O Axel ja tem um roteiro objetivo para validar a melhoria aplicada."
                 if handoff_validation_status == "ready"
                 else "Quando o Codex aplicar o handoff, o Axel deve guiar a validacao no uso real."
+            ),
+        },
+        {
+            "id": "handoff_retry_plan",
+            "title": "Plano de nova tentativa apos falha",
+            "status": (
+                "done"
+                if application_status == "validated"
+                else "next"
+                if handoff_retry_status == "ready_for_codex"
+                else "planned"
+            ),
+            "reason": (
+                "A melhoria foi validada, entao nao precisa de nova tentativa agora."
+                if application_status == "validated"
+                else "O Axel ja consegue transformar a falha em um novo plano para o Codex."
+                if handoff_retry_status == "ready_for_codex"
+                else "Se a validacao falhar, o Axel deve gerar uma nova tentativa com evidencias."
             ),
         },
     ]

@@ -1,19 +1,19 @@
 {
-  "generated_at": 1776912142.084049,
-  "title": "Criar um planejador de auto-avanco com prioridade",
-  "trigger": "codex_guidance_available",
+  "generated_at": 1776945887.6299477,
+  "title": "Lapidar robustez geral do Axel",
+  "trigger": "manual_bridge",
   "urgency": "normal",
-  "status": "guided",
-  "approval_status": "pending",
-  "verification_status": "idle",
+  "status": "draft",
+  "approval_status": "approved",
+  "verification_status": "success",
   "top_patch_title": "Lapidar robustez geral do Axel",
-  "codex_decision": "Priorizar robustez do entendimento de comandos curtos.",
-  "codex_next_step": "Refinar o classificador de voz antes de novas macros.",
-  "next_action": "Refinar o classificador de voz antes de novas macros.",
+  "codex_decision": "",
+  "codex_next_step": "",
+  "next_action": "Aguardar aprovacao humana antes de pedir alteracao de codigo.",
   "should_notify": false,
-  "notify_reason": "Existe uma orientacao recente do Codex que o Axel pode seguir agora.",
-  "message": "O assistente local se chama Axel.\nO operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.\nMelhoria sugerida agora: Criar um planejador de auto-avanco com prioridade.\nMotivo: O proprio backlog ja pede um modo em que o Axel proponha melhorias ao Codex com mais criterio.\nOrigem da sugestao: lista-manual.\nUltima fala relevante do usuario: atualizar plano de auto evolucao.\nUltima resposta do assistente: Não captei com precisão..\nHistorico recente:\nUsuario: pedir melhoria ao codex\nAxel: Preparei um pedido ao Codex. Foco atual: Criar um planejador de auto-avanco com prioridade.\nUsuario: pedir melhoria ao codex\nAxel: Preparei um pedido ao Codex. Foco atual: Criar um planejador de auto-avanco com prioridade.\nUsuario: plano de auto evolucao\nAxel: Não captei com precisão.\nQuero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.",
-  "message_key": "criar um planejador de auto-avanco com prioridade|codex_guidance_available|guided",
+  "notify_reason": "Ainda nao ha um momento forte para acionar o Codex.",
+  "message": "O assistente local se chama Axel.\nO operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.\nMelhoria sugerida agora: Criar um planejador de auto-avanco com prioridade.\nMotivo: O proprio backlog ja pede um modo em que o Axel proponha melhorias ao Codex com mais criterio.\nOrigem da sugestao: lista-manual.\nUltima resposta do assistente: Pode falar..\nHistorico recente:\nAxel: Modo voz ativado. Aperte F8 para falar. Aperte F9 para pausar/retomar.\nAxel: Sistemas online. Pronto para trabalhar.\nAxel: Pode falar.\nPropostas iniciais de patch:\n- Lapidar robustez geral do Axel | arquivos: main.py, ui/assistant_hud.py\nStatus da aprovacao humana: approved.\nProposta em revisao: Lapidar robustez geral do Axel.\nStatus da verificacao da melhoria: success.\nPacote de execucao supervisionada pronto:\n- Titulo: Executar proposta de patch: Lapidar robustez geral do Axel\n- Arquivos alvo: main.py, ui/assistant_hud.py\n- Validacao sugerida: .\\venv\\Scripts\\python.exe -m py_compile .\\main.py .\\ui/assistant_hud.py; .\\venv\\Scripts\\python.exe .\\main.py --voice --hotword\nHandoff de implementacao pronto:\n- Titulo: Executar proposta de patch: Lapidar robustez geral do Axel\n- Arquivos: main.py, ui/assistant_hud.py\n- Primeiras instrucoes: Leia os arquivos alvo antes de editar.; Aplique a menor mudanca util possivel.; Nao altere comportamento fora do escopo da acao candidata.\nStatus da aplicacao supervisionada do handoff: applied.\nNota da aplicacao: historico estendido e gargalos com exemplos.\nQuero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.",
+  "message_key": "lapidar robustez geral do axel|manual_bridge|draft",
   "history": [
     {
       "message_key": "criar um planejador de auto-avanco com prioridade|manual_bridge|draft",
@@ -38,6 +38,14 @@
       "status": "guided",
       "urgency": "normal",
       "at": 1776912142.084049
+    },
+    {
+      "message_key": "lapidar robustez geral do axel|manual_bridge|draft",
+      "title": "Lapidar robustez geral do Axel",
+      "trigger": "manual_bridge",
+      "status": "draft",
+      "urgency": "normal",
+      "at": 1776945660.4501078
     }
   ]
 }

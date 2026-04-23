@@ -1,7 +1,7 @@
 {
-  "generated_at": 1776942404.6120012,
+  "generated_at": 1776945887.6732426,
   "goal": "Permitir que o Axel evolua o proprio projeto com supervisao e seguranca.",
-  "current_focus": "Executar decisao do Codex: Priorizar robustez do entendimento de comandos curtos.",
+  "current_focus": "Criar um planejador de auto-avanco com prioridade",
   "codex_request_title": "Lapidar robustez geral do Axel",
   "steps": [
     {
@@ -37,14 +37,14 @@
     {
       "id": "approval_gate",
       "title": "Aprovacao humana antes de alterar codigo",
-      "status": "next",
-      "reason": "Auto-reescrita sem aprovacao nao e segura. O Axel precisa propor, nao impor."
+      "status": "done",
+      "reason": "Ja existe uma proposta aprovada para seguir adiante com seguranca."
     },
     {
       "id": "verify_and_retry",
       "title": "Verificacao automatica apos cada melhoria",
-      "status": "planned",
-      "reason": "Toda melhoria precisa compilar, testar e comparar efeito antes de ser considerada boa."
+      "status": "done",
+      "reason": "A melhoria aprovada ja foi verificada e passou no ciclo de confirmacao."
     },
     {
       "id": "action_candidates",
@@ -55,8 +55,32 @@
     {
       "id": "handoff_application",
       "title": "Aplicacao supervisionada do handoff",
+      "status": "next",
+      "reason": "O Codex ja aplicou o handoff; falta validar se a melhoria resolveu o problema."
+    },
+    {
+      "id": "codex_implementation_request",
+      "title": "Pedido direto para o Codex implementar",
+      "status": "done",
+      "reason": "O Axel ja consegue gerar uma mensagem objetiva para o Codex aplicar o handoff."
+    },
+    {
+      "id": "codex_implementation_outbox",
+      "title": "Fila supervisionada de implementacao para o Codex",
       "status": "planned",
-      "reason": "Ainda falta um handoff pronto antes de acompanhar aplicacao real."
+      "reason": "Depois de gerar o pedido, o Axel ainda precisa coloca-lo na fila supervisionada."
+    },
+    {
+      "id": "handoff_validation_checklist",
+      "title": "Checklist de validacao apos aplicacao",
+      "status": "next",
+      "reason": "O Axel ja tem um roteiro objetivo para validar a melhoria aplicada."
+    },
+    {
+      "id": "handoff_retry_plan",
+      "title": "Plano de nova tentativa apos falha",
+      "status": "planned",
+      "reason": "Se a validacao falhar, o Axel deve gerar uma nova tentativa com evidencias."
     }
   ]
 }

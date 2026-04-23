@@ -1,58 +1,33 @@
 {
   "assistant_name": "Axel",
-  "visible": false,
+  "visible": true,
   "status": "BOTAO F8",
   "mode": "comando",
-  "last_heard": "plano de auto evolucao",
-  "last_response": "Encerrando.",
-  "last_command": "",
+  "last_heard": "",
+  "last_response": "Pode falar.",
+  "last_command": "open_app (target=spotify)",
   "microphone": "Microfone (WO Mic Device)",
   "assistant_style": "elegante",
   "voice_profile": "faber",
-  "hotword_enabled": false,
+  "hotword_enabled": true,
   "conversation_mode": false,
   "dictation_mode": false,
   "history": [
     {
       "role": "assistant",
-      "text": "Não captei com precisão.",
-      "at": 1776909414.5776527
-    },
-    {
-      "role": "user",
-      "text": "atualizar plano de auto evolucao",
-      "at": 1776909423.9071705
+      "text": "Modo voz ativado. Aperte F8 para falar. Aperte F9 para pausar/retomar.",
+      "at": 1776945876.6831603
     },
     {
       "role": "assistant",
-      "text": "Não captei com precisão.",
-      "at": 1776909424.0095682
-    },
-    {
-      "role": "user",
-      "text": "mostrar gargalos",
-      "at": 1776910083.9397824
+      "text": "Sistemas online. Pronto para trabalhar.",
+      "at": 1776945876.7171664
     },
     {
       "role": "assistant",
-      "text": "Não captei com precisão.",
-      "at": 1776910084.009981
-    },
-    {
-      "role": "user",
-      "text": "plano de auto evolucao",
-      "at": 1776910107.6390026
-    },
-    {
-      "role": "assistant",
-      "text": "Não captei com precisão.",
-      "at": 1776910107.7078242
-    },
-    {
-      "role": "assistant",
-      "text": "Encerrando.",
-      "at": 1776910618.628256
+      "text": "Pode falar.",
+      "at": 1776945887.4457052
     }
   ],
-  "updated_at": 1776912101.6578467
+  "updated_at": 1776945893.72937
 }

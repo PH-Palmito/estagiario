@@ -1,0 +1,11 @@
+{
+  "generated_at": 1776945887.5695586,
+  "status": "blocked",
+  "title": "Executar proposta de patch: Lapidar robustez geral do Axel",
+  "handoff_key": "executar proposta de patch: lapidar robustez geral do axel|main.py,ui/assistant_hud.py",
+  "reason": "Ainda nao ha falha de handoff suficiente para replanejar.",
+  "files": [],
+  "evidence": [],
+  "steps": [],
+  "validation": []
+}
