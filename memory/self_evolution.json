@@ -1,0 +1,50 @@
+{
+  "generated_at": 1776910537.1673648,
+  "goal": "Permitir que o Axel evolua o proprio projeto com supervisao e seguranca.",
+  "current_focus": "Criar um planejador de auto-avanco com prioridade",
+  "codex_request_title": "Criar um planejador de auto-avanco com prioridade",
+  "steps": [
+    {
+      "id": "hud_runtime_state",
+      "title": "HUD operacional e memoria de uso",
+      "status": "done",
+      "reason": "O Axel ja acompanha estado, historico, perfil e proximos avancos."
+    },
+    {
+      "id": "auto_advances",
+      "title": "Geracao automatica de proximos avancos",
+      "status": "done",
+      "reason": "O projeto ja propoe melhorias com base em backlog, perfil e historico recente."
+    },
+    {
+      "id": "codex_bridge",
+      "title": "Pedido estruturado ao Codex",
+      "status": "done",
+      "reason": "O Axel ja consegue preparar um briefing tecnico para pedir a propria melhoria."
+    },
+    {
+      "id": "issue_detector",
+      "title": "Detector automatico de gargalos e falhas repetidas",
+      "status": "done",
+      "reason": "O Axel agora consegue observar historico recente e marcar gargalos recorrentes."
+    },
+    {
+      "id": "safe_patch_proposals",
+      "title": "Gerador de propostas de patch com arquivos alvo",
+      "status": "done",
+      "reason": "O Axel agora consegue transformar gargalos em propostas de patch com arquivos alvo."
+    },
+    {
+      "id": "approval_gate",
+      "title": "Aprovacao humana antes de alterar codigo",
+      "status": "done",
+      "reason": "Ja existe uma proposta aprovada para seguir adiante com seguranca."
+    },
+    {
+      "id": "verify_and_retry",
+      "title": "Verificacao automatica apos cada melhoria",
+      "status": "next",
+      "reason": "Toda melhoria precisa compilar, testar e comparar efeito antes de ser considerada boa."
+    }
+  ]
+}

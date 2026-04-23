@@ -1,0 +1,18 @@
+{
+  "generated_at": 1776909595.777162,
+  "assistant_name": "Axel",
+  "title": "Criar um planejador de auto-avanco com prioridade",
+  "reason": "O proprio backlog ja pede um modo em que o Axel proponha melhorias ao Codex com mais criterio.",
+  "source": "lista-manual",
+  "prompt": "O assistente local se chama Axel.\nO operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.\nMelhoria sugerida agora: Criar um planejador de auto-avanco com prioridade.\nMotivo: O proprio backlog ja pede um modo em que o Axel proponha melhorias ao Codex com mais criterio.\nOrigem da sugestao: lista-manual.\nUltima fala relevante do usuario: atualizar plano de auto evolucao.\nUltima resposta do assistente: Não captei com precisão..\nHistorico recente:\nUsuario: pedir melhoria ao codex\nAxel: Preparei um pedido ao Codex. Foco atual: Criar um planejador de auto-avanco com prioridade.\nUsuario: pedir melhoria ao codex\nAxel: Preparei um pedido ao Codex. Foco atual: Criar um planejador de auto-avanco com prioridade.\nUsuario: plano de auto evolucao\nAxel: Não captei com precisão.\nQuero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.",
+  "history": [
+    "Usuario: pedir melhoria ao codex",
+    "Axel: Preparei um pedido ao Codex. Foco atual: Criar um planejador de auto-avanco com prioridade.",
+    "Usuario: pedir melhoria ao codex",
+    "Axel: Preparei um pedido ao Codex. Foco atual: Criar um planejador de auto-avanco com prioridade.",
+    "Usuario: plano de auto evolucao",
+    "Axel: Não captei com precisão.",
+    "Usuario: atualizar plano de auto evolucao",
+    "Axel: Não captei com precisão."
+  ]
+}

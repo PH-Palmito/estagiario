@@ -1,7 +1,9 @@
+import subprocess
 import sys
 import time
 from copy import deepcopy
 import difflib
+from pathlib import Path
 import re
 
 from core.context_resolver import resolve_params
@@ -13,13 +15,21 @@ from core.runtime_state import RuntimeState
 from core.validator import validate_command
 from core.voice_command_classifier import normalize_voice_command
 from llm.chat import chat_response, clear_chat_history
+from memory.approval_gate import approve_current_proposal, load_approval_gate, reject_current_proposal, sync_approval_gate
+from memory.auto_advances import load_auto_advances, save_auto_advances
+from memory.bottlenecks import load_bottlenecks, save_bottlenecks
+from memory.codex_bridge import load_codex_request, save_codex_request
 from memory.macros import add_macro
+from memory.patch_proposals import load_patch_proposals, save_patch_proposals
 from memory.piper_voice_manager import (
     apply_piper_voice,
     download_piper_voice,
     list_piper_voices,
 )
 from memory.session import clear
+from memory.self_evolution import load_self_evolution_plan, save_self_evolution_plan
+from memory.ui_commands import dequeue_ui_command
+from memory.ui_state import append_ui_history, load_ui_state, reset_ui_state, update_ui_state
 from memory.voice_corrections import apply_voice_correction, remember_voice_correction
 from memory.voice_preferences import load_voice_preferences, update_voice_preferences
 from memory.voice_profiles import apply_voice_profile, list_voice_profiles
@@ -30,6 +40,7 @@ from memory.tts_pronunciations import (
     set_tts_pronunciation,
 )
 from tools.smart_open_tools import smart_open_needs_choice
+from tools.system_tools import type_text
 from voice.windows_voice import (
     HOTKEY_NAME,
     HOTWORD_LISTENING_ENABLED,
@@ -58,8 +69,12 @@ hotword_ui_enabled = False
 rendered_status_line = ""
 conversation_mode = False
 conversation_ready_announced = False
+dictation_mode = False
+dictation_ready_announced = False
 direct_response_ready_announced = False
 last_voice_text = ""
+ui_hud_started = False
+last_improvement_refresh = 0.0
 
 creating_macro = False
 macro_name = None
@@ -294,6 +309,9 @@ def style_response(message: str) -> str:
 def output_response(message: str, voice_mode: bool):
     styled_message = style_response(message)
     terminal_print(f"IA: {styled_message}")
+    append_ui_history("assistant", styled_message)
+    refresh_ui_runtime_state({"last_response": styled_message})
+    refresh_improvement_brain()
 
     quiet_messages = {
         "Nao entendi.",
@@ -372,6 +390,404 @@ def refresh_voice_preferences():
         chat.refresh_preferences()
     except Exception:
         pass
+
+
+def current_assistant_style_label() -> str:
+    assistant_style = str(VOICE_PREFERENCES.get("assistant_style", "")).strip().lower()
+    if assistant_style in {"jarvis", "assistente", "elegante"}:
+        return assistant_style
+
+    humor_enabled = bool(VOICE_PREFERENCES.get("assistant_humor_enabled", True))
+    humor_style = str(VOICE_PREFERENCES.get("assistant_humor_style", "")).strip().lower()
+    if humor_enabled and humor_style:
+        return humor_style
+
+    return "padrao"
+
+
+def current_voice_profile_label() -> str:
+    for key in (
+        "voice_profile_name",
+        "voice_profile",
+        "piper_voice",
+        "tts_voice",
+        "tts_speaker",
+    ):
+        value = str(VOICE_PREFERENCES.get(key, "")).strip()
+        if value:
+            return value
+    return "faber"
+
+
+def current_ui_mode_label() -> str:
+    if dictation_mode:
+        return "ditado"
+    if conversation_mode:
+        return "conversa"
+    if is_waiting_for_direct_response():
+        return "resposta"
+    return "comando"
+
+
+def command_preview(command) -> str:
+    if command is None:
+        return ""
+
+    action = getattr(command, "action", None)
+    params = getattr(command, "params", None)
+
+    if action and isinstance(params, dict) and params:
+        summary = ", ".join(f"{key}={value}" for key, value in list(params.items())[:3])
+        return f"{action} ({summary})"
+
+    if action:
+        return str(action)
+
+    return str(command)
+
+
+def refresh_ui_runtime_state(extra: dict | None = None):
+    try:
+        active_device = get_active_input_device_info() or {}
+        patch = {
+            "assistant_name": "Axel",
+            "status": voice_status or "INATIVO",
+            "mode": current_ui_mode_label(),
+            "microphone": active_device.get("name", ""),
+            "assistant_style": current_assistant_style_label(),
+            "voice_profile": current_voice_profile_label(),
+            "hotword_enabled": bool(hotword_ui_enabled),
+            "conversation_mode": bool(conversation_mode),
+            "dictation_mode": bool(dictation_mode),
+            "last_command": command_preview(runtime_state.last_command),
+        }
+        if extra:
+            patch.update(extra)
+        update_ui_state(patch)
+    except Exception:
+        pass
+
+
+def launch_ui_hud():
+    global ui_hud_started
+
+    state = load_ui_state()
+    if ui_hud_started and state.get("visible", False):
+        refresh_ui_runtime_state({"visible": True})
+        return
+
+    pythonw = Path(sys.executable).with_name("pythonw.exe")
+    python_exec = str(pythonw if pythonw.exists() else Path(sys.executable))
+
+    try:
+        subprocess.Popen(
+            [python_exec, "-m", "ui.assistant_hud"],
+            cwd=str(Path(__file__).resolve().parent),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        ui_hud_started = True
+    except Exception:
+        return
+
+    refresh_ui_runtime_state({"visible": True})
+
+
+def show_ui_hud() -> str:
+    update_ui_state({"visible": True})
+    launch_ui_hud()
+    return "Interface ativada. Deixei o painel no ar."
+
+
+def hide_ui_hud() -> str:
+    global ui_hud_started
+
+    ui_hud_started = False
+    update_ui_state({"visible": False})
+    refresh_ui_runtime_state({"visible": False})
+    return "Interface oculta."
+
+
+def maybe_handle_ui_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    show_commands = {
+        "abrir interface",
+        "abrir painel",
+        "mostrar interface",
+        "mostrar painel",
+        "exibir interface",
+        "exibir painel",
+        "ativar interface",
+        "ativar painel",
+        "mostrar hud",
+    }
+    hide_commands = {
+        "fechar interface",
+        "fechar painel",
+        "ocultar interface",
+        "ocultar painel",
+        "esconder interface",
+        "esconder painel",
+        "desativar interface",
+        "desativar painel",
+        "fechar hud",
+    }
+
+    if normalized in show_commands:
+        return show_ui_hud()
+
+    if normalized in hide_commands:
+        return hide_ui_hud()
+
+    if normalized in {"interface atual", "status da interface", "painel atual"}:
+        state = "ativa" if load_ui_state().get("visible", False) else "oculta"
+        return f"Interface {state}."
+
+    return None
+
+
+def maybe_handle_auto_advance_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "atualizar proximos avancos",
+        "gerar proximos avancos",
+        "atualizar avancos",
+        "gerar avancos",
+    }:
+        advances = save_auto_advances()
+        titles = "; ".join(item.get("title", "") for item in advances[:3])
+        if titles:
+            return f"Atualizei os proximos avancos do Axel. Destaques: {titles}."
+        return "Atualizei os proximos avancos do Axel."
+
+    if normalized in {
+        "proximos avancos",
+        "mostrar proximos avancos",
+        "quais sao os proximos avancos",
+    }:
+        advances = load_auto_advances()
+        if not advances:
+            return "Ainda nao encontrei proximos avancos para sugerir."
+        lines = [f"{index + 1}. {item.get('title', '')}" for index, item in enumerate(advances[:5])]
+        return "Proximos avancos do Axel: " + "; ".join(lines)
+
+    return None
+
+
+def maybe_handle_bottleneck_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "atualizar gargalos",
+        "analisar gargalos",
+        "gerar gargalos",
+    }:
+        items = save_bottlenecks()
+        if not items:
+            return "Atualizei os gargalos, mas ainda nao encontrei sinais relevantes."
+        top = "; ".join(item.get("title", "") for item in items[:3])
+        return f"Atualizei os gargalos do Axel. Destaques: {top}."
+
+    if normalized in {
+        "mostrar gargalos",
+        "quais sao os gargalos",
+        "gargalos",
+        "diagnostico de gargalos",
+    }:
+        items = load_bottlenecks()
+        if not items:
+            return "Ainda nao encontrei gargalos relevantes no uso recente."
+        parts = []
+        for item in items[:4]:
+            title = str(item.get("title", "")).strip()
+            count = int(item.get("count", 0) or 0)
+            if title:
+                parts.append(f"{title} ({count})")
+        return "Gargalos detectados: " + "; ".join(parts)
+
+    return None
+
+
+def maybe_handle_patch_proposal_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "gerar propostas de patch",
+        "atualizar propostas de patch",
+        "gerar patch proposals",
+        "propor patches",
+    }:
+        items = save_patch_proposals()
+        if not items:
+            return "Atualizei as propostas de patch, mas ainda nao encontrei algo forte o suficiente."
+        top = "; ".join(item.get("title", "") for item in items[:3])
+        return f"Atualizei as propostas de patch do Axel. Destaques: {top}."
+
+    if normalized in {
+        "mostrar propostas de patch",
+        "propostas de patch",
+        "patch proposals",
+        "quais patches o axel sugere",
+    }:
+        items = load_patch_proposals()
+        if not items:
+            return "Ainda nao encontrei propostas de patch relevantes."
+        parts = []
+        for item in items[:3]:
+            title = str(item.get("title", "")).strip()
+            files = item.get("files") or []
+            if title:
+                parts.append(f"{title} em {', '.join(str(file) for file in files[:3])}")
+        return "Propostas de patch do Axel: " + "; ".join(parts)
+
+    return None
+
+
+def maybe_handle_approval_gate_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "mostrar proposta atual",
+        "proposta atual",
+        "qual a proposta atual",
+        "status da proposta",
+    }:
+        state = load_approval_gate()
+        proposal = state.get("proposal") or {}
+        title = str(proposal.get("title", "")).strip()
+        files = proposal.get("files") or []
+        status = str(state.get("status", "none")).strip()
+        if not title:
+            return "Nao ha proposta atual para aprovar."
+        files_text = ", ".join(str(file) for file in files[:4]) if files else "sem arquivos alvo definidos"
+        return f"Proposta atual: {title}. Status: {status}. Arquivos alvo: {files_text}."
+
+    if normalized in {
+        "aprovar proposta",
+        "aprovar proposta atual",
+        "aprovar proposta de patch",
+    }:
+        state = approve_current_proposal()
+        proposal = state.get("proposal") or {}
+        title = str(proposal.get("title", "")).strip()
+        if title:
+            return f"Proposta aprovada. O Axel pode levar ao Codex esta melhoria: {title}."
+        return "Proposta aprovada."
+
+    if normalized in {
+        "rejeitar proposta",
+        "rejeitar proposta atual",
+        "rejeitar proposta de patch",
+    }:
+        state = reject_current_proposal()
+        proposal = state.get("proposal") or {}
+        title = str(proposal.get("title", "")).strip()
+        if title:
+            return f"Proposta rejeitada. Vou aguardar uma nova sugestao para substituir: {title}."
+        return "Proposta rejeitada."
+
+    return None
+
+
+def maybe_handle_codex_bridge_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "pedir melhoria ao codex",
+        "gerar pedido ao codex",
+        "axel falar com codex",
+        "axel pedir ao codex",
+        "consultar codex para melhorar",
+        "preparar conversa com codex",
+    }:
+        payload = save_codex_request()
+        title = str(payload.get("title", "")).strip()
+        if title:
+            return f"Preparei um pedido ao Codex. Foco atual: {title}. Deixei a conversa pronta na ponte do Codex."
+        return "Preparei um pedido ao Codex."
+
+    if normalized in {
+        "mostrar pedido ao codex",
+        "qual o pedido ao codex",
+        "pedido ao codex",
+    }:
+        payload = load_codex_request()
+        prompt = str(payload.get("prompt", "")).strip()
+        if prompt:
+            return f"Pedido ao Codex: {prompt}"
+        return "Ainda nao ha um pedido ao Codex pronto."
+
+    return None
+
+
+def maybe_handle_self_evolution_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "plano de auto evolucao",
+        "mostrar plano de auto evolucao",
+        "auto evolucao",
+        "como chegar em se reescreve sozinho",
+    }:
+        plan = load_self_evolution_plan()
+        steps = plan.get("steps") or []
+        if not isinstance(steps, list) or not steps:
+            return "Ainda nao consegui montar um plano de auto evolucao."
+        lines = []
+        for step in steps[:4]:
+            if not isinstance(step, dict):
+                continue
+            status = str(step.get("status", "planned")).strip()
+            title = str(step.get("title", "")).strip()
+            if title:
+                lines.append(f"{status}: {title}")
+        focus = str(plan.get("current_focus", "")).strip()
+        prefix = f"Foco atual: {focus}. " if focus else ""
+        return prefix + "Plano de auto evolucao do Axel: " + "; ".join(lines)
+
+    if normalized in {
+        "atualizar plano de auto evolucao",
+        "gerar plano de auto evolucao",
+    }:
+        plan = save_self_evolution_plan()
+        focus = str(plan.get("current_focus", "")).strip()
+        if focus:
+            return f"Atualizei o plano de auto evolucao. Foco atual: {focus}."
+        return "Atualizei o plano de auto evolucao do Axel."
+
+    return None
+
+
+def refresh_improvement_brain(force: bool = False):
+    global last_improvement_refresh
+
+    now = time.time()
+    if not force and now - last_improvement_refresh < 15:
+        return
+
+    try:
+        save_bottlenecks()
+        save_auto_advances()
+        save_patch_proposals()
+        sync_approval_gate()
+        save_codex_request()
+        save_self_evolution_plan()
+        last_improvement_refresh = now
+    except Exception:
+        pass
+
+
+def poll_ui_text_command() -> str:
+    queued = dequeue_ui_command()
+    if not queued:
+        return ""
+
+    append_ui_history("user", queued)
+    refresh_ui_runtime_state({"last_heard": queued})
+    return queued
 
 
 HUMOR_STYLE_ALIASES = {
@@ -928,6 +1344,7 @@ def set_voice_status(status: str):
 
     voice_status = status
     render_status_line()
+    refresh_ui_runtime_state()
 
 
 def clear_status_line():
@@ -974,7 +1391,11 @@ def read_user_input(
     listener=None,
 ) -> str:
     if not voice_mode:
-        return terminal_input("Voce: ")
+        typed = terminal_input("Voce: ")
+        if typed:
+            append_ui_history("user", typed)
+            refresh_ui_runtime_state({"last_heard": typed})
+        return typed
 
     if announce_ready:
         terminal_print(f"IA: {ready_message}")
@@ -986,6 +1407,8 @@ def read_user_input(
         if ignored_text_filter and ignored_text_filter(text):
             return ""
         terminal_print(f"Voce (voz): {text}")
+        append_ui_history("user", text)
+        refresh_ui_runtime_state({"last_heard": text})
         return text
 
     if not fallback_to_text and heard.error in {
@@ -1000,6 +1423,9 @@ def read_user_input(
         return ""
 
     typed = terminal_input("Voce (texto): ")
+    if typed:
+        append_ui_history("user", typed)
+        refresh_ui_runtime_state({"last_heard": typed})
     return typed
 
 
@@ -1016,6 +1442,16 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "o que tem na tela",
         "resuma a tela",
         "detalha a tela",
+        "proximos avancos",
+        "pedido ao codex",
+        "plano de auto evolucao",
+        "mostrar gargalos",
+        "atualizar gargalos",
+        "propostas de patch",
+        "mostrar propostas de patch",
+        "proposta atual",
+        "aprovar proposta atual",
+        "rejeitar proposta atual",
     }
     if normalized_candidate in protected_voice_commands or normalized_candidate.startswith("pesquisar"):
         return normalized_candidate
@@ -1045,6 +1481,12 @@ def wait_for_hotword(
     while True:
         if not voice_paused:
             set_voice_status("ATIVA" if HOTWORD_LISTENING_ENABLED else f"BOTAO {HOTKEY_NAME}")
+
+        queued_command = poll_ui_text_command()
+        if queued_command:
+            set_voice_status("COMANDO")
+            terminal_print(f"Voce (painel): {queued_command}")
+            return True, voice_paused, queued_command
 
         if consume_toggle_listening_hotkey_press():
             voice_paused = not voice_paused
@@ -1102,6 +1544,50 @@ def is_conversation_stop(text: str) -> bool:
         "modo comando",
         "voltar comandos",
     }
+
+
+def is_dictation_start(text: str) -> bool:
+    normalized = normalize_text(text)
+    return normalized in {
+        "modo ditado",
+        "ativar ditado",
+        "ativa ditado",
+        "iniciar ditado",
+        "inicia ditado",
+        "comecar ditado",
+        "comecar o ditado",
+        "comeca ditado",
+        "ditado",
+    }
+
+
+def is_dictation_stop(text: str) -> bool:
+    normalized = normalize_text(text)
+    return normalized in {
+        "parar ditado",
+        "para ditado",
+        "encerrar ditado",
+        "encerra ditado",
+        "sair do ditado",
+        "fechar ditado",
+        "modo comando",
+        "voltar comandos",
+    }
+
+
+def format_dictation_text(text: str) -> str:
+    normalized = normalize_text(text)
+    special_tokens = {
+        "nova linha": "\r\n",
+        "novo paragrafo": "\r\n\r\n",
+        "novo parágrafo": "\r\n\r\n",
+        "tabulacao": "\t",
+        "tabulação": "\t",
+        "tab": "\t",
+    }
+    if normalized in special_tokens:
+        return special_tokens[normalized]
+    return text.strip()
 
 
 def is_transcription_artifact(text: str) -> bool:
@@ -1318,12 +1804,17 @@ def main():
     global hotword_ui_enabled
     global conversation_mode
     global conversation_ready_announced
+    global dictation_mode
+    global dictation_ready_announced
     global direct_response_ready_announced
+    global ui_hud_started
 
     voice_mode = "--voice" in sys.argv
     hotword_mode = "--hotword" in sys.argv
+    ui_mode = "--ui" in sys.argv
     voice_paused = False
     hotword_ui_enabled = voice_mode and hotword_mode
+    ui_hud_started = False
 
     if handle_voice_profile_cli():
         return
@@ -1345,6 +1836,12 @@ def main():
         return
 
     clear()
+    reset_ui_state()
+    refresh_ui_runtime_state({"visible": False})
+    refresh_improvement_brain(force=True)
+
+    if ui_mode:
+        show_ui_hud()
 
     if voice_mode:
         if hotword_mode:
@@ -1376,8 +1873,17 @@ def main():
 
         warm_common_tts_cache_async()
 
+    refresh_ui_runtime_state()
+
     while True:
         try:
+            queued_user_input = poll_ui_text_command()
+            if queued_user_input:
+                terminal_print(f"Voce (painel): {queued_user_input}")
+                user_input = queued_user_input
+            else:
+                user_input = ""
+
             direct_response_mode = (
                 voice_mode
                 and hotword_mode
@@ -1391,8 +1897,18 @@ def main():
                 and conversation_mode
                 and not direct_response_mode
             )
+            dictation_listen_mode = (
+                voice_mode
+                and hotword_mode
+                and not voice_paused
+                and dictation_mode
+                and not direct_response_mode
+                and not conversation_mode
+            )
 
-            if direct_response_mode:
+            if queued_user_input:
+                pass
+            elif direct_response_mode:
                 set_voice_status("RESPOSTA")
                 user_input = read_user_input(
                     voice_mode,
@@ -1412,6 +1928,17 @@ def main():
                     listener=listen_conversation_once,
                 )
                 conversation_ready_announced = True
+            elif dictation_listen_mode:
+                set_voice_status("DITADO")
+                user_input = read_user_input(
+                    voice_mode,
+                    announce_ready=not dictation_ready_announced,
+                    fallback_to_text=False,
+                    ready_message="Pode ditar...",
+                    ignored_text_filter=is_transcription_artifact,
+                    listener=listen_conversation_once,
+                )
+                dictation_ready_announced = True
             elif voice_mode and hotword_mode:
                 should_continue, voice_paused, inline_command = wait_for_hotword(
                     voice_mode,
@@ -1422,10 +1949,10 @@ def main():
                     hotword_ui_enabled = False
                     clear_status_line()
                     break
-            if not direct_response_mode and not conversation_listen_mode and voice_mode and hotword_mode and inline_command:
+            if not direct_response_mode and not conversation_listen_mode and not dictation_listen_mode and voice_mode and hotword_mode and inline_command:
                 terminal_print(f"Voce (voz): {inline_command}")
                 user_input = inline_command
-            elif not direct_response_mode and not conversation_listen_mode:
+            elif not direct_response_mode and not conversation_listen_mode and not dictation_listen_mode:
                 user_input = read_user_input(
                     voice_mode,
                     announce_ready=not hotword_mode,
@@ -1472,6 +1999,72 @@ def main():
         voice_profile_response = maybe_handle_voice_profile_command(user_input)
         if voice_profile_response:
             output_response(voice_profile_response, voice_mode)
+            continue
+
+        ui_response = maybe_handle_ui_command(user_input)
+        if ui_response:
+            output_response(ui_response, voice_mode)
+            continue
+
+        auto_advance_response = maybe_handle_auto_advance_command(user_input)
+        if auto_advance_response:
+            refresh_improvement_brain(force=True)
+            output_response(auto_advance_response, voice_mode)
+            continue
+
+        bottleneck_response = maybe_handle_bottleneck_command(user_input)
+        if bottleneck_response:
+            refresh_improvement_brain(force=True)
+            output_response(bottleneck_response, voice_mode)
+            continue
+
+        patch_proposal_response = maybe_handle_patch_proposal_command(user_input)
+        if patch_proposal_response:
+            refresh_improvement_brain(force=True)
+            output_response(patch_proposal_response, voice_mode)
+            continue
+
+        approval_gate_response = maybe_handle_approval_gate_command(user_input)
+        if approval_gate_response:
+            refresh_improvement_brain(force=True)
+            output_response(approval_gate_response, voice_mode)
+            continue
+
+        codex_bridge_response = maybe_handle_codex_bridge_command(user_input)
+        if codex_bridge_response:
+            refresh_improvement_brain(force=True)
+            output_response(codex_bridge_response, voice_mode)
+            continue
+
+        self_evolution_response = maybe_handle_self_evolution_command(user_input)
+        if self_evolution_response:
+            refresh_improvement_brain(force=True)
+            output_response(self_evolution_response, voice_mode)
+            continue
+
+        if is_dictation_stop(user_input):
+            dictation_mode = False
+            dictation_ready_announced = False
+            if hotword_mode and not conversation_mode:
+                set_voice_status(f"BOTAO {HOTKEY_NAME}")
+            output_response("Modo ditado encerrado.", voice_mode)
+            continue
+
+        if dictation_mode:
+            dictated_text = format_dictation_text(user_input)
+            result = type_text(dictated_text)
+            if result != "Texto inserido no campo ativo.":
+                output_response(result, voice_mode=False)
+            continue
+
+        if is_dictation_start(user_input):
+            dictation_mode = True
+            dictation_ready_announced = False
+            conversation_mode = False
+            conversation_ready_announced = False
+            if hotword_mode:
+                set_voice_status("DITADO")
+            output_response("Modo ditado ativado. Pode falar sem apertar F8. Para sair, diga parar ditado.", voice_mode)
             continue
 
         if conversation_mode and is_conversation_stop(user_input):
@@ -1549,6 +2142,7 @@ def main():
         user_input = maybe_normalize_voice_command(user_input, voice_mode)
         if voice_mode and original_user_input == user_input:
             last_voice_text = original_user_input
+        refresh_ui_runtime_state({"last_command": user_input})
 
         if creating_macro:
             if user_input.lower().strip() == "fim":

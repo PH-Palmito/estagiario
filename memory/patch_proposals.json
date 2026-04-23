@@ -1,0 +1,21 @@
+{
+  "generated_at": 1776910241.3353183,
+  "items": [
+    {
+      "kind": "general",
+      "priority": 0,
+      "title": "Lapidar robustez geral do Axel",
+      "why": "Ainda nao ha gargalos fortes suficientes para uma proposta mais especifica.",
+      "files": [
+        "main.py",
+        "ui/assistant_hud.py"
+      ],
+      "changes": [
+        "Continuar instrumentando o historico para detectar melhor os proximos pontos fracos.",
+        "Manter a ponte com o Codex atualizada com dados do uso recente."
+      ],
+      "risk": "Baixo.",
+      "examples": []
+    }
+  ]
+}

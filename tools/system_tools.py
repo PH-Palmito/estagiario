@@ -109,6 +109,74 @@ def _shortcut(*vk_codes: int):
         time.sleep(0.01)
 
 
+def _focused_text_target_available() -> bool:
+    script = r"""
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+
+$focused = [System.Windows.Automation.AutomationElement]::FocusedElement
+if (-not $focused) {
+    Write-Output "__NO__"
+    return
+}
+
+$controlType = ""
+try {
+    $controlType = $focused.Current.ControlType.ProgrammaticName
+} catch {
+}
+
+$name = ""
+try {
+    $name = $focused.Current.Name
+} catch {
+}
+
+$isKeyboardFocusable = $false
+try {
+    $isKeyboardFocusable = $focused.Current.IsKeyboardFocusable
+} catch {
+}
+
+if (
+    $controlType -match 'Edit|Document'
+    -or $name -match 'edit|editor|message|mensagem|texto|text'
+) {
+    Write-Output "__YES__"
+    return
+}
+
+if ($isKeyboardFocusable -and $controlType -match 'Pane') {
+    Write-Output "__MAYBE__"
+    return
+}
+
+Write-Output "__NO__"
+"""
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=4,
+        )
+        output = (result.stdout or "").strip()
+        return "__YES__" in output or "__MAYBE__" in output
+    except Exception:
+        return True
+
+
+def _ensure_text_target() -> bool:
+    if _focused_text_target_available():
+        return True
+
+    open_app("bloco de notas")
+    time.sleep(0.45)
+    return _focused_text_target_available()
+
+
 def _resolve_app_command(candidates):
     for candidate in candidates:
         if not candidate:
@@ -256,9 +324,14 @@ def restore_app(app_name: str):
 
 
 def type_text(text: str):
-    content = (text or "").strip()
+    content = "" if text is None else str(text)
     if not content:
         return "Qual texto devo inserir?"
+    if not content.strip() and content not in {"\n", "\r\n", "\n\n", "\r\n\r\n", "\t"}:
+        return "Qual texto devo inserir?"
+
+    if not _ensure_text_target():
+        return "Nao encontrei um campo de texto ativo."
 
     previous_clipboard = get_clipboard()
     try:

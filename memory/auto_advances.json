@@ -1,0 +1,35 @@
+{
+  "generated_at": 1776908592.4007423,
+  "items": [
+    {
+      "title": "Criar um planejador de auto-avanco com prioridade",
+      "reason": "O proprio backlog ja pede um modo em que o Axel proponha melhorias ao Codex com mais criterio.",
+      "source": "lista-manual"
+    },
+    {
+      "title": "Adicionar analise de imagens ao fluxo do Axel",
+      "reason": "A lista manual ja aponta isso, e a interface pode virar a base visual para esse passo.",
+      "source": "lista-manual"
+    },
+    {
+      "title": "Criar um modo de inspecao de codigo com busca de erros",
+      "reason": "Voce trabalha com sistemas completos e esse ganho conversa diretamente com seu uso de projetos reais.",
+      "source": "lista-manual"
+    },
+    {
+      "title": "Dar ao Axel memoria operacional de preferencias e contexto",
+      "reason": "O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.",
+      "source": "perfil"
+    },
+    {
+      "title": "Criar rotinas prontas para estudo e desenvolvimento mobile/front-end",
+      "reason": "Seu perfil tecnico pede fluxos de abertura de projeto, navegador, docs e debug com menos atrito.",
+      "source": "perfil"
+    },
+    {
+      "title": "Preparar inicializacao automatica com Windows",
+      "reason": "Isso transforma o Axel de projeto em ferramenta do dia a dia.",
+      "source": "lista-manual"
+    }
+  ]
+}
