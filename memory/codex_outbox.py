@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 from memory.codex_channel import load_codex_channel
+from memory.codex_implementation_request import save_codex_implementation_request
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,6 +62,22 @@ def _message_entry_from_channel(channel: dict) -> dict:
     }
 
 
+def _message_entry_from_implementation_request(request: dict) -> dict:
+    title = str(request.get("title", "")).strip()
+    files = ",".join(str(file) for file in request.get("files", []))
+    return {
+        "message_key": f"implementation:{title.lower()}|{files}",
+        "title": title or "Pedido de implementacao ao Codex",
+        "trigger": "handoff-ready",
+        "urgency": "normal",
+        "status": "pending",
+        "message": str(request.get("prompt", "")).strip(),
+        "next_action": "Codex deve aplicar o handoff, validar e responder com resultado.",
+        "kind": "implementation_request",
+        "created_at": time.time(),
+    }
+
+
 def sync_codex_outbox(auto_enqueue: bool = True) -> dict:
     state = load_codex_outbox()
     channel = load_codex_channel()
@@ -79,6 +96,30 @@ def sync_codex_outbox(auto_enqueue: bool = True) -> dict:
     state["generated_at"] = time.time()
     state["pending"] = list(state.get("pending", []))[-12:]
     state["sent"] = list(state.get("sent", []))[-20:]
+    _save_json(CODEX_OUTBOX_PATH, state)
+    return state
+
+
+def enqueue_codex_implementation_request() -> dict:
+    state = load_codex_outbox()
+    request = save_codex_implementation_request()
+    if request.get("status") != "ready_for_codex":
+        _save_json(CODEX_OUTBOX_PATH, state)
+        return state
+
+    entry = _message_entry_from_implementation_request(request)
+    message_key = str(entry.get("message_key", "")).strip()
+    known_keys = {
+        str(item.get("message_key", "")).strip()
+        for item in list(state.get("pending", [])) + list(state.get("sent", []))
+        if isinstance(item, dict)
+    }
+    if message_key and message_key not in known_keys:
+        state["pending"].append(entry)
+        state["last_enqueued_key"] = message_key
+
+    state["generated_at"] = time.time()
+    state["pending"] = list(state.get("pending", []))[-12:]
     _save_json(CODEX_OUTBOX_PATH, state)
     return state
 

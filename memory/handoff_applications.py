@@ -42,6 +42,7 @@ def _default_state() -> dict:
         "last_note": "",
         "started_at": 0.0,
         "applied_at": 0.0,
+        "validated_at": 0.0,
         "failed_at": 0.0,
     }
 
@@ -89,6 +90,17 @@ def mark_handoff_applied(note: str = "") -> dict:
     state["status"] = "applied"
     state["last_note"] = str(note or "").strip()
     state["applied_at"] = time.time()
+    _save_json(HANDOFF_APPLICATIONS_PATH, state)
+    return state
+
+
+def mark_handoff_validated(note: str = "") -> dict:
+    state = sync_handoff_application()
+    if state.get("handoff", {}).get("status") != "ready":
+        return state
+    state["status"] = "validated"
+    state["last_note"] = str(note or "").strip()
+    state["validated_at"] = time.time()
     _save_json(HANDOFF_APPLICATIONS_PATH, state)
     return state
 

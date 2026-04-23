@@ -20,6 +20,7 @@ ACTION_CANDIDATES_PATH = MEMORY_DIR / "action_candidates.json"
 EXECUTION_PACKAGES_PATH = MEMORY_DIR / "execution_packages.json"
 IMPLEMENTATION_HANDOFF_PATH = MEMORY_DIR / "implementation_handoff.json"
 HANDOFF_APPLICATIONS_PATH = MEMORY_DIR / "handoff_applications.json"
+CODEX_IMPLEMENTATION_REQUEST_PATH = MEMORY_DIR / "codex_implementation_request.json"
 APPROVAL_GATE_PATH = MEMORY_DIR / "approval_gate.json"
 VERIFICATION_RUNS_PATH = MEMORY_DIR / "verification_runs.json"
 CODEX_BRIDGE_PATH = MEMORY_DIR / "codex_bridge.json"
@@ -330,6 +331,23 @@ def _load_handoff_application_lines(limit: int = 4) -> list[str]:
         lines.append(f"Handoff: {title}")
     if note:
         lines.append(f"Nota: {note}")
+    return lines[:limit]
+
+
+def _load_codex_implementation_request_lines(limit: int = 4) -> list[str]:
+    data = _load_json(CODEX_IMPLEMENTATION_REQUEST_PATH)
+    if not isinstance(data, dict):
+        return []
+    status = str(data.get("status", "")).strip()
+    title = str(data.get("title", "")).strip()
+    files = data.get("files") if isinstance(data.get("files"), list) else []
+    if not status:
+        return []
+    lines = [f"Pedido Codex: {status}"]
+    if title:
+        lines.append(f"Implementar: {title}")
+    if files:
+        lines.append("Alvos: " + ", ".join(str(file) for file in files[:3]))
     return lines[:limit]
 
 
@@ -897,6 +915,7 @@ class AssistantHud:
         execution_lines = _load_execution_package_lines(limit=3)
         handoff_lines = _load_implementation_handoff_lines(limit=3)
         application_lines = _load_handoff_application_lines(limit=3)
+        implementation_request_lines = _load_codex_implementation_request_lines(limit=3)
         approval_lines = _load_approval_lines(limit=3)
         verification_lines = _load_verification_lines(limit=4)
         evolution_lines = _load_self_evolution_lines(limit=4)
@@ -924,6 +943,10 @@ class AssistantHud:
             if console_lines:
                 console_lines.append("")
             console_lines.extend(application_lines)
+        if implementation_request_lines:
+            if console_lines:
+                console_lines.append("")
+            console_lines.extend(implementation_request_lines)
         if approval_lines:
             if console_lines:
                 console_lines.append("")

@@ -7,6 +7,7 @@ from memory.approval_gate import load_approval_gate
 from memory.action_candidates import load_action_candidates
 from memory.auto_advances import load_auto_advances
 from memory.codex_bridge import load_codex_request
+from memory.codex_implementation_request import load_codex_implementation_request
 from memory.handoff_applications import load_handoff_application
 from memory.codex_inbox import latest_codex_inbox_item
 from memory.verification_runs import load_verification_runs
@@ -38,6 +39,7 @@ def generate_self_evolution_plan() -> dict:
     verification = load_verification_runs()
     action_candidates = load_action_candidates()
     handoff_application = load_handoff_application()
+    implementation_request = load_codex_implementation_request()
     codex_decision = latest_codex_inbox_item("decision")
     codex_next_step = latest_codex_inbox_item("next_step")
     current_focus = str(codex_decision.get("text", "")).strip() or str(codex_next_step.get("text", "")).strip()
@@ -46,6 +48,7 @@ def generate_self_evolution_plan() -> dict:
     approval_status = str(approval.get("status", "none")).strip()
     verification_status = str(verification.get("status", "idle")).strip()
     application_status = str(handoff_application.get("status", "blocked")).strip()
+    implementation_request_status = str(implementation_request.get("status", "blocked")).strip()
 
     steps = [
         {
@@ -121,19 +124,31 @@ def generate_self_evolution_plan() -> dict:
             "title": "Aplicacao supervisionada do handoff",
             "status": (
                 "done"
-                if application_status == "applied"
+                if application_status == "validated"
                 else "next"
-                if application_status in {"ready", "in_progress", "failed"}
+                if application_status in {"ready", "in_progress", "applied", "failed"}
                 else "planned"
             ),
             "reason": (
-                "O Codex ja aplicou o handoff e o Axel iniciou o ciclo de verificacao."
+                "O handoff foi aplicado e validado pelo operador."
+                if application_status == "validated"
+                else "O Codex ja aplicou o handoff; falta validar se a melhoria resolveu o problema."
                 if application_status == "applied"
                 else "O handoff falhou ou ficou incompleto; a proxima tentativa deve usar esse registro."
                 if application_status == "failed"
                 else "Existe um handoff pronto ou em andamento para o Codex aplicar com supervisao."
                 if application_status in {"ready", "in_progress"}
                 else "Ainda falta um handoff pronto antes de acompanhar aplicacao real."
+            ),
+        },
+        {
+            "id": "codex_implementation_request",
+            "title": "Pedido direto para o Codex implementar",
+            "status": "done" if implementation_request_status == "ready_for_codex" else "planned",
+            "reason": (
+                "O Axel ja consegue gerar uma mensagem objetiva para o Codex aplicar o handoff."
+                if implementation_request_status == "ready_for_codex"
+                else "Quando houver handoff pronto, o Axel deve gerar uma mensagem limpa para implementacao."
             ),
         },
     ]

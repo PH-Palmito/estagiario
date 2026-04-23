@@ -29,12 +29,17 @@ from memory.codex_channel import load_codex_channel, save_codex_channel
 from memory.codex_notifications import consume_codex_suggestion, reset_codex_suggestion_memory
 from memory.codex_outbox import (
     clear_codex_outbox_pending,
+    enqueue_codex_implementation_request,
     enqueue_current_codex_message,
     load_codex_outbox,
     mark_next_codex_message_sent,
     sync_codex_outbox,
 )
 from memory.codex_inbox import add_codex_inbox_item, clear_codex_inbox, load_codex_inbox
+from memory.codex_implementation_request import (
+    load_codex_implementation_request,
+    save_codex_implementation_request,
+)
 from memory.execution_packages import load_execution_package, save_execution_package
 from memory.implementation_handoff import load_implementation_handoff, save_implementation_handoff
 from memory.handoff_applications import (
@@ -42,6 +47,7 @@ from memory.handoff_applications import (
     mark_handoff_applied,
     mark_handoff_failed,
     mark_handoff_started,
+    mark_handoff_validated,
     sync_handoff_application,
 )
 from memory.macros import add_macro
@@ -893,6 +899,71 @@ def maybe_handle_handoff_application_command(user_input: str) -> str | None:
             return f"Registrei falha na aplicacao do handoff: {title}. Isso vai alimentar uma nova tentativa."
         return f"Registrei falha na aplicacao do handoff: {title}. O rastreador do handoff vai alimentar uma nova tentativa."
 
+    if normalized in {
+        "handoff validado",
+        "aplicacao validada",
+        "aplicacao funcionou",
+        "implementacao validada",
+        "melhoria aplicada funcionou",
+    }:
+        state = mark_handoff_validated("validado pelo operador")
+        title = str((state.get("handoff") or {}).get("title", "")).strip()
+        if state.get("status") == "blocked" or not title:
+            return "Ainda nao ha handoff pronto para marcar como validado."
+        mark_verification_success("handoff validado pelo operador")
+        return f"Excelente. Marquei o handoff como validado: {title}."
+
+    return None
+
+
+def maybe_handle_codex_implementation_request_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "preparar pedido de implementacao",
+        "gerar pedido de implementacao",
+        "pedido de implementacao ao codex",
+        "mensagem de implementacao ao codex",
+        "mensagem para codex implementar",
+    }:
+        payload = save_codex_implementation_request()
+        status = str(payload.get("status", "")).strip()
+        title = str(payload.get("title", "")).strip()
+        if status == "blocked":
+            return "Ainda nao ha handoff pronto para transformar em pedido de implementacao ao Codex."
+        mark_handoff_started("pedido de implementacao preparado para o Codex")
+        return f"Preparei o pedido de implementacao para o Codex: {title}. Deixei em memory/codex_implementation_request.md."
+
+    if normalized in {
+        "mostrar pedido de implementacao",
+        "mostrar mensagem para codex",
+        "pedido para codex implementar",
+    }:
+        payload = load_codex_implementation_request()
+        status = str(payload.get("status", "")).strip()
+        title = str(payload.get("title", "")).strip()
+        files = payload.get("files") or []
+        if status == "blocked":
+            return "O pedido de implementacao ainda esta bloqueado. Primeiro gere um handoff pronto."
+        files_text = ", ".join(str(file) for file in files[:4])
+        return f"Pedido pronto para Codex: {title}. Arquivos alvo: {files_text}."
+
+    if normalized in {
+        "enviar pedido de implementacao",
+        "enviar pedido de implementacao ao codex",
+        "colocar pedido de implementacao na fila",
+        "colocar pedido na fila do codex",
+        "mandar pedido para o codex",
+    }:
+        payload = save_codex_implementation_request()
+        if payload.get("status") == "blocked":
+            return "Ainda nao ha pedido de implementacao pronto para colocar na fila do Codex."
+        outbox = enqueue_codex_implementation_request()
+        mark_handoff_started("pedido de implementacao colocado na fila do Codex")
+        pending = len(outbox.get("pending", []))
+        title = str(payload.get("title", "")).strip()
+        return f"Pedido colocado na fila do Codex: {title}. Pendentes agora: {pending}."
+
     return None
 
 
@@ -1271,6 +1342,7 @@ def refresh_improvement_brain(force: bool = False):
         save_execution_package()
         save_implementation_handoff()
         sync_handoff_application()
+        save_codex_implementation_request()
         sync_approval_gate()
         sync_verification_runs()
         save_codex_request()
@@ -1972,6 +2044,17 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "aplicacao do handoff",
         "handoff aplicado",
         "handoff falhou",
+        "handoff validado",
+        "aplicacao validada",
+        "preparar pedido de implementacao",
+        "gerar pedido de implementacao",
+        "pedido de implementacao ao codex",
+        "mensagem para codex implementar",
+        "mostrar pedido de implementacao",
+        "enviar pedido de implementacao",
+        "enviar pedido de implementacao ao codex",
+        "colocar pedido na fila do codex",
+        "mandar pedido para o codex",
         "proposta atual",
         "aprovar proposta atual",
         "rejeitar proposta atual",
@@ -2580,6 +2663,13 @@ def main():
         if handoff_application_response:
             refresh_improvement_brain(force=True)
             output_response(handoff_application_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
+            continue
+
+        codex_implementation_request_response = maybe_handle_codex_implementation_request_command(user_input)
+        if codex_implementation_request_response:
+            refresh_improvement_brain(force=True)
+            output_response(codex_implementation_request_response, voice_mode)
             maybe_announce_codex_suggestion(voice_mode)
             continue
 
