@@ -7,6 +7,9 @@ from memory.approval_gate import load_approval_gate
 from memory.auto_advances import load_auto_advances
 from memory.bottlenecks import load_bottlenecks
 from memory.codex_inbox import latest_codex_inbox_item
+from memory.execution_packages import load_execution_package
+from memory.handoff_applications import load_handoff_application
+from memory.implementation_handoff import load_implementation_handoff
 from memory.patch_proposals import load_patch_proposals
 from memory.verification_runs import load_verification_runs
 
@@ -67,6 +70,9 @@ def generate_codex_request() -> dict:
     proposals = load_patch_proposals()
     approval = load_approval_gate()
     verification = load_verification_runs()
+    execution_package = load_execution_package()
+    handoff = load_implementation_handoff()
+    handoff_application = load_handoff_application()
     codex_decision = latest_codex_inbox_item("decision")
     codex_next_step = latest_codex_inbox_item("next_step")
     top = advances[0] if advances else {}
@@ -137,6 +143,37 @@ def generate_codex_request() -> dict:
         prompt_lines.append(f"Ultima decisao registrada do Codex: {decision_text}.")
     if next_step_text:
         prompt_lines.append(f"Ultimo proximo passo sugerido pelo Codex: {next_step_text}.")
+
+    package_status = str(execution_package.get("status", "")).strip()
+    package_title = str(execution_package.get("title", "")).strip()
+    if package_status == "ready_for_codex" and package_title:
+        prompt_lines.append("Pacote de execucao supervisionada pronto:")
+        prompt_lines.append(f"- Titulo: {package_title}")
+        package_files = execution_package.get("files") or []
+        if package_files:
+            prompt_lines.append(f"- Arquivos alvo: {', '.join(str(file) for file in package_files[:6])}")
+        package_validation = execution_package.get("validation") or []
+        if package_validation:
+            prompt_lines.append(f"- Validacao sugerida: {'; '.join(str(command) for command in package_validation[:3])}")
+
+    handoff_status = str(handoff.get("status", "")).strip()
+    handoff_title = str(handoff.get("title", "")).strip()
+    if handoff_status == "ready" and handoff_title:
+        prompt_lines.append("Handoff de implementacao pronto:")
+        prompt_lines.append(f"- Titulo: {handoff_title}")
+        handoff_files = handoff.get("files") or []
+        if handoff_files:
+            prompt_lines.append(f"- Arquivos: {', '.join(str(file) for file in handoff_files[:6])}")
+        handoff_instructions = handoff.get("instructions") or []
+        if handoff_instructions:
+            prompt_lines.append(f"- Primeiras instrucoes: {'; '.join(str(item) for item in handoff_instructions[:3])}")
+
+    application_status = str(handoff_application.get("status", "")).strip()
+    application_note = str(handoff_application.get("last_note", "")).strip()
+    if application_status:
+        prompt_lines.append(f"Status da aplicacao supervisionada do handoff: {application_status}.")
+    if application_note:
+        prompt_lines.append(f"Nota da aplicacao: {application_note}.")
 
     prompt_lines.append("Quero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.")
 

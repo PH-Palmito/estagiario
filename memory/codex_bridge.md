@@ -23,6 +23,5 @@ Propostas iniciais de patch:
 Status da aprovacao humana: pending.
 Proposta em revisao: Lapidar robustez geral do Axel.
 Status da verificacao da melhoria: idle.
-Ultima decisao registrada do Codex: Priorizar robustez do entendimento de comandos curtos..
-Ultimo proximo passo sugerido pelo Codex: Refinar o classificador de voz antes de novas macros..
+Status da aplicacao supervisionada do handoff: blocked.
 Quero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.

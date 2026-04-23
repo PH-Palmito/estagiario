@@ -35,6 +35,15 @@ from memory.codex_outbox import (
     sync_codex_outbox,
 )
 from memory.codex_inbox import add_codex_inbox_item, clear_codex_inbox, load_codex_inbox
+from memory.execution_packages import load_execution_package, save_execution_package
+from memory.implementation_handoff import load_implementation_handoff, save_implementation_handoff
+from memory.handoff_applications import (
+    load_handoff_application,
+    mark_handoff_applied,
+    mark_handoff_failed,
+    mark_handoff_started,
+    sync_handoff_application,
+)
 from memory.macros import add_macro
 from memory.patch_proposals import load_patch_proposals, save_patch_proposals
 from memory.piper_voice_manager import (
@@ -734,6 +743,159 @@ def maybe_handle_action_candidate_command(user_input: str) -> str | None:
     return None
 
 
+def maybe_handle_execution_package_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "gerar pacote de execucao",
+        "preparar pacote de execucao",
+        "montar pacote de execucao",
+        "preparar aplicacao supervisionada",
+    }:
+        payload = save_execution_package()
+        status = str(payload.get("status", "")).strip()
+        title = str(payload.get("title", "")).strip()
+        if status == "waiting_for_approval":
+            return "Ainda nao ha acao candidata aprovada para montar pacote de execucao."
+        return f"Pacote de execucao preparado para o Codex: {title}. Status: {status}."
+
+    if normalized in {
+        "pacote de execucao",
+        "mostrar pacote de execucao",
+        "plano de execucao",
+        "mostrar plano de execucao",
+    }:
+        payload = load_execution_package()
+        status = str(payload.get("status", "")).strip()
+        title = str(payload.get("title", "")).strip()
+        files = payload.get("files") or []
+        validation = payload.get("validation") or []
+        if status == "waiting_for_approval":
+            return "O pacote de execucao ainda aguarda uma acao candidata aprovada."
+        files_text = ", ".join(str(file) for file in files[:4])
+        validation_text = "; ".join(str(command) for command in validation[:2])
+        return f"Pacote de execucao: {title}. Status: {status}. Arquivos: {files_text}. Validacao: {validation_text}."
+
+    if normalized in {
+        "executar pacote de execucao",
+        "aplicar pacote de execucao",
+    }:
+        return "Ainda nao aplico o pacote automaticamente. Ele esta pronto para o Codex revisar, editar e validar com voce supervisionando."
+
+    return None
+
+
+def maybe_handle_implementation_handoff_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "gerar handoff",
+        "preparar handoff",
+        "handoff para codex",
+        "gerar handoff para codex",
+        "preparar implementacao",
+    }:
+        payload = save_implementation_handoff()
+        status = str(payload.get("status", "")).strip()
+        title = str(payload.get("title", "")).strip()
+        if status == "blocked":
+            return "Ainda nao ha pacote aprovado pronto para gerar handoff ao Codex."
+        return f"Handoff preparado para o Codex: {title}. Status: {status}."
+
+    if normalized in {
+        "mostrar handoff",
+        "handoff",
+        "handoff do codex",
+        "handoff do axel",
+    }:
+        payload = load_implementation_handoff()
+        status = str(payload.get("status", "")).strip()
+        title = str(payload.get("title", "")).strip()
+        files = payload.get("files") or []
+        validation = payload.get("validation") or []
+        if status == "blocked":
+            return "O handoff ainda esta bloqueado. Primeiro aprove uma acao candidata e gere o pacote de execucao."
+        files_text = ", ".join(str(file) for file in files[:4])
+        validation_text = "; ".join(str(command) for command in validation[:2])
+        return f"Handoff do Axel para o Codex: {title}. Arquivos: {files_text}. Validacao: {validation_text}."
+
+    if normalized in {
+        "aplicar handoff",
+        "executar handoff",
+    }:
+        return "Ainda nao aplico o handoff automaticamente. Ele serve para o Codex implementar com supervisao e validacao."
+
+    return None
+
+
+def maybe_handle_handoff_application_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "status da aplicacao",
+        "status da aplicacao do handoff",
+        "aplicacao do handoff",
+        "mostrar aplicacao",
+    }:
+        state = load_handoff_application()
+        status = str(state.get("status", "blocked")).strip()
+        handoff = state.get("handoff") or {}
+        title = str(handoff.get("title", "")).strip()
+        note = str(state.get("last_note", "")).strip()
+        if not title:
+            return f"Aplicacao do handoff: {status}. Ainda nao ha handoff pronto."
+        response = f"Aplicacao do handoff: {status}. Alvo: {title}."
+        if note:
+            response += f" Nota: {note}."
+        return response
+
+    if normalized in {
+        "iniciar aplicacao do handoff",
+        "marcar handoff em andamento",
+        "codex comecou handoff",
+        "codex começou handoff",
+    }:
+        state = mark_handoff_started()
+        title = str((state.get("handoff") or {}).get("title", "")).strip()
+        if state.get("status") == "blocked" or not title:
+            return "Ainda nao ha handoff pronto para marcar como em andamento."
+        return f"Registrei aplicacao em andamento para: {title}."
+
+    if normalized in {
+        "handoff aplicado",
+        "codex aplicou handoff",
+        "marcar handoff aplicado",
+        "implementacao aplicada",
+        "implementação aplicada",
+    }:
+        state = mark_handoff_applied()
+        title = str((state.get("handoff") or {}).get("title", "")).strip()
+        if state.get("status") == "blocked" or not title:
+            return "Ainda nao ha handoff pronto para marcar como aplicado."
+        verification = start_verification("handoff aplicado; aguardando validacao")
+        if verification.get("status") == "pending":
+            return f"Registrei o handoff como aplicado: {title}. Iniciei a verificacao da melhoria."
+        return f"Registrei o handoff como aplicado: {title}. Aguardando validacao supervisionada."
+
+    if normalized in {
+        "handoff falhou",
+        "codex falhou handoff",
+        "marcar handoff falhou",
+        "implementacao falhou",
+        "implementação falhou",
+    }:
+        state = mark_handoff_failed()
+        title = str((state.get("handoff") or {}).get("title", "")).strip()
+        if state.get("status") == "blocked" or not title:
+            return "Ainda nao ha handoff pronto para marcar como falha."
+        verification = mark_verification_failed("handoff falhou durante aplicacao supervisionada")
+        if verification.get("status") == "failed":
+            return f"Registrei falha na aplicacao do handoff: {title}. Isso vai alimentar uma nova tentativa."
+        return f"Registrei falha na aplicacao do handoff: {title}. O rastreador do handoff vai alimentar uma nova tentativa."
+
+    return None
+
+
 def maybe_handle_approval_gate_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
 
@@ -1106,6 +1268,9 @@ def refresh_improvement_brain(force: bool = False):
         save_auto_advances()
         save_patch_proposals()
         save_action_candidates()
+        save_execution_package()
+        save_implementation_handoff()
+        sync_handoff_application()
         sync_approval_gate()
         sync_verification_runs()
         save_codex_request()
@@ -1799,6 +1964,14 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "mostrar propostas de patch",
         "acoes candidatas",
         "mostrar acoes candidatas",
+        "pacote de execucao",
+        "mostrar pacote de execucao",
+        "handoff",
+        "mostrar handoff",
+        "status da aplicacao",
+        "aplicacao do handoff",
+        "handoff aplicado",
+        "handoff falhou",
         "proposta atual",
         "aprovar proposta atual",
         "rejeitar proposta atual",
@@ -2386,6 +2559,27 @@ def main():
         if action_candidate_response:
             refresh_improvement_brain(force=True)
             output_response(action_candidate_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
+            continue
+
+        execution_package_response = maybe_handle_execution_package_command(user_input)
+        if execution_package_response:
+            refresh_improvement_brain(force=True)
+            output_response(execution_package_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
+            continue
+
+        implementation_handoff_response = maybe_handle_implementation_handoff_command(user_input)
+        if implementation_handoff_response:
+            refresh_improvement_brain(force=True)
+            output_response(implementation_handoff_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
+            continue
+
+        handoff_application_response = maybe_handle_handoff_application_command(user_input)
+        if handoff_application_response:
+            refresh_improvement_brain(force=True)
+            output_response(handoff_application_response, voice_mode)
             maybe_announce_codex_suggestion(voice_mode)
             continue
 

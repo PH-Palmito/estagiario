@@ -1,5 +1,5 @@
 {
-  "generated_at": 1776941388.1835167,
+  "generated_at": 1776942404.6120012,
   "goal": "Permitir que o Axel evolua o proprio projeto com supervisao e seguranca.",
   "current_focus": "Executar decisao do Codex: Priorizar robustez do entendimento de comandos curtos.",
   "codex_request_title": "Lapidar robustez geral do Axel",
@@ -51,6 +51,12 @@
       "title": "Acoes candidatas antes de executar mudancas",
       "status": "done",
       "reason": "O Axel ja consegue transformar orientacoes em acoes candidatas com arquivos alvo."
+    },
+    {
+      "id": "handoff_application",
+      "title": "Aplicacao supervisionada do handoff",
+      "status": "planned",
+      "reason": "Ainda falta um handoff pronto antes de acompanhar aplicacao real."
     }
   ]
 }
