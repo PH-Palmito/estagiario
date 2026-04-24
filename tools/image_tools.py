@@ -1,15 +1,70 @@
 import json
+import re
 import time
 import subprocess
 from pathlib import Path
 
+from llm.ollama_client import ask_model
 from llm.vision_client import ask_vision_model, vision_unavailable_message
+from memory.vision_history import remember_vision_analysis
 
 
 ROOT = Path(__file__).resolve().parents[1]
 POWERSHELL_EXE = "powershell"
 SUPPORTED_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
 SCREENSHOT_DIR = ROOT / ".tmp" / "screenshots"
+
+
+def _rapidocr_image(path: Path) -> dict:
+    try:
+        from rapidocr_onnxruntime import RapidOCR
+    except Exception as exc:
+        return {
+            "width": 0,
+            "height": 0,
+            "ocr_ok": False,
+            "ocr_language": "",
+            "text": "",
+            "ocr_engine": "rapidocr",
+            "error": str(exc),
+        }
+
+    try:
+        ocr = RapidOCR()
+        result, _elapsed = ocr(str(path))
+    except Exception as exc:
+        return {
+            "width": 0,
+            "height": 0,
+            "ocr_ok": False,
+            "ocr_language": "",
+            "text": "",
+            "ocr_engine": "rapidocr",
+            "error": str(exc),
+        }
+
+    lines = []
+    for item in result or []:
+        if not isinstance(item, (list, tuple)) or len(item) < 2:
+            continue
+        text = str(item[1] or "").strip()
+        confidence = 0.0
+        if len(item) >= 3:
+            try:
+                confidence = float(item[2])
+            except Exception:
+                confidence = 0.0
+        if text and confidence >= 0.45:
+            lines.append(text)
+
+    return {
+        "width": 0,
+        "height": 0,
+        "ocr_ok": bool(lines),
+        "ocr_language": "multi",
+        "text": "\n".join(lines),
+        "ocr_engine": "rapidocr",
+    }
 
 
 def _resolve_target(path: str | None) -> Path:
@@ -89,7 +144,19 @@ try {{
 }} | ConvertTo-Json -Compress
 """
     output = _run_powershell(script, timeout_seconds=25)
-    return json.loads(output) if output else {}
+    result = json.loads(output) if output else {}
+    if str(result.get("text", "")).strip():
+        result.setdefault("ocr_engine", "windows")
+        return result
+
+    fallback = _rapidocr_image(path)
+    if str(fallback.get("text", "")).strip():
+        fallback["width"] = int(result.get("width", 0) or fallback.get("width", 0) or 0)
+        fallback["height"] = int(result.get("height", 0) or fallback.get("height", 0) or 0)
+        return fallback
+
+    result.setdefault("ocr_engine", "windows")
+    return result
 
 
 def _capture_foreground_window(path: Path) -> dict:
@@ -224,15 +291,371 @@ def _format_image_analysis(
 
 
 def _clean_visual_response(response: str, max_length: int = 760) -> str:
+    def _strip_leaked_instruction(text: str) -> str:
+        if re.search(r"nao vejo um grafico claro na tela", text, flags=re.IGNORECASE) and re.search(
+            r"depois|se houver grafico|valores visiveis|conclusao pratica|tendencia|seu grafico",
+            text,
+            flags=re.IGNORECASE,
+        ):
+            return "Nao vejo um grafico claro na tela."
+        text = re.sub(r"\bDepois\b.*$", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"\bSe houver grafico\b.*$", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"\bseu grafico\b.*$", "", text, flags=re.IGNORECASE).strip()
+        return text
+
     compact = " ".join(str(response or "").split()).strip()
+    compact = compact.strip(" \"'“”")
     compact = compact.replace("A imagem mostra", "Vejo")
     compact = compact.replace("A imagem parece mostrar", "Parece")
+    compact = compact.replace("site's interface", "interface do site")
+    compact = re.sub(r"^aqui est[aá]\s+(?:a\s+)?(?:tradu[cç][aã]o|resposta final)\s*(?:para portugu[eê]s)?\s*:\s*", "", compact, flags=re.IGNORECASE).strip()
+    if "Nao vejo um grafico claro na tela." in compact and any(
+        marker in compact
+        for marker in (
+            "Depois descreva",
+            "Se houver grafico",
+            "valores visiveis",
+            "conclusao pratica",
+        )
+    ):
+        compact = "Nao vejo um grafico claro na tela."
+    compact = re.sub(r"\bDepois descreva brevemente\b.*$", "", compact, flags=re.IGNORECASE).strip()
+    compact = re.sub(r"\bSe houver grafico\b.*$", "", compact, flags=re.IGNORECASE).strip()
+    compact = _strip_leaked_instruction(compact)
     if len(compact) > max_length:
         compact = compact[: max_length - 3].rstrip() + "..."
     return compact
 
 
-def _semantic_image_analysis(path: Path, ocr_result: dict | None = None, prefix: str = "Análise visual") -> str:
+def _looks_like_low_value_chart_response(text: str) -> bool:
+    lowered = str(text or "").lower()
+    weak_markers = (
+        "sem mais detalhes",
+        "sem mais contexto",
+        "difícil determinar",
+        "dificil determinar",
+        "não consegui entender",
+        "nao consegui entender",
+        "não conseguiu interpretar",
+        "nao conseguiu interpretar",
+        "não consegui interpretar",
+        "nao consegui interpretar",
+        "não consigo interpretar",
+        "nao consigo interpretar",
+        "não consegui interpretar os dados",
+        "nao consegui interpretar os dados",
+        "agradeço se puder fornecer",
+        "agradeco se puder fornecer",
+        "não posso ajudar com isso",
+        "nao posso ajudar com isso",
+        "poderia forçar mais detalhes",
+        "poderia forcar mais detalhes",
+        "reformular o texto",
+        "pode ser para mostrar",
+        "pode ser usado para",
+        "informações visualmente",
+        "informacoes visualmente",
+        "comparar diferentes categorias",
+        "monitorar mudanças",
+        "monitorar mudancas",
+        "excel ou similar",
+        "software como excel",
+        "natureza específica",
+        "natureza especifica",
+        "função principal",
+        "funcao principal",
+        "pergunta incompleta",
+        "forneça mais detalhes",
+        "forneca mais detalhes",
+        "não posso fornecer uma resposta completa",
+        "nao posso fornecer uma resposta completa",
+        "parece ser um gráfico barra",
+        "parece ser um grafico barra",
+        "pode fornecer informações adicionais",
+        "pode fornecer informacoes adicionais",
+        "formato de apresentação",
+        "formato de apresentacao",
+        "slidemaster",
+        "não conseguiu interpretar",
+        "nao conseguiu interpretar",
+        "não consigo interpretar",
+        "nao consigo interpretar",
+        "não consegui entender",
+        "nao consegui entender",
+        "poderia forçar mais detalhes",
+        "poderia forcar mais detalhes",
+        "reformular o texto",
+    )
+    has_weak_marker = any(marker in lowered for marker in weak_markers)
+    has_chart_hint = any(token in lowered for token in ("grafico", "gráfico", "barra", "linha", "eixo"))
+    return has_chart_hint and has_weak_marker
+
+
+def _looks_like_low_value_visual_response(text: str) -> bool:
+    lowered = str(text or "").lower()
+    weak_markers = (
+        "aqui está a tradução",
+        "aqui esta a traducao",
+        "aqui está a resposta final",
+        "aqui esta a resposta final",
+        "pergunta incompleta",
+        "forneça mais detalhes",
+        "forneca mais detalhes",
+        "não posso fornecer uma resposta completa",
+        "nao posso fornecer uma resposta completa",
+        "sem mais contexto",
+        "sem mais detalhes",
+        "difícil determinar",
+        "dificil determinar",
+        "não consegui entender",
+        "nao consegui entender",
+        "não conseguiu interpretar",
+        "nao conseguiu interpretar",
+        "poderia forçar mais detalhes",
+        "poderia forcar mais detalhes",
+        "reformular o texto",
+    )
+    return any(marker in lowered for marker in weak_markers)
+
+
+def _compact_ocr_hint(text: str, limit: int = 260) -> str:
+    compact = " ".join(str(text or "").split()).strip()
+    if not compact:
+        return ""
+    if len(compact) > limit:
+        compact = compact[: limit - 3].rstrip() + "..."
+    return compact
+
+
+def _ocr_chart_summary(text: str) -> str:
+    lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    if len(lines) < 3:
+        return ""
+
+    number_lines = []
+    label_lines = []
+    for line in lines:
+        normalized = line.replace(",", ".")
+        if re.fullmatch(r"\d+(?:\.\d+)?", normalized):
+            number_lines.append(line)
+        else:
+            label_lines.append(line)
+
+    if len(number_lines) < 2 or len(label_lines) < 2:
+        return ""
+
+    title = label_lines[0]
+    labels = label_lines[1:9]
+    labels_text = ", ".join(labels[:8])
+    numbers_text = ", ".join(number_lines[:8])
+
+    return (
+        f"Consegui ler texto de um gráfico. Título: {title}. "
+        f"Categorias/legendas visíveis: {labels_text}. "
+        f"Números visíveis na escala: {numbers_text}. "
+        "Ainda não consigo garantir automaticamente o valor exato de cada barra só pelo OCR; para isso, a imagem precisa estar ampliada ou o gráfico isolado."
+    )
+
+
+def _make_visual_response_useful(visual: str, ocr_text: str = "") -> str:
+    visual = _clean_visual_response(visual)
+    if not visual:
+        return visual
+
+    chart_ocr_summary = _ocr_chart_summary(ocr_text)
+    visual_mentions_chart = any(token in visual.lower() for token in ("grafico", "gráfico", "barra", "eixo"))
+
+    if _looks_like_low_value_visual_response(visual):
+        if chart_ocr_summary:
+            return chart_ocr_summary
+        hint = _compact_ocr_hint(ocr_text)
+        if _looks_like_low_value_chart_response(visual):
+            if hint:
+                return (
+                    "Vejo um gráfico, mas não consegui interpretar título, eixos e valores com confiança. "
+                    f"O texto legível que consegui captar foi: {hint}"
+                )
+            return (
+                "Vejo um gráfico, mas não consegui ler título, eixos, legenda ou valores com confiança. "
+                "Para uma interpretação útil, aumente o zoom do gráfico ou abra ele isolado e peça para analisar a imagem de novo."
+            )
+        if hint:
+            return (
+                "Não consegui extrair uma análise visual confiável dessa imagem. "
+                f"O texto legível que consegui captar foi: {hint}"
+            )
+        return (
+            "Não consegui extrair uma análise visual útil dessa imagem. "
+            "Tente ampliar a área importante ou abrir a imagem isolada e peça para analisar de novo."
+        )
+
+    if _looks_like_low_value_chart_response(visual):
+        if chart_ocr_summary:
+            return chart_ocr_summary
+        hint = _compact_ocr_hint(ocr_text)
+        if hint:
+            return (
+                "Vejo um gráfico, mas não consegui interpretar título, eixos e valores com confiança. "
+                f"O texto legível que consegui captar foi: {hint}"
+            )
+        return (
+            "Vejo um gráfico, mas não consegui ler título, eixos, legenda ou valores com confiança. "
+            "Para uma interpretação útil, aumente o zoom do gráfico ou abra ele isolado e peça para analisar a imagem de novo."
+        )
+
+    return visual
+
+
+def _refine_visual_response(raw_visual: str, ocr_text: str = "", mode: str = "general") -> str:
+    raw_visual = _clean_visual_response(raw_visual, max_length=1000)
+    if not raw_visual:
+        return raw_visual
+
+    ocr_hint = _compact_ocr_hint(ocr_text, limit=520)
+    prompt = (
+        "Voce e o revisor visual do Axel. Transforme a descricao bruta em uma resposta util para Pedro.\n"
+        "Regras obrigatorias:\n"
+        "- Responda somente em portugues do Brasil.\n"
+        "- Nao diga 'tradução', 'pergunta incompleta', nem peça detalhes se uma imagem ja foi enviada.\n"
+        "- Nao invente titulo, eixos, valores, pessoas ou contexto.\n"
+        "- Se for grafico e nao houver titulo/eixos/valores legiveis, diga claramente que nao conseguiu interpretar esses dados.\n"
+        "- Se houver OCR util, use como evidência.\n"
+        "- Se a descricao bruta for generica ou inutil, troque por uma resposta honesta e acionavel.\n"
+        "- Limite a 3 frases curtas.\n\n"
+        f"Modo: {mode}\n"
+        f"Descricao bruta da visao: {raw_visual}\n"
+        f"OCR disponivel: {ocr_hint or 'nenhum texto legivel'}\n\n"
+        "Resposta final:"
+    )
+    try:
+        refined = ask_model(
+            prompt,
+            timeout_seconds=30,
+            num_predict=180,
+            temperature=0.1,
+        )
+        refined = _clean_visual_response(refined, max_length=760)
+        refined = re.sub(r"^(resposta final|resposta|final)\s*:\s*", "", refined, flags=re.IGNORECASE).strip()
+        if refined:
+            return refined
+    except Exception:
+        pass
+
+    return raw_visual
+
+
+def _looks_english(text: str) -> bool:
+    lowered = f" {str(text or '').lower()} "
+    stripped = str(text or "").strip().lower()
+    if stripped.startswith(("the image", "this image", "in the image", "it shows", "there is", "there are")):
+        return True
+
+    english_hits = sum(
+        1
+        for token in (
+            " the ",
+            " there ",
+            " this ",
+            " image ",
+            " appears ",
+            " contains ",
+            " shows ",
+            " with ",
+            " and ",
+            " people ",
+            " screen ",
+            " table ",
+            " computer ",
+            " monitor ",
+            " meeting ",
+            " discussion ",
+            " user interface ",
+        )
+        if token in lowered
+    )
+    portuguese_hits = sum(
+        1
+        for token in (" que ", " uma ", " com ", " imagem ", " parece ", " vejo ", " gráfico ", " tela ")
+        if token in lowered
+    )
+    return english_hits >= 2 and english_hits >= portuguese_hits
+
+
+def _looks_portuguese(text: str) -> bool:
+    lowered = f" {str(text or '').lower()} "
+    accents = any(char in str(text or "") for char in "áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ")
+    portuguese_hits = sum(
+        1
+        for token in (
+            " a imagem ",
+            " esta imagem ",
+            " na imagem ",
+            " a tela ",
+            " pessoas ",
+            " pessoa ",
+            " objeto ",
+            " objetos ",
+            " parece ",
+            " mostra ",
+            " vejo ",
+            " há ",
+            " ha ",
+            " gráfico ",
+            " grafico ",
+            " reunião ",
+            " reuniao ",
+            " computador ",
+            " conteúdo ",
+            " conteudo ",
+        )
+        if token in lowered
+    )
+    return portuguese_hits >= 2 or (accents and not _looks_english(text))
+
+
+def _ensure_portuguese(text: str) -> str:
+    compact = _clean_visual_response(text, max_length=1200)
+    if not compact:
+        return compact
+
+    needs_translation = _looks_english(compact) or not _looks_portuguese(compact)
+    if not needs_translation:
+        return compact
+
+    try:
+        translated = ask_model(
+            "Traduza para portugues do Brasil, mantendo a resposta curta e natural. "
+            "Nao acrescente informacoes novas. E proibido responder em ingles. "
+            "Responda apenas com a traducao, sem explicar.\n\nTexto:\n"
+            + compact,
+            timeout_seconds=25,
+            num_predict=300,
+            temperature=0.1,
+        )
+        translated = _clean_visual_response(translated)
+        translated = re.sub(r"^(tradu[cç][aã]o|texto traduzido)\s*:\s*", "", translated, flags=re.IGNORECASE).strip()
+        if translated and _looks_english(translated):
+            translated = ask_model(
+                "Reescreva obrigatoriamente em portugues do Brasil. "
+                "Nao explique, nao comente e nao use ingles.\n\nTexto:\n"
+                + translated,
+                timeout_seconds=25,
+                num_predict=300,
+                temperature=0.1,
+            )
+            translated = _clean_visual_response(translated)
+            translated = re.sub(r"^(resposta|texto|tradu[cç][aã]o)\s*:\s*", "", translated, flags=re.IGNORECASE).strip()
+        return translated or compact
+    except Exception:
+        return compact
+
+
+def _semantic_image_analysis(
+    path: Path,
+    ocr_result: dict | None = None,
+    prefix: str = "Análise visual",
+    mode: str = "general",
+) -> str:
     text = str((ocr_result or {}).get("text", "")).strip()
     extra = ""
     if text:
@@ -241,15 +664,37 @@ def _semantic_image_analysis(path: Path, ocr_result: dict | None = None, prefix:
             compact_text = compact_text[:497].rstrip() + "..."
         extra = "\n\nTexto detectado por OCR para contexto:\n" + compact_text
 
-    prompt = (
-        "Analise esta imagem para o usuário Pedro. Ele quer saber o que há nela e o que isso significa, "
-        "não dados técnicos do arquivo. Considere qualquer elemento visual relevante: objetos, animais, pessoas, gráficos, "
-        "símbolos, interfaces, documentos, cenário, cores e relações espaciais. Se for gráfico, interprete tendência e conclusão. "
-        "Se houver pessoa, descreva características visuais e contexto sem identificar quem é. Diga o que importa na imagem."
-        + extra
+    base_prompt = (
+        "RESPONDA SOMENTE EM PORTUGUES DO BRASIL.\n"
+        "Nao invente conteudo. Use apenas o que estiver visualmente claro ou no OCR. "
+        "Se estiver incerto, diga que nao consegue confirmar. "
+        "Se houver pessoa, descreva caracteristicas visuais e contexto sem identificar quem e. "
     )
+    if mode == "chart":
+        task_prompt = (
+            "Tarefa: analisar grafico na imagem. Nao copie estas instrucoes. "
+            "Procure sinais reais de grafico: barras, linhas, pizza, velas, eixos, legenda, escala, valores ou serie temporal. "
+            "Se nao houver grafico claro, responda somente: Nao vejo um grafico claro na tela. "
+            "Se houver grafico, diga: tipo do grafico, tendencia, valores visiveis, comparacoes e conclusao pratica."
+        )
+    else:
+        task_prompt = (
+            "Analise esta imagem para Pedro. Ele quer saber o que ha nela e o que isso significa, "
+            "nao dados tecnicos do arquivo. Priorize elementos concretos visiveis: objetos, animais, pessoas, "
+            "interfaces, documentos, cenario, simbolos, texto importante e relacoes espaciais. "
+            "Se houver um grafico claro, interprete tipo, tendencia, valores visiveis e conclusao pratica. "
+            "Se nao houver grafico, nao mencione grafico. "
+            "Se parecer uma pagina ou app, explique o conteudo util visivel sem inventar assunto."
+        )
+
+    prompt = base_prompt + task_prompt + extra
     visual = ask_vision_model(path, prompt=prompt)
-    visual = _clean_visual_response(visual)
+    visual = _ensure_portuguese(visual)
+    visual = _refine_visual_response(visual, text, mode=mode)
+    visual = _ensure_portuguese(visual)
+    visual = _make_visual_response_useful(visual, text)
+    if not visual and text:
+        visual = _ocr_chart_summary(text) or ("Texto legível na imagem: " + _compact_ocr_hint(text, limit=520))
     if visual:
         return f"{prefix}: {visual}"
     return ""
@@ -275,6 +720,7 @@ def analyze_image_target(path: str | None = None) -> str:
     try:
         semantic = _semantic_image_analysis(target, ocr_result=result)
         if semantic:
+            remember_vision_analysis("arquivo", semantic)
             return semantic
     except Exception as exc:
         fallback = _format_image_analysis(result)
@@ -283,14 +729,20 @@ def analyze_image_target(path: str | None = None) -> str:
     return _format_image_analysis(result)
 
 
-def analyze_screen_image() -> str:
+def analyze_screen_image(mode: str = "general") -> str:
     screenshot_path = SCREENSHOT_DIR / f"axel_screen_{time.time_ns()}.png"
     try:
         _capture_foreground_window(screenshot_path)
         result = _ocr_image(screenshot_path)
         try:
-            semantic = _semantic_image_analysis(screenshot_path, ocr_result=result, prefix="Análise visual da tela")
+            semantic = _semantic_image_analysis(
+                screenshot_path,
+                ocr_result=result,
+                prefix="Análise visual da tela",
+                mode=mode,
+            )
             if semantic:
+                remember_vision_analysis("tela", semantic)
                 return semantic
         except Exception as exc:
             return vision_unavailable_message(exc) + " " + _format_image_analysis(
@@ -308,6 +760,10 @@ def analyze_screen_image() -> str:
             pass
 
 
+def analyze_screen_graph() -> str:
+    return analyze_screen_image(mode="chart")
+
+
 def analyze_clipboard_image() -> str:
     clipboard_path = SCREENSHOT_DIR / f"axel_clipboard_{time.time_ns()}.png"
     try:
@@ -316,6 +772,7 @@ def analyze_clipboard_image() -> str:
         try:
             semantic = _semantic_image_analysis(clipboard_path, ocr_result=result, prefix="Análise visual da imagem copiada")
             if semantic:
+                remember_vision_analysis("clipboard", semantic)
                 return semantic
         except Exception as exc:
             return vision_unavailable_message(exc) + " " + _format_image_analysis(

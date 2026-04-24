@@ -1393,18 +1393,48 @@ def detect_image_analysis_command(user_input: str):
         return {"intent": "image_analyze_clipboard", "target": None}
 
     if lower in {
+        "analisar imagem",
+        "analisa imagem",
+        "analise imagem",
+        "analisar grafico",
+        "analisa grafico",
+        "analise grafico",
+        "interpretar grafico",
+        "interpreta grafico",
+        "interprete grafico",
+        "interpretar grafico da tela",
+        "interpretar gráfico",
+        "interpretar gráfico da tela",
+        "ler grafico",
+        "ler gráfico",
+    }:
+        return {"intent": "image_analyze_screen", "target": None}
+
+    if lower in {
         "analisar imagem da tela",
         "analisar a imagem da tela",
         "analisa imagem da tela",
         "analise a imagem da tela",
+        "interpretar imagem",
+        "interpreta imagem",
+        "interprete imagem",
         "interpretar imagem da tela",
         "interpretar a imagem da tela",
         "identificar elementos",
+        "identifica elementos",
+        "identifique elementos",
         "identificar elementos da tela",
         "descrever cena",
+        "descreve cena",
+        "descreva cena",
         "descrever a cena",
         "descrever imagem",
+        "descreve imagem",
+        "descreva imagem",
         "descrever a imagem",
+        "descrever imagem da tela",
+        "descreve imagem da tela",
+        "descreva imagem da tela",
         "o que aparece na tela",
         "o que aparece nessa imagem",
         "o que aparece na imagem",
@@ -1412,12 +1442,6 @@ def detect_image_analysis_command(user_input: str):
         "o que tem na imagem",
         "o que ha nessa imagem",
         "o que ha na imagem",
-        "interpretar grafico",
-        "interpretar grafico da tela",
-        "interpretar gráfico",
-        "interpretar gráfico da tela",
-        "ler grafico",
-        "ler gráfico",
         "analisar print da tela",
         "analisar screenshot da tela",
         "ler imagem da tela",
@@ -1465,8 +1489,13 @@ def detect_vision_model_command(user_input: str):
 
     if lower in {
         "status da visao",
+        "status visao",
+        "status visão",
+        "status da visão",
         "status da visão",
         "modelo visual",
+        "modelo de visao",
+        "modelo de visão",
         "status do modelo visual",
         "qual modelo visual",
         "visao local",
@@ -1501,6 +1530,18 @@ def detect_vision_model_command(user_input: str):
         "qual modelo de visão",
     }:
         return {"intent": "vision_active_model", "target": None}
+
+    if lower in {
+        "ultima analise visual",
+        "última análise visual",
+        "ultima imagem analisada",
+        "última imagem analisada",
+        "repetir analise visual",
+        "repetir análise visual",
+        "o que voce viu na imagem",
+        "o que você viu na imagem",
+    }:
+        return {"intent": "vision_last_analysis", "target": None}
 
     return None
 

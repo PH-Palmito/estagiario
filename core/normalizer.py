@@ -209,11 +209,13 @@ def normalize_action(old_action: dict) -> Command:
         "browser_zoom_in",
         "browser_zoom_out",
         "browser_zoom_reset",
+        "image_analyze_screen_graph",
         "image_analyze_clipboard",
         "vision_status",
         "vision_install_hint",
         "vision_download_light_model",
         "vision_active_model",
+        "vision_last_analysis",
     }:
         return Command(
             action=intent,
@@ -346,6 +348,13 @@ def normalize_action(old_action: dict) -> Command:
     if intent == "image_analyze_screen":
         return Command(
             action="image_analyze_screen",
+            params={},
+            source="router",
+        )
+
+    if intent == "image_analyze_screen_graph":
+        return Command(
+            action="image_analyze_screen_graph",
             params={},
             source="router",
         )

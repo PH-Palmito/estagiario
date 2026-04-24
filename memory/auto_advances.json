@@ -1,20 +1,15 @@
 {
-  "generated_at": 1776998909.0995245,
+  "generated_at": 1777035015.9649622,
   "items": [
+    {
+      "title": "Integrar ditado ao HUD com indicador dedicado",
+      "reason": "Voce ja usa voz com frequencia; juntar ditado e painel deve reduzir atrito no uso diario.",
+      "source": "historico-recente"
+    },
     {
       "title": "Aprimorar leitura util de pagina com foco no conteudo central",
       "reason": "Seu uso recente mostra bastante navegacao orientada por tela; vale melhorar relevancia, resumo e clique contextual.",
       "source": "historico-recente"
-    },
-    {
-      "title": "Adicionar analise de imagens ao fluxo do Axel",
-      "reason": "A lista manual ja aponta isso, e a interface pode virar a base visual para esse passo.",
-      "source": "lista-manual"
-    },
-    {
-      "title": "Criar um modo de inspecao de codigo com busca de erros",
-      "reason": "Voce trabalha com sistemas completos e esse ganho conversa diretamente com seu uso de projetos reais.",
-      "source": "lista-manual"
     },
     {
       "title": "Dar ao Axel memoria operacional de preferencias e contexto",

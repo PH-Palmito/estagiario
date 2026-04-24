@@ -93,8 +93,14 @@ from tools.file_tools import (
 from tools.folder_tools import create_folder
 from tools.web_tools import google_search, open_chatgpt
 from tools.code_tools import inspect_code_target, inspect_selected_code, inspect_workspace_code
-from tools.image_tools import analyze_browser_image, analyze_clipboard_image, analyze_image_target, analyze_screen_image
-from tools.vision_tools import active_vision_model, start_light_vision_model_download, vision_install_hint, vision_status
+from tools.image_tools import (
+    analyze_browser_image,
+    analyze_clipboard_image,
+    analyze_image_target,
+    analyze_screen_graph,
+    analyze_screen_image,
+)
+from tools.vision_tools import active_vision_model, last_visual_analysis, start_light_vision_model_download, vision_install_hint, vision_status
 
 
 def execute_many(raw_steps):
@@ -209,12 +215,14 @@ ACTIONS = {
     "code_inspect_selection": lambda p: inspect_selected_code(),
     "image_analyze": lambda p: analyze_image_target(p.get("target")),
     "image_analyze_screen": lambda p: analyze_screen_image(),
+    "image_analyze_screen_graph": lambda p: analyze_screen_graph(),
     "image_analyze_browser": lambda p: analyze_browser_image(),
     "image_analyze_clipboard": lambda p: analyze_clipboard_image(),
     "vision_status": lambda p: vision_status(),
     "vision_install_hint": lambda p: vision_install_hint(),
     "vision_download_light_model": lambda p: start_light_vision_model_download(),
     "vision_active_model": lambda p: active_vision_model(),
+    "vision_last_analysis": lambda p: last_visual_analysis(),
     "run_macro": lambda p: execute_many(p["steps"]),
     "respond": lambda p: p["message"],
 }

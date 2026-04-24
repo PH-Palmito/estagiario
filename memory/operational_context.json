@@ -1,8 +1,8 @@
 {
-  "generated_at": 1776998909.3596478,
+  "generated_at": 1777035016.1420124,
   "assistant_name": "Axel",
   "operator_name": "Pedro Henrique",
-  "current_focus": "Adicionar analise de imagens ao fluxo do Axel",
+  "current_focus": "Integrar ditado ao HUD com indicador dedicado",
   "focus_stack": [
     "front-end",
     "mobile",
@@ -10,23 +10,26 @@
     "TypeScript"
   ],
   "recent_user_requests": [
-    "interpretar imagem da tela",
+    "analisar imagem da tela",
+    "analisa gráfico",
     "image_analyze_screen"
   ],
   "recent_apps": [],
   "recent_sites": [],
   "recent_topics": [
+    "analisa",
+    "analisar",
+    "gráfico",
     "image_analyze_screen",
-    "imagem",
-    "interpretar"
+    "imagem"
   ],
   "conversation_mode": false,
   "dictation_mode": false,
   "next_advances": [
+    "Integrar ditado ao HUD com indicador dedicado",
     "Aprimorar leitura util de pagina com foco no conteudo central",
-    "Adicionar analise de imagens ao fluxo do Axel",
-    "Criar um modo de inspecao de codigo com busca de erros"
+    "Dar ao Axel memoria operacional de preferencias e contexto"
   ],
   "active_bottlenecks": [],
-  "summary": "Axel acompanhando Pedro Henrique. Foco atual: Adicionar analise de imagens ao fluxo do Axel. Topicos recentes: image_analyze_screen, imagem, interpretar."
+  "summary": "Axel acompanhando Pedro Henrique. Foco atual: Integrar ditado ao HUD com indicador dedicado. Topicos recentes: analisa, analisar, gráfico, image_analyze_screen."
 }

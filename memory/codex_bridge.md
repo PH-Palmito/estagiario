@@ -6,16 +6,18 @@
 ## Contexto
 O assistente local se chama Axel.
 O operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.
-Melhoria sugerida agora: Aprimorar leitura util de pagina com foco no conteudo central.
-Motivo: Seu uso recente mostra bastante navegacao orientada por tela; vale melhorar relevancia, resumo e clique contextual.
+Melhoria sugerida agora: Integrar ditado ao HUD com indicador dedicado.
+Motivo: Voce ja usa voz com frequencia; juntar ditado e painel deve reduzir atrito no uso diario.
 Origem da sugestao: historico-recente.
-Ultima fala relevante do usuario: interpretar imagem da tela.
-Ultima resposta do assistente: Análise visual da tela: The image shows a group of people sitting around a table and looking at something on the screen in front of them. The scene appears to be a meeting or discussion, with everyone's attention focused on the content displayed on the computer monitor. This visual context helps convey the idea that they are engaged in a collaborative activity, possibly discussing work-related matters or sharing information..
+Ultima fala relevante do usuario: analisa gráfico.
+Ultima resposta do assistente: OCR da tela (1936x1048). Não detectei texto legível via OCR..
 Historico recente:
-Axel: Modo voz ativado. Aperte F8 para falar. Aperte F9 para pausar/retomar.
-Axel: Sistemas online. Pronto para trabalhar.
-Usuario: interpretar imagem da tela
-Axel: Análise visual da tela: The image shows a group of people sitting around a table and looking at something on the screen in front of them. The scene appears to be a meeting or discussion, with everyone's attention focused on the content displayed on the computer monitor. This visual context helps convey the idea that they are engaged in a collaborative activity, possibly discussing work-related matters or sharing information.
+Axel: Analisando a imagem da tela...
+Axel: Análise visual da tela: Aqui está a tradução para português: "Eu preciso, mas não posso fornecer uma resposta completa à sua pergunta, pois ela é incompleta e não se sabe o que você está procurando. Por favor, forneça mais detalhes específicos sobre a imagem ou descrição do conteúdo da imagem, então eu posso ajudá-lo de maneira mais eficaz.
+Usuario: analisa gráfico
+Axel: Analisando a imagem da tela...
+Axel: Análise visual da tela: Vejo um slide com uma gráfica no formato de apresentação como o PowerPoint ou o SlideMaster. A gráfica tem cores diferentes e parece ser um gráfico barra. O slide também contém texto, que pode fornecer informações adicionais sobre a representação da informação por essa gráfica.
+Usuario: analisa gráfico
 Propostas iniciais de patch:
 - Lapidar robustez geral do Axel | arquivos: main.py, ui/assistant_hud.py
 Status da aprovacao humana: pending.

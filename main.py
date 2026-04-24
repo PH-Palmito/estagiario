@@ -145,7 +145,45 @@ def process_action(raw_action: dict):
     return command
 
 
-def execute_command(command):
+def action_progress_message(command) -> str | None:
+    messages = {
+        "image_analyze_screen": "Analisando a imagem da tela...",
+        "image_analyze_screen_graph": "Analisando a imagem da tela...",
+        "image_analyze_browser": "Analisando a imagem no navegador...",
+        "image_analyze_clipboard": "Analisando a imagem copiada...",
+        "image_analyze": "Analisando a imagem...",
+        "browser_describe_screen": "Lendo a tela...",
+        "browser_explain_screen": "Analisando o conteúdo principal...",
+        "browser_summarize_screen": "Resumindo a tela...",
+        "browser_investment_snapshot": "Analisando seus investimentos...",
+        "browser_open_wallet_and_summarize": "Abrindo e analisando sua carteira...",
+        "browser_read_selection": "Lendo o texto selecionado...",
+        "browser_read_selected_products": "Lendo os produtos selecionados...",
+        "browser_translate_last_selection": "Traduzindo o último texto selecionado...",
+        "browser_translate_selection": "Traduzindo o texto selecionado...",
+        "browser_read_more": "Lendo mais conteúdo da página...",
+        "browser_find": "Procurando na página...",
+        "browser_search_site": "Pesquisando no site...",
+        "code_inspect_workspace": "Inspecionando o código do projeto...",
+        "code_inspect_target": "Inspecionando o arquivo solicitado...",
+        "code_inspect_selection": "Inspecionando o código selecionado...",
+    }
+    return messages.get(getattr(command, "action", ""))
+
+
+def show_action_progress(command, voice_mode: bool = False):
+    message = action_progress_message(command)
+    if not message:
+        return
+    terminal_print(f"IA: {message}")
+    append_ui_history("assistant", message, max_items=UI_HISTORY_MAX_ITEMS)
+    refresh_ui_runtime_state({"status": "PROCESSANDO", "last_response": message})
+    if voice_mode:
+        speak(message)
+
+
+def execute_command(command, voice_mode: bool = False):
+    show_action_progress(command, voice_mode=voice_mode)
     result = execute(command)
     runtime_state.update(command, result)
     return result
@@ -2429,6 +2467,14 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "topicos recentes",
         "analisar imagem da tela",
         "analisar imagem no navegador",
+        "interpretar imagem da tela",
+        "descrever imagem da tela",
+        "identificar elementos",
+        "analisa grafico",
+        "analisar grafico",
+        "interpreta grafico",
+        "interpretar grafico",
+        "ler grafico",
         "inspecionar codigo selecionado",
         "analisar codigo selecionado",
         "inspecionar selecionado",
@@ -3176,7 +3222,7 @@ def main():
 
         if pending_command is not None:
             if is_confirmation_yes(user_input):
-                result = execute_command(pending_command)
+                result = execute_command(pending_command, voice_mode=voice_mode)
                 pending_command = None
                 direct_response_ready_announced = False
                 output_response(result, voice_mode)
@@ -3229,7 +3275,7 @@ def main():
                 output_response(processed, voice_mode)
                 continue
 
-            result = execute_command(processed)
+            result = execute_command(processed, voice_mode=voice_mode)
             output_response(result, voice_mode)
             continue
 
@@ -3283,7 +3329,7 @@ def main():
 
         if pending_command is not None:
             if is_confirmation_yes(user_input):
-                result = execute_command(pending_command)
+                result = execute_command(pending_command, voice_mode=voice_mode)
                 pending_command = None
                 output_response(result, voice_mode)
                 continue
@@ -3322,7 +3368,7 @@ def main():
                 output_response(processed, voice_mode)
                 continue
 
-            result = execute_command(processed)
+            result = execute_command(processed, voice_mode=voice_mode)
             output_response(result, voice_mode)
             continue
 
@@ -3357,7 +3403,7 @@ def main():
                 output_response("Nada para repetir.", voice_mode)
                 continue
 
-            result = execute_command(deepcopy(runtime_state.last_command))
+            result = execute_command(deepcopy(runtime_state.last_command), voice_mode=voice_mode)
             output_response(result, voice_mode)
             continue
 
@@ -3386,7 +3432,7 @@ def main():
             )
             continue
 
-        result = execute_command(processed)
+        result = execute_command(processed, voice_mode=voice_mode)
         output_response(result, voice_mode)
 
 
