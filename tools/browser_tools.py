@@ -1593,6 +1593,73 @@ def _extract_finance_focus_lines(lines, limit: int = 5) -> list[str]:
     return chosen
 
 
+def _extract_finance_metrics(lines, limit: int = 7) -> list[str]:
+    labels = (
+        "patrimonio",
+        "patrimonio total",
+        "valor investido",
+        "valor atual",
+        "saldo",
+        "rentabilidade",
+        "lucro",
+        "prejuizo",
+        "proventos",
+        "dividendos",
+        "aporte",
+        "preco medio",
+        "cotacao",
+        "carteira",
+        "total",
+    )
+    value_re = re.compile(r"(?:r\$\s*)?[-+]?\d{1,3}(?:\.\d{3})*(?:,\d{2})|[-+]?\d+(?:,\d+)?\s*%", re.IGNORECASE)
+    candidates = []
+    seen = set()
+
+    compact_lines = [re.sub(r"\s+", " ", line or "").strip() for line in lines if str(line or "").strip()]
+    for index, line in enumerate(compact_lines):
+        normalized = _normalize_text_for_match(line)
+        if not normalized:
+            continue
+        if "http" in normalized or "cookie" in normalized or "direitos reservados" in normalized:
+            continue
+
+        has_label = any(label in normalized for label in labels)
+        values = value_re.findall(line)
+        score = 0
+        metric = ""
+
+        if has_label and values:
+            score = 10
+            metric = line
+        elif has_label and index + 1 < len(compact_lines):
+            next_line = compact_lines[index + 1]
+            next_values = value_re.findall(next_line)
+            if next_values:
+                score = 9
+                metric = f"{line}: {next_line}"
+        elif values and index > 0:
+            prev_line = compact_lines[index - 1]
+            prev_norm = _normalize_text_for_match(prev_line)
+            if any(label in prev_norm for label in labels):
+                score = 8
+                metric = f"{prev_line}: {line}"
+
+        if not metric:
+            continue
+
+        normalized_metric = _normalize_text_for_match(metric)
+        if normalized_metric in seen:
+            continue
+
+        if len(metric) > 160:
+            metric = metric[:157].rstrip() + "..."
+        candidates.append((score, index, metric))
+        seen.add(normalized_metric)
+
+    candidates.sort(key=lambda item: (-item[0], item[1]))
+    return [metric for _score, _index, metric in candidates[:limit]]
+
+
 def _merge_screen_lines(primary_lines, secondary_lines, limit: int = 12) -> list[str]:
     merged = []
     seen = set()
@@ -1859,6 +1926,15 @@ def _explain_screen_lines(lines, page_url: str = "", page_title: str = "") -> st
     if title_content and showcase:
         return f"Pelo título da página, o foco parece ser {title_content}. No conteúdo visível, encontrei: " + "; ".join(showcase[:4]) + "."
 
+    if title_content:
+        summary = _summarize_screen_lines(lines, page_url=page_url, page_title=page_title)
+        if summary and "nao consegui" not in _normalize_text_for_match(summary):
+            return summary
+        return f"Pelo titulo da pagina, o foco parece ser {title_content}, mas ainda nao separei detalhes confiaveis na area visivel."
+
+    if not showcase:
+        return "Ainda nao consegui separar detalhes confiaveis da area visivel da tela."
+
     return f"No conteúdo visível, encontrei: " + "; ".join(showcase[:4]) + "."
 
 
@@ -1884,6 +1960,37 @@ def _should_auto_summarize(lines, quality_score: int, page_url: str = "", page_t
         return True
 
     return False
+
+
+def _investment_screen_summary(lines, page_url: str = "", page_title: str = "") -> str:
+    category = _detect_screen_category(lines, page_url=page_url, page_title=page_title)
+    title_content = _parse_title_content(_clean_browser_title(page_title), page_url)
+    metrics = _extract_finance_metrics(lines, limit=7)
+    focus_lines = _extract_finance_focus_lines(lines, limit=7)
+
+    if category != "financas" and not metrics:
+        return "Não parece ser uma tela financeira. Abra sua carteira, ativo ou página de investimentos e peça de novo."
+
+    if metrics:
+        intro = "Resumo financeiro da tela"
+        if title_content:
+            intro += f" ({_trim_detail_text(title_content, max_length=90)})"
+        return (
+            intro
+            + ": "
+            + "; ".join(metrics)
+            + ". Dados lidos da tela atual; não é recomendação de compra ou venda."
+        )
+
+    if focus_lines:
+        return (
+            "Modo investimentos: encontrei uma página financeira, mas os valores principais não ficaram bem pareados com rótulos. "
+            "Pontos visíveis: "
+            + "; ".join(_content_showcase(focus_lines, limit=5))
+            + "."
+        )
+
+    return "Modo investimentos: a página parece financeira, mas ainda não capturei patrimônio, rentabilidade, proventos ou posições com clareza."
 
 
 def _rank_page_text_lines(text: str, limit: int = 10, page_url: str = "", page_title: str = ""):
@@ -2024,16 +2131,16 @@ def _rank_page_text_lines(text: str, limit: int = 10, page_url: str = "", page_t
         if looks_like_slug:
             continue
 
-        if price_only:
+        if price_only and not finance_category:
             continue
 
         if normalized in category_noise:
             continue
 
-        if len(words) <= 2 and not has_price:
+        if len(words) <= 2 and not has_price and not finance_category:
             continue
 
-        if len(words) <= 3 and has_spec_word and not has_product_word and not has_price:
+        if len(words) <= 3 and has_spec_word and not has_product_word and not has_price and not finance_category:
             continue
 
         if any(pattern in normalized for pattern in ignore_patterns):
@@ -2042,7 +2149,7 @@ def _rank_page_text_lines(text: str, limit: int = 10, page_url: str = "", page_t
         if "lei" in normalized and "9 610 98" in normalized:
             continue
 
-        if re.match(r"^\d+x\s+de\s+r\$", line.lower()):
+        if re.match(r"^\d+x\s+de\s+r\$", line.lower()) and not finance_category:
             continue
 
         if finance_category:
@@ -3253,6 +3360,29 @@ def browser_explain_screen():
         _remember_text_items(lines, context=context)
 
     return "Detalhando a tela: " + _explain_screen_lines(lines, page_url=page_url, page_title=page_title)
+
+
+def browser_investment_snapshot():
+    if not _activate_browser_window():
+        return "Não encontrei um navegador aberto para analisar investimentos."
+
+    context = _refresh_browser_context()
+    page_url = _get_browser_url()
+    page_title = _clean_browser_title(_get_foreground_window_title())
+    capture = _read_screen_content_lines(item_limit=14, page_limit=30, page_url=page_url, page_title=page_title)
+    items = capture["items"]
+    lines = capture["combined_lines"]
+
+    if not lines:
+        _clear_browser_snapshot(context=context)
+        return "Não consegui ler dados financeiros úteis nessa tela."
+
+    if items:
+        _set_browser_elements(items, context=context)
+    else:
+        _remember_text_items(lines, context=context)
+
+    return _investment_screen_summary(lines, page_url=page_url, page_title=page_title)
 
 
 def browser_describe_screen():

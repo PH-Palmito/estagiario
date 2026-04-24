@@ -199,6 +199,7 @@ def normalize_action(old_action: dict) -> Command:
         "browser_describe_screen",
         "browser_explain_screen",
         "browser_summarize_screen",
+        "browser_investment_snapshot",
         "browser_read_selection",
         "browser_read_selected_products",
         "browser_translate_last_selection",
@@ -312,6 +313,48 @@ def normalize_action(old_action: dict) -> Command:
         return Command(
             action="web_open_chatgpt",
             params={},
+            source="router",
+        )
+
+    if intent == "code_inspect_workspace":
+        return Command(
+            action="code_inspect_workspace",
+            params={},
+            source="router",
+        )
+
+    if intent == "code_inspect_selection":
+        return Command(
+            action="code_inspect_selection",
+            params={},
+            source="router",
+        )
+
+    if intent == "code_inspect_target":
+        return Command(
+            action="code_inspect_target",
+            params={"target": target},
+            source="router",
+        )
+
+    if intent == "image_analyze_screen":
+        return Command(
+            action="image_analyze_screen",
+            params={},
+            source="router",
+        )
+
+    if intent == "image_analyze_browser":
+        return Command(
+            action="image_analyze_browser",
+            params={},
+            source="router",
+        )
+
+    if intent == "image_analyze":
+        return Command(
+            action="image_analyze",
+            params={"target": target},
             source="router",
         )
 

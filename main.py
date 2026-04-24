@@ -3,6 +3,7 @@ import sys
 import time
 from copy import deepcopy
 import difflib
+import json
 from pathlib import Path
 import re
 
@@ -53,6 +54,11 @@ from memory.handoff_applications import (
 from memory.handoff_retry_plan import load_handoff_retry_plan, save_handoff_retry_plan
 from memory.handoff_validation import load_handoff_validation, save_handoff_validation
 from memory.macros import add_macro
+from memory.operational_context import (
+    format_operational_context,
+    load_operational_context,
+    save_operational_context,
+)
 from memory.patch_proposals import load_patch_proposals, save_patch_proposals
 from memory.piper_voice_manager import (
     apply_piper_voice,
@@ -116,6 +122,7 @@ direct_response_ready_announced = False
 last_voice_text = ""
 ui_hud_started = False
 last_improvement_refresh = 0.0
+repeat_listen_until = 0.0
 UI_HISTORY_MAX_ITEMS = 40
 
 creating_macro = False
@@ -349,11 +356,24 @@ def style_response(message: str) -> str:
 
 
 def output_response(message: str, voice_mode: bool):
+    global repeat_listen_until
+    global direct_response_ready_announced
+
     styled_message = style_response(message)
     terminal_print(f"IA: {styled_message}")
     append_ui_history("assistant", styled_message, max_items=UI_HISTORY_MAX_ITEMS)
     refresh_ui_runtime_state({"last_response": styled_message})
     refresh_improvement_brain()
+    if voice_mode and any(
+        phrase in styled_message
+        for phrase in (
+            "Não captei com precisão",
+            "Não identifiquei o comando",
+            "Pode repetir",
+        )
+    ):
+        repeat_listen_until = time.time() + 8.0
+        direct_response_ready_announced = False
 
     quiet_messages = {
         "Nao entendi.",
@@ -1538,6 +1558,129 @@ def maybe_handle_self_evolution_command(user_input: str) -> str | None:
     return None
 
 
+def maybe_handle_operational_context_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+    compact = re.sub(r"\s+", " ", normalized).strip()
+
+    if normalized in {
+        "qual meu foco",
+        "qual o meu foco",
+        "qual nosso foco",
+        "o que estamos fazendo",
+        "em que estamos agora",
+        "resumir contexto",
+        "resuma o contexto",
+        "contexto atual",
+        "contexto operacional",
+        "qual o contexto atual",
+        "o que voce sabe sobre mim agora",
+    }:
+        return format_operational_context()
+
+    if (
+        ("context" in compact or "contr" in compact)
+        and ("operac" in compact or "atual" in compact)
+    ):
+        return format_operational_context()
+
+    if normalized in {
+        "atualizar contexto",
+        "atualiza contexto",
+        "atualizar contexto operacional",
+        "recarregar contexto",
+    }:
+        payload = save_operational_context()
+        summary = str(payload.get("summary", "")).strip()
+        if summary:
+            return "Contexto operacional atualizado. " + summary
+        return "Contexto operacional atualizado."
+
+    if normalized in {
+        "quais apps recentes",
+        "apps recentes",
+        "aplicativos recentes",
+        "aplicativo recente",
+        "sites recentes",
+        "quais sites recentes",
+        "topicos recentes",
+        "tópicos recentes",
+    }:
+        payload = save_operational_context()
+        apps = payload.get("recent_apps") or []
+        sites = payload.get("recent_sites") or []
+        topics = payload.get("recent_topics") or []
+        wants_apps = any(token in compact for token in {"app", "aplicativo"})
+        wants_sites = "site" in compact
+        wants_topics = any(token in compact for token in {"topico", "topicos", "tópico", "tópicos"})
+
+        if wants_apps and apps:
+            return "Apps recentes: " + ", ".join(str(item) for item in apps[:4]) + "."
+        if wants_apps:
+            return "Ainda nao tenho apps recentes suficientes para resumir."
+
+        if wants_sites and sites:
+            return "Sites recentes: " + ", ".join(str(item) for item in sites[:4]) + "."
+        if wants_sites:
+            return "Ainda nao tenho sites recentes suficientes para resumir."
+
+        if wants_topics and topics:
+            return "Topicos recentes: " + ", ".join(str(item) for item in topics[:5]) + "."
+        if wants_topics:
+            return "Ainda nao tenho topicos recentes suficientes para resumir."
+
+        parts = []
+        if apps:
+            parts.append("Apps: " + ", ".join(str(item) for item in apps[:4]) + ".")
+        if sites:
+            parts.append("Sites: " + ", ".join(str(item) for item in sites[:4]) + ".")
+        if topics:
+            parts.append("Topicos: " + ", ".join(str(item) for item in topics[:5]) + ".")
+        return " ".join(parts) if parts else "Ainda nao tenho atividade recente suficiente para resumir."
+
+    return None
+
+
+def maybe_handle_directives_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+    if normalized not in {
+        "diretrizes",
+        "diretrizes do axel",
+        "diretrizes do axe",
+        "mostrar diretrizes",
+        "modo investimentos",
+        "modo investimento",
+        "base do modo investimentos",
+        "como funciona modo investimentos",
+    } and not (normalized.startswith("diretrizes") and "axe" in normalized):
+        return None
+
+    path = Path(__file__).resolve().parent / "memory" / "axel_directives.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return "Ainda não consegui carregar minhas diretrizes."
+
+    if normalized in {"modo investimentos", "modo investimento"}:
+        return (
+            "Modo investimentos pronto para leitura de tela. Abra sua carteira ou ativo e diga: "
+            "analisar investimentos, resumo financeiro ou analisar carteira."
+        )
+
+    if "investimento" in normalized:
+        investment = payload.get("investment_mode") or {}
+        goal = str(investment.get("goal", "")).strip()
+        rules = [str(item) for item in (investment.get("rules") or [])[:3]]
+        if not goal:
+            return "Modo investimentos ainda está sem diretrizes configuradas."
+        suffix = " Regras: " + "; ".join(rules) + "." if rules else ""
+        return f"Modo investimentos preparado. {goal}{suffix}"
+
+    directives = [str(item) for item in (payload.get("core_directives") or [])[:4]]
+    if not directives:
+        return "Minhas diretrizes ainda estão vazias."
+    return "Diretrizes do Axel: " + "; ".join(directives) + "."
+
+
 def refresh_improvement_brain(force: bool = False):
     global last_improvement_refresh
 
@@ -1561,6 +1704,7 @@ def refresh_improvement_brain(force: bool = False):
         save_codex_request()
         save_codex_channel()
         sync_codex_outbox()
+        save_operational_context()
         save_self_evolution_plan()
         last_improvement_refresh = now
     except Exception:
@@ -2278,6 +2422,23 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "checklist do handoff",
         "plano de nova tentativa",
         "replanejar handoff",
+        "contexto operacional",
+        "apps recentes",
+        "aplicativos recentes",
+        "sites recentes",
+        "topicos recentes",
+        "analisar imagem da tela",
+        "analisar imagem no navegador",
+        "inspecionar codigo selecionado",
+        "analisar codigo selecionado",
+        "inspecionar selecionado",
+        "diretrizes",
+        "diretrizes do axel",
+        "modo investimentos",
+        "analisar investimentos",
+        "resumo financeiro",
+        "resumo da carteira",
+        "analisar carteira",
         "preparar nova tentativa",
         "preparar nova tentativa para codex",
         "preparar pedido de implementacao",
@@ -2382,7 +2543,11 @@ def wait_for_hotword(
 
 
 def is_waiting_for_direct_response() -> bool:
-    return pending_command is not None or pending_smart_open_choice is not None
+    return (
+        pending_command is not None
+        or pending_smart_open_choice is not None
+        or repeat_listen_until > time.time()
+    )
 
 
 def is_conversation_stop(text: str) -> bool:
@@ -2450,6 +2615,7 @@ def is_transcription_artifact(text: str) -> bool:
         "aplicativos e sites esperados em portugues do brasil",
         "exemplos e sites esperados",
         "tem que ter o volume correto",
+        "comandos curtos em portugues do brasil",
         "transcreva comandos curtos",
         "transcreva comandos curtos em portugues do brasil",
         "assistente local chamado estagiario",
@@ -2658,6 +2824,7 @@ def main():
     global dictation_mode
     global dictation_ready_announced
     global direct_response_ready_announced
+    global repeat_listen_until
     global ui_hud_started
 
     voice_mode = "--voice" in sys.argv
@@ -2762,12 +2929,14 @@ def main():
                 pass
             elif direct_response_mode:
                 set_voice_status("RESPOSTA")
+                repeat_prompt_mode = pending_command is None and pending_smart_open_choice is None
                 user_input = read_user_input(
                     voice_mode,
                     announce_ready=not direct_response_ready_announced,
                     fallback_to_text=False,
-                    ready_message="Pode responder...",
+                    ready_message="Pode repetir..." if repeat_prompt_mode else "Pode responder...",
                 )
+                repeat_listen_until = 0.0
                 direct_response_ready_announced = True
             elif conversation_listen_mode:
                 set_voice_status("CONVERSA")
@@ -2953,6 +3122,18 @@ def main():
         if self_evolution_response:
             refresh_improvement_brain(force=True)
             output_response(self_evolution_response, voice_mode)
+            maybe_announce_codex_suggestion(voice_mode)
+            continue
+
+        directives_response = maybe_handle_directives_command(user_input)
+        if directives_response:
+            output_response(directives_response, voice_mode)
+            continue
+
+        operational_context_response = maybe_handle_operational_context_command(user_input)
+        if operational_context_response:
+            refresh_improvement_brain(force=True)
+            output_response(operational_context_response, voice_mode)
             maybe_announce_codex_suggestion(voice_mode)
             continue
 

@@ -1,26 +1,22 @@
 {
-  "generated_at": 1776947554.2754004,
+  "generated_at": 1776997581.2177787,
   "status": "pending",
-  "proposal_key": "melhorar leitura de tela com foco no conteudo util|tools/browser_tools.py,ui/assistant_hud.py,main.py",
+  "proposal_key": "lapidar robustez geral do axel|main.py,ui/assistant_hud.py",
   "proposal": {
-    "kind": "screen_reading",
-    "priority": 1,
-    "title": "Melhorar leitura de tela com foco no conteudo util",
-    "why": "A leitura de paginas ainda perde partes relevantes e as vezes traz ruido ou contexto incompleto.",
+    "kind": "general",
+    "priority": 0,
+    "title": "Lapidar robustez geral do Axel",
+    "why": "Ainda nao ha gargalos fortes suficientes para uma proposta mais especifica.",
     "files": [
-      "tools/browser_tools.py",
-      "ui/assistant_hud.py",
-      "main.py"
+      "main.py",
+      "ui/assistant_hud.py"
     ],
     "changes": [
-      "Priorizar conteudo principal, blocos centrais e sinais de dominio/contexto.",
-      "Refinar filtros de ruido para menus, rodape, copyright e links crus.",
-      "Adicionar fallback progressivo antes de declarar falha de leitura."
+      "Continuar instrumentando o historico para detectar melhor os proximos pontos fracos.",
+      "Manter a ponte com o Codex atualizada com dados do uso recente."
     ],
-    "risk": "Baixo, porque a mudanca e incremental e facil de validar no uso.",
-    "examples": [
-      "o que tem na tela?"
-    ]
+    "risk": "Baixo.",
+    "examples": []
   },
   "decision_note": "",
   "decided_at": 0.0

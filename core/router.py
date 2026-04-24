@@ -709,7 +709,7 @@ def detect_navigation_command(user_input: str):
         return {"intent": "browser_translate_last_selection", "target": None}
 
     if re.match(
-        r"^(?:e\s+)?(?:o\s+)?que\s+(?:tem|ta|esta|aparece)(?:\s+ai)?\s+na\s+tela$",
+        r"^(?:e\s+)?(?:o\s+)?que\s+(?:tem|ta|esta)(?:\s+ai)?\s+na\s+tela$",
         lower,
     ):
         return {"intent": "browser_describe_screen", "target": None}
@@ -729,6 +729,26 @@ def detect_navigation_command(user_input: str):
         "o que voce ve resumido",
         "o que voce ve na tela resumido",
     }:
+        return {"intent": "browser_summarize_screen", "target": None}
+
+    if lower in {
+        "analisar investimentos",
+        "analisar meus investimentos",
+        "resumo financeiro",
+        "resumir investimentos",
+        "resuma investimentos",
+        "resumo da carteira",
+        "analisar carteira",
+        "ler carteira",
+        "minha carteira",
+        "ver investimentos",
+    }:
+        return {"intent": "browser_investment_snapshot", "target": None}
+
+    if lower in {"resume", "resome", "resumida", "resumir", "resuma"}:
+        return {"intent": "browser_summarize_screen", "target": None}
+
+    if re.match(r"^resum\w*\s+(?:a\s+)?tela$", lower):
         return {"intent": "browser_summarize_screen", "target": None}
 
     if lower in {
@@ -753,11 +773,16 @@ def detect_navigation_command(user_input: str):
     }:
         return {"intent": "browser_explain_screen", "target": None}
 
+    if lower in {"explica", "explique", "explica melhor", "me explica melhor"}:
+        return {"intent": "browser_explain_screen", "target": None}
+
+    if re.match(r"^(?:detalh\w*|explic\w*)\s+(?:a\s+)?tela$", lower):
+        return {"intent": "browser_explain_screen", "target": None}
+
     if lower in {
         "o que tem na tela",
         "que tem na tela",
         "e que tem na tela",
-        "o que aparece na tela",
         "ler tela",
         "leia a tela",
         "ler a pagina",
@@ -1166,6 +1191,8 @@ def detect_browser_command(user_input: str):
         candidate = _strip_leading_articles(open_target)
         if _match_app_target(candidate):
             return None
+        if _best_fuzzy_match(candidate, _site_options(), cutoff=0.7):
+            return None
         if _looks_like_new_tab(candidate):
             return {"intent": "browser_new_tab", "target": None}
 
@@ -1255,6 +1282,155 @@ def detect_media_command(user_input: str):
 
     if any(phrase in lower for phrase in {"muta", "mutar", "mudo", "silencia", "silenciar", "tira o som", "ativar mudo"}):
         return {"intent": "volume_mute", "target": None}
+
+    return None
+
+
+def detect_code_inspection_command(user_input: str):
+    lower = normalize_text(user_input)
+
+    if lower in {
+        "inspecionar selecionado",
+        "inspecionar selecao",
+        "inspecionar seleção",
+        "inspecionar codigo selecionado",
+        "inspecionar c digo selecionado",
+        "inspecionar c3digo selecionado",
+        "inspecionar c3 b3digo selecionado",
+        "inspecionar cã³digo selecionado",
+        "inspecionar cã³digo selecionado",
+        "inspecionar o codigo selecionado",
+        "analisar selecionado",
+        "analisar selecao",
+        "analisar seleção",
+        "analisar codigo selecionado",
+        "analisar c digo selecionado",
+        "analisar o codigo selecionado",
+        "revisar codigo selecionado",
+        "procurar erro no selecionado",
+        "procurar erros no selecionado",
+        "procurar erros no codigo selecionado",
+    }:
+        return {"intent": "code_inspect_selection", "target": None}
+
+    if "selecionado" in lower and ("inspecionar" in lower or "analisar" in lower) and (
+        "codigo" in lower or "c digo" in lower or "digo" in lower
+    ):
+        return {"intent": "code_inspect_selection", "target": None}
+
+    if lower in {
+        "inspecionar codigo",
+        "inspecionar o codigo",
+        "inspecionar codigo do projeto",
+        "analisar codigo",
+        "analisar o codigo",
+        "revisar codigo",
+        "revisar o codigo",
+        "procurar erros no codigo",
+        "procurar erros no projeto",
+        "achar erros no codigo",
+        "detectar erros no codigo",
+    }:
+        return {"intent": "code_inspect_workspace", "target": None}
+
+    for prefix in (
+        "inspecionar arquivo ",
+        "inspecione o arquivo ",
+        "analisar arquivo ",
+        "analise o arquivo ",
+        "procurar erros no arquivo ",
+        "achar erros no arquivo ",
+        "revisar arquivo ",
+    ):
+        if lower.startswith(prefix):
+            target = user_input[len(prefix):].strip()
+            if target:
+                return {"intent": "code_inspect_target", "target": target}
+
+    return None
+
+
+def detect_image_analysis_command(user_input: str):
+    lower = normalize_text(user_input)
+
+    if lower in {
+        "analisar imagem no navegador",
+        "analisar a imagem no navegador",
+        "interpretar imagem no navegador",
+        "interpretar a imagem no navegador",
+        "identificar elementos no navegador",
+        "descrever cena no navegador",
+        "o que tem na imagem do navegador",
+        "o que ha na imagem do navegador",
+        "ler imagem no navegador",
+        "ver imagem no navegador",
+    }:
+        return {"intent": "image_analyze_browser", "target": None}
+
+    if lower in {
+        "analisar imagem da tela",
+        "analisar a imagem da tela",
+        "analisa imagem da tela",
+        "analise a imagem da tela",
+        "interpretar imagem da tela",
+        "interpretar a imagem da tela",
+        "identificar elementos",
+        "identificar elementos da tela",
+        "descrever cena",
+        "descrever a cena",
+        "descrever imagem",
+        "descrever a imagem",
+        "o que aparece na tela",
+        "o que aparece nessa imagem",
+        "o que aparece na imagem",
+        "o que tem nessa imagem",
+        "o que tem na imagem",
+        "o que ha nessa imagem",
+        "o que ha na imagem",
+        "interpretar grafico",
+        "interpretar grafico da tela",
+        "interpretar gráfico",
+        "interpretar gráfico da tela",
+        "ler grafico",
+        "ler gráfico",
+        "analisar print da tela",
+        "analisar screenshot da tela",
+        "ler imagem da tela",
+        "leia imagem da tela",
+        "ocr da tela",
+        "ver imagem da tela",
+    }:
+        return {"intent": "image_analyze_screen", "target": None}
+
+    for prefix in (
+        "analisar imagem ",
+        "analisa imagem ",
+        "interpretar imagem ",
+        "interprete imagem ",
+        "descrever imagem ",
+        "descreva imagem ",
+        "identificar elementos em ",
+        "identificar elementos da imagem ",
+        "o que tem na imagem ",
+        "o que aparece na imagem ",
+        "o que ha na imagem ",
+        "analisar grafico ",
+        "analisar gráfico ",
+        "interpretar grafico ",
+        "interpretar gráfico ",
+        "ler imagem ",
+        "leia a imagem ",
+        "extrair texto da imagem ",
+        "extrai texto da imagem ",
+        "ocr da imagem ",
+        "analisar print ",
+        "analisa print ",
+        "analisar screenshot ",
+    ):
+        if lower.startswith(prefix):
+            target = user_input[len(prefix):].strip()
+            if target:
+                return {"intent": "image_analyze", "target": target}
 
     return None
 
@@ -1743,6 +1919,8 @@ def route(user_input: str):
         detect_navigation_command,
         detect_media_command,
         detect_browser_command,
+        detect_code_inspection_command,
+        detect_image_analysis_command,
         detect_create_file,
         detect_write_file,
         detect_append_file,

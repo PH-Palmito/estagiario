@@ -31,6 +31,7 @@ CODEX_OUTBOX_PATH = MEMORY_DIR / "codex_outbox.json"
 CODEX_INBOX_PATH = MEMORY_DIR / "codex_inbox.json"
 SELF_EVOLUTION_PATH = MEMORY_DIR / "self_evolution.json"
 BOTTLENECKS_PATH = MEMORY_DIR / "bottlenecks.json"
+OPERATIONAL_CONTEXT_PATH = MEMORY_DIR / "operational_context.json"
 
 BG = "#02070d"
 BG_ALT = "#040c14"
@@ -105,6 +106,30 @@ def _load_profile_summary() -> list[str]:
         lines.append("Projetos: " + ", ".join(str(name) for name in list(projetos.keys())[:3]))
 
     return lines[:5] or ["Perfil carregado."]
+
+
+def _load_operational_context_lines(limit: int = 6) -> list[str]:
+    data = _load_json(OPERATIONAL_CONTEXT_PATH)
+    if not isinstance(data, dict):
+        return []
+
+    lines = []
+    focus = str(data.get("current_focus", "")).strip()
+    if focus:
+        lines.append(f"Foco: {focus}")
+
+    recent_apps = data.get("recent_apps") if isinstance(data.get("recent_apps"), list) else []
+    recent_sites = data.get("recent_sites") if isinstance(data.get("recent_sites"), list) else []
+    recent_topics = data.get("recent_topics") if isinstance(data.get("recent_topics"), list) else []
+
+    if recent_apps:
+        lines.append("Apps: " + ", ".join(str(item) for item in recent_apps[:4]))
+    if recent_sites:
+        lines.append("Sites: " + ", ".join(str(item) for item in recent_sites[:4]))
+    if recent_topics:
+        lines.append("Topicos: " + ", ".join(str(item) for item in recent_topics[:5]))
+
+    return lines[:limit]
 
 
 def _load_auto_advances(limit: int = 6) -> list[str]:
@@ -1020,6 +1045,9 @@ class AssistantHud:
                 "Use o campo de texto acima para enviar comandos.",
             ]
         profile_lines = _load_profile_summary()
+        operational_lines = _load_operational_context_lines(limit=4)
+        if operational_lines:
+            profile_lines.extend([""] + operational_lines)
 
         self._set_text_widget(self.routines_value, routines)
         self._set_text_widget(self.macros_value, macros)

@@ -1,93 +1,68 @@
 {
   "assistant_name": "Axel",
-  "visible": false,
+  "visible": true,
   "status": "BOTAO F8",
   "mode": "comando",
-  "last_heard": "O que tem na tela?",
-  "last_response": "Encerrando.",
-  "last_command": "browser_describe_screen",
+  "last_heard": "abrir minha carteira",
+  "last_response": "Abrindo nova aba.",
+  "last_command": "browser_new_tab",
   "microphone": "Microfone (WO Mic Device)",
   "assistant_style": "elegante",
   "voice_profile": "faber",
-  "hotword_enabled": false,
+  "hotword_enabled": true,
   "conversation_mode": false,
   "dictation_mode": false,
   "history": [
     {
       "role": "assistant",
       "text": "Modo voz ativado. Aperte F8 para falar. Aperte F9 para pausar/retomar.",
-      "at": 1776947374.2078257
+      "at": 1776997581.3649232
     },
     {
       "role": "assistant",
       "text": "Sistemas online. Pronto para trabalhar.",
-      "at": 1776947374.2397268
-    },
-    {
-      "role": "assistant",
-      "text": "Pode falar.",
-      "at": 1776947415.9230645
+      "at": 1776997581.3950477
     },
     {
       "role": "user",
-      "text": "O que tem na tela?",
-      "at": 1776947425.5498548
+      "text": "analisar carteira",
+      "at": 1776997601.4854696
     },
     {
       "role": "assistant",
-      "text": "Visao rapida da tela: Na tela está a página de vídeo choco - Pesquisa Google. No que ficou visível, encontrei: Aqui estão os principais detalhes sobre o choco:; Reprodução: Após a reprodução, os chocos geralmente morrem. Seus ovos são chamados de \"uvas do mar\" por ser...; Este vídeo mostra a impressionante capacidade de camuflagem do choco:.",
-      "at": 1776947433.426848
-    },
-    {
-      "role": "assistant",
-      "text": "Pode falar.",
-      "at": 1776947466.732
+      "text": "Não parece ser uma tela financeira. Abra sua carteira, ativo ou página de investimentos e peça de novo.",
+      "at": 1776997609.7038112
     },
     {
       "role": "user",
-      "text": "Detalhar.",
-      "at": 1776947472.63893
+      "text": "analisar carteira",
+      "at": 1776997631.4964154
     },
     {
       "role": "assistant",
-      "text": "Detalhando a tela: Na tela está a página de vídeo choco - Pesquisa Google. No que ficou visível, encontrei: Aqui estão os principais detalhes sobre o choco:; Reprodução: Após a reprodução, os chocos geralmente morrem. Seus ovos são chamados de \"uvas do mar\" por ser...; Este vídeo mostra a impressionante capacidade de camuflagem do choco:.",
-      "at": 1776947480.5419242
-    },
-    {
-      "role": "assistant",
-      "text": "Pode falar.",
-      "at": 1776947499.3005943
+      "text": "Modo investimentos: encontrei uma página financeira, mas os valores principais não ficaram bem pareados com rótulos. Pontos visíveis: % na carteira; Consolidação de carteira concluída com sucesso!; carteira Oficial; Voltar para a carteira antiga; Integração B3.",
+      "at": 1776997640.2404575
     },
     {
       "role": "user",
-      "text": "Resumir.",
-      "at": 1776947504.7652097
+      "text": "analisar imagem no navegador",
+      "at": 1776997723.7321181
     },
     {
       "role": "assistant",
-      "text": "Visao rapida da tela: Parece a pagina de um video no YouTube: choco - Pesquisa Google. Na tela, vejo: Ir para o conteúdo principalAjuda sobre acessibilidade; O que é um choco?.",
-      "at": 1776947512.6160076
-    },
-    {
-      "role": "assistant",
-      "text": "Pode falar.",
-      "at": 1776947538.7432806
+      "text": "OCR da imagem do navegador não achou texto legível. Pelo conteúdo acessível do navegador: Detalhando a tela: Na tela esta uma pagina financeira. Pelo titulo, ela parece ser sobre Investidor10 | Resumo. Do que ficou visivel, os pontos mais uteis sao: % na carteira; carteira Oficial; Voltar para a carteira antiga; Integração B3; Patrimônio total.",
+      "at": 1776997734.128682
     },
     {
       "role": "user",
-      "text": "O que tem na tela?",
-      "at": 1776947545.5966647
+      "text": "abrir minha carteira",
+      "at": 1776997848.7290955
     },
     {
       "role": "assistant",
-      "text": "Panorama da tela: Na tela esta uma pagina financeira. Pelo titulo, ela parece ser sobre Investidor10 | Resumo, mas ainda nao capturei os valores e rotulos principais.",
-      "at": 1776947554.1514852
-    },
-    {
-      "role": "assistant",
-      "text": "Encerrando.",
-      "at": 1776947823.7546124
+      "text": "Abrindo nova aba.",
+      "at": 1776997849.3007972
     }
   ],
-  "updated_at": 1776948011.771466
+  "updated_at": 1776997850.0512369
 }

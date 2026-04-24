@@ -1,20 +1,18 @@
 {
-  "generated_at": 1776947823.8025837,
+  "generated_at": 1776997849.3718379,
   "items": [
     {
-      "title": "Executar proposta de patch: Melhorar leitura de tela com foco no conteudo util",
+      "title": "Executar proposta de patch: Lapidar robustez geral do Axel",
       "kind": "patch_proposal",
       "status": "pending",
-      "risk": "Baixo, porque a mudanca e incremental e facil de validar no uso.",
+      "risk": "Baixo.",
       "files": [
-        "tools/browser_tools.py",
-        "ui/assistant_hud.py",
-        "main.py"
+        "main.py",
+        "ui/assistant_hud.py"
       ],
       "steps": [
-        "Priorizar conteudo principal, blocos centrais e sinais de dominio/contexto.",
-        "Refinar filtros de ruido para menus, rodape, copyright e links crus.",
-        "Adicionar fallback progressivo antes de declarar falha de leitura."
+        "Continuar instrumentando o historico para detectar melhor os proximos pontos fracos.",
+        "Manter a ponte com o Codex atualizada com dados do uso recente."
       ],
       "source": "patch-proposals"
     }

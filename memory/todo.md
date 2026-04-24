@@ -1,7 +1,7 @@
 # Lista de fazeres do Axel
 
 - [ ] Fazer o Axel iniciar junto com o Windows.
-- [ ] Criar um modo de auto avanco para o Axel pedir melhorias ao Codex.
+- [x] Criar um modo de auto avanco para o Axel pedir melhorias ao Codex.
 - [ ] Ensinar o Axel a analisar imagens e tirar informacoes uteis delas.
 - [ ] Ensinar o Axel a procurar erros em codigos com mais inteligencia.
 - [ ] Continuar evoluindo a interface para algo ainda mais futurista e animado.

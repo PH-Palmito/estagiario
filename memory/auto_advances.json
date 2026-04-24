@@ -1,16 +1,6 @@
 {
-  "generated_at": 1776947823.7898357,
+  "generated_at": 1776997849.343652,
   "items": [
-    {
-      "title": "Resolver gargalo: Leitura de tela inconsistente",
-      "reason": "O detector automatico marcou esse problema 1 vez(es) no uso recente.",
-      "source": "detector-de-gargalos"
-    },
-    {
-      "title": "Criar um planejador de auto-avanco com prioridade",
-      "reason": "O proprio backlog ja pede um modo em que o Axel proponha melhorias ao Codex com mais criterio.",
-      "source": "lista-manual"
-    },
     {
       "title": "Aprimorar leitura util de pagina com foco no conteudo central",
       "reason": "Seu uso recente mostra bastante navegacao orientada por tela; vale melhorar relevancia, resumo e clique contextual.",
@@ -30,6 +20,16 @@
       "title": "Dar ao Axel memoria operacional de preferencias e contexto",
       "reason": "O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.",
       "source": "perfil"
+    },
+    {
+      "title": "Criar rotinas prontas para estudo e desenvolvimento mobile/front-end",
+      "reason": "Seu perfil tecnico pede fluxos de abertura de projeto, navegador, docs e debug com menos atrito.",
+      "source": "perfil"
+    },
+    {
+      "title": "Preparar inicializacao automatica com Windows",
+      "reason": "Isso transforma o Axel de projeto em ferramenta do dia a dia.",
+      "source": "lista-manual"
     }
   ]
 }

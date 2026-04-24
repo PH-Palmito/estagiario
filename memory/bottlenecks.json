@@ -1,17 +1,4 @@
 {
-  "generated_at": 1776947823.7785947,
-  "items": [
-    {
-      "kind": "screen_reading",
-      "title": "Leitura de tela inconsistente",
-      "reason": "A leitura de pagina ainda perde partes uteis do conteudo em alguns cenarios.",
-      "count": 1,
-      "examples": [
-        "o que tem na tela?"
-      ],
-      "assistant_signals": [
-        "panorama da tela: na tela esta uma pagina financeira. pelo titulo, ela parece ser sobre investidor10 | resumo, mas ainda nao capturei os valores e rotulos principais."
-      ]
-    }
-  ]
+  "generated_at": 1776997849.5319788,
+  "items": []
 }

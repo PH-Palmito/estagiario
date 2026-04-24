@@ -1,8 +1,8 @@
 {
-  "generated_at": 1776947823.967821,
+  "generated_at": 1776997849.5659592,
   "goal": "Permitir que o Axel evolua o proprio projeto com supervisao e seguranca.",
-  "current_focus": "Resolver gargalo: Leitura de tela inconsistente",
-  "codex_request_title": "Melhorar leitura de tela com foco no conteudo util",
+  "current_focus": "Aprimorar leitura util de pagina com foco no conteudo central",
+  "codex_request_title": "Lapidar robustez geral do Axel",
   "steps": [
     {
       "id": "hud_runtime_state",

@@ -1,12 +1,17 @@
 from collections import deque
+import json
+from pathlib import Path
 import re
 
 from llm.ollama_client import ask_model
+from memory.operational_context import load_operational_context
+from memory.profile import load_profile
 from memory.voice_preferences import load_voice_preferences
 
 
 PREFERENCES = load_voice_preferences()
 CHAT_HISTORY = deque(maxlen=6)
+DIRECTIVES_PATH = Path(__file__).resolve().parents[1] / "memory" / "axel_directives.json"
 
 BASE_CHAT_PROMPT = """
 Voce e o Estagiario, uma IA local controlada por voz no PC do usuario.
@@ -104,6 +109,60 @@ def _history_text() -> str:
         return "Sem historico recente."
 
     return "\n".join(f"{role} disse: {text}" for role, text in CHAT_HISTORY)
+
+
+def _profile_text() -> str:
+    profile = load_profile() or {}
+    if not profile:
+        return "Perfil indisponivel."
+
+    nome = str(profile.get("nome", "")).strip()
+    curso = str(profile.get("curso", "")).strip()
+    foco = profile.get("foco_profissional") or []
+    objetivos = profile.get("objetivos") or []
+    parts = []
+    if nome:
+        parts.append(f"Operador: {nome}.")
+    if curso:
+        parts.append(f"Formacao atual: {curso}.")
+    if foco:
+        parts.append("Foco tecnico: " + ", ".join(str(item) for item in foco[:4]) + ".")
+    if objetivos:
+        parts.append("Objetivos: " + ", ".join(str(item) for item in objetivos[:3]) + ".")
+    return " ".join(parts) if parts else "Perfil indisponivel."
+
+
+def _operational_context_text() -> str:
+    context = load_operational_context() or {}
+    summary = str(context.get("summary", "")).strip()
+    if not summary:
+        return "Sem contexto operacional consolidado."
+
+    parts = [summary]
+    recent_requests = context.get("recent_user_requests") or []
+    if recent_requests:
+        parts.append("Pedidos recentes: " + " | ".join(str(item) for item in recent_requests[-3:]) + ".")
+    next_advances = context.get("next_advances") or []
+    if next_advances:
+        parts.append("Proximos avancos: " + "; ".join(str(item) for item in next_advances[:2]) + ".")
+    return " ".join(parts)
+
+
+def _directives_text() -> str:
+    try:
+        payload = json.loads(DIRECTIVES_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return "Diretrizes indisponiveis."
+
+    directives = payload.get("core_directives") or []
+    investment = payload.get("investment_mode") or {}
+    parts = []
+    if directives:
+        parts.append("Diretrizes centrais: " + " | ".join(str(item) for item in directives[:4]) + ".")
+    investment_goal = str(investment.get("goal", "")).strip()
+    if investment_goal:
+        parts.append("Modo investimentos: " + investment_goal)
+    return " ".join(parts) if parts else "Diretrizes indisponiveis."
 
 
 def clear_chat_history():
@@ -215,6 +274,15 @@ def chat_response(user_input: str):
 
 Historico recente:
 {_history_text()}
+
+Perfil do operador:
+{_profile_text()}
+
+Contexto operacional:
+{_operational_context_text()}
+
+Diretrizes:
+{_directives_text()}
 
 Mensagem atual do usuario:
 {user_input}

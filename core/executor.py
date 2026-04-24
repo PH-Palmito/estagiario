@@ -12,6 +12,7 @@ from tools.browser_tools import (
     browser_explain_screen,
     browser_forward,
     browser_find,
+    browser_investment_snapshot,
     browser_new_tab,
     browser_next_tab,
     browser_open_first_result,
@@ -90,6 +91,8 @@ from tools.file_tools import (
 )
 from tools.folder_tools import create_folder
 from tools.web_tools import google_search, open_chatgpt
+from tools.code_tools import inspect_code_target, inspect_selected_code, inspect_workspace_code
+from tools.image_tools import analyze_browser_image, analyze_image_target, analyze_screen_image
 
 
 def execute_many(raw_steps):
@@ -146,6 +149,7 @@ ACTIONS = {
     "browser_describe_screen": lambda p: browser_describe_screen(),
     "browser_explain_screen": lambda p: browser_explain_screen(),
     "browser_summarize_screen": lambda p: browser_summarize_screen(),
+    "browser_investment_snapshot": lambda p: browser_investment_snapshot(),
     "browser_read_selection": lambda p: browser_read_selection(),
     "browser_read_selected_products": lambda p: browser_read_selected_products(),
     "browser_translate_last_selection": lambda p: browser_translate_last_selection(),
@@ -197,6 +201,12 @@ ACTIONS = {
     "folder_create": lambda p: create_folder(p["path"]),
     "web_google_search": lambda p: google_search(p["query"]),
     "web_open_chatgpt": lambda p: open_chatgpt(),
+    "code_inspect_workspace": lambda p: inspect_workspace_code(),
+    "code_inspect_target": lambda p: inspect_code_target(p.get("target")),
+    "code_inspect_selection": lambda p: inspect_selected_code(),
+    "image_analyze": lambda p: analyze_image_target(p.get("target")),
+    "image_analyze_screen": lambda p: analyze_screen_image(),
+    "image_analyze_browser": lambda p: analyze_browser_image(),
     "run_macro": lambda p: execute_many(p["steps"]),
     "respond": lambda p: p["message"],
 }
