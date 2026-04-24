@@ -155,6 +155,46 @@ $bitmap.Dispose()
     return json.loads(output) if output else {}
 
 
+def _capture_clipboard_image(path: Path) -> dict:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    escaped = str(path).replace("'", "''")
+    script = f"""
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+$path = '{escaped}'
+
+if ([System.Windows.Forms.Clipboard]::ContainsImage()) {{
+    $image = [System.Windows.Forms.Clipboard]::GetImage()
+    $width = $image.Width
+    $height = $image.Height
+    $image.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+    $image.Dispose()
+    [pscustomobject]@{{ width = $width; height = $height; source = 'clipboard-image' }} | ConvertTo-Json -Compress
+    exit 0
+}}
+
+if ([System.Windows.Forms.Clipboard]::ContainsFileDropList()) {{
+    $files = [System.Windows.Forms.Clipboard]::GetFileDropList()
+    foreach ($file in $files) {{
+        if ($file -match '\\.(png|jpg|jpeg|webp|bmp|gif|tif|tiff)$') {{
+            $image = [System.Drawing.Image]::FromFile($file)
+            $width = $image.Width
+            $height = $image.Height
+            $image.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+            $image.Dispose()
+            [pscustomobject]@{{ width = $width; height = $height; source = 'clipboard-file' }} | ConvertTo-Json -Compress
+            exit 0
+        }}
+    }}
+}}
+
+throw 'Nenhuma imagem encontrada no clipboard.'
+"""
+    output = _run_powershell(script, timeout_seconds=10)
+    return json.loads(output) if output else {}
+
+
 def _format_image_analysis(
     result: dict,
     size_kb: int | None = None,
@@ -264,6 +304,31 @@ def analyze_screen_image() -> str:
     finally:
         try:
             screenshot_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def analyze_clipboard_image() -> str:
+    clipboard_path = SCREENSHOT_DIR / f"axel_clipboard_{time.time_ns()}.png"
+    try:
+        _capture_clipboard_image(clipboard_path)
+        result = _ocr_image(clipboard_path)
+        try:
+            semantic = _semantic_image_analysis(clipboard_path, ocr_result=result, prefix="Análise visual da imagem copiada")
+            if semantic:
+                return semantic
+        except Exception as exc:
+            return vision_unavailable_message(exc) + " " + _format_image_analysis(
+                result,
+                prefix="OCR da imagem copiada",
+            )
+
+        return _format_image_analysis(result, prefix="OCR da imagem copiada")
+    except Exception as exc:
+        return f"Não encontrei imagem copiada para analisar: {exc}"
+    finally:
+        try:
+            clipboard_path.unlink(missing_ok=True)
         except Exception:
             pass
 

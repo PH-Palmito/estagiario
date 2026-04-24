@@ -2,8 +2,11 @@
 
 - [ ] Fazer o Axel iniciar junto com o Windows.
 - [x] Criar um modo de auto avanco para o Axel pedir melhorias ao Codex.
-- [ ] Ensinar o Axel a analisar imagens e tirar informacoes uteis delas.
-- [ ] Ensinar o Axel a procurar erros em codigos com mais inteligencia.
+- [x] Ensinar o Axel a analisar imagens e tirar informacoes uteis delas.
+- [x] Ensinar o Axel a procurar erros em codigos com mais inteligencia.
+- [ ] Evoluir a visao para ler graficos com mais precisao quando houver modelo visual instalado.
+- [ ] Criar relatorio financeiro da carteira com patrimonio, rentabilidade, proventos e alertas.
+- [ ] Criar modo de leitura visual por clipboard, tela, navegador e arquivo com historico das ultimas analises.
 - [ ] Continuar evoluindo a interface para algo ainda mais futurista e animado.
 - [ ] Redesenhar a interface como um command deck complexo, rico em informacoes e visualmente denso.
 - [x] Ler texto selecionado na tela e traduzir quando eu pedir.

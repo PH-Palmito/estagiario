@@ -745,6 +745,18 @@ def detect_navigation_command(user_input: str):
     }:
         return {"intent": "browser_investment_snapshot", "target": None}
 
+    if lower in {
+        "abrir carteira e resumir",
+        "abrir minha carteira e resumir",
+        "abrir carteira e analisar",
+        "abrir minha carteira e analisar",
+        "abrir investidor 10 e resumir",
+        "abrir investidor10 e resumir",
+        "abrir investidor 10 e analisar",
+        "abrir investidor10 e analisar",
+    }:
+        return {"intent": "browser_open_wallet_and_summarize", "target": None}
+
     if lower in {"resume", "resome", "resumida", "resumir", "resuma"}:
         return {"intent": "browser_summarize_screen", "target": None}
 
@@ -1368,6 +1380,19 @@ def detect_image_analysis_command(user_input: str):
         return {"intent": "image_analyze_browser", "target": None}
 
     if lower in {
+        "analisar imagem copiada",
+        "interpretar imagem copiada",
+        "descrever imagem copiada",
+        "analisar imagem do clipboard",
+        "interpretar imagem do clipboard",
+        "analisar imagem da area de transferencia",
+        "interpretar imagem da area de transferencia",
+        "analisar print copiado",
+        "ler imagem copiada",
+    }:
+        return {"intent": "image_analyze_clipboard", "target": None}
+
+    if lower in {
         "analisar imagem da tela",
         "analisar a imagem da tela",
         "analisa imagem da tela",
@@ -1431,6 +1456,51 @@ def detect_image_analysis_command(user_input: str):
             target = user_input[len(prefix):].strip()
             if target:
                 return {"intent": "image_analyze", "target": target}
+
+    return None
+
+
+def detect_vision_model_command(user_input: str):
+    lower = normalize_text(user_input)
+
+    if lower in {
+        "status da visao",
+        "status da visão",
+        "modelo visual",
+        "status do modelo visual",
+        "qual modelo visual",
+        "visao local",
+        "visão local",
+    }:
+        return {"intent": "vision_status", "target": None}
+
+    if lower in {
+        "como ativar visao",
+        "como ativar visão",
+        "como instalar visao",
+        "como instalar visão",
+        "instalar modelo visual",
+        "baixar modelo visual",
+        "preparar visao",
+        "preparar visão",
+    }:
+        return {"intent": "vision_install_hint", "target": None}
+
+    if lower in {
+        "baixar moondream",
+        "instalar moondream",
+        "baixar modelo moondream",
+        "baixar modelo visual leve",
+        "instalar modelo visual leve",
+    }:
+        return {"intent": "vision_download_light_model", "target": None}
+
+    if lower in {
+        "modelo visual ativo",
+        "qual modelo de visao",
+        "qual modelo de visão",
+    }:
+        return {"intent": "vision_active_model", "target": None}
 
     return None
 
@@ -1921,6 +1991,7 @@ def route(user_input: str):
         detect_browser_command,
         detect_code_inspection_command,
         detect_image_analysis_command,
+        detect_vision_model_command,
         detect_create_file,
         detect_write_file,
         detect_append_file,

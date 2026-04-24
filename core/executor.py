@@ -14,6 +14,7 @@ from tools.browser_tools import (
     browser_find,
     browser_investment_snapshot,
     browser_new_tab,
+    browser_open_wallet_and_summarize,
     browser_next_tab,
     browser_open_first_result,
     browser_open_focused_item,
@@ -92,7 +93,8 @@ from tools.file_tools import (
 from tools.folder_tools import create_folder
 from tools.web_tools import google_search, open_chatgpt
 from tools.code_tools import inspect_code_target, inspect_selected_code, inspect_workspace_code
-from tools.image_tools import analyze_browser_image, analyze_image_target, analyze_screen_image
+from tools.image_tools import analyze_browser_image, analyze_clipboard_image, analyze_image_target, analyze_screen_image
+from tools.vision_tools import active_vision_model, start_light_vision_model_download, vision_install_hint, vision_status
 
 
 def execute_many(raw_steps):
@@ -150,6 +152,7 @@ ACTIONS = {
     "browser_explain_screen": lambda p: browser_explain_screen(),
     "browser_summarize_screen": lambda p: browser_summarize_screen(),
     "browser_investment_snapshot": lambda p: browser_investment_snapshot(),
+    "browser_open_wallet_and_summarize": lambda p: browser_open_wallet_and_summarize(),
     "browser_read_selection": lambda p: browser_read_selection(),
     "browser_read_selected_products": lambda p: browser_read_selected_products(),
     "browser_translate_last_selection": lambda p: browser_translate_last_selection(),
@@ -207,6 +210,11 @@ ACTIONS = {
     "image_analyze": lambda p: analyze_image_target(p.get("target")),
     "image_analyze_screen": lambda p: analyze_screen_image(),
     "image_analyze_browser": lambda p: analyze_browser_image(),
+    "image_analyze_clipboard": lambda p: analyze_clipboard_image(),
+    "vision_status": lambda p: vision_status(),
+    "vision_install_hint": lambda p: vision_install_hint(),
+    "vision_download_light_model": lambda p: start_light_vision_model_download(),
+    "vision_active_model": lambda p: active_vision_model(),
     "run_macro": lambda p: execute_many(p["steps"]),
     "respond": lambda p: p["message"],
 }

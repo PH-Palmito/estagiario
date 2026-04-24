@@ -66,6 +66,7 @@ LAST_BROWSER_ELEMENTS = []
 LAST_BROWSER_CONTEXT = ""
 LAST_BROWSER_CONTEXT_CHANGED_AT = 0.0
 LAST_SELECTED_TEXT = ""
+DEFAULT_INVESTIDOR10_WALLET_URL = "https://investidor10.com.br/wallet/my-wallet/1405676"
 
 
 class _WinRect(ctypes.Structure):
@@ -3383,6 +3384,13 @@ def browser_investment_snapshot():
         _remember_text_items(lines, context=context)
 
     return _investment_screen_summary(lines, page_url=page_url, page_title=page_title)
+
+
+def browser_open_wallet_and_summarize():
+    webbrowser.open(DEFAULT_INVESTIDOR10_WALLET_URL)
+    time.sleep(2.5)
+    summary = browser_investment_snapshot()
+    return "Abri sua carteira do Investidor10. " + summary
 
 
 def browser_describe_screen():

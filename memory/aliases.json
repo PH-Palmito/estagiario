@@ -17,6 +17,26 @@
     "type": "site",
     "target": "https://www.mercadolivre.com.br"
   },
+  "investidor 10": {
+    "type": "site",
+    "target": "https://investidor10.com.br/wallet/my-wallet/1405676"
+  },
+  "investidor10": {
+    "type": "site",
+    "target": "https://investidor10.com.br/wallet/my-wallet/1405676"
+  },
+  "minha carteira": {
+    "type": "site",
+    "target": "https://investidor10.com.br/wallet/my-wallet/1405676"
+  },
+  "carteira investidor 10": {
+    "type": "site",
+    "target": "https://investidor10.com.br/wallet/my-wallet/1405676"
+  },
+  "carteira do investidor 10": {
+    "type": "site",
+    "target": "https://investidor10.com.br/wallet/my-wallet/1405676"
+  },
   "android studio": {
     "type": "smart_app",
     "target": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Android Studio\\Android Studio.lnk",
