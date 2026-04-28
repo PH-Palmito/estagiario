@@ -44,6 +44,9 @@ ALLOWED_ACTIONS = {
     "browser_explain_screen",
     "browser_investment_snapshot",
     "browser_open_wallet_and_summarize",
+    "investment_memory_summary",
+    "investment_memory_answer",
+    "investment_memory_status",
     "browser_summarize_screen",
     "browser_zoom_in",
     "browser_describe_screen",
@@ -88,6 +91,7 @@ ALLOWED_ACTIONS = {
     "vision_download_light_model",
     "vision_active_model",
     "vision_last_analysis",
+    "vision_answer_question",
     "list_files",
     "file_create",
     "file_write",
@@ -146,6 +150,9 @@ REQUIRED_FIELDS = {
     "browser_explain_screen": [],
     "browser_investment_snapshot": [],
     "browser_open_wallet_and_summarize": [],
+    "investment_memory_summary": [],
+    "investment_memory_answer": ["question"],
+    "investment_memory_status": [],
     "browser_summarize_screen": [],
     "browser_describe_screen": [],
     "browser_read_selection": [],
@@ -190,6 +197,7 @@ REQUIRED_FIELDS = {
     "vision_download_light_model": [],
     "vision_active_model": [],
     "vision_last_analysis": [],
+    "vision_answer_question": ["question"],
     "list_files": [],
     "file_create": ["path"],
     "file_write": ["path"],
@@ -237,6 +245,8 @@ def validate_command(command: Command):
                 return False, "Qual site?"
             if field == "service":
                 return False, "Qual servico?"
+            if field == "question":
+                return False, "Qual pergunta?"
             if field == "steps":
                 return False, "A macro está vazia."
             return False, f"Parâmetro obrigatório ausente: {field}"

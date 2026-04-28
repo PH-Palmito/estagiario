@@ -54,6 +54,8 @@ KNOWN_SITES = {
     "google": "https://www.google.com",
     "gmail": "https://mail.google.com",
     "chatgpt": "https://chat.openai.com",
+    "investidor 10": "https://investidor10.com.br",
+    "investidor10": "https://investidor10.com.br",
     "mercado livre": "https://www.mercadolivre.com.br",
     "mercadolivre": "https://www.mercadolivre.com.br",
     "mercado de": "https://www.mercadolivre.com.br",
@@ -732,8 +734,61 @@ def detect_navigation_command(user_input: str):
         return {"intent": "browser_summarize_screen", "target": None}
 
     if lower in {
+        "atualizar investimentos",
+        "atualizar meus investimentos",
+        "atualizar carteira",
+        "sincronizar investimentos",
+        "sincronizar carteira",
+        "reler carteira",
+        "ler carteira agora",
         "analisar investimentos",
         "analisar meus investimentos",
+        "resumir investimentos",
+        "resuma investimentos",
+        "analisar carteira",
+        "ler carteira",
+    }:
+        return {"intent": "browser_investment_snapshot", "target": None}
+
+    if lower in {
+        "modo investimentos",
+        "resumo financeiro",
+        "resumo da carteira",
+        "minha carteira",
+        "ver investimentos",
+        "acompanhar investimentos",
+        "acompanhar carteira",
+        "ver carteira",
+        "resumir carteira",
+    }:
+        return {"intent": "investment_memory_summary", "target": None}
+
+    if lower in {
+        "valor investido",
+        "valor investido da carteira",
+        "valor atual",
+        "valor atual da carteira",
+        "patrimonio",
+        "patrimÃ´nio",
+        "rentabilidade",
+        "rentabilidade da carteira",
+        "proventos",
+        "proventos da carteira",
+        "dividendos",
+        "dividendos da carteira",
+        "lucro",
+        "prejuizo",
+        "prejuÃ­zo",
+        "saldo da carteira",
+        "posicoes",
+        "posiÃ§Ãµes",
+    }:
+        return {"intent": "investment_memory_answer", "target": user_input.strip()}
+
+    if lower in {
+        "analisar investimentos",
+        "analisar meus investimentos",
+        "modo investimentos",
         "resumo financeiro",
         "resumir investimentos",
         "resuma investimentos",
@@ -742,10 +797,43 @@ def detect_navigation_command(user_input: str):
         "ler carteira",
         "minha carteira",
         "ver investimentos",
+        "acompanhar investimentos",
+        "acompanhar carteira",
+        "ver carteira",
+        "resumir carteira",
+        "valor investido da carteira",
+        "valor atual da carteira",
+        "rentabilidade da carteira",
+        "proventos da carteira",
+        "dividendos da carteira",
     }:
         return {"intent": "browser_investment_snapshot", "target": None}
 
     if lower in {
+        "valor investido",
+        "valor atual",
+        "patrimonio",
+        "patrimônio",
+        "rentabilidade",
+        "proventos",
+        "dividendos",
+        "lucro",
+        "prejuizo",
+        "prejuízo",
+        "saldo da carteira",
+        "posicoes",
+        "posições",
+    }:
+        return {"intent": "browser_investment_snapshot", "target": None}
+
+    if lower in {
+        "abrir investidor 10",
+        "abrir investidor10",
+        "abrir carteira",
+        "abrir minha carteira",
+        "abrir carteira do investidor 10",
+        "abrir carteira do investidor10",
+        "abrir meus investimentos",
         "abrir carteira e resumir",
         "abrir minha carteira e resumir",
         "abrir carteira e analisar",
@@ -1484,6 +1572,245 @@ def detect_image_analysis_command(user_input: str):
     return None
 
 
+def detect_visual_question_command(user_input: str):
+    lower = normalize_text(user_input)
+    if not lower:
+        return None
+
+    explicit_prefixes = (
+        "perguntar sobre imagem ",
+        "pergunta sobre imagem ",
+        "perguntar sobre a imagem ",
+        "pergunta sobre a imagem ",
+        "perguntar sobre pagina ",
+        "pergunta sobre pagina ",
+        "perguntar sobre a pagina ",
+        "pergunta sobre a pagina ",
+        "perguntar sobre página ",
+        "pergunta sobre página ",
+        "perguntar sobre a página ",
+        "pergunta sobre a página ",
+        "perguntar sobre site ",
+        "pergunta sobre site ",
+        "perguntar sobre o site ",
+        "pergunta sobre o site ",
+        "perguntar sobre tela ",
+        "pergunta sobre tela ",
+        "perguntar sobre a tela ",
+        "pergunta sobre a tela ",
+        "perguntar sobre grafico ",
+        "pergunta sobre grafico ",
+        "perguntar sobre o grafico ",
+        "pergunta sobre o grafico ",
+        "sobre a imagem ",
+        "sobre a pagina ",
+        "sobre a página ",
+        "sobre o site ",
+        "sobre a tela ",
+        "sobre o grafico ",
+        "sobre essa imagem ",
+        "sobre essa pagina ",
+        "sobre essa página ",
+        "sobre essa tela ",
+        "sobre esse grafico ",
+    )
+    for prefix in explicit_prefixes:
+        if lower.startswith(prefix):
+            question = user_input[len(prefix):].strip()
+            if question:
+                return {"intent": "vision_answer_question", "target": question}
+
+    visual_terms = {"imagem", "grafico", "gráfico", "visual", "foto", "print", "tela", "pagina", "página", "site"}
+    chart_question_terms = {
+        "ganhou",
+        "venceu",
+        "vencedor",
+        "maior",
+        "menor",
+        "menos",
+        "valor",
+        "valores",
+        "resultado",
+        "quanto",
+        "porcentagem",
+        "percentual",
+        "queda",
+        "caiu",
+        "variacao",
+        "variação",
+        "anos",
+        "materia",
+        "matéria",
+        "categoria",
+        "categorias",
+        "titulo",
+        "título",
+        "assunto",
+        "preco",
+        "preço",
+        "link",
+        "repo",
+        "repositorio",
+        "repositório",
+    }
+    question_starters = (
+        "qual ",
+        "quais ",
+        "quem ",
+        "que ",
+        "quanto ",
+        "quantos ",
+        "quantas ",
+        "o que ",
+        "sobre o que ",
+        "por que ",
+        "porque ",
+        "como ",
+        "listar ",
+        "lista ",
+        "valor ",
+        "valor de ",
+        "quanto deu ",
+        "quanto custa ",
+        "quanto custa",
+        "custa quanto ",
+        "custa quanto",
+        "resultado de ",
+        "mostra ",
+        "mostre ",
+    )
+
+    compact_lower = lower.replace(" ", "")
+    has_visual_term = any(term in lower for term in visual_terms) or "graf" in compact_lower
+    has_chart_question = any(term in lower for term in chart_question_terms)
+    contextless_chart_terms = {
+        "ganhou",
+        "venceu",
+        "vencedor",
+        "maior",
+        "menor",
+        "porcentagem",
+        "percentual",
+        "queda",
+        "caiu",
+        "variacao",
+        "variação",
+        "anos",
+        "materia",
+        "matéria",
+        "categoria",
+        "titulo",
+        "título",
+        "matematica",
+        "matemática",
+        "portugues",
+        "português",
+        "ciencias",
+        "ciências",
+        "educacao fisica",
+        "educação física",
+        "historia",
+        "história",
+        "geografia",
+        "ingles",
+        "inglês",
+    }
+    contextless_visual_terms = {
+        "animal",
+        "bicho",
+        "objeto",
+        "objetos",
+        "pessoa",
+        "pessoas",
+        "cor",
+        "cores",
+        "texto",
+        "escrito",
+        "aparece",
+        "mostra",
+        "assunto",
+        "resumo",
+        "preco",
+        "preço",
+        "custa",
+        "custo",
+        "valor",
+        "repositorio",
+        "repositório",
+        "noticia",
+        "notícia",
+        "pagina",
+        "página",
+        "site",
+        "isso",
+        "essa",
+        "esse",
+        "dessa",
+        "desse",
+    }
+    has_contextless_chart_question = any(term in lower for term in contextless_chart_terms)
+    has_contextless_visual_question = any(term in lower for term in contextless_visual_terms)
+    starts_like_question = lower.startswith(question_starters)
+
+    if has_visual_term and (has_chart_question or starts_like_question):
+        return {"intent": "vision_answer_question", "target": user_input.strip()}
+
+    if has_contextless_chart_question and starts_like_question:
+        return {"intent": "vision_answer_question", "target": user_input.strip()}
+
+    if has_contextless_visual_question and starts_like_question:
+        return {"intent": "vision_answer_question", "target": user_input.strip()}
+
+    return None
+
+
+def detect_investment_question_command(user_input: str):
+    lower = normalize_text(user_input)
+    if not lower:
+        return None
+
+    investment_terms = {
+        "patrimonio",
+        "patrimônio",
+        "valor investido",
+        "valor atual",
+        "rentabilidade",
+        "proventos",
+        "dividendos",
+        "lucro",
+        "prejuizo",
+        "prejuízo",
+        "aporte",
+        "cotacao",
+        "cotação",
+        "preco medio",
+        "preço medio",
+        "preço médio",
+        "carteira",
+        "investimentos",
+        "rendeu",
+        "retorno",
+    }
+    question_starters = (
+        "qual ",
+        "quanto ",
+        "quais ",
+        "como ",
+        "me diga ",
+        "me fala ",
+        "me fale ",
+        "mostrar ",
+        "mostre ",
+    )
+
+    if any(term in lower for term in investment_terms) and (
+        lower.startswith(question_starters) or "?" in user_input
+    ):
+        return {"intent": "investment_memory_answer", "target": user_input.strip()}
+
+    return None
+
+
 def detect_vision_model_command(user_input: str):
     lower = normalize_text(user_input)
 
@@ -2032,6 +2359,8 @@ def route(user_input: str):
         detect_browser_command,
         detect_code_inspection_command,
         detect_image_analysis_command,
+        detect_visual_question_command,
+        detect_investment_question_command,
         detect_vision_model_command,
         detect_create_file,
         detect_write_file,

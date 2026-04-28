@@ -24,16 +24,18 @@ def _save_history(items: list[dict]):
     os.replace(tmp_path, HISTORY_PATH)
 
 
-def remember_vision_analysis(source: str, summary: str):
+def remember_vision_analysis(source: str, summary: str, details: dict | None = None):
     summary = " ".join(str(summary or "").split()).strip()
     if not summary:
         return
+    details = details if isinstance(details, dict) else {}
     items = _load_history()
     items.append(
         {
             "created_at": time.time(),
             "source": str(source or "imagem"),
             "summary": summary,
+            "details": details,
         }
     )
     _save_history(items)
@@ -49,3 +51,11 @@ def last_vision_analysis() -> str:
     if not summary:
         return "A última análise visual ficou vazia."
     return f"Última análise visual ({source}): {summary}"
+
+
+def last_vision_item() -> dict | None:
+    items = _load_history()
+    if not items:
+        return None
+    item = items[-1]
+    return item if isinstance(item, dict) else None

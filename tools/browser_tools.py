@@ -11,6 +11,8 @@ import webbrowser
 from urllib.parse import quote, quote_plus, unquote, urlparse
 
 from llm.ollama_client import ask_model
+from memory.investment_snapshot import save_investment_snapshot
+from memory.vision_history import remember_vision_analysis
 from tools.system_tools import focus_app
 
 
@@ -104,6 +106,29 @@ def _remember_text_items(lines, context: str = ""):
         for line in lines
     ]
     _set_browser_elements(elements, context=context)
+
+
+def _remember_browser_analysis(summary: str, lines=None, page_url: str = "", page_title: str = "", source: str = "pagina"):
+    summary = re.sub(r"\s+", " ", str(summary or "")).strip()
+    if not summary:
+        return
+
+    compact_lines = []
+    for line in list(lines or [])[:30]:
+        clean = re.sub(r"\s+", " ", str(line or "")).strip()
+        if clean:
+            compact_lines.append(clean)
+
+    remember_vision_analysis(
+        source,
+        summary,
+        details={
+            "kind": "browser",
+            "page_url": page_url or "",
+            "page_title": page_title or "",
+            "lines": compact_lines,
+        },
+    )
 
 
 def _get_foreground_window_title() -> str:
@@ -3190,7 +3215,9 @@ def browser_read_selection():
 
     _clear_browser_snapshot()
     LAST_SELECTED_TEXT = text
-    return "Texto selecionado: " + text
+    response = "Texto selecionado: " + text
+    _remember_browser_analysis(response, lines=[text], source="texto selecionado")
+    return response
 
 
 def _translate_with_ollama(text: str, target_language: str = "portugues do Brasil"):
@@ -3291,7 +3318,9 @@ def browser_read_selected_products():
 
     _remember_text_items(items)
     rows = [f"{idx}. {line}" for idx, line in enumerate(items, start=1)]
-    return "Li selecionado: " + "; ".join(rows)
+    response = "Li selecionado: " + "; ".join(rows)
+    _remember_browser_analysis(response, lines=items, source="texto selecionado")
+    return response
 
 
 def browser_cheapest_listed_item():
@@ -3337,7 +3366,9 @@ def browser_summarize_screen():
     else:
         _remember_text_items(lines, context=context)
 
-    return _screen_summary_intro() + ": " + _summarize_screen_lines(lines, page_url=page_url, page_title=page_title)
+    response = _screen_summary_intro() + ": " + _summarize_screen_lines(lines, page_url=page_url, page_title=page_title)
+    _remember_browser_analysis(response, lines=lines, page_url=page_url, page_title=page_title)
+    return response
 
 
 def browser_explain_screen():
@@ -3360,7 +3391,9 @@ def browser_explain_screen():
     else:
         _remember_text_items(lines, context=context)
 
-    return "Detalhando a tela: " + _explain_screen_lines(lines, page_url=page_url, page_title=page_title)
+    response = "Detalhando a tela: " + _explain_screen_lines(lines, page_url=page_url, page_title=page_title)
+    _remember_browser_analysis(response, lines=lines, page_url=page_url, page_title=page_title)
+    return response
 
 
 def browser_investment_snapshot():
@@ -3383,7 +3416,17 @@ def browser_investment_snapshot():
     else:
         _remember_text_items(lines, context=context)
 
-    return _investment_screen_summary(lines, page_url=page_url, page_title=page_title)
+    metrics = _extract_finance_metrics(lines, limit=7)
+    response = _investment_screen_summary(lines, page_url=page_url, page_title=page_title)
+    save_investment_snapshot(
+        summary=response,
+        metrics=metrics,
+        lines=lines,
+        page_url=page_url,
+        page_title=page_title,
+    )
+    _remember_browser_analysis(response, lines=lines, page_url=page_url, page_title=page_title, source="pagina financeira")
+    return response
 
 
 def browser_open_wallet_and_summarize():
@@ -3419,16 +3462,22 @@ def browser_describe_screen():
         _remember_text_items(lines, context=context)
 
     if category in {"repositorio github", "video youtube", "financas", "noticia"} or prefer_page_text:
-        return _screen_summary_intro() + ": " + _explain_screen_lines(lines, page_url=page_url, page_title=page_title)
+        response = _screen_summary_intro() + ": " + _explain_screen_lines(lines, page_url=page_url, page_title=page_title)
+        _remember_browser_analysis(response, lines=lines, page_url=page_url, page_title=page_title)
+        return response
 
     if _should_auto_summarize(lines, quality, page_url=page_url, page_title=page_title):
-        return _screen_summary_intro() + ": " + _summarize_screen_lines(lines, page_url=page_url, page_title=page_title)
+        response = _screen_summary_intro() + ": " + _summarize_screen_lines(lines, page_url=page_url, page_title=page_title)
+        _remember_browser_analysis(response, lines=lines, page_url=page_url, page_title=page_title)
+        return response
 
     if items:
         rows = [f"{idx}. {item['text']}" for idx, item in enumerate(items, start=1)]
     else:
         rows = [f"{idx}. {line}" for idx, line in enumerate(lines, start=1)]
-    return "Vejo na tela: " + "; ".join(rows)
+    response = "Vejo na tela: " + "; ".join(rows)
+    _remember_browser_analysis(response, lines=lines, page_url=page_url, page_title=page_title)
+    return response
 
 
 def browser_read_more():

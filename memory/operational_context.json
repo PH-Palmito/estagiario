@@ -1,35 +1,25 @@
 {
-  "generated_at": 1777035016.1420124,
+  "generated_at": 1777341410.5494084,
   "assistant_name": "Axel",
   "operator_name": "Pedro Henrique",
-  "current_focus": "Integrar ditado ao HUD com indicador dedicado",
+  "current_focus": "Dar ao Axel memoria operacional de preferencias e contexto",
   "focus_stack": [
     "front-end",
     "mobile",
     "React Native",
     "TypeScript"
   ],
-  "recent_user_requests": [
-    "analisar imagem da tela",
-    "analisa gráfico",
-    "image_analyze_screen"
-  ],
+  "recent_user_requests": [],
   "recent_apps": [],
   "recent_sites": [],
-  "recent_topics": [
-    "analisa",
-    "analisar",
-    "gráfico",
-    "image_analyze_screen",
-    "imagem"
-  ],
+  "recent_topics": [],
   "conversation_mode": false,
   "dictation_mode": false,
   "next_advances": [
-    "Integrar ditado ao HUD com indicador dedicado",
-    "Aprimorar leitura util de pagina com foco no conteudo central",
-    "Dar ao Axel memoria operacional de preferencias e contexto"
+    "Dar ao Axel memoria operacional de preferencias e contexto",
+    "Criar rotinas prontas para estudo e desenvolvimento mobile/front-end",
+    "Preparar inicializacao automatica com Windows"
   ],
   "active_bottlenecks": [],
-  "summary": "Axel acompanhando Pedro Henrique. Foco atual: Integrar ditado ao HUD com indicador dedicado. Topicos recentes: analisa, analisar, gráfico, image_analyze_screen."
+  "summary": "Axel acompanhando Pedro Henrique. Foco atual: Dar ao Axel memoria operacional de preferencias e contexto."
 }

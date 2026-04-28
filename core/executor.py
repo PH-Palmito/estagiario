@@ -100,7 +100,23 @@ from tools.image_tools import (
     analyze_screen_graph,
     analyze_screen_image,
 )
-from tools.vision_tools import active_vision_model, last_visual_analysis, start_light_vision_model_download, vision_install_hint, vision_status
+from tools.investment_tools import (
+    investment_memory_answer,
+    investment_memory_status,
+    investment_memory_summary,
+)
+from tools.vision_tools import (
+    active_vision_model,
+    answer_last_visual_question,
+    last_visual_analysis,
+    start_light_vision_model_download,
+    vision_install_hint,
+    vision_status,
+)
+
+
+def _image_feature_paused(*_args, **_kwargs):
+    return "Análise de imagem está pausada por enquanto. Vamos focar em tela, navegador e investimentos."
 
 
 def execute_many(raw_steps):
@@ -159,6 +175,9 @@ ACTIONS = {
     "browser_summarize_screen": lambda p: browser_summarize_screen(),
     "browser_investment_snapshot": lambda p: browser_investment_snapshot(),
     "browser_open_wallet_and_summarize": lambda p: browser_open_wallet_and_summarize(),
+    "investment_memory_summary": lambda p: investment_memory_summary(),
+    "investment_memory_answer": lambda p: investment_memory_answer(p["question"]),
+    "investment_memory_status": lambda p: investment_memory_status(),
     "browser_read_selection": lambda p: browser_read_selection(),
     "browser_read_selected_products": lambda p: browser_read_selected_products(),
     "browser_translate_last_selection": lambda p: browser_translate_last_selection(),
@@ -213,16 +232,17 @@ ACTIONS = {
     "code_inspect_workspace": lambda p: inspect_workspace_code(),
     "code_inspect_target": lambda p: inspect_code_target(p.get("target")),
     "code_inspect_selection": lambda p: inspect_selected_code(),
-    "image_analyze": lambda p: analyze_image_target(p.get("target")),
-    "image_analyze_screen": lambda p: analyze_screen_image(),
-    "image_analyze_screen_graph": lambda p: analyze_screen_graph(),
-    "image_analyze_browser": lambda p: analyze_browser_image(),
-    "image_analyze_clipboard": lambda p: analyze_clipboard_image(),
+    "image_analyze": lambda p: _image_feature_paused(),
+    "image_analyze_screen": lambda p: _image_feature_paused(),
+    "image_analyze_screen_graph": lambda p: _image_feature_paused(),
+    "image_analyze_browser": lambda p: _image_feature_paused(),
+    "image_analyze_clipboard": lambda p: _image_feature_paused(),
     "vision_status": lambda p: vision_status(),
     "vision_install_hint": lambda p: vision_install_hint(),
     "vision_download_light_model": lambda p: start_light_vision_model_download(),
     "vision_active_model": lambda p: active_vision_model(),
     "vision_last_analysis": lambda p: last_visual_analysis(),
+    "vision_answer_question": lambda p: answer_last_visual_question(p["question"]),
     "run_macro": lambda p: execute_many(p["steps"]),
     "respond": lambda p: p["message"],
 }

@@ -1,7 +1,7 @@
 {
-  "generated_at": 1777035016.1631062,
+  "generated_at": 1777341410.6043491,
   "goal": "Permitir que o Axel evolua o proprio projeto com supervisao e seguranca.",
-  "current_focus": "Integrar ditado ao HUD com indicador dedicado",
+  "current_focus": "Dar ao Axel memoria operacional de preferencias e contexto",
   "codex_request_title": "Lapidar robustez geral do Axel",
   "steps": [
     {

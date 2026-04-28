@@ -201,6 +201,8 @@ def normalize_action(old_action: dict) -> Command:
         "browser_summarize_screen",
         "browser_investment_snapshot",
         "browser_open_wallet_and_summarize",
+        "investment_memory_summary",
+        "investment_memory_status",
         "browser_read_selection",
         "browser_read_selected_products",
         "browser_translate_last_selection",
@@ -268,6 +270,13 @@ def normalize_action(old_action: dict) -> Command:
                 "service": target.get("service") if isinstance(target, dict) else None,
                 "query": target.get("query") if isinstance(target, dict) else None,
             },
+            source="router",
+        )
+
+    if intent == "investment_memory_answer":
+        return Command(
+            action="investment_memory_answer",
+            params={"question": target},
             source="router",
         )
 
@@ -377,6 +386,13 @@ def normalize_action(old_action: dict) -> Command:
         return Command(
             action="image_analyze",
             params={"target": target},
+            source="router",
+        )
+
+    if intent == "vision_answer_question":
+        return Command(
+            action="vision_answer_question",
+            params={"question": target},
             source="router",
         )
 

@@ -1,16 +1,6 @@
 {
-  "generated_at": 1777035015.9649622,
+  "generated_at": 1777341410.2823288,
   "items": [
-    {
-      "title": "Integrar ditado ao HUD com indicador dedicado",
-      "reason": "Voce ja usa voz com frequencia; juntar ditado e painel deve reduzir atrito no uso diario.",
-      "source": "historico-recente"
-    },
-    {
-      "title": "Aprimorar leitura util de pagina com foco no conteudo central",
-      "reason": "Seu uso recente mostra bastante navegacao orientada por tela; vale melhorar relevancia, resumo e clique contextual.",
-      "source": "historico-recente"
-    },
     {
       "title": "Dar ao Axel memoria operacional de preferencias e contexto",
       "reason": "O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.",

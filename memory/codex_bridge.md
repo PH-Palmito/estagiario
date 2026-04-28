@@ -6,18 +6,14 @@
 ## Contexto
 O assistente local se chama Axel.
 O operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.
-Melhoria sugerida agora: Integrar ditado ao HUD com indicador dedicado.
-Motivo: Voce ja usa voz com frequencia; juntar ditado e painel deve reduzir atrito no uso diario.
-Origem da sugestao: historico-recente.
-Ultima fala relevante do usuario: analisa gráfico.
-Ultima resposta do assistente: OCR da tela (1936x1048). Não detectei texto legível via OCR..
+Melhoria sugerida agora: Dar ao Axel memoria operacional de preferencias e contexto.
+Motivo: O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.
+Origem da sugestao: perfil.
+Ultima resposta do assistente: Encerrando..
 Historico recente:
-Axel: Analisando a imagem da tela...
-Axel: Análise visual da tela: Aqui está a tradução para português: "Eu preciso, mas não posso fornecer uma resposta completa à sua pergunta, pois ela é incompleta e não se sabe o que você está procurando. Por favor, forneça mais detalhes específicos sobre a imagem ou descrição do conteúdo da imagem, então eu posso ajudá-lo de maneira mais eficaz.
-Usuario: analisa gráfico
-Axel: Analisando a imagem da tela...
-Axel: Análise visual da tela: Vejo um slide com uma gráfica no formato de apresentação como o PowerPoint ou o SlideMaster. A gráfica tem cores diferentes e parece ser um gráfico barra. O slide também contém texto, que pode fornecer informações adicionais sobre a representação da informação por essa gráfica.
-Usuario: analisa gráfico
+Axel: Modo voz ativado. Aperte F8 para falar. Aperte F9 para pausar/retomar.
+Axel: Sistemas online. Pronto para trabalhar.
+Axel: Encerrando.
 Propostas iniciais de patch:
 - Lapidar robustez geral do Axel | arquivos: main.py, ui/assistant_hud.py
 Status da aprovacao humana: pending.
