@@ -10,6 +10,7 @@ import unicodedata
 import webbrowser
 from urllib.parse import quote, quote_plus, unquote, urlparse
 
+from config import INVESTIDOR10_WALLET_URL
 from llm.ollama_client import ask_model
 from memory.investment_snapshot import save_investment_snapshot
 from memory.vision_history import remember_vision_analysis
@@ -68,7 +69,7 @@ LAST_BROWSER_ELEMENTS = []
 LAST_BROWSER_CONTEXT = ""
 LAST_BROWSER_CONTEXT_CHANGED_AT = 0.0
 LAST_SELECTED_TEXT = ""
-DEFAULT_INVESTIDOR10_WALLET_URL = "https://investidor10.com.br/wallet/my-wallet/1405676"
+DEFAULT_INVESTIDOR10_WALLET_URL = INVESTIDOR10_WALLET_URL or "https://investidor10.com.br/wallet/my-wallet"
 
 
 class _WinRect(ctypes.Structure):
@@ -3433,7 +3434,13 @@ def browser_open_wallet_and_summarize():
     webbrowser.open(DEFAULT_INVESTIDOR10_WALLET_URL)
     time.sleep(2.5)
     summary = browser_investment_snapshot()
-    return "Abri sua carteira do Investidor10. " + summary
+    if INVESTIDOR10_WALLET_URL:
+        return "Abri sua carteira do Investidor10. " + summary
+    return (
+        "Abri a área da carteira do Investidor10. "
+        + summary
+        + " Para abrir direto no seu link, configure AXEL_INVESTIDOR10_WALLET_URL no arquivo .env."
+    )
 
 
 def browser_describe_screen():

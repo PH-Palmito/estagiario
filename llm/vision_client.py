@@ -1,12 +1,12 @@
 import base64
-import os
 from pathlib import Path
 
 import requests
+from config import OLLAMA_BASE_URL, OLLAMA_VISION_MODEL, join_url
 
 
-OLLAMA_GENERATE_URL = "http://localhost:11434/api/generate"
-OLLAMA_TAGS_URL = "http://localhost:11434/api/tags"
+OLLAMA_GENERATE_URL = join_url(OLLAMA_BASE_URL, "/api/generate")
+OLLAMA_TAGS_URL = join_url(OLLAMA_BASE_URL, "/api/tags")
 DEFAULT_VISION_MODELS = (
     "llama3.2-vision:11b",
     "llava:7b",
@@ -64,7 +64,7 @@ def installed_vision_models() -> list[str]:
 
 
 def choose_vision_model() -> str:
-    configured = os.environ.get("OLLAMA_VISION_MODEL", "").strip()
+    configured = OLLAMA_VISION_MODEL.strip()
     if configured:
         return configured
 

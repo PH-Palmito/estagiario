@@ -1,11 +1,13 @@
 import requests
+from config import OLLAMA_TEXT_MODEL, OLLAMA_BASE_URL, join_url
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+
+OLLAMA_URL = join_url(OLLAMA_BASE_URL, "/api/generate")
 
 
 def ask_model(
     prompt: str,
-    model: str = "qwen2.5:0.5b",
+    model: str = OLLAMA_TEXT_MODEL,
     timeout_seconds: int = 15,
     num_predict: int = 80,
     temperature: float = 0.3,
