@@ -58,6 +58,42 @@ HUMOR_STYLES = {
     "brincalhao": "Use humor leve e caloroso. Soe mais simpatico e solto, mas sem virar palhaco ou exagerar.",
 }
 
+OPINION_HINTS = {
+    "acha",
+    "opina",
+    "opiniao",
+    "opinião",
+    "vale a pena",
+    "faz sentido",
+    "bom momento",
+    "melhor",
+    "pior",
+    "arriscado",
+    "seguro",
+    "provavel",
+    "provável",
+    "cenario",
+    "cenário",
+    "devo",
+}
+
+LIVE_CONTEXT_HINTS = {
+    "eleicao",
+    "eleição",
+    "mercado",
+    "investimento",
+    "investimentos",
+    "acao",
+    "ação",
+    "acoes",
+    "ações",
+    "noticia",
+    "notícia",
+    "economia",
+    "governo",
+    "presidente",
+}
+
 
 def refresh_preferences():
     PREFERENCES.clear()
@@ -235,6 +271,48 @@ def _normalize_for_compare(text: str) -> str:
     return text.strip()
 
 
+def _looks_like_opinion_request(user_input: str) -> bool:
+    normalized = _normalize_for_compare(user_input)
+    if not normalized:
+        return False
+
+    if any(hint in normalized for hint in OPINION_HINTS):
+        return True
+
+    starters = (
+        "o que voce acha",
+        "o que vc acha",
+        "qual sua opiniao",
+        "qual a sua opiniao",
+        "sua opiniao",
+        "na sua opiniao",
+    )
+    return normalized.startswith(starters)
+
+
+def _response_mode_prompt(user_input: str) -> str:
+    normalized = _normalize_for_compare(user_input)
+    if not _looks_like_opinion_request(user_input):
+        return (
+            "Modo de resposta: conversa curta e natural. "
+            "Se couber, responda diretamente e puxe um detalhe útil."
+        )
+
+    live_hint = any(token in normalized for token in LIVE_CONTEXT_HINTS)
+    base = (
+        "Modo de resposta: opinativo e honesto. "
+        "Responda como quem realmente ponderou o assunto. "
+        "Separe mentalmente fato, leitura e limite, mas sem transformar isso em lista. "
+        "Dê uma leitura própria curta e diga o principal motivo dela."
+    )
+    if live_hint:
+        base += (
+            " Se o tema depender de dado atual e você não tiver verificado fonte ao vivo agora, "
+            "deixe isso claro e trate sua resposta como leitura provisória."
+        )
+    return base
+
+
 def _looks_like_echo(user_input: str, response: str) -> bool:
     user = _normalize_for_compare(user_input)
     answer = _normalize_for_compare(response)
@@ -270,6 +348,8 @@ def chat_response(user_input: str):
     except (TypeError, ValueError):
         timeout = 8
 
+    opinion_mode = _looks_like_opinion_request(user_input)
+
     prompt = f"""{build_chat_prompt()}
 
 Historico recente:
@@ -284,6 +364,9 @@ Contexto operacional:
 Diretrizes:
 {_directives_text()}
 
+Modo desta resposta:
+{_response_mode_prompt(user_input)}
+
 Mensagem atual do usuario:
 {user_input}
 
@@ -294,8 +377,8 @@ Resposta curta do Estagiario:"""
             prompt,
             model=model,
             timeout_seconds=max(2, min(timeout, 30)),
-            num_predict=90,
-            temperature=_chat_temperature(),
+            num_predict=120 if opinion_mode else 90,
+            temperature=min(0.85, _chat_temperature() + (0.08 if opinion_mode else 0.0)),
         )
     except Exception:
         return None

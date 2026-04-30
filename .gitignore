@@ -12,6 +12,7 @@ __pycache__/
 sandbox/
 
 memory/*.json
+memory/*.jsonl
 memory/*.md
 !memory/*.py
 

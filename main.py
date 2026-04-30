@@ -42,6 +42,7 @@ from memory.codex_implementation_request import (
     save_codex_implementation_request,
 )
 from memory.execution_packages import load_execution_package, save_execution_package
+from memory.execution_log import append_execution_log
 from memory.implementation_handoff import load_implementation_handoff, save_implementation_handoff
 from memory.handoff_applications import (
     load_handoff_application,
@@ -131,15 +132,36 @@ macro_steps = []
 VOICE_PREFERENCES = load_voice_preferences()
 
 
+def log_execution_event(event_type: str, **payload):
+    try:
+        append_execution_log(event_type, payload)
+    except Exception:
+        pass
+
+
 def process_action(raw_action: dict):
     if not isinstance(raw_action, dict):
+        log_execution_event("action_invalid", reason="raw_action_not_dict", raw_action=str(raw_action))
         return "Acao invalida."
 
     command = normalize_action(raw_action)
     command = resolve_params(command, runtime_state)
+    log_execution_event(
+        "action_processed",
+        intent=raw_action.get("intent"),
+        action=getattr(command, "action", ""),
+        params=getattr(command, "params", {}),
+        source=getattr(command, "source", ""),
+    )
 
     ok, error = validate_command(command)
     if not ok:
+        log_execution_event(
+            "action_validation_failed",
+            action=getattr(command, "action", ""),
+            params=getattr(command, "params", {}),
+            error=error,
+        )
         return error
 
     return command
@@ -188,8 +210,23 @@ def show_action_progress(command, voice_mode: bool = False):
 
 def execute_command(command, voice_mode: bool = False):
     show_action_progress(command, voice_mode=voice_mode)
+    started_at = time.time()
+    log_execution_event(
+        "command_execute_start",
+        action=getattr(command, "action", ""),
+        params=getattr(command, "params", {}),
+        voice_mode=voice_mode,
+    )
     result = execute(command)
     runtime_state.update(command, result)
+    log_execution_event(
+        "command_execute_end",
+        action=getattr(command, "action", ""),
+        params=getattr(command, "params", {}),
+        result=result,
+        voice_mode=voice_mode,
+        duration_ms=round((time.time() - started_at) * 1000, 2),
+    )
     return result
 
 
@@ -402,6 +439,12 @@ def output_response(message: str, voice_mode: bool):
     global direct_response_ready_announced
 
     styled_message = style_response(message)
+    log_execution_event(
+        "assistant_output",
+        message=styled_message,
+        voice_mode=voice_mode,
+        mode=current_ui_mode_label(),
+    )
     terminal_print(f"IA: {styled_message}")
     append_ui_history("assistant", styled_message, max_items=UI_HISTORY_MAX_ITEMS)
     refresh_ui_runtime_state({"last_response": styled_message})
@@ -3047,6 +3090,13 @@ def main():
         if is_transcription_artifact(user_input):
             continue
 
+        log_execution_event(
+            "user_input",
+            text=user_input,
+            voice_mode=voice_mode,
+            mode=current_ui_mode_label(),
+        )
+
         correction_response = maybe_learn_correction_for_last_voice(user_input)
         if correction_response:
             output_response(correction_response, voice_mode)
@@ -3285,6 +3335,12 @@ def main():
 
         original_user_input = user_input
         user_input = maybe_normalize_voice_command(user_input, voice_mode)
+        if original_user_input != user_input:
+            log_execution_event(
+                "voice_input_normalized",
+                original=original_user_input,
+                normalized=user_input,
+            )
         if voice_mode and original_user_input == user_input:
             last_voice_text = original_user_input
         refresh_ui_runtime_state({"last_command": user_input})
@@ -3383,6 +3439,12 @@ def main():
                 continue
 
         raw_action = route(user_input)
+        log_execution_event(
+            "route_result",
+            input=user_input,
+            intent=raw_action.get("intent"),
+            target=raw_action.get("target"),
+        )
 
         if raw_action.get("intent") == "run_routine":
             result = execute_routine_steps(raw_action.get("target"))
