@@ -4,6 +4,8 @@ Assistente local para Windows com foco em voz, automação de desktop, navegaç�
 
 O projeto foi pensado para rodar localmente, com Ollama para LLM, Faster-Whisper para transcrição e Piper para TTS. A proposta é ter um assistente útil de verdade, controlando apps, sites, mídia e tarefas práticas sem depender de cloud para tudo.
 
+Opcionalmente, o projeto também pode usar Gemini API como cérebro principal de texto, mantendo o Ollama local como fallback.
+
 ## O que ele faz
 
 - Controle por voz com `--voice` e escuta por botão com `--hotword`
@@ -71,10 +73,48 @@ Variáveis principais:
 - `AXEL_OLLAMA_VISION_MODEL`
   Modelo visual opcional.
 
+- `AXEL_GEMINI_API_KEY`
+  Chave opcional da Gemini API. Se estiver vazia, o Axel continua 100% no Ollama.
+
+- `AXEL_GEMINI_MODEL`
+  Modelo usado para perguntas de conversa mais complexas. Padrão: `gemini-2.5-flash`.
+
+- `AXEL_GEMINI_PRIMARY_TEXT_ENABLED`
+  Se ativado, o Gemini vira o modelo principal para chamadas de texto do Axel, com fallback para Ollama se a API falhar.
+
+- `AXEL_GEMINI_COMPLEX_CHAT_ENABLED`
+  Se ativado, o Gemini entra apenas em perguntas mais complexas, analíticas ou opinativas. Comandos operacionais continuam no fluxo normal.
+
 - `AXEL_INVESTIDOR10_WALLET_URL`
   Seu link direto da carteira no Investidor10.
 
 Se essa variável da carteira não estiver preenchida, o Axel ainda abre a área geral do Investidor10, mas não pula direto para o seu link pessoal.
+
+## Gemini opcional como principal
+
+Quando `AXEL_GEMINI_API_KEY` estiver preenchida e `AXEL_GEMINI_PRIMARY_TEXT_ENABLED=1`, o Axel passa a usar Gemini como principal nas chamadas de texto e deixa o Ollama como fallback.
+
+Isso afeta, por exemplo:
+
+- conversa
+- opinião
+- planejamento
+- respostas com leitura de tela já salva
+- partes textuais de interpretação e apoio operacional
+
+Exemplos:
+
+- `o que você acha desse cenário?`
+- `compare essas duas ideias`
+- `isso faz sentido para o longo prazo?`
+
+Fluxo adotado:
+
+- Gemini como principal quando a chave estiver configurada
+- Ollama como fallback automático se a API falhar
+- se quiser limitar o Gemini depois, basta desligar `AXEL_GEMINI_PRIMARY_TEXT_ENABLED` e manter só o modo complexo
+
+Também existe um uso híbrido nas perguntas sobre a tela: quando você faz uma leitura de página e depois pergunta algo mais amplo, o Axel pode usar a tela como contexto inicial e consultar outras fontes pela web via grounding do Gemini, em vez de ficar preso apenas ao trecho visível.
 
 ## Como rodar
 

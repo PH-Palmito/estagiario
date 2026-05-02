@@ -1,25 +1,37 @@
 {
-  "generated_at": 1777341410.5494084,
+  "generated_at": 1777682884.337782,
   "assistant_name": "Axel",
   "operator_name": "Pedro Henrique",
-  "current_focus": "Dar ao Axel memoria operacional de preferencias e contexto",
+  "current_focus": "Aprimorar leitura util de pagina com foco no conteudo central",
   "focus_stack": [
     "front-end",
     "mobile",
     "React Native",
     "TypeScript"
   ],
-  "recent_user_requests": [],
+  "recent_user_requests": [
+    "o que tem na tela",
+    "o que você acha disso?",
+    "voce acha que existem melhores?",
+    "vision_answer_question (question=voce acha que existem melhores?)"
+  ],
   "recent_apps": [],
   "recent_sites": [],
-  "recent_topics": [],
+  "recent_topics": [
+    "acha",
+    "existem",
+    "melhores",
+    "voce",
+    "disso",
+    "question"
+  ],
   "conversation_mode": false,
   "dictation_mode": false,
   "next_advances": [
+    "Aprimorar leitura util de pagina com foco no conteudo central",
     "Dar ao Axel memoria operacional de preferencias e contexto",
-    "Criar rotinas prontas para estudo e desenvolvimento mobile/front-end",
-    "Preparar inicializacao automatica com Windows"
+    "Criar rotinas prontas para estudo e desenvolvimento mobile/front-end"
   ],
   "active_bottlenecks": [],
-  "summary": "Axel acompanhando Pedro Henrique. Foco atual: Dar ao Axel memoria operacional de preferencias e contexto."
+  "summary": "Axel acompanhando Pedro Henrique. Foco atual: Aprimorar leitura util de pagina com foco no conteudo central. Topicos recentes: acha, existem, melhores, voce."
 }

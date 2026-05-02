@@ -3,6 +3,8 @@ import re
 import subprocess
 import unicodedata
 
+from config import GEMINI_API_KEY
+from llm.gemini_client import ask_gemini_grounded_model
 from llm.ollama_client import ask_model
 from llm.vision_client import choose_vision_model, installed_vision_models, vision_status_text
 from memory.vision_history import last_vision_analysis, last_vision_item
@@ -228,15 +230,266 @@ def _context_has_price(text: str) -> bool:
 
 def _clean_answer(answer: str) -> str:
     answer = " ".join(str(answer or "").split()).strip()
+    answer = re.sub(r"[*_`#>\[\]]+", "", answer).strip()
     answer = re.sub(
         r"^(aqui esta|aqui está)\s+(a\s+)?resposta\s+(para\s+a\s+pergunta\s+do\s+pedro\s*)?:\s*",
         "",
         answer,
         flags=re.I,
     ).strip()
+    answer = re.sub(r"^(eu|axel|assistente|resposta)\s*:\s*", "", answer, flags=re.I).strip()
     if "Resumo salvo:" in answer or "Pergunta do Pedro:" in answer or "Trechos úteis salvos:" in answer:
         return ""
     return answer
+
+
+def _looks_incomplete_answer(answer: str) -> bool:
+    normalized = " ".join(str(answer or "").split()).strip()
+    if not normalized:
+        return True
+
+    if len(normalized) < 24:
+        return True
+
+    lowered = normalized.lower().rstrip()
+    dangling_endings = (
+        "pelo que",
+        "olha, pelo que",
+        "acho que",
+        "me parece que",
+        "isso mostra que",
+        "isso sugere que",
+    )
+    if lowered.endswith(dangling_endings):
+        return True
+
+    if not re.search(r"[.!?]$|:$", normalized):
+        words = normalized.split()
+        if len(words) <= 7:
+            return True
+
+    return False
+
+
+def _looks_like_contextual_reading_question(question: str) -> bool:
+    normalized = _normalize(question)
+    starters = (
+        "o que voce acha",
+        "o que acha",
+        "o que voce pensa",
+        "o que pensa",
+        "voce acha",
+        "vc acha",
+        "acha que",
+        "existem",
+        "existe",
+        "tem",
+        "qual sua opiniao",
+        "qual a sua opiniao",
+        "qual sua leitura",
+        "como voce ve",
+        "como voce interpreta",
+        "me explica",
+        "me explique",
+        "explica",
+        "explique",
+        "detalha",
+        "detalhar",
+        "interpreta",
+        "interprete",
+        "o que isso significa",
+        "o que isso quer dizer",
+        "isso e bom",
+        "isso e ruim",
+        "faz sentido",
+        "vale a pena",
+        "isso preocupa",
+        "isso e relevante",
+    )
+    return any(normalized.startswith(starter) for starter in starters)
+
+
+def _looks_like_broader_context_question(question: str) -> bool:
+    normalized = _normalize(question)
+    broader_terms = (
+        "voce acha",
+        "vc acha",
+        "acha que",
+        "existem melhores",
+        "existe melhor",
+        "tem melhores",
+        "tem melhor",
+        "qual voce escolheria",
+        "qual voce prefere",
+        "vale mais a pena",
+        "recomenda",
+        "recomendaria",
+    )
+    return any(term in normalized for term in broader_terms)
+
+
+def _looks_like_live_research_question(question: str, page_title: str, summary: str) -> bool:
+    normalized = _normalize(" ".join([question, page_title, summary]))
+    live_terms = {
+        "noticia",
+        "noticias",
+        "jornal",
+        "congresso",
+        "senado",
+        "camara",
+        "camara",
+        "governo",
+        "lula",
+        "bolsonaro",
+        "politica",
+        "politico",
+        "mercado",
+        "investimento",
+        "investimentos",
+        "acao",
+        "acoes",
+        "economia",
+        "stf",
+        "eleicao",
+        "eleicoes",
+        "youtube",
+        "reddit",
+        "wikipedia",
+        "comparacao",
+        "comparar",
+        "melhores",
+        "recomenda",
+        "recomendaria",
+    }
+    return any(term in normalized for term in live_terms)
+
+
+def _fallback_contextual_reading(summary: str, page_title: str, useful_lines: list[str]) -> str:
+    focus = page_title or summary.split(".")[0].strip()
+    if not focus:
+        focus = "esse conteudo"
+
+    highlight = ""
+    for line in useful_lines:
+        clean = " ".join(str(line or "").split()).strip(" .")
+        if len(clean) >= 24:
+            highlight = clean
+            break
+
+    if highlight:
+        return (
+            f"Pelo que ficou visivel, o foco e {focus}. Minha leitura inicial e que o ponto mais relevante gira em torno de {highlight}. "
+            "Ainda assim, essa opiniao fica limitada ao trecho salvo da tela."
+        )
+
+    return (
+        f"Pelo que ficou visivel, o foco e {focus}. Minha leitura inicial depende so do resumo salvo, entao eu consigo te dar um contexto geral, "
+        "mas nao fechar uma conclusao forte sem reler mais da pagina."
+    )
+
+
+def _ask_grounded_contextual_reading(question: str, item: dict, summary: str, page_title: str, useful_lines: list[str]) -> str | None:
+    if not GEMINI_API_KEY:
+        return None
+
+    prompt = (
+        "Voce e o Axel respondendo uma pergunta que parte da ultima tela lida, mas pode consultar outras fontes da web em tempo real.\n"
+        "Responda em portugues do Brasil, de forma curta, natural e util.\n"
+        "Use a tela salva como ponto de partida e, se ajudar, complemente com pesquisa Google via grounding.\n"
+        "Nao finja que tudo veio da tela. Se voce ampliar a resposta com outras fontes, deixe isso claro de forma natural.\n"
+        "Nao use markdown, listas, negrito, titulos nem rotulos como 'Eu:' ou 'Resposta:'.\n"
+        "Prefira 2 ou 3 frases.\n\n"
+        f"Fonte salva: {item.get('source', 'analise')}\n"
+        f"Titulo da pagina: {page_title or 'nao informado'}\n"
+        f"Resumo salvo:\n{summary}\n\n"
+        "Trechos uteis salvos:\n"
+        + ("\n".join(f"- {line}" for line in useful_lines[:10]) if useful_lines else "- nenhum trecho extra salvo")
+        + "\n\n"
+        f"Pergunta do Pedro:\n{question}\n\n"
+        "Resposta:"
+    )
+    try:
+        grounded = ask_gemini_grounded_model(
+            prompt,
+            timeout_seconds=30,
+            max_output_tokens=260,
+            temperature=0.2,
+        )
+        answer = _clean_answer(grounded.get("text", ""))
+        if not answer or _looks_incomplete_answer(answer):
+            return None
+        return answer
+    except Exception:
+        return None
+
+
+def _answer_contextual_reading_question(question: str, item: dict, summary: str, page_title: str, useful_lines: list[str]) -> str | None:
+    if not _looks_like_contextual_reading_question(question):
+        return None
+
+    normalized_question = _normalize(question)
+    can_go_broader = _looks_like_broader_context_question(question) or any(
+        marker in normalized_question
+        for marker in {
+            "o que voce acha",
+            "o que acha",
+            "o que voce pensa",
+            "o que pensa",
+            "qual sua opiniao",
+            "qual a sua opiniao",
+        }
+    )
+
+    if can_go_broader:
+        if _looks_like_live_research_question(question, page_title, summary):
+            grounded_answer = _ask_grounded_contextual_reading(question, item, summary, page_title, useful_lines)
+            if grounded_answer:
+                return grounded_answer
+
+        prompt = (
+            "Voce e o Axel respondendo uma pergunta que usa a ultima tela lida como ponto de partida, mas pede uma opiniao mais ampla.\n"
+            "Responda em portugues do Brasil, de forma curta, natural e util.\n"
+            "Use o resumo salvo e os trechos visiveis como contexto principal.\n"
+            "Voce pode complementar com conhecimento geral do modelo quando a pergunta pedir comparacao, recomendacao ou leitura mais ampla.\n"
+            "Nao finja que viu na tela o que nao estava nela.\n"
+            "Se completar com leitura mais ampla, deixe isso claro de forma natural, sem soar burocratico.\n"
+            "Nao use markdown, negrito, titulos, listas, aspas decorativas nem rotulos como 'Eu:' ou 'Resposta:'.\n"
+            "Responda em 2 ou 3 frases.\n\n"
+            f"Fonte salva: {item.get('source', 'analise')}\n"
+            f"Titulo da pagina: {page_title or 'nao informado'}\n"
+            f"Resumo salvo:\n{summary}\n\n"
+            "Trechos uteis salvos:\n"
+            + ("\n".join(f"- {line}" for line in useful_lines[:12]) if useful_lines else "- nenhum trecho extra salvo")
+            + "\n\n"
+            f"Pergunta do Pedro:\n{question}\n\n"
+            "Resposta:"
+        )
+    else:
+        prompt = (
+            "Voce e o Axel respondendo uma pergunta de leitura e opiniao sobre a ultima pagina ou tela lida.\n"
+            "Responda em portugues do Brasil, de forma curta, natural e util.\n"
+            "Baseie-se somente no resumo salvo e nos trechos visiveis abaixo.\n"
+            "Nao invente fatos, nomes, dados, contexto externo nem noticias adicionais.\n"
+            "Se faltar contexto, deixe isso claro de forma natural.\n"
+            "Nao use markdown, negrito, titulos, listas, aspas decorativas nem rotulos como 'Eu:' ou 'Resposta:'.\n"
+            "Tente responder em 2 ou 3 frases, separando implicitamente: o que parece ter acontecido, sua leitura e o limite dessa leitura.\n\n"
+            f"Fonte salva: {item.get('source', 'analise')}\n"
+            f"Titulo da pagina: {page_title or 'nao informado'}\n"
+            f"Resumo salvo:\n{summary}\n\n"
+            "Trechos uteis salvos:\n"
+            + ("\n".join(f"- {line}" for line in useful_lines[:12]) if useful_lines else "- nenhum trecho extra salvo")
+            + "\n\n"
+            f"Pergunta do Pedro:\n{question}\n\n"
+            "Resposta:"
+        )
+    try:
+        answer = ask_model(prompt, timeout_seconds=20, num_predict=140, temperature=0.25)
+        answer = _clean_answer(answer)
+        if not answer or _looks_incomplete_answer(answer):
+            return _fallback_contextual_reading(summary, page_title, useful_lines)
+        return answer
+    except Exception:
+        return _fallback_contextual_reading(summary, page_title, useful_lines)
 
 
 def answer_last_visual_question(question: str) -> str:
@@ -262,6 +515,10 @@ def answer_last_visual_question(question: str) -> str:
         if clean:
             useful_lines.append(clean)
     context_text = "\n".join([summary, page_title, page_url, *useful_lines])
+
+    contextual_reading = _answer_contextual_reading_question(question, item, summary, page_title, useful_lines)
+    if contextual_reading:
+        return contextual_reading
 
     if _has_chart_question_terms(question) and not _extract_chart_values(summary):
         return "Não consigo confirmar isso pela última análise salva. Se for sobre um gráfico, peça para analisar a imagem ou a tela de novo."

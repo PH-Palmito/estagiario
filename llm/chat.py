@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 import re
 
+from config import GEMINI_API_KEY, GEMINI_COMPLEX_CHAT_ENABLED, GEMINI_MODEL
+from llm.gemini_client import ask_gemini_model
 from llm.ollama_client import ask_model
 from memory.operational_context import load_operational_context
 from memory.profile import load_profile
@@ -92,6 +94,32 @@ LIVE_CONTEXT_HINTS = {
     "economia",
     "governo",
     "presidente",
+}
+
+COMPLEX_REASONING_HINTS = {
+    "por que",
+    "porque",
+    "analisa",
+    "analise",
+    "analisar",
+    "compare",
+    "comparar",
+    "cenario",
+    "cenario",
+    "cenário",
+    "estrategia",
+    "estratégia",
+    "tese",
+    "impacto",
+    "consequencia",
+    "consequência",
+    "vantagem",
+    "desvantagem",
+    "riscos",
+    "risco",
+    "fundamento",
+    "explica melhor",
+    "me explica",
 }
 
 
@@ -220,6 +248,23 @@ def _clean_response(response: str) -> str:
     return response
 
 
+def _looks_like_complex_request(user_input: str) -> bool:
+    normalized = re.sub(r"\s+", " ", user_input.strip().lower())
+    word_count = len([word for word in normalized.split(" ") if word])
+
+    if any(hint in normalized for hint in COMPLEX_REASONING_HINTS):
+        return True
+
+    if _looks_like_opinion_request(user_input) and any(hint in normalized for hint in LIVE_CONTEXT_HINTS):
+        return True
+
+    return word_count >= 18
+
+
+def _should_use_gemini(user_input: str) -> bool:
+    return bool(GEMINI_COMPLEX_CHAT_ENABLED and GEMINI_API_KEY and _looks_like_complex_request(user_input))
+
+
 def _looks_generic_or_wrong(response: str) -> bool:
     lower = response.lower()
     blocked_fragments = {
@@ -343,6 +388,7 @@ def chat_response(user_input: str):
         return None
 
     model = str(PREFERENCES.get("chat_model", "qwen2.5:0.5b")).strip() or "qwen2.5:0.5b"
+    use_gemini = _should_use_gemini(user_input)
     try:
         timeout = int(PREFERENCES.get("chat_timeout_seconds", 8))
     except (TypeError, ValueError):
@@ -373,15 +419,36 @@ Mensagem atual do usuario:
 Resposta curta do Estagiario:"""
 
     try:
-        response = ask_model(
-            prompt,
-            model=model,
-            timeout_seconds=max(2, min(timeout, 30)),
-            num_predict=120 if opinion_mode else 90,
-            temperature=min(0.85, _chat_temperature() + (0.08 if opinion_mode else 0.0)),
-        )
+        if use_gemini:
+            response = ask_gemini_model(
+                prompt,
+                model=GEMINI_MODEL,
+                timeout_seconds=max(4, min(timeout + 8, 40)),
+                max_output_tokens=220 if opinion_mode else 180,
+                temperature=min(0.8, _chat_temperature() + 0.05),
+            )
+        else:
+            response = ask_model(
+                prompt,
+                model=model,
+                timeout_seconds=max(2, min(timeout, 30)),
+                num_predict=120 if opinion_mode else 90,
+                temperature=min(0.85, _chat_temperature() + (0.08 if opinion_mode else 0.0)),
+            )
     except Exception:
-        return None
+        if use_gemini:
+            try:
+                response = ask_model(
+                    prompt,
+                    model=model,
+                    timeout_seconds=max(2, min(timeout, 30)),
+                    num_predict=120 if opinion_mode else 90,
+                    temperature=min(0.85, _chat_temperature() + (0.08 if opinion_mode else 0.0)),
+                )
+            except Exception:
+                return None
+        else:
+            return None
 
     response = (response or "").strip()
     if not response:

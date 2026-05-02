@@ -2459,11 +2459,58 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
     if learned:
         return learned
 
+    normalized_input = normalize_text(user_input)
+    contextual_followup_prefixes = (
+        "o que voce acha",
+        "o que vc acha",
+        "o que acha",
+        "o que voce pensa",
+        "o que pensa",
+        "voce acha",
+        "vc acha",
+        "acha que",
+        "existem",
+        "existe",
+        "tem",
+        "qual sua opiniao",
+        "qual a sua opiniao",
+        "qual sua leitura",
+        "me explica",
+        "me explique",
+        "explica",
+        "explique",
+        "detalha isso",
+        "detalhar isso",
+        "interpreta isso",
+        "interprete isso",
+    )
+    if normalized_input.startswith(contextual_followup_prefixes):
+        return user_input
+
     normalized_candidate = normalize_voice_command(user_input)
     protected_voice_commands = {
         "o que tem na tela",
         "resuma a tela",
         "detalha a tela",
+        "o que voce acha disso",
+        "o que vc acha disso",
+        "o que acha disso",
+        "o que voce pensa disso",
+        "qual sua opiniao sobre isso",
+        "qual a sua opiniao sobre isso",
+        "voce acha que existem melhores",
+        "voce acha que existe melhor",
+        "vc acha que existem melhores",
+        "acha que existem melhores",
+        "tem melhores",
+        "tem melhor",
+        "me explica melhor esse cenario",
+        "me explique melhor esse cenario",
+        "explica melhor esse cenario",
+        "detalha isso",
+        "detalhar isso",
+        "interpreta isso",
+        "interprete isso",
         "proximos avancos",
         "pedido ao codex",
         "conversa com codex",

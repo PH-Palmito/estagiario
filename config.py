@@ -70,6 +70,26 @@ OLLAMA_VISION_MODEL = env_str(
     default="",
     aliases=("OLLAMA_VISION_MODEL",),
 )
+GEMINI_API_KEY = env_str(
+    "AXEL_GEMINI_API_KEY",
+    default="",
+    aliases=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+)
+GEMINI_MODEL = env_str(
+    "AXEL_GEMINI_MODEL",
+    default="gemini-2.5-flash",
+    aliases=("GEMINI_MODEL",),
+)
+GEMINI_COMPLEX_CHAT_ENABLED = env_str(
+    "AXEL_GEMINI_COMPLEX_CHAT_ENABLED",
+    default="1",
+    aliases=("GEMINI_COMPLEX_CHAT_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
+GEMINI_PRIMARY_TEXT_ENABLED = env_str(
+    "AXEL_GEMINI_PRIMARY_TEXT_ENABLED",
+    default="1",
+    aliases=("GEMINI_PRIMARY_TEXT_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
 INVESTIDOR10_WALLET_URL = env_str(
     "AXEL_INVESTIDOR10_WALLET_URL",
     default="",

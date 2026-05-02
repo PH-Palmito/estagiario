@@ -1,54 +1,207 @@
 [
   {
-    "created_at": 1777037139.5094533,
-    "source": "arquivo",
-    "summary": "Análise visual: Desculpe, mas não consegui interpretar os dados fornecidos. Agradeço se puder fornecer mais informações ou tentar novamente para que eu possa ajudá-lo melhor."
-  },
-  {
-    "created_at": 1777037170.1909373,
-    "source": "arquivo",
-    "summary": "Análise visual: Desculpe, mas eu não consigo interpretar ou entender a descrição bruta fornecida. Agradeço por tentar, mas não posso ajudar com isso."
-  },
-  {
-    "created_at": 1777037193.5530064,
-    "source": "arquivo",
-    "summary": "Análise visual: Consegui ler texto de um gráfico. Título: Disciplina favorita dos estudantes. Categorias/legendas visíveis: Portugues, Ciencias, Matematica, Educacaofisica, Historia, Geografia, Ingles. Números visíveis na escala: 21, 18, 15, 12. Ainda não consigo garantir automaticamente o valor exato de cada barra só pelo OCR; para isso, a imagem precisa estar ampliada ou o gráfico isolado."
-  },
-  {
-    "created_at": 1777083240.2975872,
-    "source": "tela",
-    "summary": "Análise visual da tela: Gráfico de colunas detectado. Título: ?Portfolio baseado em personali. Valores estimados pela altura das barras: Pokemon:Auto Chess: aproximadamente 0; Pedro Palmito | Desenvolvedor: aproximadamente 0.",
-    "details": {}
-  },
-  {
-    "created_at": 1777083540.8184545,
+    "created_at": 1777601348.4849274,
     "source": "pagina",
-    "summary": "Resumo da tela: Pelo título da página, o foco parece ser column-chart-example.svg. No conteúdo visível, encontrei: file:///C:/Users/almei/Documents/Downloads/column-chart-example.svg.",
+    "summary": "Detalhando a tela: Na tela esta uma pagina financeira. Pelo titulo, ela parece ser sobre Investidor10 | Resumo. Do que ficou visivel, os pontos mais uteis sao: % na carteira; carteira Oficial; Voltar para a carteira antiga; Integração B3; Patrimônio total.",
     "details": {
       "kind": "browser",
-      "page_url": "",
-      "page_title": "column-chart-example.svg",
+      "page_url": "https://investidor10.com.br/wallet/my-wallet/free",
+      "page_title": "Investidor10 | Resumo",
       "lines": [
-        "file:///C:/Users/almei/Documents/Downloads/column-chart-example.svg"
+        "% na carteira",
+        "carteira Oficial",
+        "Voltar para a carteira antiga",
+        "Integração B3",
+        "Patrimônio total",
+        "Valor investido",
+        "Lucro total",
+        "Dividendos Recebidos",
+        "Proventos Recebidos (12M)",
+        "Evolução do Patrimônio",
+        "Ativos na Carteira",
+        "Carteiras Recomendadas",
+        "Gerenciar Carteira",
+        "Ranking de FIIs",
+        "Agenda de dividendos - FIIs",
+        "Agenda de dividendos - Stocks",
+        "Agenda de dividendos - REITs",
+        "Agenda de dividendos - BDRs",
+        "Investimento em FIIs",
+        "Proventos",
+        "Patrimônio",
+        "Rentabilidade"
       ]
     }
   },
   {
-    "created_at": 1777121434.742927,
-    "source": "tela",
-    "summary": "Análise visual da tela: Não consegui extrair uma análise visual confiável dessa imagem. O texto legível que consegui captar foi: 40 35 30 20 15 10 2021 2023 2025 2020 2022 2024 2026 2027",
-    "details": {}
-  },
-  {
-    "created_at": 1777121480.2298007,
+    "created_at": 1777601454.422211,
     "source": "pagina",
-    "summary": "Visao rapida da tela: Pelo título da página, o foco parece ser column-chart-example.svg. No conteúdo visível, encontrei: file:///C:/Users/almei/Documents/Downloads/column-chart-example.svg.",
+    "summary": "Visao rapida da tela: Na tela parece haver uma noticia sobre PL da Dosimetria: Congresso derruba veto de Lula e beneficia Bolsonaro; texto segue para promulgação | G1. Do trecho visivel, os pontos mais uteis sao: A votação ocorreu em meio a uma crise entre o governo e o Congresso.; Grupo do senador Flávio Bolsonaro (PL) transformou a votação num símbolo de enfrentamento ao governo, e deu...; Bastidores: como Lula reagiu à derrota no Senado, segundo ministro; Bastidores: como Lula reagiu à derrota no Senado, segundo ministro - Programa: Jornal GloboNews edição das 18h; Uma só conta para todos os produtos Globo. É grátis!.",
     "details": {
       "kind": "browser",
-      "page_url": "",
-      "page_title": "column-chart-example.svg",
+      "page_url": "https://g1.globo.com/politica/noticia/2026/04/30/pl-da-dosimetria-camara-veto.ghtml",
+      "page_title": "PL da Dosimetria: Congresso derruba veto de Lula e beneficia Bolsonaro; texto segue para promulgação | G1",
       "lines": [
-        "file:///C:/Users/almei/Documents/Downloads/column-chart-example.svg"
+        "A votação ocorreu em meio a uma crise entre o governo e o Congresso.",
+        "Grupo do senador Flávio Bolsonaro (PL) transformou a votação num símbolo de enfrentamento ao governo, e deu certo.",
+        "Bastidores: como Lula reagiu à derrota no Senado, segundo ministro",
+        "Bastidores: como Lula reagiu à derrota no Senado, segundo ministro - Programa: Jornal GloboNews edição das 18h",
+        "Uma só conta para todos os produtos Globo. É grátis!",
+        "PL da Dosimetria: Congresso derruba veto de Lula e beneficia Bolsonaro; texto segue para promulgação",
+        "PL da Dosimetria: Câmara e Senado derrubam veto de Lula; texto segue para promulgação",
+        "Na Câmara, foram 318 votos favoráveis à derrubada e 144 contrários. No Senado, foram 49 votos para a derrubada do veto e 24 votos contra.",
+        "Para que o veto fosse derrubado, eram necessários ao menos 257 votos na Câmara e 41 no Senado.",
+        "🔎 Deputados e senadores votaram separadamente, em uma sessão conjunta do Congresso Nacional.",
+        "PLACAR: Veja como votaram os deputados sobre veto de Lula ao PL da Dosimetria",
+        "Veja comemoração da derrubada do veto na Câmara",
+        "Corredores do Congresso estão movimentados em dia de votação sobre Dosimetria",
+        "Caso isso não ocorra, a tarefa caberá ao presidente do Senado e, posteriormente, ao vice-presidente da Casa. Após a promulgação e publicação o...",
+        "Com derrubada de veto de Lula ao PL da Dosimetria, saiba o que acontece com Bolsonaro",
+        "Congresso retoma revisão de penas, mas redução não é automática e terá de passar pelo STF; entenda",
+        "Nas redes, políticos comentam votação da dosimetria: 'Bandido bom é bandido anistiado pela família Bolsonaro', diz Humberto Costa",
+        "A medida de Alcolumbre é incomum e funcionou como um “desmembramento” do veto do presidente Lula, que foi integral, isto é, a todo o projeto."
+      ]
+    }
+  },
+  {
+    "created_at": 1777602242.7010527,
+    "source": "pagina",
+    "summary": "Resumo da tela: Na tela parece haver uma noticia sobre PL da Dosimetria: Congresso derruba veto de Lula e beneficia Bolsonaro; texto segue para promulgação | G1. Do trecho visivel, os pontos mais uteis sao: A votação ocorreu em meio a uma crise entre o governo e o Congresso.; Grupo do senador Flávio Bolsonaro (PL) transformou a votação num símbolo de enfrentamento ao governo, e deu...; Bastidores: como Lula reagiu à derrota no Senado, segundo ministro; Bastidores: como Lula reagiu à derrota no Senado, segundo ministro - Programa: Jornal GloboNews edição das 18h; PL da Dosimetria: Congresso derruba veto de Lula e beneficia Bolsonaro; texto segue para promulgação.",
+    "details": {
+      "kind": "browser",
+      "page_url": "https://g1.globo.com/politica/noticia/2026/04/30/pl-da-dosimetria-camara-veto.ghtml",
+      "page_title": "PL da Dosimetria: Congresso derruba veto de Lula e beneficia Bolsonaro; texto segue para promulgação | G1",
+      "lines": [
+        "A votação ocorreu em meio a uma crise entre o governo e o Congresso.",
+        "Grupo do senador Flávio Bolsonaro (PL) transformou a votação num símbolo de enfrentamento ao governo, e deu certo.",
+        "Bastidores: como Lula reagiu à derrota no Senado, segundo ministro",
+        "Bastidores: como Lula reagiu à derrota no Senado, segundo ministro - Programa: Jornal GloboNews edição das 18h",
+        "PL da Dosimetria: Congresso derruba veto de Lula e beneficia Bolsonaro; texto segue para promulgação",
+        "PL da Dosimetria: Câmara e Senado derrubam veto de Lula; texto segue para promulgação",
+        "Na Câmara, foram 318 votos favoráveis à derrubada e 144 contrários. No Senado, foram 49 votos para a derrubada do veto e 24 votos contra.",
+        "Para que o veto fosse derrubado, eram necessários ao menos 257 votos na Câmara e 41 no Senado.",
+        "🔎 Deputados e senadores votaram separadamente, em uma sessão conjunta do Congresso Nacional.",
+        "PLACAR: Veja como votaram os deputados sobre veto de Lula ao PL da Dosimetria",
+        "Veja comemoração da derrubada do veto na Câmara",
+        "Corredores do Congresso estão movimentados em dia de votação sobre Dosimetria",
+        "Caso isso não ocorra, a tarefa caberá ao presidente do Senado e, posteriormente, ao vice-presidente da Casa. Após a promulgação e publicação o...",
+        "Com derrubada de veto de Lula ao PL da Dosimetria, saiba o que acontece com Bolsonaro",
+        "Congresso retoma revisão de penas, mas redução não é automática e terá de passar pelo STF; entenda",
+        "Nas redes, políticos comentam votação da dosimetria: 'Bandido bom é bandido anistiado pela família Bolsonaro', diz Humberto Costa",
+        "A medida de Alcolumbre é incomum e funcionou como um “desmembramento” do veto do presidente Lula, que foi integral, isto é, a todo o projeto.",
+        "Para se inscrever, entre ou crie uma conta Globo gratuita."
+      ]
+    }
+  },
+  {
+    "created_at": 1777681165.4523458,
+    "source": "pagina",
+    "summary": "Resumo da tela: Pelo título da página, o foco parece ser Modelos de TTS locais que podem igualar o ElevenLabs em termos de qualidade e consistência : r/LocalLLaMA. No conteúdo visível, encontrei: Modelos de TTS locais que podem igualar o ElevenLabs em termos de qualidade e consistência : r/LocalLLaMA; Modelos de TTS locais que podem igualar o ElevenLabs em termos de qualidade e consistência; Ir para o LocalLLaMA; Existem outras sugestões populares como Fish Speech ou F5-TTS, mas como preciso que o modelo fale português....",
+    "details": {
+      "kind": "browser",
+      "page_url": "https://www.reddit.com/r/LocalLLaMA/comments/1hy5l18/local_tts_models_that_can_match_elevenlabs_in/?tl=pt-br",
+      "page_title": "Modelos de TTS locais que podem igualar o ElevenLabs em termos de qualidade e consistência : r/LocalLLaMA",
+      "lines": [
+        "Modelos de TTS locais que podem igualar o ElevenLabs em termos de qualidade e consistência : r/LocalLLaMA",
+        "Pular para a navegaçãoPular para a barra lateral direita",
+        "Ir para o LocalLLaMA",
+        "Modelos de TTS locais que podem igualar o ElevenLabs em termos de qualidade e consistência",
+        "Existem outras sugestões populares como Fish Speech ou F5-TTS, mas como preciso que o modelo fale português, isso limita muito minhas opções.",
+        "Launch your career in project management with training from Google. Learn to scope projects and use agile project management frameworks to del...",
+        "1.- Rodar em CPU em tempo real",
+        "e é o melhor modelo para isso.",
+        "É, o Kokoro parece incrível, eu experimentei algumas frases em inglês e fiquei muito impressionado com os resultados. Tomara que eles adicione...",
+        "Eu não tinha certeza se entendi se a Kokoro suporta treinamento ou clonagem de uma voz?",
+        "Você tem dicas para instalar o Kokoro para uso de CPU?",
+        "Ainda não consegui fazê-lo funcionar...",
+        "Editar: Ah. Eu deveria ter usado esse \"docker compose -f docker-compose.cpu.yml up --build\" em vez desse \"docker compose up --build\" para faze...",
+        "Uau, isso soa muito melhor do que piper.",
+        "Para um bom exemplo de um ótimo clipe de áudio, ouça este.",
+        "Nem um único artefato. Além disso, alguns dubladores respiram pesadamente para melhorar sua expressão e isso também pode atrapalhar a capacida...",
+        "Timestamp errado. Você colocou bem na reação de dano que ela faz, heh.",
+        "Igual, tortoise é o melhor que eu já tentei, mas agonizantemente lento."
+      ]
+    }
+  },
+  {
+    "created_at": 1777681575.9781399,
+    "source": "browser_describe_screen",
+    "summary": "Resumo da tela: pagina sobre modelos de TTS locais e comparacoes com ElevenLabs.",
+    "details": {
+      "page_title": "TTS locais x ElevenLabs",
+      "lines": [
+        "Existem outras sugestoes populares como Fish Speech ou F5-TTS, mas como preciso que o modelo fale portugues..."
+      ]
+    }
+  },
+  {
+    "created_at": 1777682061.3932357,
+    "source": "pagina",
+    "summary": "Resumo da tela: Na tela está a página de vídeo RICARDINHO ACF + CELSO ETNRLZ - Flow #591 - YouTube. No que ficou visível, encontrei: 🌻💛 VIRE MEMBRO DO FLOW PRA TER CONTEÚDOS DIÁRIOS & EXCLUSIVOS: / @flowpodcast; Flow Podcast ganha comissão nos produtos marcados. Saiba mais; RICARDINHO ACF LEVOU CARIANI E BALESTRIN EM UMA GARAGEM DE 40 MILHÕES DE REAIS !!.",
+    "details": {
+      "kind": "browser",
+      "page_url": "https://www.reddit.com/r/LocalLLaMA/comments/1hy5l18/local_tts_models_that_can_match_elevenlabs_in/?tl=pt-br",
+      "page_title": "RICARDINHO ACF + CELSO ETNRLZ - Flow #591 - YouTube",
+      "lines": [
+        "acf performance flow",
+        "RICARDINHO ACF + CELSO ETNRLZ - Flow #591",
+        "6,09 mi de inscritos",
+        "336 mil visualizações Transmitido há 2 semanas AUTOMOBILISMO - FLOW PODCAST",
+        "🌻💛 VIRE MEMBRO DO FLOW PRA TER CONTEÚDOS DIÁRIOS & EXCLUSIVOS: / @flowpodcast",
+        "ACF e o cara que tem a garagem do Tony Stark. …",
+        "Flow Podcast ganha comissão nos produtos marcados. Saiba mais",
+        "Câmera de ação à prova d’água GoPro Hero 13 Black Cor Preto",
+        "Cera Automotiva Vitrificador Automotivo Apc Limpador e Higienizador",
+        "Kit 5 Pano Microfibra Flanela Limpeza Multiuso 30x30cm Limpa",
+        "KIT Pano de Microfibra Pano de Pia flanela de microfibra pano mágico 50cm*35cm",
+        "Politriz e Lixadeira Angular Automotiva Multifunções 700w 5 Polegadas Uso Profissional TSSAPER",
+        "De Flow Podcast",
+        "FABIO AKITA - Flow #588",
+        "RICARDINHO ACF LEVOU CARIANI E BALESTRIN EM UMA GARAGEM DE 40 MILHÕES DE REAIS !!",
+        "qual foi o episódio mais difícil de conduzir? | PERGUNTAS E RESPOSTAS",
+        "ESSE JOGO É PEAK SÓ QUE MELHOR! - PRATFALL COM OS AMIGOS",
+        "ENCONTRO ÀS CEGAS COM CHICO MOEDAS (SÓ LOIRAS)"
+      ]
+    }
+  },
+  {
+    "created_at": 1777682253.5848274,
+    "source": "browser_describe_screen",
+    "summary": "Resumo da tela: pagina sobre modelos de TTS locais e comparacoes com ElevenLabs.",
+    "details": {
+      "page_title": "TTS locais x ElevenLabs",
+      "lines": [
+        "Existem outras sugestoes populares como Fish Speech ou F5-TTS, mas como preciso que o modelo fale portugues..."
+      ]
+    }
+  },
+  {
+    "created_at": 1777682819.2140665,
+    "source": "pagina",
+    "summary": "Panorama da tela: Na tela parece haver uma noticia sobre PL da Dosimetria: Congresso derruba veto de Lula e beneficia Bolsonaro; texto segue para promulgação | G1. Do trecho visivel, os pontos mais uteis sao: A votação ocorreu em meio a uma crise entre o governo e o Congresso.; PL da Dosimetria: base do governo Lula no Congresso vai recorrer ao STF, diz líder do PT; Uma só conta para todos os produtos Globo. É grátis!; PL da Dosimetria: Congresso derruba veto de Lula e beneficia Bolsonaro; texto segue para promulgação; PL da Dosimetria: Câmara e Senado derrubam veto de Lula; texto segue para promulgação.",
+    "details": {
+      "kind": "browser",
+      "page_url": "https://g1.globo.com/politica/noticia/2026/04/30/pl-da-dosimetria-camara-veto.ghtml",
+      "page_title": "PL da Dosimetria: Congresso derruba veto de Lula e beneficia Bolsonaro; texto segue para promulgação | G1",
+      "lines": [
+        "A votação ocorreu em meio a uma crise entre o governo e o Congresso.",
+        "PL da Dosimetria: base do governo Lula no Congresso vai recorrer ao STF, diz líder do PT",
+        "Uma só conta para todos os produtos Globo. É grátis!",
+        "PL da Dosimetria: Congresso derruba veto de Lula e beneficia Bolsonaro; texto segue para promulgação",
+        "PL da Dosimetria: Câmara e Senado derrubam veto de Lula; texto segue para promulgação",
+        "Na Câmara, foram 318 votos favoráveis à derrubada e 144 contrários. No Senado, foram 49 votos para a derrubada do veto e 24 votos contra.",
+        "Para que o veto fosse derrubado, eram necessários ao menos 257 votos na Câmara e 41 no Senado.",
+        "🔎 Deputados e senadores votaram separadamente, em uma sessão conjunta do Congresso Nacional.",
+        "PLACAR: Veja como votaram os deputados sobre veto de Lula ao PL da Dosimetria",
+        "Veja comemoração da derrubada do veto na Câmara",
+        "Corredores do Congresso estão movimentados em dia de votação sobre Dosimetria",
+        "Caso isso não ocorra, a tarefa caberá ao presidente do Senado e, posteriormente, ao vice-presidente da Casa. Após a promulgação e publicação o...",
+        "Com derrubada de veto de Lula ao PL da Dosimetria, saiba o que acontece com Bolsonaro",
+        "Congresso retoma revisão de penas, mas redução não é automática e terá de passar pelo STF; entenda",
+        "Nas redes, políticos comentam votação da dosimetria: 'Bandido bom é bandido anistiado pela família Bolsonaro', diz Humberto Costa",
+        "A medida de Alcolumbre é incomum e funcionou como um “desmembramento” do veto do presidente Lula, que foi integral, isto é, a todo o projeto.",
+        "Para se inscrever, entre ou crie uma conta Globo gratuita.",
+        "Após ter veto derrubado pelo Congresso, Lula não deve promulgar PL da Dosimetria; tarefa caberá a Alcolumbre"
       ]
     }
   }

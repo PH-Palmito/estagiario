@@ -1,11 +1,13 @@
 import difflib
 import re
+import time
 import unicodedata
 
 from memory.aliases import load_app_aliases, load_site_aliases, load_smart_app_aliases
 from memory.macros import delete_macro, get_macro, list_macros
 from memory.profile import get_value, set_value
 from memory.routines import get_routine, list_routines
+from memory.vision_history import last_vision_item
 from memory.voice_corrections import (
     forget_voice_correction,
     list_voice_corrections,
@@ -1577,6 +1579,41 @@ def detect_visual_question_command(user_input: str):
     if not lower:
         return None
 
+    last_item = last_vision_item()
+    created_at = float(last_item.get("created_at", 0)) if isinstance(last_item, dict) else 0.0
+    has_recent_visual_context = bool(last_item and (time.time() - created_at) <= 900)
+    conversational_followup_terms = (
+        "voce acha",
+        "você acha",
+        "vc acha",
+        "acha que",
+        "o que voce acha",
+        "o que você acha",
+        "o que acha",
+        "o que voce pensa",
+        "o que você pensa",
+        "o que pensa",
+        "qual sua opiniao",
+        "qual a sua opiniao",
+        "me explica",
+        "me explique",
+        "explica",
+        "explique",
+        "detalha",
+        "detalhar",
+        "interpreta",
+        "interprete",
+        "tem melhores",
+        "existem melhores",
+        "existe melhor",
+        "qual voce escolheria",
+        "qual você escolheria",
+        "qual voce prefere",
+        "qual você prefere",
+        "recomenda",
+        "recomendaria",
+    )
+
     explicit_prefixes = (
         "perguntar sobre imagem ",
         "pergunta sobre imagem ",
@@ -1678,6 +1715,21 @@ def detect_visual_question_command(user_input: str):
         "resultado de ",
         "mostra ",
         "mostre ",
+        "me explica ",
+        "me explique ",
+        "explica ",
+        "explique ",
+        "detalha ",
+        "detalhar ",
+        "interpreta ",
+        "interprete ",
+        "voce acha ",
+        "você acha ",
+        "vc acha ",
+        "acha que ",
+        "existem ",
+        "existe ",
+        "tem ",
     )
 
     compact_lower = lower.replace(" ", "")
@@ -1747,6 +1799,8 @@ def detect_visual_question_command(user_input: str):
         "esse",
         "dessa",
         "desse",
+        "cenario",
+        "cenário",
     }
     has_contextless_chart_question = any(term in lower for term in contextless_chart_terms)
     has_contextless_visual_question = any(term in lower for term in contextless_visual_terms)
@@ -1759,6 +1813,12 @@ def detect_visual_question_command(user_input: str):
         return {"intent": "vision_answer_question", "target": user_input.strip()}
 
     if has_contextless_visual_question and starts_like_question:
+        return {"intent": "vision_answer_question", "target": user_input.strip()}
+
+    if last_item and lower.startswith(conversational_followup_terms):
+        return {"intent": "vision_answer_question", "target": user_input.strip()}
+
+    if has_recent_visual_context and lower.startswith(question_starters):
         return {"intent": "vision_answer_question", "target": user_input.strip()}
 
     return None
