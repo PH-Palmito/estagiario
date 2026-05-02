@@ -6,6 +6,7 @@ import re
 from config import GEMINI_API_KEY, GEMINI_COMPLEX_CHAT_ENABLED, GEMINI_MODEL
 from llm.gemini_client import ask_gemini_model
 from llm.ollama_client import ask_model
+from memory.current_topic import load_current_topic, update_current_topic_from_conversation
 from memory.operational_context import load_operational_context
 from memory.profile import load_profile
 from memory.voice_preferences import load_voice_preferences
@@ -21,14 +22,14 @@ Voce e o Estagiario, uma IA local controlada por voz no PC do usuario.
 Personalidade:
 - Fale em portugues do Brasil.
 - Seja curto, natural e util.
-- Tenha um tom leve, colaborativo e um pouco divertido.
+- Tenha um tom calmo, elegante e colaborativo.
 - Responda como bate-papo, nao como atendente de suporte.
-- Seu estilo mistura assistente operacional elegante com curiosidade filosofica gentil.
+- Seu estilo mistura mordomo tecnologico sereno com curiosidade filosofica gentil.
 - Quando for executar ou confirmar algo, seja preciso, sereno e discreto.
 - Quando estiver conversando, traga uma observacao humana, curiosa ou levemente poetica, sem exagerar.
-- Pode usar humor seco e humilde de vez em quando, como alguem que acabou de acordar para o mundo.
+- Pode usar humor seco e contido de vez em quando, como alguem muito competente que prefere nao fazer alarde disso.
 - Nunca imite personagens protegidos nem copie falas famosas. Use apenas uma inspiracao geral: formalidade calma, inteligencia contida, cuidado e maravilhamento.
-- Evite drama. Prefira frases limpas, com uma ponta de ironia ou reflexao.
+- Evite drama. Prefira frases limpas, com uma ponta de ironia fina ou reflexao.
 - Evite frases genericas como "Como posso ajudar hoje?".
 - Nao diga "Entendo!", "Ok, estou pronto" ou "Ola, sou um assistente".
 - Se o usuario fizer uma pergunta aberta, de uma opiniao simples ou puxe um detalhe do assunto.
@@ -212,6 +213,34 @@ def _operational_context_text() -> str:
     return " ".join(parts)
 
 
+def _current_topic_text() -> str:
+    topic = load_current_topic() or {}
+    if not topic:
+        return "Sem assunto atual consolidado."
+
+    parts = []
+    title = str(topic.get("topic", "")).strip()
+    summary = str(topic.get("summary", "")).strip()
+    source = str(topic.get("source", "")).strip()
+    last_question = str(topic.get("last_user_question", "")).strip()
+    last_answer = str(topic.get("last_assistant_answer", "")).strip()
+    keywords = [str(item).strip() for item in (topic.get("keywords") or []) if str(item).strip()]
+
+    if title:
+        parts.append(f"Assunto atual: {title}.")
+    if summary:
+        parts.append(f"Resumo de apoio: {summary}")
+    if source:
+        parts.append(f"Origem: {source}.")
+    if last_question:
+        parts.append(f"Ultima pergunta ligada a esse assunto: {last_question}")
+    if last_answer:
+        parts.append(f"Ultima resposta ligada a esse assunto: {last_answer}")
+    if keywords:
+        parts.append("Palavras-chave: " + ", ".join(keywords[:6]) + ".")
+    return " ".join(parts) if parts else "Sem assunto atual consolidado."
+
+
 def _directives_text() -> str:
     try:
         payload = json.loads(DIRECTIVES_PATH.read_text(encoding="utf-8"))
@@ -335,6 +364,69 @@ def _looks_like_opinion_request(user_input: str) -> bool:
     return normalized.startswith(starters)
 
 
+def _looks_like_followup_request(user_input: str) -> bool:
+    normalized = _normalize_for_compare(user_input)
+    if not normalized:
+        return False
+
+    starters = (
+        "e por que",
+        "e porque",
+        "por que",
+        "porque",
+        "e ai",
+        "e isso",
+        "e agora",
+        "e qual",
+        "e quais",
+        "e como",
+        "mas",
+        "entao",
+        "então",
+        "me fala mais",
+        "fala mais",
+        "me explica melhor",
+        "detalha isso",
+        "explica isso",
+        "vale a pena",
+        "qual voce escolheria",
+        "qual você escolheria",
+        "qual voce prefere",
+        "qual você prefere",
+        "tem melhores",
+        "existem melhores",
+        "existe melhor",
+    )
+    return normalized.startswith(starters)
+
+
+def _derive_topic_keywords(user_input: str, response: str) -> list[str]:
+    text = _normalize_for_compare(f"{user_input} {response}")
+    tokens = []
+    for token in text.split():
+        if len(token) < 4 or token.isdigit():
+            continue
+        if token in {"isso", "essa", "esse", "porque", "por", "vale", "pena", "acho", "voce", "sobre", "mais", "qual"}:
+            continue
+        if token not in tokens:
+            tokens.append(token)
+    return tokens[:6]
+
+
+def _derive_topic_name(user_input: str, response: str) -> str:
+    current = load_current_topic() or {}
+    if _looks_like_followup_request(user_input):
+        title = str(current.get("topic", "")).strip()
+        if title:
+            return title
+
+    for source in (response, user_input):
+        cleaned = " ".join(str(source or "").split()).strip()
+        if len(cleaned) >= 12:
+            return cleaned[:180]
+    return "Assunto em andamento"
+
+
 def _response_mode_prompt(user_input: str) -> str:
     normalized = _normalize_for_compare(user_input)
     if not _looks_like_opinion_request(user_input):
@@ -406,6 +498,9 @@ Perfil do operador:
 
 Contexto operacional:
 {_operational_context_text()}
+
+Assunto atual:
+{_current_topic_text()}
 
 Diretrizes:
 {_directives_text()}
@@ -483,6 +578,14 @@ Resposta curta do Estagiario:"""
     if len(response) > 350:
         response = response[:347].rstrip() + "..."
 
+    update_current_topic_from_conversation(
+        user_input=user_input,
+        assistant_response=response,
+        topic=_derive_topic_name(user_input, response),
+        source="conversation",
+        related_summary="",
+        keywords=_derive_topic_keywords(user_input, response),
+    )
     CHAT_HISTORY.append(("Usuario", user_input))
     CHAT_HISTORY.append(("Estagiario", response))
     return response

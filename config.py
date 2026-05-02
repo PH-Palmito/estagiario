@@ -90,6 +90,41 @@ GEMINI_PRIMARY_TEXT_ENABLED = env_str(
     default="1",
     aliases=("GEMINI_PRIMARY_TEXT_ENABLED",),
 ).strip().lower() not in {"0", "false", "no", "off"}
+SUPABASE_REST_URL = env_str(
+    "AXEL_SUPABASE_REST_URL",
+    default="",
+    aliases=("SUPABASE_REST_URL", "NEXT_PUBLIC_SUPABASE_URL"),
+).rstrip("/")
+SUPABASE_PUBLISHABLE_KEY = env_str(
+    "AXEL_SUPABASE_PUBLISHABLE_KEY",
+    default="",
+    aliases=("SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
+)
+SUPABASE_ANON_KEY = env_str(
+    "AXEL_SUPABASE_ANON_KEY",
+    default="",
+    aliases=("SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+)
+SUPABASE_MEMORY_TABLE = env_str(
+    "AXEL_SUPABASE_MEMORY_TABLE",
+    default="axel_memory_states",
+    aliases=("SUPABASE_MEMORY_TABLE",),
+)
+SUPABASE_SYNC_ENABLED = env_str(
+    "AXEL_SUPABASE_SYNC_ENABLED",
+    default="1",
+    aliases=("SUPABASE_SYNC_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
+OBSIDIAN_VAULT_PATH = env_str(
+    "AXEL_OBSIDIAN_VAULT_PATH",
+    default="",
+    aliases=("OBSIDIAN_VAULT_PATH",),
+).strip()
+OBSIDIAN_SYNC_ENABLED = env_str(
+    "AXEL_OBSIDIAN_SYNC_ENABLED",
+    default="1",
+    aliases=("OBSIDIAN_SYNC_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
 INVESTIDOR10_WALLET_URL = env_str(
     "AXEL_INVESTIDOR10_WALLET_URL",
     default="",

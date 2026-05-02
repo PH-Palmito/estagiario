@@ -115,6 +115,7 @@ pending_smart_open_invalid_attempts = 0
 voice_status = None
 hotword_ui_enabled = False
 rendered_status_line = ""
+style_variation_index = 0
 conversation_mode = False
 conversation_ready_announced = False
 dictation_mode = False
@@ -334,8 +335,18 @@ def should_style_response(message: str) -> bool:
     return not message.startswith(prefixes_to_keep)
 
 
+def _next_style_variant(options: tuple[str, ...]) -> str:
+    global style_variation_index
+    if not options:
+        return ""
+    choice = options[style_variation_index % len(options)]
+    style_variation_index += 1
+    return choice
+
+
 def style_response(message: str) -> str:
     assistant_style = str(VOICE_PREFERENCES.get("assistant_style", "")).strip().lower()
+    address_user = str(VOICE_PREFERENCES.get("assistant_address_user", "senhor")).strip() or "senhor"
     if assistant_style not in {"jarvis", "assistente", "elegante"}:
         humor_style = str(VOICE_PREFERENCES.get("assistant_humor_style", "")).strip().lower()
         if bool(VOICE_PREFERENCES.get("assistant_humor_enabled", True)) and humor_style == "jarvis":
@@ -351,16 +362,16 @@ def style_response(message: str) -> str:
 
     if assistant_style in {"assistente", "elegante"}:
         replacements = {
-            "Abrindo spotify.": "Abrindo Spotify.",
-            "Abrindo chrome.": "Abrindo Chrome.",
-            "Abrindo code.": "Abrindo VS Code.",
-            "Fechando spotify.": "Fechando Spotify.",
-            "Fechando code.": "Fechando VS Code.",
+            "Abrindo spotify.": "Perfeitamente. Abrindo Spotify.",
+            "Abrindo chrome.": "Perfeitamente. Abrindo Chrome.",
+            "Abrindo code.": "Perfeitamente. Abrindo VS Code.",
+            "Fechando spotify.": "Encerrando Spotify.",
+            "Fechando code.": "Encerrando VS Code.",
             "Nao entendi.": "Não captei com precisão.",
-            "Pode repetir?": "Pode repetir, por favor?",
+            "Pode repetir?": "Pode repetir com calma?",
             "Nao identifiquei o comando.": "Não identifiquei o comando.",
-            "Escuta pausada.": "Escuta pausada.",
-            "Escuta retomada.": "Escuta retomada.",
+            "Escuta pausada.": "Escuta em pausa.",
+            "Escuta retomada.": "Escuta restabelecida.",
             "Acao cancelada.": "Ação cancelada.",
         }
         if message in replacements:
@@ -380,9 +391,13 @@ def style_response(message: str) -> str:
             "Pausando ",
         )
         if message.startswith(action_prefixes):
-            if assistant_style == "elegante":
-                return message
-            return f"Pronto. {message}"
+            return _next_style_variant(
+                (
+                    f"Perfeitamente. {message}",
+                    f"Com certeza. {message}",
+                    f"Entendido. {message}",
+                )
+            )
 
         return message
 
@@ -398,9 +413,21 @@ def style_response(message: str) -> str:
         "Escuta pausada.": "Escuta em pausa.",
         "Escuta retomada.": "Escuta restabelecida.",
         "Acao cancelada.": "Ação cancelada.",
-        "Pode falar.": "Estou ouvindo.",
-        "Pode falar...": "Estou ouvindo.",
-        "Pode responder...": "Pode responder.",
+        "Pode falar.": _next_style_variant((
+            f"Estou ouvindo, {address_user}.",
+            "Estou ouvindo.",
+            "Pode prosseguir.",
+        )),
+        "Pode falar...": _next_style_variant((
+            f"Estou ouvindo, {address_user}.",
+            "Estou ouvindo.",
+            "Pode prosseguir.",
+        )),
+        "Pode responder...": _next_style_variant((
+            f"Pode responder, {address_user}.",
+            "Pode responder.",
+            "Estou pronto para a resposta.",
+        )),
         "Encerrando.": "Encerrando por agora.",
         "Modo conversa encerrado. Voltei para comandos.": "Modo conversa encerrado. Voltei aos comandos.",
         "Responda com sim ou nao.": "Preciso apenas de sim ou não.",
@@ -429,7 +456,13 @@ def style_response(message: str) -> str:
         "Pausando ",
     )
     if message.startswith(action_prefixes):
-        return f"Pronto, {message[0].lower() + message[1:]}"
+        return _next_style_variant(
+            (
+                f"Certamente. {message}",
+                f"Perfeitamente. {message}",
+                f"Como desejar, {address_user}. {message}",
+            )
+        )
 
     return message
 

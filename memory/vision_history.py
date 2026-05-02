@@ -3,6 +3,9 @@ import os
 import time
 from pathlib import Path
 
+from memory.current_topic import update_current_topic_from_vision
+from memory.supabase_sync import sync_memory_state_safely
+
 
 HISTORY_PATH = Path("memory/vision_history.json")
 MAX_ITEMS = 8
@@ -22,6 +25,7 @@ def _save_history(items: list[dict]):
     tmp_path = HISTORY_PATH.with_name(f"{HISTORY_PATH.stem}.{time.time_ns()}.tmp")
     tmp_path.write_text(payload, encoding="utf-8")
     os.replace(tmp_path, HISTORY_PATH)
+    sync_memory_state_safely("vision_history", {"items": items[-MAX_ITEMS:]}, category="vision")
 
 
 def remember_vision_analysis(source: str, summary: str, details: dict | None = None):
@@ -39,6 +43,7 @@ def remember_vision_analysis(source: str, summary: str, details: dict | None = N
         }
     )
     _save_history(items)
+    update_current_topic_from_vision(summary=summary, details=details, source=source)
 
 
 def last_vision_analysis() -> str:

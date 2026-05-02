@@ -1,20 +1,35 @@
 import json
 from pathlib import Path
 
+from memory.obsidian_sync import sync_profile_note
+from memory.supabase_sync import fetch_memory_payload_safely, sync_memory_state_safely
+
 PROFILE_PATH = Path("memory/profile.json")
 
 
 def load_profile():
-    if not PROFILE_PATH.exists():
-        return {}
+    if PROFILE_PATH.exists():
+        try:
+            with open(PROFILE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
 
-    with open(PROFILE_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    remote = fetch_memory_payload_safely("profile")
+    if isinstance(remote, dict):
+        save_profile(remote)
+        return remote
+    return {}
 
 
 def save_profile(data):
+    payload = dict(data or {})
     with open(PROFILE_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+    sync_memory_state_safely("profile", payload, category="profile")
+    sync_profile_note(payload)
 
 
 def set_value(key, value):

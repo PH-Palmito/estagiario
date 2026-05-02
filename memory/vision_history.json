@@ -1,39 +1,5 @@
 [
   {
-    "created_at": 1777601348.4849274,
-    "source": "pagina",
-    "summary": "Detalhando a tela: Na tela esta uma pagina financeira. Pelo titulo, ela parece ser sobre Investidor10 | Resumo. Do que ficou visivel, os pontos mais uteis sao: % na carteira; carteira Oficial; Voltar para a carteira antiga; Integração B3; Patrimônio total.",
-    "details": {
-      "kind": "browser",
-      "page_url": "https://investidor10.com.br/wallet/my-wallet/free",
-      "page_title": "Investidor10 | Resumo",
-      "lines": [
-        "% na carteira",
-        "carteira Oficial",
-        "Voltar para a carteira antiga",
-        "Integração B3",
-        "Patrimônio total",
-        "Valor investido",
-        "Lucro total",
-        "Dividendos Recebidos",
-        "Proventos Recebidos (12M)",
-        "Evolução do Patrimônio",
-        "Ativos na Carteira",
-        "Carteiras Recomendadas",
-        "Gerenciar Carteira",
-        "Ranking de FIIs",
-        "Agenda de dividendos - FIIs",
-        "Agenda de dividendos - Stocks",
-        "Agenda de dividendos - REITs",
-        "Agenda de dividendos - BDRs",
-        "Investimento em FIIs",
-        "Proventos",
-        "Patrimônio",
-        "Rentabilidade"
-      ]
-    }
-  },
-  {
     "created_at": 1777601454.422211,
     "source": "pagina",
     "summary": "Visao rapida da tela: Na tela parece haver uma noticia sobre PL da Dosimetria: Congresso derruba veto de Lula e beneficia Bolsonaro; texto segue para promulgação | G1. Do trecho visivel, os pontos mais uteis sao: A votação ocorreu em meio a uma crise entre o governo e o Congresso.; Grupo do senador Flávio Bolsonaro (PL) transformou a votação num símbolo de enfrentamento ao governo, e deu...; Bastidores: como Lula reagiu à derrota no Senado, segundo ministro; Bastidores: como Lula reagiu à derrota no Senado, segundo ministro - Programa: Jornal GloboNews edição das 18h; Uma só conta para todos os produtos Globo. É grátis!.",
@@ -202,6 +168,36 @@
         "A medida de Alcolumbre é incomum e funcionou como um “desmembramento” do veto do presidente Lula, que foi integral, isto é, a todo o projeto.",
         "Para se inscrever, entre ou crie uma conta Globo gratuita.",
         "Após ter veto derrubado pelo Congresso, Lula não deve promulgar PL da Dosimetria; tarefa caberá a Alcolumbre"
+      ]
+    }
+  },
+  {
+    "created_at": 1777685531.5958192,
+    "source": "pagina",
+    "summary": "Visao rapida da tela: Na tela está a página de vídeo FABIO AKITA - Flow #588. No que ficou visível, encontrei: 🌻💛 VIRE MEMBRO DO FLOW PRA TER CONTEÚDOS DIÁRIOS & EXCLUSIVOS: / @flowpodcast; Flow Podcast ganha comissão nos produtos marcados. Saiba mais; Eu sou da área de tecnologia e vim aqui sabendo que não estaria no nível do Akita. Mas para minha surpresa....",
+    "details": {
+      "kind": "browser",
+      "page_url": "https://www.youtube.com/watch?v=4c7pbOxYn_A&t=7439s",
+      "page_title": "FABIO AKITA - Flow #588 - YouTube",
+      "lines": [
+        "468 mil visualizações Transmitido há 2 semanas CIÊNCIA E TECNOLOGIA - FLOW PODCAST",
+        "🌻💛 VIRE MEMBRO DO FLOW PRA TER CONTEÚDOS DIÁRIOS & EXCLUSIVOS: / @flowpodcast",
+        "Flow Podcast ganha comissão nos produtos marcados. Saiba mais",
+        "Eu sou da área de tecnologia e vim aqui sabendo que não estaria no nível do Akita. Mas para minha surpresa eu não estou nem no nível do Igor",
+        "5 horas de akita falando? Parabens, era isso que precisavamos",
+        "Sou um cara simples. Se eu passo no feed e vejo o Akita, paro e assisto.",
+        "8:26 \"Qualquer programador júnior deveria fazer em no máximo dois dias\". Obg Akita, estou em depressão agora",
+        "AKITA parece eu quando mais novo, passava muito tempo sem falar com ninguém, dai quando começava falar, ficava 5 horas falando KKKKKKKK",
+        "\"Eu não sou outdoor de linguagem\" disse Akita on Rails",
+        "O Akita começou a explicar o que eram Skills e abriu o buraco de Alice e nunca mais saiu!!!",
+        "Esse papo foi top, a gente percebeu o real interesse do Igor...fez o Akita ativar modo full",
+        "O bom do Akita é que além dele entender muito e saber se expressar bem, ele tem assunto infinito. Dá pra ver que ele tem paixão pelo que faz.",
+        "RICARDINHO ACF + CELSO ETNRLZ - Flow #591",
+        "🚨 A farsa acabou: Akita, Montano e Deyvin se assumiram vibe coders",
+        "MENTIRAM PRA VOCÊ SOBRE INTELIGÊNCIA ARTIFICIAL [com Fabio Akita]",
+        "🚨 Fábio Akita no Flow, Igor 3K vibe coder e muito mais",
+        "PROGRAMAÇÃO AINDA É A PROFISSÃO DO FUTURO? FABIO AKITA 100% SINCERO no FLOW",
+        "O Método Fábio Akita para programar com IA"
       ]
     }
   }

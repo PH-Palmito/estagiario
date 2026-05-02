@@ -85,6 +85,33 @@ Variáveis principais:
 - `AXEL_GEMINI_COMPLEX_CHAT_ENABLED`
   Se ativado, o Gemini entra apenas em perguntas mais complexas, analíticas ou opinativas. Comandos operacionais continuam no fluxo normal.
 
+- `AXEL_SUPABASE_REST_URL`
+  URL REST do projeto Supabase.
+
+- `AXEL_SUPABASE_PUBLISHABLE_KEY`
+  Chave publishable do projeto Supabase.
+
+- `AXEL_SUPABASE_ANON_KEY`
+  Chave anon do projeto Supabase.
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+  Alias aceito pelo Axel para reaproveitar a URL de projetos front-end com Supabase.
+
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+  Alias aceito pelo Axel para reaproveitar a chave publishable de projetos front-end com Supabase.
+
+- `AXEL_SUPABASE_MEMORY_TABLE`
+  Nome da tabela usada para sincronizar memórias simples do Axel.
+
+- `AXEL_SUPABASE_SYNC_ENABLED`
+  Liga ou desliga a sincronização opcional com Supabase.
+
+- `AXEL_OBSIDIAN_VAULT_PATH`
+  Caminho opcional para seu vault do Obsidian. Se ficar vazio, o Axel cria um vault local em `memory/obsidian_vault`.
+
+- `AXEL_OBSIDIAN_SYNC_ENABLED`
+  Liga ou desliga o espelhamento das memórias principais em notas Markdown estilo Obsidian.
+
 - `AXEL_INVESTIDOR10_WALLET_URL`
   Seu link direto da carteira no Investidor10.
 
@@ -112,9 +139,46 @@ Fluxo adotado:
 
 - Gemini como principal quando a chave estiver configurada
 - Ollama como fallback automático se a API falhar
-- se quiser limitar o Gemini depois, basta desligar `AXEL_GEMINI_PRIMARY_TEXT_ENABLED` e manter só o modo complexo
+- Se quiser limitar o Gemini depois, basta desligar `AXEL_GEMINI_PRIMARY_TEXT_ENABLED` e manter só o modo complexo
 
 Também existe um uso híbrido nas perguntas sobre a tela: quando você faz uma leitura de página e depois pergunta algo mais amplo, o Axel pode usar a tela como contexto inicial e consultar outras fontes pela web via grounding do Gemini, em vez de ficar preso apenas ao trecho visível.
+
+## Supabase opcional para memória
+
+O Axel continua `local-first`, mas agora pode sincronizar partes úteis da memória com Supabase:
+
+- `ui_state`
+- `operational_context`
+- `voice_preferences`
+- `profile`
+- `vision_history`
+- `current_topic`
+
+O schema inicial da tabela está em [supabase-schema.sql](C:\Users\almei\Documents\estudos_Programacao\estagiario\docs\supabase-schema.sql).
+
+Fluxo sugerido:
+
+1. Criar a tabela no SQL Editor do Supabase.
+2. Preencher as variáveis no `.env`.
+3. Rodar o Axel normalmente.
+
+Se o banco estiver indisponível ou a tabela ainda não existir, o Axel continua funcionando localmente.
+
+## Obsidian opcional para memória longa
+
+Além do Supabase, o Axel agora pode espelhar memórias importantes em notas Markdown:
+
+- `Current Topic`
+- `Operational Context`
+- `Profile`
+
+Esse fluxo ajuda bastante quando você quer:
+
+- ter uma trilha legível do que o Axel está acompanhando
+- usar seu próprio vault como memória semântica
+- revisar contexto, assunto atual e perfil fora do app
+
+Se `AXEL_OBSIDIAN_VAULT_PATH` estiver vazio, o Axel usa `memory/obsidian_vault` como vault local. Se você apontar para um vault real do Obsidian, as notas passam a aparecer lá automaticamente.
 
 ## Como rodar
 
@@ -142,14 +206,20 @@ Baixar uma voz Piper:
 .\venv\Scripts\python.exe .\main.py --download-piper-voice pt_BR-faber-medium
 ```
 
+Teste rápido das integrações de memória:
+
+```powershell
+.\venv\Scripts\python.exe .\scripts\check_memory_integrations.py
+```
+
 ## Fluxo de investimentos
 
 O Axel trabalha com dois modos para investimentos:
 
-1. Atualização da carteira
+1. Atualização da carteira.
    Comandos como `abrir investidor 10`, `atualizar carteira` ou `analisar investimentos` fazem leitura da página e salvam um snapshot local.
 
-2. Consulta rápida local
+2. Consulta rápida local.
    Depois disso, perguntas como `modo investimentos`, `valor investido`, `quanto rendeu?` e `qual meu patrimônio?` são respondidas usando a memória local salva.
 
 Isso deixa a resposta mais rápida, mas os dados podem estar desatualizados até uma nova atualização.
@@ -170,6 +240,7 @@ Antes de publicar:
 - revise seu `.env`
 - não suba `venv/`, `.tmp/`, `models/` e arquivos de cache
 - não suba `memory/*.json`, porque ali podem existir preferências, histórico, contexto e snapshots pessoais
+- não suba `memory/obsidian_vault/`, porque o vault local pode guardar memória pessoal do Axel
 
 Importante:
 Se esses arquivos já estiverem rastreados no Git, o `.gitignore` sozinho não remove do histórico. Nesse caso, limpe o stage antes do primeiro push público.
@@ -179,6 +250,7 @@ Exemplo:
 ```powershell
 git rm --cached -r venv .tmp models
 git rm --cached memory/*.json
+git rm --cached -r memory/obsidian_vault
 ```
 
 ## Licença

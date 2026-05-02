@@ -3,6 +3,8 @@ import os
 import time
 from pathlib import Path
 
+from memory.supabase_sync import sync_memory_state_safely
+
 
 STATE_PATH = Path(__file__).with_name("ui_state.json")
 
@@ -48,6 +50,7 @@ def save_ui_state(state: dict):
     tmp_path = STATE_PATH.with_suffix(".json.tmp")
     tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(tmp_path, STATE_PATH)
+    sync_memory_state_safely("ui_state", payload, category="ui")
 
 
 def update_ui_state(patch: dict):

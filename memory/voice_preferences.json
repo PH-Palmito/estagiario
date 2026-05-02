@@ -56,7 +56,7 @@
   "hotword_timeout_seconds": 3.0,
   "hotword_min_speech_seconds": 0.12,
   "hotword_max_silence_seconds": 0.5,
-  "assistant_style": "elegante",
+  "assistant_style": "jarvis",
   "assistant_address_user": "senhor",
   "assistant_brief_confirmations": true,
   "assistant_voice_effect": "subtle_jarvis",

@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from memory.supabase_sync import sync_memory_state_safely
+
 
 FILE = Path("memory/voice_preferences.json")
 
@@ -37,6 +39,9 @@ DEFAULTS = {
     "assistant_humor_enabled": True,
     "assistant_humor_level": 2,
     "assistant_humor_style": "jarvis",
+    "assistant_style": "jarvis",
+    "assistant_address_user": "senhor",
+    "assistant_brief_confirmations": True,
     "chat_enabled": True,
     "chat_model": "qwen2.5:0.5b",
     "chat_timeout_seconds": 8,
@@ -83,10 +88,12 @@ def load_voice_preferences():
 
 def save_voice_preferences(preferences: dict):
     FILE.parent.mkdir(parents=True, exist_ok=True)
+    payload = dict(preferences or {})
     FILE.write_text(
-        json.dumps(preferences, ensure_ascii=False, indent=2) + "\n",
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    sync_memory_state_safely("voice_preferences", payload, category="preferences")
 
 
 def update_voice_preferences(changes: dict):

@@ -7,6 +7,7 @@ from config import GEMINI_API_KEY
 from llm.gemini_client import ask_gemini_grounded_model
 from llm.ollama_client import ask_model
 from llm.vision_client import choose_vision_model, installed_vision_models, vision_status_text
+from memory.current_topic import load_current_topic, update_current_topic_from_conversation
 from memory.vision_history import last_vision_analysis, last_vision_item
 
 
@@ -297,6 +298,15 @@ def _looks_like_contextual_reading_question(question: str) -> bool:
         "detalhar",
         "interpreta",
         "interprete",
+        "me fala mais",
+        "fala mais",
+        "me contextualiza",
+        "contextualiza",
+        "me da contexto",
+        "me de contexto",
+        "sobre esse tema",
+        "sobre esse assunto",
+        "mais sobre isso",
         "o que isso significa",
         "o que isso quer dizer",
         "isso e bom",
@@ -324,6 +334,16 @@ def _looks_like_broader_context_question(question: str) -> bool:
         "vale mais a pena",
         "recomenda",
         "recomendaria",
+        "me fala mais",
+        "fala mais",
+        "sobre esse tema",
+        "sobre esse assunto",
+        "mais sobre isso",
+        "me contextualiza",
+        "contextualiza",
+        "me da contexto",
+        "me de contexto",
+        "me explica melhor",
     )
     return any(term in normalized for term in broader_terms)
 
@@ -378,13 +398,13 @@ def _fallback_contextual_reading(summary: str, page_title: str, useful_lines: li
 
     if highlight:
         return (
-            f"Pelo que ficou visivel, o foco e {focus}. Minha leitura inicial e que o ponto mais relevante gira em torno de {highlight}. "
-            "Ainda assim, essa opiniao fica limitada ao trecho salvo da tela."
+            f"A primeira vista, o centro disso parece ser {focus}. Minha leitura inicial e que o ponto mais relevante gira em torno de {highlight}. "
+            "Posso ir alem, se voce quiser, mas por enquanto estou me guiando pelo que ficou visivel na tela."
         )
 
     return (
-        f"Pelo que ficou visivel, o foco e {focus}. Minha leitura inicial depende so do resumo salvo, entao eu consigo te dar um contexto geral, "
-        "mas nao fechar uma conclusao forte sem reler mais da pagina."
+        f"A primeira vista, o foco parece ser {focus}. Eu consigo te dar uma leitura inicial com o que ficou salvo, "
+        "mas ainda nao chamaria isso de conclusao forte sem reler ou pesquisar um pouco mais."
     )
 
 
@@ -393,10 +413,13 @@ def _ask_grounded_contextual_reading(question: str, item: dict, summary: str, pa
         return None
 
     prompt = (
-        "Voce e o Axel respondendo uma pergunta que parte da ultima tela lida, mas pode consultar outras fontes da web em tempo real.\n"
+        "Voce e o Axel respondendo uma pergunta sobre o tema da ultima tela lida, mas pode consultar outras fontes da web em tempo real.\n"
         "Responda em portugues do Brasil, de forma curta, natural e util.\n"
-        "Use a tela salva como ponto de partida e, se ajudar, complemente com pesquisa Google via grounding.\n"
-        "Nao finja que tudo veio da tela. Se voce ampliar a resposta com outras fontes, deixe isso claro de forma natural.\n"
+        "Soe como um assistente operacional elegante: calmo, preciso e levemente espirituoso, sem exagero.\n"
+        "Use a tela salva como ponto de partida para identificar o tema e, se ajudar, complemente com pesquisa Google via grounding.\n"
+        "O foco principal deve ser explicar o tema, dar contexto, opiniao ou comparacao util sobre o assunto em si.\n"
+        "Nao desperdice a resposta falando sobre metodologia, fontes ou sobre o fato de ter lido uma tela, a menos que isso seja realmente necessario para nao induzir erro.\n"
+        "Nao cite fontes, links ou nomes de veiculos se o usuario nao pedir isso explicitamente.\n"
         "Nao use markdown, listas, negrito, titulos nem rotulos como 'Eu:' ou 'Resposta:'.\n"
         "Prefira 2 ou 3 frases.\n\n"
         f"Fonte salva: {item.get('source', 'analise')}\n"
@@ -447,12 +470,14 @@ def _answer_contextual_reading_question(question: str, item: dict, summary: str,
                 return grounded_answer
 
         prompt = (
-            "Voce e o Axel respondendo uma pergunta que usa a ultima tela lida como ponto de partida, mas pede uma opiniao mais ampla.\n"
+            "Voce e o Axel respondendo uma pergunta sobre o tema da ultima tela lida, com liberdade para dar uma leitura mais ampla.\n"
             "Responda em portugues do Brasil, de forma curta, natural e util.\n"
-            "Use o resumo salvo e os trechos visiveis como contexto principal.\n"
-            "Voce pode complementar com conhecimento geral do modelo quando a pergunta pedir comparacao, recomendacao ou leitura mais ampla.\n"
+            "Soe como um assistente operacional elegante: calmo, preciso e levemente espirituoso, sem exagero.\n"
+            "Use o resumo salvo e os trechos visiveis para identificar o tema principal.\n"
+            "Voce pode complementar com conhecimento geral do modelo quando a pergunta pedir comparacao, recomendacao, contexto ou leitura mais ampla.\n"
+            "Fale principalmente do assunto em si, nao da tela.\n"
             "Nao finja que viu na tela o que nao estava nela.\n"
-            "Se completar com leitura mais ampla, deixe isso claro de forma natural, sem soar burocratico.\n"
+            "Se completar com leitura mais ampla, faça isso de modo natural, sem soar burocratico.\n"
             "Nao use markdown, negrito, titulos, listas, aspas decorativas nem rotulos como 'Eu:' ou 'Resposta:'.\n"
             "Responda em 2 ou 3 frases.\n\n"
             f"Fonte salva: {item.get('source', 'analise')}\n"
@@ -466,9 +491,11 @@ def _answer_contextual_reading_question(question: str, item: dict, summary: str,
         )
     else:
         prompt = (
-            "Voce e o Axel respondendo uma pergunta de leitura e opiniao sobre a ultima pagina ou tela lida.\n"
+            "Voce e o Axel respondendo uma pergunta de leitura e opiniao sobre o tema da ultima pagina ou tela lida.\n"
             "Responda em portugues do Brasil, de forma curta, natural e util.\n"
+            "Soe como um assistente operacional elegante: calmo, preciso e levemente espirituoso, sem exagero.\n"
             "Baseie-se somente no resumo salvo e nos trechos visiveis abaixo.\n"
+            "Foque em explicar ou interpretar o tema, nao em descrever que houve uma tela.\n"
             "Nao invente fatos, nomes, dados, contexto externo nem noticias adicionais.\n"
             "Se faltar contexto, deixe isso claro de forma natural.\n"
             "Nao use markdown, negrito, titulos, listas, aspas decorativas nem rotulos como 'Eu:' ou 'Resposta:'.\n"

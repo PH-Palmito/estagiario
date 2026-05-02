@@ -6,8 +6,11 @@ from pathlib import Path
 
 from memory.auto_advances import load_auto_advances
 from memory.bottlenecks import load_bottlenecks
+from memory.current_topic import load_current_topic
+from memory.obsidian_sync import sync_operational_context_note
 from memory.profile import load_profile
 from memory.self_evolution import load_self_evolution_plan
+from memory.supabase_sync import sync_memory_state_safely
 from memory.ui_state import load_ui_state
 
 
@@ -165,6 +168,7 @@ def generate_operational_context() -> dict:
     recent_apps = _extract_named_hits(context_texts, APP_HINTS, limit=4)
     recent_sites = _extract_named_hits(context_texts, SITE_HINTS, limit=4)
     recent_topics = _extract_keywords(user_texts, limit=6)
+    current_topic = load_current_topic()
 
     operator = str(profile.get("nome", "")).strip() or "Operador"
     assistant = str((profile.get("assistente") or {}).get("nome", "")).strip() or str(ui_state.get("assistant_name", "")).strip() or "Axel"
@@ -181,6 +185,9 @@ def generate_operational_context() -> dict:
         summary_parts.append("Contexto web: " + ", ".join(recent_sites) + ".")
     if recent_topics:
         summary_parts.append("Topicos recentes: " + ", ".join(recent_topics[:4]) + ".")
+    topic_name = str(current_topic.get("topic", "")).strip()
+    if topic_name:
+        summary_parts.append(f"Assunto atual: {topic_name}.")
 
     payload = {
         "generated_at": time.time(),
@@ -192,6 +199,7 @@ def generate_operational_context() -> dict:
         "recent_apps": recent_apps,
         "recent_sites": recent_sites,
         "recent_topics": recent_topics,
+        "current_topic": current_topic,
         "conversation_mode": bool(ui_state.get("conversation_mode")),
         "dictation_mode": bool(ui_state.get("dictation_mode")),
         "next_advances": next_advances,
@@ -204,6 +212,8 @@ def generate_operational_context() -> dict:
 def save_operational_context() -> dict:
     payload = generate_operational_context()
     _save_json(OPERATIONAL_CONTEXT_PATH, payload)
+    sync_memory_state_safely("operational_context", payload, category="context")
+    sync_operational_context_note(payload)
     return payload
 
 

@@ -1,0 +1,81 @@
+import json
+import os
+import time
+from pathlib import Path
+
+from memory.obsidian_sync import sync_current_topic_note
+from memory.supabase_sync import fetch_memory_payload_safely, sync_memory_state_safely
+
+
+TOPIC_PATH = Path("memory/current_topic.json")
+
+
+def _save(payload: dict):
+    TOPIC_PATH.parent.mkdir(parents=True, exist_ok=True)
+    content = json.dumps(payload, ensure_ascii=False, indent=2)
+    tmp_path = TOPIC_PATH.with_name(f"{TOPIC_PATH.stem}.{time.time_ns()}.tmp")
+    tmp_path.write_text(content, encoding="utf-8")
+    os.replace(tmp_path, TOPIC_PATH)
+
+
+def load_current_topic() -> dict:
+    try:
+        data = json.loads(TOPIC_PATH.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+
+    remote = fetch_memory_payload_safely("current_topic")
+    if isinstance(remote, dict):
+        _save(remote)
+        return remote
+    return {}
+
+
+def save_current_topic(payload: dict) -> dict:
+    data = dict(payload or {})
+    data["updated_at"] = time.time()
+    _save(data)
+    sync_memory_state_safely("current_topic", data, category="conversation")
+    sync_current_topic_note(data)
+    return data
+
+
+def update_current_topic_from_vision(summary: str, details: dict | None = None, source: str = "screen") -> dict:
+    details = details if isinstance(details, dict) else {}
+    payload = {
+        "topic": str(details.get("page_title", "")).strip() or str(summary or "").strip()[:180],
+        "summary": str(summary or "").strip(),
+        "source": str(source or "screen").strip() or "screen",
+        "page_title": str(details.get("page_title", "")).strip(),
+        "page_url": str(details.get("page_url", "")).strip(),
+        "lines": list(details.get("lines") or [])[:10],
+    }
+    return save_current_topic(payload)
+
+
+def update_current_topic_from_conversation(
+    user_input: str,
+    assistant_response: str,
+    *,
+    topic: str = "",
+    source: str = "conversation",
+    related_title: str = "",
+    related_summary: str = "",
+    keywords: list[str] | None = None,
+) -> dict:
+    current = load_current_topic()
+    normalized_topic = str(topic or "").strip() or str(current.get("topic", "")).strip() or str(user_input or "").strip()[:180]
+    payload = {
+        "topic": normalized_topic,
+        "summary": str(related_summary or current.get("summary", "") or "").strip(),
+        "source": str(source or "conversation").strip() or "conversation",
+        "page_title": str(related_title or current.get("page_title", "") or "").strip(),
+        "page_url": str(current.get("page_url", "") or "").strip(),
+        "lines": list(current.get("lines") or [])[:10],
+        "last_user_question": str(user_input or "").strip(),
+        "last_assistant_answer": str(assistant_response or "").strip(),
+        "keywords": [str(item).strip() for item in (keywords or current.get("keywords") or []) if str(item).strip()][:8],
+    }
+    return save_current_topic(payload)
