@@ -62,7 +62,7 @@
   "assistant_voice_effect": "subtle_jarvis",
   "assistant_voice_effect_strength": 0.06,
   "startup_voice_greeting_enabled": true,
-  "startup_voice_greeting": "Sistemas online. Pronto para trabalhar.",
+  "startup_voice_greeting": "Sistemas online. Pronto para começar.",
   "whisper_conversation_vad_filter": false,
   "whisper_conversation_beam_size": 3,
   "whisper_conversation_best_of": 3,

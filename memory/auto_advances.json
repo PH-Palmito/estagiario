@@ -1,11 +1,6 @@
 {
-  "generated_at": 1777686599.9470026,
+  "generated_at": 1777860161.7397292,
   "items": [
-    {
-      "title": "Aprimorar leitura util de pagina com foco no conteudo central",
-      "reason": "Seu uso recente mostra bastante navegacao orientada por tela; vale melhorar relevancia, resumo e clique contextual.",
-      "source": "historico-recente"
-    },
     {
       "title": "Dar ao Axel memoria operacional de preferencias e contexto",
       "reason": "O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.",

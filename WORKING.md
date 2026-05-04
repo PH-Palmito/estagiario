@@ -40,6 +40,7 @@ Transformar o Axel em um mordomo local realmente útil:
 - revisar logs de execução reais
 - decidir schema de memória estruturada
 - começar a camada de pesquisa com fontes
+- acompanhar notícias importantes dos ativos da carteira
 
 ## Não fazer agora
 

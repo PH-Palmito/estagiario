@@ -13,6 +13,7 @@ from urllib.parse import quote, quote_plus, unquote, urlparse
 from config import INVESTIDOR10_WALLET_URL
 from llm.ollama_client import ask_model
 from memory.investment_snapshot import save_investment_snapshot
+from memory.public_wallet_refresh import format_public_wallet_refresh_result
 from memory.vision_history import remember_vision_analysis
 from tools.system_tools import focus_app
 
@@ -3432,7 +3433,15 @@ def browser_investment_snapshot():
 
 def browser_open_wallet_and_summarize():
     webbrowser.open(DEFAULT_INVESTIDOR10_WALLET_URL)
-    time.sleep(2.5)
+    time.sleep(1.5)
+    if INVESTIDOR10_WALLET_URL and "/wallet/public/" in INVESTIDOR10_WALLET_URL:
+        try:
+            summary = format_public_wallet_refresh_result(force=True)
+            return "Abri sua carteira do Investidor10. " + summary
+        except Exception:
+            pass
+
+    time.sleep(1.0)
     summary = browser_investment_snapshot()
     if INVESTIDOR10_WALLET_URL:
         return "Abri sua carteira do Investidor10. " + summary

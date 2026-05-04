@@ -1,3 +1,11 @@
+---
+title: "Axel Evolution Roadmap"
+type: "axel-doc"
+topic: "roadmap"
+updated_at: "2026-05-02"
+tags: ["axel", "roadmap", "architecture"]
+---
+
 # Axel Evolution Roadmap
 
 ## Visão do produto
@@ -174,9 +182,11 @@ Transformar o Axel em um analista pessoal útil, com base nas suas regras.
 - carteira local estruturada
 - watchlist
 - preço-teto por ativo
+- preço-teto automático com margem de segurança configurável
 - critérios por categoria
 - comparação entre preço atual e critério pessoal
 - resumo de tese e risco
+- acompanhamento de notícias importantes por ativo
 
 ### Perguntas que ele deve responder
 
@@ -184,6 +194,7 @@ Transformar o Axel em um analista pessoal útil, com base nas suas regras.
 - “quanto rendeu?”
 - “qual ativo ficou interessante?”
 - “quais notícias afetam essa tese?”
+- “houve alguma notícia importante sobre meus ativos?”
 - “esse ativo está caro ou barato pelo meu critério?”
 
 ### Definição de pronto
@@ -201,6 +212,7 @@ O Axel deixa de só ler a página e passa a:
 - snapshots históricos
 - normalização de preço, rentabilidade e proventos
 - camada de `investment_reasoning`
+- coleta de notícias relevantes por ticker com priorização por impacto
 
 ## Fase 5: Persistência estruturada
 

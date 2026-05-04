@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from memory.obsidian_sync import sync_profile_note
+from memory.obsidian_sync import sync_knowledge_vault, sync_profile_note
 from memory.supabase_sync import fetch_memory_payload_safely, sync_memory_state_safely
 
 PROFILE_PATH = Path("memory/profile.json")
@@ -30,6 +30,7 @@ def save_profile(data):
         json.dump(payload, f, indent=2, ensure_ascii=False)
     sync_memory_state_safely("profile", payload, category="profile")
     sync_profile_note(payload)
+    sync_knowledge_vault(profile_payload=payload)
 
 
 def set_value(key, value):

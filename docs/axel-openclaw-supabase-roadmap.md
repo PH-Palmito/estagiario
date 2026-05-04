@@ -1,3 +1,11 @@
+---
+title: "Axel OpenClaw Supabase Roadmap"
+type: "axel-doc"
+topic: "architecture-reference"
+updated_at: "2026-05-02"
+tags: ["axel", "openclaw", "supabase", "architecture"]
+---
+
 # Axel: o que aproveitar do OpenClaw e onde o Supabase entra
 
 ## Resumo direto

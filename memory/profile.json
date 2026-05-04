@@ -52,12 +52,30 @@
     "aporte_mensal_brl": 300,
     "perfil": "alto risco com foco em crescimento",
     "foco_inicial": "renda passiva com FIIs",
-    "investidor10_wallet_url": "https://investidor10.com.br/wallet/my-wallet/1405676",
+    "investidor10_wallet_url": "https://investidor10.com.br/wallet/public/1405676",
     "exposicao": [
       "FIIs",
       "VOO",
       "cripto"
-    ]
+    ],
+    "estrategia": {
+      "watchlist": [
+        "PETR4"
+      ],
+      "precos_teto": {
+        "PETR4": 48.0
+      },
+      "teses": {
+        "PETR4": "Tese de dividendos com sensibilidade forte a petr?leo e pol?tica."
+      },
+      "preco_teto_automatico": {
+        "metodo": "yield_alvo",
+        "habilitado": true,
+        "margem_seguranca_percentual": 8.0,
+        "dividend_yield_alvo_percentual": 8.0,
+        "referencia": "preco_medio"
+      }
+    }
   },
   "objetivos": [
     "criar algo comercializavel",

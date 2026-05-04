@@ -23,7 +23,7 @@ VOICE_PROFILES = {
         "assistant_brief_confirmations": True,
         "assistant_voice_effect": "off",
         "assistant_voice_effect_strength": 0.0,
-        "startup_voice_greeting": "Modo voz ativado. Pronto para trabalhar.",
+        "startup_voice_greeting": "Modo voz ativado. Pronto para começar.",
     },
     "faber-calmo": {
         "piper_length_scale": 1.08,
@@ -33,7 +33,7 @@ VOICE_PROFILES = {
         "assistant_brief_confirmations": True,
         "assistant_voice_effect": "off",
         "assistant_voice_effect_strength": 0.0,
-        "startup_voice_greeting": "Modo voz ativado. Estou pronto para trabalhar.",
+        "startup_voice_greeting": "Modo voz ativado. Estou pronto para começar.",
     },
     "faber-jarvis": {
         "piper_length_scale": 1.03,
@@ -43,7 +43,7 @@ VOICE_PROFILES = {
         "assistant_brief_confirmations": True,
         "assistant_voice_effect": "subtle_jarvis",
         "assistant_voice_effect_strength": 0.06,
-        "startup_voice_greeting": "Sistemas online. Pronto para trabalhar.",
+        "startup_voice_greeting": "Sistemas online. Pronto para começar.",
     },
     "assistente": {
         "piper_length_scale": 1.06,
@@ -73,7 +73,7 @@ VOICE_PROFILES = {
         "assistant_brief_confirmations": True,
         "assistant_voice_effect": "off",
         "assistant_voice_effect_strength": 0.0,
-        "startup_voice_greeting": "Sistemas online. A sua disposicao.",
+        "startup_voice_greeting": "Sistemas online. À sua disposição.",
     },
     "jarvis-calmo": {
         "piper_length_scale": 1.02,
@@ -83,7 +83,7 @@ VOICE_PROFILES = {
         "assistant_brief_confirmations": True,
         "assistant_voice_effect": "off",
         "assistant_voice_effect_strength": 0.0,
-        "startup_voice_greeting": "Sistemas online. Aguardando suas instrucoes.",
+        "startup_voice_greeting": "Sistemas online. Aguardando suas instruções.",
     },
     "jarvis-firme": {
         "piper_length_scale": 0.9,
@@ -103,7 +103,7 @@ VOICE_PROFILES = {
         "assistant_brief_confirmations": True,
         "assistant_voice_effect": "subtle_jarvis",
         "assistant_voice_effect_strength": 0.18,
-        "startup_voice_greeting": "Sistemas online. Interface de voz pronta. Aguardando instrucoes.",
+        "startup_voice_greeting": "Sistemas online. Interface de voz pronta. Aguardando instruções.",
     },
     "natural": {
         "piper_length_scale": 1.0,
@@ -113,7 +113,7 @@ VOICE_PROFILES = {
         "assistant_brief_confirmations": False,
         "assistant_voice_effect": "off",
         "assistant_voice_effect_strength": 0.0,
-        "startup_voice_greeting": "Modo voz ativado. Pronto para trabalhar.",
+        "startup_voice_greeting": "Modo voz ativado. Pronto para começar.",
     },
 }
 

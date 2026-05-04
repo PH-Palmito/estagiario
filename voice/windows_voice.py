@@ -1250,6 +1250,103 @@ def _expand_tts_reading_patterns(text: str) -> str:
     return text
 
 
+def _expand_negative_tts_patterns(text: str) -> str:
+    text = re.sub(r"(?<!\w)-\s*(R\$\s*\d[\d\.,]*)", r"menos \1", text)
+
+    def percent_replacer(match: re.Match) -> str:
+        number = str(match.group(1) or "").strip()
+        if "," in number:
+            integer, decimal = number.split(",", 1)
+            if decimal:
+                return f"menos {integer} vírgula {decimal} por cento"
+        if "." in number:
+            integer, decimal = number.split(".", 1)
+            if decimal:
+                return f"menos {integer} ponto {decimal} por cento"
+        return f"menos {number} por cento"
+
+    text = re.sub(r"(?<!\w)-\s*(\d[\d\.,]*)\s*%", percent_replacer, text)
+    return text
+
+
+def _normalize_numeric_token_for_tts(number: str) -> str:
+    token = str(number or "").strip()
+    if not token:
+        return token
+    if "," in token:
+        token = token.replace(".", "")
+        integer, decimal = token.split(",", 1)
+        return f"{integer} vírgula {decimal}"
+    if "." in token:
+        integer, decimal = token.split(".", 1)
+        return f"{integer} ponto {decimal}"
+    return token
+
+
+def _expand_currency_tts_patterns(text: str) -> str:
+    def currency_replacer(match: re.Match) -> str:
+        number = _normalize_numeric_token_for_tts(match.group(1))
+        return f"{number} reais"
+
+    return re.sub(r"R\$\s*([-+]?\d{1,3}(?:\.\d{3})*(?:,\d{2})?)", currency_replacer, text, flags=re.IGNORECASE)
+
+
+def _expand_percent_tts_patterns(text: str) -> str:
+    def percent_replacer(match: re.Match) -> str:
+        number = _normalize_numeric_token_for_tts(match.group(1))
+        return f"{number} por cento"
+
+    return re.sub(r"(?<![\w-])(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+\.\d+)\s*%", percent_replacer, text)
+
+
+def _expand_general_decimal_tts_patterns(text: str) -> str:
+    def number_replacer(match: re.Match) -> str:
+        token = match.group(1)
+        return _normalize_numeric_token_for_tts(token)
+
+    return re.sub(r"(?<![\w])(\d{1,3}(?:\.\d{3})*(?:,\d+)|\d+\.\d+)(?![\w%])", number_replacer, text)
+
+
+def _expand_ticker_for_tts(text: str) -> str:
+    letter_map = {
+        "A": "á",
+        "B": "bê",
+        "C": "cê",
+        "D": "dê",
+        "E": "é",
+        "F": "éfe",
+        "G": "gê",
+        "H": "agá",
+        "I": "i",
+        "J": "jóta",
+        "K": "cá",
+        "L": "éle",
+        "M": "ême",
+        "N": "êne",
+        "O": "ó",
+        "P": "pê",
+        "Q": "quê",
+        "R": "erre",
+        "S": "ésse",
+        "T": "tê",
+        "U": "u",
+        "V": "vê",
+        "W": "dáblio",
+        "X": "xis",
+        "Y": "ípsilon",
+        "Z": "zê",
+    }
+
+    def replacer(match: re.Match) -> str:
+        letters = match.group(1).upper()
+        digits = match.group(2)
+        spoken_letters = " ".join(letter_map.get(letter, letter.lower()) for letter in letters)
+        spoken_digits = " ".join(_number_to_pt(int(digit)) for digit in digits)
+        return f"{spoken_letters} {spoken_digits}".strip()
+
+    return re.sub(r"\b([A-Z]{4})(\d{1,2})\b", replacer, text)
+
+
 def _restore_common_ptbr_accents(text: str) -> str:
     replacements = {
         "pagina": "página",
@@ -1297,7 +1394,70 @@ def _restore_common_ptbr_accents(text: str) -> str:
         "nao": "não",
         "voce": "você",
         "voces": "vocês",
+        "util": "útil",
+        "uteis": "úteis",
+        "alem": "além",
+        "comecar": "começar",
+        "comeco": "começo",
+        "comeca": "começa",
+        "comecou": "começou",
+        "disposicao": "disposição",
+        "instrucao": "instrução",
+        "instrucoes": "instruções",
+        "patrimonio": "patrimônio",
+        "politica": "política",
+        "politicas": "políticas",
+        "cambio": "câmbio",
+        "criterios": "critérios",
+        "preferencia": "preferência",
+        "preferencias": "preferências",
+        "cotacoes": "cotações",
+        "relatorio": "relatório",
+        "relatorios": "relatórios",
+        "especifico": "específico",
+        "especifica": "específica",
     }
+
+    replacements.update(
+        {
+            "avaliacao": "avaliação",
+            "comparacao": "comparação",
+            "comparacoes": "comparações",
+            "variacao": "variação",
+            "variacoes": "variações",
+            "cotacao": "cotação",
+            "cotacoes": "cotações",
+            "geracao": "geração",
+            "evolucao": "evolução",
+            "operacao": "operação",
+            "operacoes": "operações",
+            "direcao": "direção",
+            "funcao": "função",
+            "funcoes": "funções",
+            "atencao": "atenção",
+            "situacao": "situação",
+            "condicao": "condição",
+            "condicoes": "condições",
+            "criterio": "critério",
+            "memoria": "memória",
+            "historico": "histórico",
+            "analise": "análise",
+            "tecnico": "técnico",
+            "tecnica": "técnica",
+            "tecnicas": "técnicas",
+            "pratico": "prático",
+            "pratica": "prática",
+            "estrategia": "estratégia",
+            "estrategias": "estratégias",
+            "logica": "lógica",
+            "topico": "tópico",
+            "topicos": "tópicos",
+            "critico": "crítico",
+            "critica": "crítica",
+            "projecao": "projeção",
+            "projecoes": "projeções",
+        }
+    )
 
     for source, target in replacements.items():
         text = re.sub(rf"\b{source}\b", target, text, flags=re.IGNORECASE)
@@ -1312,11 +1472,29 @@ def _apply_pronunciation_map(text: str, mapping: dict[str, str]) -> str:
     return text
 
 
+def _massage_ptbr_pronunciation(text: str) -> str:
+    phrase_replacements = {
+        "Pronto para trabalhar.": "Pronto para começar.",
+        "pronto para trabalhar.": "pronto para começar.",
+        "Vamos fazer esse computador trabalhar.": "Vamos colocar esse computador em movimento.",
+        "vamos fazer esse computador trabalhar.": "vamos colocar esse computador em movimento.",
+    }
+    for source, target in phrase_replacements.items():
+        text = text.replace(source, target)
+
+    return text
+
+
 def _prepare_tts_text(text: str) -> str:
     prepared = _normalize_tts_tech_terms(text)
+    prepared = _expand_negative_tts_patterns(prepared)
+    prepared = _expand_currency_tts_patterns(prepared)
+    prepared = _expand_percent_tts_patterns(prepared)
+    prepared = _expand_general_decimal_tts_patterns(prepared)
     prepared = _normalize_tts_punctuation(prepared)
     prepared = _expand_tts_reading_patterns(prepared)
     prepared = _restore_common_ptbr_accents(prepared)
+    prepared = _massage_ptbr_pronunciation(prepared)
     prepared = _apply_abbreviation_rules(prepared)
     prepared = _apply_abbreviation_heuristics(prepared)
     prepared = _apply_pronunciation_map(prepared, _BUILTIN_TTS_PRONUNCIATIONS)

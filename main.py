@@ -181,6 +181,7 @@ def action_progress_message(command) -> str | None:
         "browser_summarize_screen": "Resumindo a tela...",
         "browser_investment_snapshot": "Analisando seus investimentos...",
         "browser_open_wallet_and_summarize": "Abrindo e analisando sua carteira...",
+        "investment_refresh_public_wallet": "Atualizando a memória da sua carteira...",
         "investment_memory_summary": "Consultando a memória local da carteira...",
         "investment_memory_answer": "Consultando a memória local da carteira...",
         "investment_memory_status": "Verificando a memória local da carteira...",
@@ -195,7 +196,16 @@ def action_progress_message(command) -> str | None:
         "code_inspect_target": "Inspecionando o arquivo solicitado...",
         "code_inspect_selection": "Inspecionando o código selecionado...",
     }
-    return messages.get(getattr(command, "action", ""))
+    investment_overrides = {
+        "investment_refresh_public_wallet": "Atualizando sua carteira...",
+        "investment_memory_summary": "Verificando sua carteira...",
+        "investment_memory_answer": "Verificando sua carteira...",
+        "investment_memory_status": "Verificando sua carteira...",
+    }
+    action_name = getattr(command, "action", "")
+    if action_name in investment_overrides:
+        return investment_overrides[action_name]
+    return messages.get(action_name)
 
 
 def show_action_progress(command, voice_mode: bool = False):
@@ -508,7 +518,7 @@ def common_tts_cache_phrases() -> list[str]:
         str(
             VOICE_PREFERENCES.get(
                 "startup_voice_greeting",
-                "Modo voz ativado. Pronto para trabalhar.",
+                "Modo voz ativado. Pronto para começar.",
             )
         ).strip(),
         "Pode falar.",
@@ -3056,7 +3066,7 @@ def main():
             startup_message = str(
                 VOICE_PREFERENCES.get(
                     "startup_voice_greeting",
-                    "Sistemas online. Pronto para trabalhar.",
+                    "Sistemas online. Pronto para começar.",
                 )
             ).strip()
             if startup_message:

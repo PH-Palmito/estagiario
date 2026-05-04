@@ -3,7 +3,9 @@ import re
 import time
 import unicodedata
 
+from memory.docs_context import docs_context_relevant, docs_plan_answer
 from memory.aliases import load_app_aliases, load_site_aliases, load_smart_app_aliases
+from memory.current_topic import load_current_topic
 from memory.macros import delete_macro, get_macro, list_macros
 from memory.profile import get_value, set_value
 from memory.routines import get_routine, list_routines
@@ -212,7 +214,7 @@ CHATTER_PATTERNS = {
     "posso falar": "Pode falar.",
     "ta ouvindo": "Estou ouvindo sim.",
     "esta ouvindo": "Estou ouvindo sim.",
-    "tudo bem": "Tudo certo por aqui. Pronto para trabalhar.",
+    "tudo bem": "Tudo certo por aqui. Pronto para começar.",
     "como voce esta": "Estou bem. Com vontade de ser util.",
     "como voce ta": "Estou bem. Pode mandar.",
     "obrigado": "Disponha. Estamos juntos.",
@@ -481,6 +483,15 @@ def _has_any_word(text: str, words: set[str]) -> bool:
     return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
 
 
+def _current_topic_search_query() -> str:
+    topic = load_current_topic() or {}
+    for key in ("topic", "page_title", "summary"):
+        value = str(topic.get(key, "")).strip()
+        if value:
+            return value
+    return ""
+
+
 def detect_user_name(user_input: str):
     text = user_input.strip()
     lower = normalize_text(user_input)
@@ -521,7 +532,7 @@ def detect_greeting(user_input: str):
         return {"intent": "respond", "target": None, "response": CHATTER_PATTERNS[text]}
 
     if "bom dia" in text:
-        return {"intent": "respond", "target": None, "response": "Bom dia. Vamos fazer esse computador trabalhar."}
+        return {"intent": "respond", "target": None, "response": "Bom dia. Vamos colocar esse computador em movimento."}
 
     if "boa tarde" in text:
         return {"intent": "respond", "target": None, "response": "Boa tarde. Estou pronto."}
@@ -750,7 +761,7 @@ def detect_navigation_command(user_input: str):
         "analisar carteira",
         "ler carteira",
     }:
-        return {"intent": "browser_investment_snapshot", "target": None}
+        return {"intent": "investment_refresh_public_wallet", "target": None}
 
     if lower in {
         "modo investimentos",
@@ -1260,6 +1271,7 @@ def detect_navigation_command(user_input: str):
 
 def detect_browser_command(user_input: str):
     lower = normalize_text(user_input)
+    current_topic_query = _current_topic_search_query()
 
     if any(phrase in lower for phrase in {"fecha aba e site", "fechar aba e site", "fecha o site", "fechar o site"}):
         return {"intent": "browser_close_tab", "target": None}
@@ -1304,14 +1316,30 @@ def detect_browser_command(user_input: str):
     if lower.startswith(("pesquisa por ", "pesquisar por ", "pesquise por ", "esquisar por ", "esquise por ")):
         query = re.sub(r"^(pesquisa|pesquisar|pesquise|esquisar|esquise) por ", "", lower).strip()
         query = re.sub(r"\s+no navegador$", "", query).strip()
+        if query in {"mais sobre", "mais sobre isso", "mais sobre esse tema", "mais sobre esse assunto", "isso", "esse tema", "esse assunto"}:
+            query = current_topic_query
         if query:
             return {"intent": "browser_search", "target": query}
 
     if lower.startswith(("pesquisa ", "pesquisar ", "pesquise ", "esquisar ", "esquise ")):
         query = re.sub(r"^(pesquisa|pesquisar|pesquise|esquisar|esquise) ", "", lower).strip()
         query = re.sub(r"\s+no navegador$", "", query).strip()
+        if query in {"mais sobre", "mais sobre isso", "mais sobre esse tema", "mais sobre esse assunto", "isso", "esse tema", "esse assunto"}:
+            query = current_topic_query
         if query:
             return {"intent": "google_search", "target": query}
+
+    if lower in {
+        "pesquise mais sobre",
+        "pesquisar mais sobre",
+        "pesquisa mais sobre",
+        "pesquise mais sobre isso",
+        "pesquisar mais sobre isso",
+        "pesquisa mais sobre isso",
+        "pesquise mais sobre esse tema",
+        "pesquise mais sobre esse assunto",
+    } and current_topic_query:
+        return {"intent": "google_search", "target": current_topic_query}
 
     return None
 
@@ -1579,10 +1607,55 @@ def detect_visual_question_command(user_input: str):
     if not lower:
         return None
 
+    if docs_context_relevant(user_input):
+        return None
+
+    if re.search(r"\b[a-z]{4}\d{1,2}\b", lower):
+        return None
+
+    investment_skip_terms = {
+        "carteira",
+        "patrimonio",
+        "patrimônio",
+        "valor investido",
+        "rentabilidade",
+        "dividendos",
+        "proventos",
+        "watchlist",
+        "preco teto",
+        "preço teto",
+        "margem de seguranca",
+        "margem de segurança",
+        "ativo",
+        "ativos",
+        "posicao",
+        "posição",
+        "posicoes",
+        "posições",
+        "cotacao",
+        "cotação",
+        "criterio",
+        "critério",
+    }
+    if any(term in lower for term in investment_skip_terms):
+        return None
+
     last_item = last_vision_item()
+    current_topic = load_current_topic() or {}
     created_at = float(last_item.get("created_at", 0)) if isinstance(last_item, dict) else 0.0
     has_recent_visual_context = bool(last_item and (time.time() - created_at) <= 900)
+    has_topic_context = bool(str(current_topic.get("topic", "")).strip() or str(current_topic.get("summary", "")).strip())
     conversational_followup_terms = (
+        "e por que",
+        "e porque",
+        "por que",
+        "porque",
+        "e qual",
+        "e quais",
+        "e como",
+        "e isso",
+        "e agora",
+        "mas por que",
         "voce acha",
         "você acha",
         "vc acha",
@@ -1597,6 +1670,12 @@ def detect_visual_question_command(user_input: str):
         "qual a sua opiniao",
         "me explica",
         "me explique",
+        "me fala mais",
+        "me fale mais",
+        "fala mais",
+        "fale mais",
+        "me fala mais sobre isso",
+        "me fale mais sobre isso",
         "explica",
         "explique",
         "detalha",
@@ -1805,6 +1884,24 @@ def detect_visual_question_command(user_input: str):
     has_contextless_chart_question = any(term in lower for term in contextless_chart_terms)
     has_contextless_visual_question = any(term in lower for term in contextless_visual_terms)
     starts_like_question = lower.startswith(question_starters)
+    referential_context_terms = {
+        "isso",
+        "esse",
+        "essa",
+        "desse",
+        "dessa",
+        "tema",
+        "assunto",
+        "cenario",
+        "cenário",
+        "pagina",
+        "página",
+        "tela",
+        "site",
+        "grafico",
+        "gráfico",
+    }
+    has_referential_context = any(term in lower for term in referential_context_terms)
 
     if has_visual_term and (has_chart_question or starts_like_question):
         return {"intent": "vision_answer_question", "target": user_input.strip()}
@@ -1815,10 +1912,10 @@ def detect_visual_question_command(user_input: str):
     if has_contextless_visual_question and starts_like_question:
         return {"intent": "vision_answer_question", "target": user_input.strip()}
 
-    if last_item and lower.startswith(conversational_followup_terms):
+    if (last_item or has_topic_context) and lower.startswith(conversational_followup_terms):
         return {"intent": "vision_answer_question", "target": user_input.strip()}
 
-    if has_recent_visual_context and lower.startswith(question_starters):
+    if (has_recent_visual_context or has_topic_context) and lower.startswith(question_starters) and has_referential_context:
         return {"intent": "vision_answer_question", "target": user_input.strip()}
 
     return None
@@ -1850,6 +1947,42 @@ def detect_investment_question_command(user_input: str):
         "investimentos",
         "rendeu",
         "retorno",
+        "watchlist",
+        "ativo",
+        "ativos",
+        "posicao",
+        "posição",
+        "posicoes",
+        "posições",
+        "criterio",
+        "critério",
+        "margem de seguranca",
+        "margem de segurança",
+        "merecem atencao",
+        "merecem atenção",
+    }
+    investment_opinion_terms = {
+        "vale a pena",
+        "bom ativo",
+        "ativo bom",
+        "esta bom",
+        "esta ruim",
+        "subindo",
+        "caindo",
+        "tendencia",
+        "cenario",
+        "avaliacao",
+        "analise",
+        "opiniao",
+        "risco",
+        "riscos",
+        "tese",
+        "comprar",
+        "vender",
+        "barato",
+        "caro",
+        "preco teto",
+        "preço teto",
     }
     question_starters = (
         "qual ",
@@ -1861,12 +1994,100 @@ def detect_investment_question_command(user_input: str):
         "me fale ",
         "mostrar ",
         "mostre ",
+        "o que ",
+        "vale ",
     )
+    has_ticker = bool(re.search(r"\b[a-z]{4}\d{1,2}\b", lower))
 
     if any(term in lower for term in investment_terms) and (
         lower.startswith(question_starters) or "?" in user_input
     ):
         return {"intent": "investment_memory_answer", "target": user_input.strip()}
+
+    if lower in investment_terms:
+        return {"intent": "investment_memory_answer", "target": user_input.strip()}
+
+    if has_ticker and (
+        lower.startswith(question_starters)
+        or any(term in lower for term in investment_opinion_terms)
+        or "?" in user_input
+    ):
+        return {"intent": "investment_memory_answer", "target": user_input.strip()}
+
+    return None
+
+
+def detect_investment_strategy_command(user_input: str):
+    lower = normalize_text(user_input)
+    if not lower:
+        return None
+
+    price_match = re.search(r"\b([a-z]{4}\d{1,2})\b", lower)
+    value_match = re.search(r"(?:em|por|ate|até)\s+(\d+(?:[.,]\d{1,2})?)", user_input, flags=re.I)
+    if not value_match:
+        value_match = re.search(r"\b(\d+(?:[.,]\d{1,2})?)\b", user_input)
+    if (
+        any(term in lower for term in {"definir", "salvar", "colocar", "setar"})
+        and "teto" in lower
+        and ("preco" in lower.replace(" ", "") or "pre o" in lower or "preco teto" in lower)
+        and price_match
+        and value_match
+    ):
+        return {
+            "intent": "investment_set_price_ceiling",
+            "ticker": price_match.group(1).upper(),
+            "price": value_match.group(1),
+        }
+
+    margin_match = re.search(r"(?:margem\s+de\s+seguranca|margem\s+de\s+segurança).{0,12}?(\d+(?:[.,]\d{1,2})?)", user_input, flags=re.I)
+    if any(term in lower for term in {"definir", "salvar", "ajustar", "mudar", "colocar", "setar"}) and margin_match:
+        return {
+            "intent": "investment_set_auto_ceiling_margin",
+            "value": margin_match.group(1),
+        }
+
+    if lower in {
+        "qual minha margem de seguranca",
+        "qual minha margem de segurança",
+        "margem de seguranca",
+        "margem de segurança",
+        "qual a margem de seguranca",
+        "qual a margem de segurança",
+        "status do preco teto automatico",
+        "status do preço teto automático",
+    }:
+        return {"intent": "investment_get_auto_ceiling_settings", "target": None}
+
+    match = re.search(
+        r"(?:adicionar|colocar|incluir)\s+([a-z]{4}\d{1,2})\s+(?:na|a\s+na)?\s*watchlist",
+        lower,
+    )
+    if match:
+        return {"intent": "investment_add_watchlist", "ticker": match.group(1).upper()}
+
+    match = re.search(
+        r"(?:remover|tirar|excluir)\s+([a-z]{4}\d{1,2})\s+(?:da|da\s+minha|da\s+watchlist)?",
+        lower,
+    )
+    if match and "watchlist" in lower:
+        return {"intent": "investment_remove_watchlist", "ticker": match.group(1).upper()}
+
+    match = re.search(
+        r"(?:definir|salvar|anotar)\s+tese\s+(?:de|da|para)?\s*([a-z]{4}\d{1,2})\s*(?:como|:)?\s*(.+)$",
+        user_input.strip(),
+        flags=re.I,
+    )
+    if match:
+        thesis = match.group(2).strip(" .")
+        if thesis:
+            return {
+                "intent": "investment_set_thesis",
+                "ticker": match.group(1).upper(),
+                "thesis": thesis,
+            }
+
+    if lower in {"watchlist", "minha watchlist", "lista de ativos", "lista da watchlist"}:
+        return {"intent": "investment_list_watchlist", "target": None}
 
     return None
 
@@ -2370,6 +2591,13 @@ def detect_light_conversation(user_input: str):
     return None
 
 
+def detect_docs_context_command(user_input: str):
+    answer = docs_plan_answer(user_input)
+    if answer:
+        return {"intent": "respond", "target": None, "response": answer}
+    return None
+
+
 def detect_ollama_chat(user_input: str):
     text = normalize_text(user_input)
     if not text or len(text) <= 4:
@@ -2420,8 +2648,10 @@ def route(user_input: str):
         detect_code_inspection_command,
         detect_image_analysis_command,
         detect_visual_question_command,
+        detect_investment_strategy_command,
         detect_investment_question_command,
         detect_vision_model_command,
+        detect_docs_context_command,
         detect_create_file,
         detect_write_file,
         detect_append_file,
@@ -2440,6 +2670,7 @@ def route(user_input: str):
         detect_run_script,
         detect_profile_question,
         detect_short_unclear_text,
+        detect_ollama_chat,
         detect_light_conversation,
     ]
 

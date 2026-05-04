@@ -67,15 +67,22 @@ def update_current_topic_from_conversation(
 ) -> dict:
     current = load_current_topic()
     normalized_topic = str(topic or "").strip() or str(current.get("topic", "")).strip() or str(user_input or "").strip()[:180]
+    current_topic_name = str(current.get("topic", "")).strip()
+    topic_changed = bool(normalized_topic and current_topic_name and normalized_topic != current_topic_name)
+    inherited_summary = "" if topic_changed else str(current.get("summary", "") or "").strip()
+    inherited_title = "" if topic_changed else str(current.get("page_title", "") or "").strip()
+    inherited_url = "" if topic_changed else str(current.get("page_url", "") or "").strip()
+    inherited_lines = [] if topic_changed else list(current.get("lines") or [])[:10]
+    inherited_keywords = [] if topic_changed else [str(item).strip() for item in (current.get("keywords") or []) if str(item).strip()]
     payload = {
         "topic": normalized_topic,
-        "summary": str(related_summary or current.get("summary", "") or "").strip(),
+        "summary": str(related_summary or inherited_summary or "").strip(),
         "source": str(source or "conversation").strip() or "conversation",
-        "page_title": str(related_title or current.get("page_title", "") or "").strip(),
-        "page_url": str(current.get("page_url", "") or "").strip(),
-        "lines": list(current.get("lines") or [])[:10],
+        "page_title": str(related_title or inherited_title or "").strip(),
+        "page_url": inherited_url,
+        "lines": inherited_lines,
         "last_user_question": str(user_input or "").strip(),
         "last_assistant_answer": str(assistant_response or "").strip(),
-        "keywords": [str(item).strip() for item in (keywords or current.get("keywords") or []) if str(item).strip()][:8],
+        "keywords": [str(item).strip() for item in (keywords or inherited_keywords or []) if str(item).strip()][:8],
     }
     return save_current_topic(payload)

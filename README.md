@@ -113,9 +113,9 @@ Variáveis principais:
   Liga ou desliga o espelhamento das memórias principais em notas Markdown estilo Obsidian.
 
 - `AXEL_INVESTIDOR10_WALLET_URL`
-  Seu link direto da carteira no Investidor10.
+  Seu link direto da carteira no Investidor10. Pode ser um link privado/autenticado ou uma carteira pública.
 
-Se essa variável da carteira não estiver preenchida, o Axel ainda abre a área geral do Investidor10, mas não pula direto para o seu link pessoal.
+Se essa variável da carteira não estiver preenchida, o Axel ainda abre a área geral do Investidor10, mas não pula direto para o seu link da carteira.
 
 ## Gemini opcional como principal
 
@@ -210,6 +210,12 @@ Teste rápido das integrações de memória:
 
 ```powershell
 .\venv\Scripts\python.exe .\scripts\check_memory_integrations.py
+```
+
+Bootstrap do vault semântico do Obsidian:
+
+```powershell
+.\venv\Scripts\python.exe .\scripts\bootstrap_obsidian_vault.py
 ```
 
 ## Fluxo de investimentos

@@ -5,10 +5,13 @@ import re
 
 from config import GEMINI_API_KEY, GEMINI_COMPLEX_CHAT_ENABLED, GEMINI_MODEL
 from llm.gemini_client import ask_gemini_model
+from memory.docs_context import docs_context_relevant, search_docs_context
 from llm.ollama_client import ask_model
 from memory.current_topic import load_current_topic, update_current_topic_from_conversation
+from memory.obsidian_sync import load_vault_context, search_vault_context
 from memory.operational_context import load_operational_context
 from memory.profile import load_profile
+from memory.vault_bootstrap import bootstrap_obsidian_knowledge
 from memory.voice_preferences import load_voice_preferences
 
 
@@ -241,6 +244,48 @@ def _current_topic_text() -> str:
     return " ".join(parts) if parts else "Sem assunto atual consolidado."
 
 
+def _vault_context_text() -> str:
+    bootstrap_obsidian_knowledge()
+    vault = load_vault_context() or {}
+    if not vault:
+        return "Vault semantico indisponivel."
+
+    snippets = []
+    for key in ("projects", "preferences", "investments", "learning"):
+        content = str(vault.get(key, "")).strip()
+        if not content:
+            continue
+        cleaned = re.sub(r"\s+", " ", content)
+        snippets.append(f"{key}: {cleaned[:260]}")
+    return " ".join(snippets) if snippets else "Vault semantico indisponivel."
+
+
+def _targeted_vault_context_text(user_input: str) -> str:
+    current_topic = load_current_topic() or {}
+    query_parts = [str(user_input or "").strip()]
+    for key in ("topic", "summary", "page_title"):
+        value = str(current_topic.get(key, "")).strip()
+        if value:
+            query_parts.append(value)
+    matches = search_vault_context(" ".join(query_parts), limit=2, max_chars=320)
+    if not matches:
+        return "Nenhuma nota semantica especialmente relevante encontrada."
+    return " ".join(f"{item['name']}: {item['excerpt']}" for item in matches)
+
+
+def _targeted_docs_context_text(user_input: str) -> str:
+    current_topic = load_current_topic() or {}
+    query_parts = [str(user_input or "").strip()]
+    for key in ("topic", "summary", "page_title"):
+        value = str(current_topic.get(key, "")).strip()
+        if value:
+            query_parts.append(value)
+    matches = search_docs_context(" ".join(query_parts), limit=2, max_chars=360)
+    if not matches:
+        return "Nenhum documento especialmente relevante encontrado."
+    return " ".join(f"{item['title']}: {item['excerpt']}" for item in matches)
+
+
 def _directives_text() -> str:
     try:
         payload = json.loads(DIRECTIVES_PATH.read_text(encoding="utf-8"))
@@ -285,6 +330,9 @@ def _looks_like_complex_request(user_input: str) -> bool:
         return True
 
     if _looks_like_opinion_request(user_input) and any(hint in normalized for hint in LIVE_CONTEXT_HINTS):
+        return True
+
+    if docs_context_relevant(user_input):
         return True
 
     return word_count >= 18
@@ -487,6 +535,7 @@ def chat_response(user_input: str):
         timeout = 8
 
     opinion_mode = _looks_like_opinion_request(user_input)
+    docs_mode = docs_context_relevant(user_input)
 
     prompt = f"""{build_chat_prompt()}
 
@@ -501,6 +550,15 @@ Contexto operacional:
 
 Assunto atual:
 {_current_topic_text()}
+
+Memoria semantica do vault:
+{_vault_context_text()}
+
+Trechos mais relevantes do vault para esta pergunta:
+{_targeted_vault_context_text(user_input)}
+
+Trechos mais relevantes dos documentos de plano e arquitetura:
+{_targeted_docs_context_text(user_input)}
 
 Diretrizes:
 {_directives_text()}
@@ -519,7 +577,7 @@ Resposta curta do Estagiario:"""
                 prompt,
                 model=GEMINI_MODEL,
                 timeout_seconds=max(4, min(timeout + 8, 40)),
-                max_output_tokens=220 if opinion_mode else 180,
+                max_output_tokens=280 if docs_mode else (220 if opinion_mode else 180),
                 temperature=min(0.8, _chat_temperature() + 0.05),
             )
         else:
@@ -527,7 +585,7 @@ Resposta curta do Estagiario:"""
                 prompt,
                 model=model,
                 timeout_seconds=max(2, min(timeout, 30)),
-                num_predict=120 if opinion_mode else 90,
+                num_predict=160 if docs_mode else (120 if opinion_mode else 90),
                 temperature=min(0.85, _chat_temperature() + (0.08 if opinion_mode else 0.0)),
             )
     except Exception:
@@ -537,7 +595,7 @@ Resposta curta do Estagiario:"""
                     prompt,
                     model=model,
                     timeout_seconds=max(2, min(timeout, 30)),
-                    num_predict=120 if opinion_mode else 90,
+                    num_predict=160 if docs_mode else (120 if opinion_mode else 90),
                     temperature=min(0.85, _chat_temperature() + (0.08 if opinion_mode else 0.0)),
                 )
             except Exception:
@@ -575,8 +633,9 @@ Resposta curta do Estagiario:"""
     if any(marker in lower for marker in confused_markers):
         response = "Posso conversar sim. Me puxa por um assunto simples ou me conta o que voce quer pensar agora."
 
-    if len(response) > 350:
-        response = response[:347].rstrip() + "..."
+    max_len = 520 if docs_mode else 350
+    if len(response) > max_len:
+        response = response[: max_len - 3].rstrip() + "..."
 
     update_current_topic_from_conversation(
         user_input=user_input,
