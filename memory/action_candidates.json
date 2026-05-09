@@ -1,18 +1,21 @@
 {
-  "generated_at": 1777860161.7624116,
+  "generated_at": 1778291708.0083401,
   "items": [
     {
-      "title": "Executar proposta de patch: Lapidar robustez geral do Axel",
+      "title": "Executar proposta de patch: Fortalecer entendimento de voz e correcoes de fala",
       "kind": "patch_proposal",
       "status": "pending",
-      "risk": "Baixo.",
+      "risk": "Baixo a medio, porque pode ampliar demais a interpretacao se os gatilhos ficarem soltos.",
       "files": [
         "main.py",
-        "ui/assistant_hud.py"
+        "core/voice_command_classifier.py",
+        "memory/voice_corrections.py",
+        "voice/windows_voice.py"
       ],
       "steps": [
-        "Continuar instrumentando o historico para detectar melhor os proximos pontos fracos.",
-        "Manter a ponte com o Codex atualizada com dados do uso recente."
+        "Adicionar aliases e rotas protegidas para comandos sensiveis.",
+        "Aprender correcoes com base em frases mal reconhecidas recorrentes.",
+        "Refinar o segundo passe de transcricao curta em portugues."
       ],
       "source": "patch-proposals"
     }

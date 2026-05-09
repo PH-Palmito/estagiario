@@ -90,6 +90,11 @@ GEMINI_PRIMARY_TEXT_ENABLED = env_str(
     default="1",
     aliases=("GEMINI_PRIMARY_TEXT_ENABLED",),
 ).strip().lower() not in {"0", "false", "no", "off"}
+GEMINI_TTS_MODEL = env_str(
+    "AXEL_GEMINI_TTS_MODEL",
+    default="gemini-3.1-flash-tts-preview",
+    aliases=("GEMINI_TTS_MODEL",),
+)
 SUPABASE_REST_URL = env_str(
     "AXEL_SUPABASE_REST_URL",
     default="",
@@ -129,4 +134,99 @@ INVESTIDOR10_WALLET_URL = env_str(
     "AXEL_INVESTIDOR10_WALLET_URL",
     default="",
     aliases=("INVESTIDOR10_WALLET_URL",),
+)
+INVESTIDOR10_PRIVATE_WALLET_URL = env_str(
+    "AXEL_INVESTIDOR10_PRIVATE_WALLET_URL",
+    default="https://investidor10.com.br/wallet/my-wallet",
+    aliases=("INVESTIDOR10_PRIVATE_WALLET_URL",),
+)
+EDGE_USER_DATA_DIR = env_str(
+    "AXEL_EDGE_USER_DATA_DIR",
+    default=str(Path(os.environ.get("LOCALAPPDATA", "")).joinpath("Microsoft", "Edge", "User Data")),
+    aliases=("EDGE_USER_DATA_DIR",),
+)
+EDGE_PROFILE_DIRECTORY = env_str(
+    "AXEL_EDGE_PROFILE_DIRECTORY",
+    default="Default",
+    aliases=("EDGE_PROFILE_DIRECTORY",),
+)
+WALLET_PLAYWRIGHT_ENABLED = env_str(
+    "AXEL_WALLET_PLAYWRIGHT_ENABLED",
+    default="1",
+    aliases=("WALLET_PLAYWRIGHT_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
+WALLET_PLAYWRIGHT_CHANNEL = env_str(
+    "AXEL_WALLET_PLAYWRIGHT_CHANNEL",
+    default="msedge",
+    aliases=("WALLET_PLAYWRIGHT_CHANNEL",),
+)
+WALLET_PLAYWRIGHT_USER_DATA_DIR = env_str(
+    "AXEL_WALLET_PLAYWRIGHT_USER_DATA_DIR",
+    default="",
+    aliases=("WALLET_PLAYWRIGHT_USER_DATA_DIR",),
+)
+BRAPI_TOKEN = env_str(
+    "AXEL_BRAPI_TOKEN",
+    default="",
+    aliases=("BRAPI_TOKEN",),
+)
+BRAPI_ENABLED = env_str(
+    "AXEL_BRAPI_ENABLED",
+    default="1",
+    aliases=("BRAPI_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
+OPENWEATHER_API_KEY = env_str(
+    "AXEL_OPENWEATHER_API_KEY",
+    default="",
+    aliases=("OPENWEATHER_API_KEY", "OPENWEATHERMAP_API_KEY"),
+)
+OPENWEATHER_ENABLED = env_str(
+    "AXEL_OPENWEATHER_ENABLED",
+    default="1",
+    aliases=("OPENWEATHER_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
+NEWSAPI_KEY = env_str(
+    "AXEL_NEWSAPI_KEY",
+    default="",
+    aliases=("NEWSAPI_KEY",),
+)
+NEWSAPI_ENABLED = env_str(
+    "AXEL_NEWSAPI_ENABLED",
+    default="1",
+    aliases=("NEWSAPI_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
+SPOTIFY_API_ENABLED = env_str(
+    "AXEL_SPOTIFY_API_ENABLED",
+    default="1",
+    aliases=("SPOTIFY_API_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
+SPOTIFY_CLIENT_ID = env_str(
+    "AXEL_SPOTIFY_CLIENT_ID",
+    default="",
+    aliases=("SPOTIFY_CLIENT_ID",),
+)
+SPOTIFY_CLIENT_SECRET = env_str(
+    "AXEL_SPOTIFY_CLIENT_SECRET",
+    default="",
+    aliases=("SPOTIFY_CLIENT_SECRET",),
+)
+SPOTIFY_REDIRECT_URI = env_str(
+    "AXEL_SPOTIFY_REDIRECT_URI",
+    default="http://127.0.0.1:8888/callback",
+    aliases=("SPOTIFY_REDIRECT_URI",),
+)
+SPOTIFY_ACCESS_TOKEN = env_str(
+    "AXEL_SPOTIFY_ACCESS_TOKEN",
+    default="",
+    aliases=("SPOTIFY_ACCESS_TOKEN",),
+)
+SPOTIFY_REFRESH_TOKEN = env_str(
+    "AXEL_SPOTIFY_REFRESH_TOKEN",
+    default="",
+    aliases=("SPOTIFY_REFRESH_TOKEN",),
+)
+SPOTIFY_DEVICE_ID = env_str(
+    "AXEL_SPOTIFY_DEVICE_ID",
+    default="",
+    aliases=("SPOTIFY_DEVICE_ID",),
 )

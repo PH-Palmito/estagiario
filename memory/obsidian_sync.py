@@ -41,7 +41,14 @@ def _folder_path(name: str) -> Path | None:
 def _write_note(path: Path, content: str) -> bool:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content.rstrip() + "\n", encoding="utf-8")
+        normalized = content.rstrip() + "\n"
+        if path.exists():
+            try:
+                if path.read_text(encoding="utf-8") == normalized:
+                    return True
+            except Exception:
+                pass
+        path.write_text(normalized, encoding="utf-8")
         return True
     except Exception:
         return False
@@ -246,6 +253,7 @@ def sync_knowledge_vault(profile_payload: dict | None = None, directives_payload
         "- [[Projects]]",
         "- [[Preferences]]",
         "- [[Investments]]",
+        "- [[Portfolio Snapshot]]",
         "- [[Learning]]",
     ]
     _write_note(root_index, "\n".join(home_content))
@@ -363,7 +371,7 @@ def load_vault_context() -> dict:
     if root is None or not root.exists():
         return {}
 
-    note_names = ["Home", "Profile", "Current Topic", "Operational Context", "Projects", "Preferences", "Investments", "Learning"]
+    note_names = ["Home", "Profile", "Current Topic", "Operational Context", "Projects", "Preferences", "Investments", "Learning", "Portfolio Snapshot"]
     result = {}
     for note_name in note_names:
         path = _note_path(note_name)
@@ -418,3 +426,126 @@ def search_vault_context(query: str, limit: int = 2, max_chars: int = 500) -> li
         {"name": name, "excerpt": excerpt, "score": score}
         for score, name, excerpt in ranked[: max(1, int(limit))]
     ]
+
+
+def sync_operational_context_note(payload: dict) -> bool:
+    path = _note_path("Operational Context")
+    if path is None:
+        return False
+    data = dict(payload or {})
+    summary = str(data.get("summary", "")).strip() or "Sem contexto consolidado."
+    recent_topics = [str(item).strip() for item in (data.get("recent_topics") or []) if str(item).strip()]
+    recent_tickers = [str(item).strip().upper() for item in (data.get("recent_tickers") or []) if str(item).strip()]
+    recent_apps = [str(item).strip() for item in (data.get("recent_apps") or []) if str(item).strip()]
+    recent_sites = [str(item).strip() for item in (data.get("recent_sites") or []) if str(item).strip()]
+    next_advances = [str(item).strip() for item in (data.get("next_advances") or []) if str(item).strip()]
+    active_bottlenecks = [str(item).strip() for item in (data.get("active_bottlenecks") or []) if str(item).strip()]
+    open_tasks = [str(item).strip() for item in (data.get("open_tasks") or []) if str(item).strip()]
+
+    content = [
+        _frontmatter(
+            {
+                "type": "axel-operational-context",
+                "title": "Operational Context",
+                "assistant": data.get("assistant_name", "Axel"),
+                "operator": data.get("operator_name", ""),
+                "updated_at": data.get("generated_at", time.time()),
+            }
+        ),
+        "# Operational Context",
+        "",
+        summary,
+    ]
+    if recent_topics:
+        content.extend(["", "## Tópicos recentes"])
+        content.extend(f"- {item}" for item in recent_topics[:8])
+    if recent_tickers:
+        content.extend(["", "## Tickers recentes"])
+        content.extend(f"- {item}" for item in recent_tickers[:8])
+    if recent_apps:
+        content.extend(["", "## Apps recentes"])
+        content.extend(f"- {item}" for item in recent_apps[:6])
+    if recent_sites:
+        content.extend(["", "## Contexto web"])
+        content.extend(f"- {item}" for item in recent_sites[:6])
+    if next_advances:
+        content.extend(["", "## Próximos passos"])
+        content.extend(f"- {item}" for item in next_advances[:6])
+    if open_tasks:
+        content.extend(["", "## Tarefas abertas"])
+        content.extend(f"- {item}" for item in open_tasks[:8])
+    if active_bottlenecks:
+        content.extend(["", "## Gargalos"])
+        content.extend(f"- {item}" for item in active_bottlenecks[:6])
+    content.extend(["", "## Estado bruto", _json_block(data)])
+    return _write_note(path, "\n".join(content))
+
+
+def sync_portfolio_snapshot_note(payload: dict) -> bool:
+    path = _note_path("Portfolio Snapshot")
+    if path is None:
+        return False
+
+    data = dict(payload or {})
+    metric_map = data.get("metric_map") if isinstance(data.get("metric_map"), dict) else {}
+    positions = data.get("asset_positions") if isinstance(data.get("asset_positions"), dict) else {}
+    category_breakdown = data.get("category_breakdown") if isinstance(data.get("category_breakdown"), dict) else {}
+    category_summaries = data.get("category_summaries") if isinstance(data.get("category_summaries"), dict) else {}
+    unresolved = data.get("unresolved_category_counts") if isinstance(data.get("unresolved_category_counts"), dict) else {}
+
+    highlights = []
+    for key in ("patrimonio", "valor investido", "rentabilidade", "proventos", "variacao"):
+        value = str(metric_map.get(key, "")).strip()
+        if value:
+            highlights.append(f"{key}: {value}")
+
+    category_rows = []
+    for name, value in category_breakdown.items():
+        summary = category_summaries.get(name) if isinstance(category_summaries.get(name), dict) else {}
+        bits = [f"{name}: {value}"]
+        for key in ("value_total", "assets_count"):
+            field = str(summary.get(key, "")).strip()
+            if field:
+                bits.append(field)
+        category_rows.append(" | ".join(bits))
+
+    position_rows = []
+    for ticker, position in positions.items():
+        if not isinstance(position, dict):
+            continue
+        bits = [ticker]
+        for key in ("balance", "rentability", "portfolio_percentage"):
+            value = str(position.get(key, "")).strip()
+            if value:
+                bits.append(value)
+        position_rows.append((str(position.get("portfolio_percentage", "")).strip(), " | ".join(bits)))
+    position_rows = [row for _weight, row in sorted(position_rows, reverse=True)[:8]]
+
+    unresolved_rows = []
+    for name, info in unresolved.items():
+        if not isinstance(info, dict):
+            continue
+        reported = int(info.get("reported") or 0)
+        captured = int(info.get("captured") or 0)
+        unresolved_rows.append(f"{name}: {captured} de {reported} individualizados")
+
+    content = [
+        _frontmatter(
+            {
+                "type": "axel-portfolio-snapshot",
+                "title": "Portfolio Snapshot",
+                "updated_at": data.get("updated_at", time.time()),
+                "source": data.get("source", "investment_snapshot"),
+                "tags": ["axel", "investments", "portfolio"],
+            }
+        ),
+        "# Portfolio Snapshot",
+        "",
+        str(data.get("summary", "")).strip() or "Sem resumo financeiro salvo.",
+    ]
+    content.extend(_section_lines("Destaques", highlights))
+    content.extend(_section_lines("Classes", category_rows))
+    content.extend(_section_lines("Posições visíveis", position_rows))
+    content.extend(_section_lines("Blocos ainda agregados", unresolved_rows))
+    content.extend(["", "## Estado bruto", _json_block(data)])
+    return _write_note(path, "\n".join(content))

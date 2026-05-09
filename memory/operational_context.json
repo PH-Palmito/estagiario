@@ -1,8 +1,8 @@
 {
-  "generated_at": 1777860161.9122367,
+  "generated_at": 1778291708.1384978,
   "assistant_name": "Axel",
   "operator_name": "Pedro Henrique",
-  "current_focus": "Dar ao Axel memoria operacional de preferencias e contexto",
+  "current_focus": "Resolver gargalo: Entendimento de voz instavel",
   "focus_stack": [
     "front-end",
     "mobile",
@@ -10,48 +10,59 @@
     "TypeScript"
   ],
   "recent_user_requests": [
-    "qual a cotação de PETR4?",
-    "PETR4 está subindo ou caindo?",
-    "o que acha de PETR4?",
-    "PETR4 está acima do meu preço teto?",
-    "investment_memory_answer (question=PETR4 está acima do meu preço teto?)"
+    "Quisa notebook no mercado livre?",
+    "Legendas pela comunidade de Amara.org",
+    "Musica clássica.",
+    "browser_music_session (service=spotify, vibe=classico)"
   ],
-  "recent_apps": [],
-  "recent_sites": [],
+  "recent_apps": [
+    "spotify"
+  ],
+  "recent_sites": [
+    "mercado livre"
+  ],
   "recent_topics": [
-    "petr4",
-    "está",
-    "acima",
-    "preço",
-    "teto",
-    "acha"
+    "amara",
+    "browser_music_session",
+    "classico",
+    "clássica",
+    "comunidade",
+    "legendas"
   ],
+  "recent_tickers": [],
   "current_topic": {
-    "topic": "Não encontrei posições",
+    "topic": "Perfeitamente.",
     "summary": "",
     "source": "conversation",
     "page_title": "",
     "page_url": "",
     "lines": [],
-    "last_user_question": "quais posições merecem atenção agora?",
-    "last_assistant_answer": "Não encontrei posições",
+    "last_user_question": "modo ditado",
+    "last_assistant_answer": "Perfeitamente.",
     "keywords": [
-      "quais",
-      "posições",
-      "merecem",
-      "atenção",
-      "agora",
-      "encontrei"
+      "modo",
+      "ditado",
+      "perfeitamente"
     ],
-    "updated_at": 1777829909.5529203
+    "updated_at": 1778290950.9475048
   },
   "conversation_mode": false,
   "dictation_mode": false,
   "next_advances": [
+    "Resolver gargalo: Entendimento de voz instavel",
     "Dar ao Axel memoria operacional de preferencias e contexto",
-    "Criar rotinas prontas para estudo e desenvolvimento mobile/front-end",
-    "Preparar inicializacao automatica com Windows"
+    "Criar rotinas prontas para estudo e desenvolvimento mobile/front-end"
   ],
-  "active_bottlenecks": [],
-  "summary": "Axel acompanhando Pedro Henrique. Foco atual: Dar ao Axel memoria operacional de preferencias e contexto. Topicos recentes: petr4, está, acima, preço. Assunto atual: Não encontrei posições."
+  "open_tasks": [
+    "Fazer o Axel iniciar junto com o Windows.",
+    "Evoluir a visao para ler graficos com mais precisao quando houver modelo visual instalado.",
+    "Criar relatorio financeiro da carteira com patrimonio, rentabilidade, proventos e alertas.",
+    "Evoluir o briefing com alertas mais proativos, noticias e agenda mais inteligente.",
+    "Criar modo de leitura visual por clipboard, tela, navegador e arquivo com historico das ultimas analises.",
+    "Continuar evoluindo a interface para algo ainda mais futurista e animado."
+  ],
+  "active_bottlenecks": [
+    "Entendimento de voz instavel"
+  ],
+  "summary": "Axel acompanhando Pedro Henrique. Foco atual: Resolver gargalo: Entendimento de voz instavel. Apps recentes: spotify. Contexto web: mercado livre. Topicos recentes: amara, browser_music_session, classico, clássica. Assunto atual: Perfeitamente.. Tarefas abertas: Fazer o Axel iniciar junto com o Windows.; Evoluir a visao para ler graficos com mais precisao quando houver modelo visual instalado.."
 }

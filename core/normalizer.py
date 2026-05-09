@@ -140,6 +140,58 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent == "weather_summary":
+        return Command(
+            action="weather_summary",
+            params={"location": target},
+            source="router",
+        )
+
+    if intent == "daily_briefing":
+        return Command(
+            action="daily_briefing",
+            params={},
+            source="router",
+        )
+
+    if intent == "agenda_add":
+        return Command(
+            action="agenda_add",
+            params={"text": target},
+            source="router",
+        )
+
+    if intent == "agenda_list_today":
+        return Command(
+            action="agenda_list_today",
+            params={},
+            source="router",
+        )
+
+    if intent == "agenda_list_tomorrow":
+        return Command(
+            action="agenda_list_tomorrow",
+            params={},
+            source="router",
+        )
+
+    if intent == "agenda_list_all":
+        return Command(
+            action="agenda_list_all",
+            params={},
+            source="router",
+        )
+
+    if intent == "agenda_remove":
+        return Command(
+            action="agenda_remove",
+            params={
+                "index": target.get("index") if isinstance(target, dict) else None,
+                "scope": target.get("scope") if isinstance(target, dict) else "today",
+            },
+            source="router",
+        )
+
     if intent == "google_search":
         return Command(
             action="web_google_search",
@@ -273,10 +325,46 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent == "browser_queue_music":
+        return Command(
+            action="browser_queue_music",
+            params={
+                "service": target.get("service") if isinstance(target, dict) else None,
+                "query": target.get("query") if isinstance(target, dict) else None,
+            },
+            source="router",
+        )
+
+    if intent == "browser_surprise_music":
+        return Command(
+            action="browser_surprise_music",
+            params={
+                "service": target.get("service") if isinstance(target, dict) else "spotify",
+            },
+            source="router",
+        )
+
+    if intent == "browser_music_session":
+        return Command(
+            action="browser_music_session",
+            params={
+                "service": target.get("service") if isinstance(target, dict) else "spotify",
+                "vibe": target.get("vibe") if isinstance(target, dict) else None,
+            },
+            source="router",
+        )
+
     if intent == "investment_memory_answer":
         return Command(
             action="investment_memory_answer",
             params={"question": target},
+            source="router",
+        )
+
+    if intent == "spotify_like_current_track":
+        return Command(
+            action="spotify_like_current_track",
+            params={},
             source="router",
         )
 

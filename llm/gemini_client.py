@@ -6,6 +6,22 @@ from config import GEMINI_API_KEY, GEMINI_MODEL
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 
+def _post_gemini(payload: dict, model: str, timeout_seconds: int):
+    session = requests.Session()
+    session.trust_env = False
+    response = session.post(
+        GEMINI_API_URL.format(model=model),
+        headers={
+            "x-goog-api-key": GEMINI_API_KEY,
+            "Content-Type": "application/json",
+        },
+        json=payload,
+        timeout=timeout_seconds,
+    )
+    response.raise_for_status()
+    return response
+
+
 def _extract_gemini_text(data: dict) -> str:
     candidates = data.get("candidates") or []
     if not candidates:
@@ -30,13 +46,8 @@ def ask_gemini_model(
     if not GEMINI_API_KEY:
         raise RuntimeError("Gemini API key nao configurada.")
 
-    response = requests.post(
-        GEMINI_API_URL.format(model=model),
-        headers={
-            "x-goog-api-key": GEMINI_API_KEY,
-            "Content-Type": "application/json",
-        },
-        json={
+    response = _post_gemini(
+        {
             "contents": [
                 {
                     "role": "user",
@@ -48,9 +59,9 @@ def ask_gemini_model(
                 "maxOutputTokens": max_output_tokens,
             },
         },
-        timeout=timeout_seconds,
+        model=model,
+        timeout_seconds=timeout_seconds,
     )
-    response.raise_for_status()
     data = response.json()
     return _extract_gemini_text(data)
 
@@ -65,13 +76,8 @@ def ask_gemini_grounded_model(
     if not GEMINI_API_KEY:
         raise RuntimeError("Gemini API key nao configurada.")
 
-    response = requests.post(
-        GEMINI_API_URL.format(model=model),
-        headers={
-            "x-goog-api-key": GEMINI_API_KEY,
-            "Content-Type": "application/json",
-        },
-        json={
+    response = _post_gemini(
+        {
             "contents": [
                 {
                     "role": "user",
@@ -88,9 +94,9 @@ def ask_gemini_grounded_model(
                 "maxOutputTokens": max_output_tokens,
             },
         },
-        timeout=timeout_seconds,
+        model=model,
+        timeout_seconds=timeout_seconds,
     )
-    response.raise_for_status()
     data = response.json()
     text = _extract_gemini_text(data)
 

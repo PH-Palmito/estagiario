@@ -1,6 +1,11 @@
 {
-  "generated_at": 1777860161.7397292,
+  "generated_at": 1778291707.9954026,
   "items": [
+    {
+      "title": "Resolver gargalo: Entendimento de voz instavel",
+      "reason": "O detector automatico marcou esse problema 1 vez(es) no uso recente.",
+      "source": "detector-de-gargalos"
+    },
     {
       "title": "Dar ao Axel memoria operacional de preferencias e contexto",
       "reason": "O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.",

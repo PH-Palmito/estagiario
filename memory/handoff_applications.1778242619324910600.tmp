@@ -1,0 +1,20 @@
+{
+  "generated_at": 1778242619.3248518,
+  "status": "blocked",
+  "handoff_key": "",
+  "handoff": {
+    "generated_at": 1778242619.2859335,
+    "status": "blocked",
+    "title": "",
+    "reason": "Nenhum pacote de execucao aprovado esta pronto para implementacao.",
+    "files": [],
+    "instructions": [],
+    "validation": [],
+    "ready_definition": []
+  },
+  "last_note": "",
+  "started_at": 0.0,
+  "applied_at": 0.0,
+  "validated_at": 0.0,
+  "failed_at": 0.0
+}

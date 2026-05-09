@@ -1,8 +1,8 @@
 {
-  "generated_at": 1777860162.4123642,
+  "generated_at": 1778291708.640836,
   "goal": "Permitir que o Axel evolua o proprio projeto com supervisao e seguranca.",
-  "current_focus": "Dar ao Axel memoria operacional de preferencias e contexto",
-  "codex_request_title": "Lapidar robustez geral do Axel",
+  "current_focus": "Resolver gargalo: Entendimento de voz instavel",
+  "codex_request_title": "Fortalecer entendimento de voz e correcoes de fala",
   "steps": [
     {
       "id": "hud_runtime_state",

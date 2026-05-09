@@ -1,4 +1,5 @@
 import difflib
+import re
 
 from memory.aliases import load_app_aliases, load_site_aliases, load_smart_app_aliases
 from core.router import normalize_text
@@ -310,13 +311,14 @@ def _screen_target_score(tokens: list[str]) -> float:
 
 
 def _normalize_search_intent(text: str) -> str | None:
-    prefixes = ("pesquisa ", "procura ", "procurar ", "buscar ", "busca ")
+    prefixes = ("pesquisa ", "pesquise ", "pesquisar ", "esquisa ", "esquise ", "esquisar ", "quisa ", "quise ", "quisar ", "procura ", "procurar ", "buscar ", "busca ")
     for prefix in prefixes:
         if text.startswith(prefix):
             remainder = text[len(prefix):].strip()
+            remainder = remainder.replace("nutbook", "notebook").replace("notbook", "notebook")
             return f"pesquisar {remainder}".strip()
 
-    if text in {"pesquisa", "procura", "procurar", "buscar", "busca"}:
+    if text in {"pesquisa", "pesquise", "pesquisar", "esquisa", "esquise", "esquisar", "quisa", "quise", "quisar", "procura", "procurar", "buscar", "busca"}:
         return "pesquisar"
 
     return None
@@ -350,6 +352,11 @@ def normalize_voice_command(user_input: str) -> str:
 
     if not text or text in UNSAFE_SHORT_INPUTS:
         return user_input
+
+    text = re.sub(r"^(?:comandos?|comando)\s+(?:de|para|pra)\s+", "", text).strip(" .")
+
+    if text in {"que no mercado livre", "no mercado livre"}:
+        return text
 
     visual_intents = {
         "o que aparece na tela": "o que aparece na tela",

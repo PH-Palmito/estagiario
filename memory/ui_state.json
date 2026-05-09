@@ -3,9 +3,9 @@
   "visible": true,
   "status": "BOTAO F8",
   "mode": "comando",
-  "last_heard": "quais ativos estão acima do meu preço teto?",
-  "last_response": "Ativos acima do seu preço-teto no snapshot atual: BBAS3 em R$ 22,21, acima do teto automático por yield de R$ 10,36 por cerca de 114,5%; ISAE4 em R$ 29,51, acima do teto automático por yield de R$ 23,13 por cerca de 27,6%; PETR4 em R$ 49,08, acima do teto manual de R$ 48,00 por cerca de 2,2%.",
-  "last_command": "investment_memory_answer (question=quais ativos estão acima do meu preço teto?)",
+  "last_heard": "Musica clássica.",
+  "last_response": "Sessão clássica iniciada: tocando Air on a G String, de Johann Sebastian Bach, HAUSER, London Symphony Orchestra, Robert Ziegler. Também deixei mais 4 faixas na fila.",
+  "last_command": "browser_music_session (service=spotify, vibe=classico)",
   "microphone": "Microfone (WO Mic Device)",
   "assistant_style": "jarvis",
   "voice_profile": "faber",
@@ -16,103 +16,53 @@
     {
       "role": "assistant",
       "text": "Modo voz ativado. Aperte F8 para falar. Aperte F9 para pausar/retomar.",
-      "at": 1777860025.4301808
+      "at": 1778291447.3331392
     },
     {
       "role": "assistant",
-      "text": "Sistemas online. Pronto para começar.",
-      "at": 1777860026.596066
+      "text": "Axel online. Inteligência adaptativa pronta para começar.",
+      "at": 1778291448.669134
+    },
+    {
+      "role": "assistant",
+      "text": "Estou ouvindo, senhor.",
+      "at": 1778291524.5768988
     },
     {
       "role": "user",
-      "text": "qual o DY de PETR4?",
-      "at": 1777860033.8864343
+      "text": "Quisa notebook no mercado livre?",
+      "at": 1778291538.6340516
     },
     {
       "role": "assistant",
-      "text": "Verificando sua carteira...",
-      "at": 1777860035.7095869
+      "text": "Esse comando não ficou claro para mim.",
+      "at": 1778291563.827047
     },
     {
       "role": "assistant",
-      "text": "O DY atual de PETR4 está em 6,42%, com média de 5 anos em 27,83%.",
-      "at": 1777860036.4567342
+      "text": "Pode falar, senhor.",
+      "at": 1778291662.90539
     },
     {
       "role": "user",
-      "text": "qual a cotação de PETR4?",
-      "at": 1777860045.318229
+      "text": "Legendas pela comunidade de Amara.org",
+      "at": 1778291676.8183522
     },
     {
       "role": "assistant",
-      "text": "Verificando sua carteira...",
-      "at": 1777860046.8343909
-    },
-    {
-      "role": "assistant",
-      "text": "A cotação visível de PETR4 está em R$ 49,08.",
-      "at": 1777860047.64772
+      "text": "Estou ouvindo.",
+      "at": 1778291682.1442373
     },
     {
       "role": "user",
-      "text": "PETR4 está subindo ou caindo?",
-      "at": 1777860053.3824987
+      "text": "Musica clássica.",
+      "at": 1778291694.6563938
     },
     {
       "role": "assistant",
-      "text": "Verificando sua carteira...",
-      "at": 1777860054.896697
-    },
-    {
-      "role": "assistant",
-      "text": "No recorte atual, PETR4 está subindo, com variação de 9,61%.",
-      "at": 1777860055.6361334
-    },
-    {
-      "role": "user",
-      "text": "o que acha de PETR4?",
-      "at": 1777860064.4308417
-    },
-    {
-      "role": "assistant",
-      "text": "Verificando sua carteira...",
-      "at": 1777860065.9491475
-    },
-    {
-      "role": "assistant",
-      "text": "Pedro, sobre PETR4, vejo que a",
-      "at": 1777860069.8638895
-    },
-    {
-      "role": "user",
-      "text": "PETR4 está acima do meu preço teto?",
-      "at": 1777860157.557246
-    },
-    {
-      "role": "assistant",
-      "text": "Verificando sua carteira...",
-      "at": 1777860159.7170322
-    },
-    {
-      "role": "assistant",
-      "text": "Seu preço-teto salvo para PETR4 é R$ 48,00. Pela cotação visível, ele está acima desse nível.",
-      "at": 1777860160.4702845
-    },
-    {
-      "role": "user",
-      "text": "quais ativos estão acima do meu preço teto?",
-      "at": 1777860163.1397998
-    },
-    {
-      "role": "assistant",
-      "text": "Verificando sua carteira...",
-      "at": 1777860165.0075462
-    },
-    {
-      "role": "assistant",
-      "text": "Ativos acima do seu preço-teto no snapshot atual: BBAS3 em R$ 22,21, acima do teto automático por yield de R$ 10,36 por cerca de 114,5%; ISAE4 em R$ 29,51, acima do teto automático por yield de R$ 23,13 por cerca de 27,6%; PETR4 em R$ 49,08, acima do teto manual de R$ 48,00 por cerca de 2,2%.",
-      "at": 1777860165.7700295
+      "text": "Sessão clássica iniciada: tocando Air on a G String, de Johann Sebastian Bach, HAUSER, London Symphony Orchestra, Robert Ziegler. Também deixei mais 4 faixas na fila.",
+      "at": 1778291707.1499383
     }
   ],
-  "updated_at": 1777860195.732336
+  "updated_at": 1778291724.3354168
 }

@@ -1,11 +1,39 @@
 import json
 import math
 import tkinter as tk
+import time
+from io import BytesIO
 from datetime import datetime
 from pathlib import Path
 
 from memory.ui_commands import enqueue_ui_command
 from memory.ui_state import load_ui_state, update_ui_state
+
+try:
+    from PIL import Image, ImageTk
+except Exception:
+    Image = None
+    ImageTk = None
+
+try:
+    import requests
+except Exception:
+    requests = None
+
+try:
+    from tools.spotify_api import spotify_current_playback
+except Exception:
+    spotify_current_playback = None
+
+try:
+    from tools.weather_tools import get_weather_snapshot
+except Exception:
+    get_weather_snapshot = None
+
+try:
+    from memory.investment_snapshot import load_investment_snapshot
+except Exception:
+    load_investment_snapshot = None
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,24 +61,80 @@ SELF_EVOLUTION_PATH = MEMORY_DIR / "self_evolution.json"
 BOTTLENECKS_PATH = MEMORY_DIR / "bottlenecks.json"
 OPERATIONAL_CONTEXT_PATH = MEMORY_DIR / "operational_context.json"
 
-BG = "#02070d"
-BG_ALT = "#040c14"
-PANEL = "#050d16"
-PANEL_ALT = "#07111b"
-CARD = "#08121c"
-CARD_ALT = "#0c1a27"
-ACCENT = "#62f5ff"
-ACCENT_2 = "#63f7c8"
-ACCENT_3 = "#89ffcf"
-ACCENT_WARN = "#62f5ff"
-TEXT = "#ddf6ff"
-TEXT_SOFT = "#98bccd"
-TEXT_DIM = "#688997"
-GRID = "#173647"
-GOOD = "#60ffb9"
-BUSY = "#ffb86a"
-RESPOND = "#ffd66f"
-ALERT = "#ff7b97"
+BG = "#070c14"
+BG_ALT = "#0b1220"
+PANEL = "#0d131f"
+PANEL_ALT = "#101827"
+CARD = "#111827"
+CARD_ALT = "#151f31"
+ACCENT = "#60a5fa"
+ACCENT_2 = "#2563eb"
+ACCENT_3 = "#93c5fd"
+ACCENT_MAGENTA = "#d946ef"
+ACCENT_WARN = "#38bdf8"
+TEXT = "#edf2ff"
+TEXT_SOFT = "#8ea0ba"
+TEXT_DIM = "#617087"
+GRID = "#273244"
+LINE = "#243044"
+LINE_STRONG = "#2f5f98"
+GOOD = "#54e6c2"
+BUSY = "#65b7ff"
+RESPOND = "#a9e8ff"
+ALERT = "#ff7d96"
+
+PANEL_ICONS = {
+    "text": "\u270e",
+    "audio": "\u25cc",
+    "midia": "\u266a",
+    "tempo": "\u2601",
+    "invest": "\u2197",
+    "mapas": "\u2316",
+    "contexto": "\u2318",
+    "comandos": "\u2691",
+}
+
+COMMAND_GROUPS = [
+    (
+        "Midia",
+        [
+            ("\u23ee", "Anterior", "musica anterior", True),
+            ("\u25b6", "Play/Pause", "pausar ou continuar musica", True),
+            ("\u23ed", "Proxima", "proxima musica", True),
+            ("\u2212", "Volume -", "diminuir volume", True),
+            ("\u25c9", "Mutar", "mutar volume", True),
+            ("+", "Volume +", "aumentar volume", True),
+            ("\u266a", "Spotify", "abre o spotify", True),
+        ],
+    ),
+    (
+        "Interface",
+        [
+            ("\u25cc", "Mostrar HUD", "mostrar hud", False),
+            ("\u25cc", "Ocultar HUD", "fechar hud", False),
+            ("\u2318", "Contexto", "status da interface", False),
+            ("\u21bb", "Repetir", "repetir", False),
+        ],
+    ),
+    (
+        "Modos",
+        [
+            ("\u25cf", "Conversa", "quero conversar", False),
+            ("\u25cb", "Parar conversa", "parar conversa", False),
+            ("\u270e", "Ditado", "modo ditado", False),
+            ("\u2715", "Parar ditado", "parar ditado", False),
+        ],
+    ),
+    (
+        "Dados",
+        [
+            ("\u2601", "Clima", "como esta o clima", False),
+            ("\u2197", "Invest", "resumo da carteira", False),
+            ("\u25cc", "Tela", "o que tem na tela", False),
+            ("\u2316", "Mapa", "mostrar mapa", False),
+        ],
+    ),
+]
 
 
 def _load_json(path: Path) -> dict:
@@ -458,9 +542,9 @@ def _load_verification_lines(limit: int = 4) -> list[str]:
 class AssistantHud:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("Axel / Command Deck")
-        self.root.geometry("1420x860+50+32")
-        self.root.minsize(1220, 760)
+        self.root.title("Axel")
+        self.root.geometry("1360x820+60+42")
+        self.root.minsize(1120, 720)
         self.root.configure(bg=BG)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
@@ -468,204 +552,698 @@ class AssistantHud:
         self.scan_offset = 0
         self.last_state = {}
         self.quick_buttons = []
+        self.panels = {}
+        self.panel_buttons = {}
+        self.media_art_image = None
+        self.media_art_url = ""
+        self.media_snapshot = {}
+        self.media_last_fetch = 0.0
+        self.weather_last_fetch = 0.0
+        self.weather_snapshot = None
+        self.investment_last_fetch = 0.0
+        self.panel_defaults = {
+            "text": {"x": 34, "y": 34, "width": 460, "height": 316},
+            "audio": {"x": 34, "y": 370, "width": 360, "height": 246},
+            "midia": {"x": 410, "y": 330, "width": 420, "height": 410},
+            "tempo": {"x": 410, "y": 34, "width": 360, "height": 238},
+            "invest": {"x": 34, "y": 640, "width": 420, "height": 300},
+            "mapas": {"x": 480, "y": 640, "width": 360, "height": 260},
+            "contexto": {"x": 860, "y": 34, "width": 460, "height": 560},
+            "comandos": {"x": 870, "y": 90, "width": 420, "height": 640},
+        }
+        self.drag_state = {}
 
         self._build_layout()
         self._refresh_state()
         self._animate()
 
     def _build_layout(self):
-        self.root.grid_columnconfigure(0, weight=12)
-        self.root.grid_columnconfigure(1, weight=10)
+        self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_rowconfigure(0, weight=1)
 
-        self.left = tk.Frame(self.root, bg=PANEL, highlightthickness=1, highlightbackground=GRID)
-        self.right = tk.Frame(self.root, bg=PANEL_ALT, highlightthickness=1, highlightbackground=GRID)
-        self.left.grid(row=0, column=0, sticky="nsew", padx=(14, 7), pady=14)
-        self.right.grid(row=0, column=1, sticky="nsew", padx=(7, 14), pady=14)
+        self.stage = tk.Frame(self.root, bg=BG)
+        self.stage.grid(row=0, column=0, sticky="nsew")
 
-        self._build_left_panel()
-        self._build_right_panel()
+        self.canvas = tk.Canvas(self.stage, bg=BG, highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True)
 
-    def _build_left_panel(self):
-        header = tk.Frame(self.left, bg=PANEL)
-        header.pack(fill="x", padx=18, pady=(18, 10))
+        self._build_widget_panels()
+        self._build_dock()
+        self._build_settings_button()
 
-        tk.Label(
-            header,
-            text="AXEL / CORE DECK",
+    def _build_widget_panels(self):
+        self.text_panel = self._floating_panel("text", x=34, y=34, width=460, height=316)
+        self._build_text_panel(self.text_panel)
+
+        self.audio_panel = self._floating_panel("audio", x=34, y=370, width=360, height=246)
+        self._build_audio_panel(self.audio_panel)
+
+        self.media_panel = self._floating_panel("midia", x=410, y=330, width=420, height=410)
+        self._build_media_panel(self.media_panel)
+
+        self.weather_panel = self._floating_panel("tempo", x=410, y=34, width=360, height=238)
+        self._build_weather_panel(self.weather_panel)
+
+        self.invest_panel = self._floating_panel("invest", x=34, y=640, width=420, height=300)
+        self._build_invest_panel(self.invest_panel)
+
+        self.maps_panel = self._floating_panel("mapas", x=480, y=640, width=360, height=260)
+        self._build_maps_panel(self.maps_panel)
+
+        self.context_panel = self._floating_panel("contexto", x=860, y=34, width=460, height=560)
+        self._build_context_panel(self.context_panel)
+
+        self.commands_panel = self._floating_panel("comandos", x=870, y=90, width=420, height=640)
+        self._build_commands_panel(self.commands_panel)
+
+    def _build_dock(self):
+        dock = tk.Frame(self.stage, bg="#0b1220", highlightthickness=1, highlightbackground=LINE)
+        dock.place(relx=0.5, rely=1.0, anchor="s", y=-24)
+
+        for key, label in [
+            ("text", "Texto"),
+            ("midia", "Midia"),
+            ("tempo", "Tempo"),
+            ("invest", "Invest"),
+            ("mapas", "Mapas"),
+        ]:
+            button = tk.Button(
+                dock,
+                text=f"{PANEL_ICONS.get(key, '*')}  {label}",
+                command=lambda name=key: self._toggle_panel(name),
+                bg="#0b1220",
+                fg=TEXT_SOFT,
+                activebackground=CARD,
+                activeforeground=TEXT,
+                relief="flat",
+                font=("Segoe UI Semibold", 10),
+                padx=18,
+                pady=12,
+            )
+            button.pack(side="left", padx=(3, 3), pady=3)
+            self.panel_buttons[key] = button
+
+    def _build_settings_button(self):
+        settings = tk.Frame(self.stage, bg=BG)
+        settings.place(relx=1.0, x=-24, y=24, anchor="ne")
+        button = tk.Button(
+            settings,
+            text="\u2699",
+            command=self._toggle_settings_menu,
+            bg="#0b1220",
+            fg=TEXT_SOFT,
+            activebackground=CARD,
+            activeforeground=TEXT,
+            relief="flat",
+            font=("Segoe UI Symbol", 12),
+            padx=12,
+            pady=9,
+        )
+        button.pack(side="top", anchor="e")
+        self.settings_menu = tk.Frame(settings, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
+        for key, label in [("audio", "Audio"), ("contexto", "Contexto"), ("comandos", "Comandos")]:
+            item = tk.Button(
+                self.settings_menu,
+                text=f"{PANEL_ICONS.get(key, '*')}  {label}",
+                command=lambda name=key: self._toggle_panel(name),
+                bg=PANEL,
+                fg=TEXT_SOFT,
+                activebackground=CARD,
+                activeforeground=TEXT,
+                relief="flat",
+                font=("Segoe UI Semibold", 10),
+                padx=16,
+                pady=9,
+                anchor="w",
+            )
+            item.pack(fill="x")
+            self.panel_buttons[key] = item
+
+    def _toggle_settings_menu(self):
+        if self.settings_menu.winfo_ismapped():
+            self.settings_menu.pack_forget()
+            return
+        self.settings_menu.pack(side="top", anchor="e", pady=(8, 0))
+
+    def _floating_panel(self, key, x, y, width, height):
+        panel = tk.Frame(self.stage, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
+        panel.axel_panel_key = key
+        panel.place(x=x, y=y, width=width, height=height)
+        panel.place_forget()
+        self.panels[key] = panel
+        return panel
+
+    def _panel_position(self, key):
+        defaults = dict(self.panel_defaults.get(key) or {})
+        positions = load_ui_state().get("panel_positions")
+        saved = positions.get(key) if isinstance(positions, dict) else None
+        if isinstance(saved, dict):
+            for field in ("x", "y"):
+                try:
+                    defaults[field] = int(saved[field])
+                except Exception:
+                    pass
+        return self._clamp_panel_position(key, defaults)
+
+    def _clamp_panel_position(self, key, position):
+        pos = dict(position)
+        width = int(pos.get("width") or self.panel_defaults[key]["width"])
+        height = int(pos.get("height") or self.panel_defaults[key]["height"])
+        stage_width = max(self.stage.winfo_width(), self.root.winfo_width(), width + 68)
+        stage_height = max(self.stage.winfo_height(), self.root.winfo_height(), height + 92)
+        pos["width"] = width
+        pos["height"] = height
+        pos["x"] = max(12, min(int(pos.get("x") or 0), stage_width - width - 12))
+        pos["y"] = max(12, min(int(pos.get("y") or 0), stage_height - height - 76))
+        return pos
+
+    def _toggle_panel(self, key):
+        panel = self.panels.get(key)
+        if not panel:
+            return
+        if panel.winfo_ismapped():
+            panel.place_forget()
+            self.panel_buttons[key].config(bg=CARD, fg=TEXT_SOFT)
+            return
+        panel.place(**self._panel_position(key))
+        self.panel_buttons[key].config(bg="#1d4ed8", fg=TEXT)
+
+    def _start_panel_drag(self, key, event):
+        panel = self.panels.get(key)
+        if not panel:
+            return
+        info = panel.place_info()
+        self.drag_state = {
+            "key": key,
+            "start_x": event.x_root,
+            "start_y": event.y_root,
+            "panel_x": int(float(info.get("x") or 0)),
+            "panel_y": int(float(info.get("y") or 0)),
+        }
+
+    def _drag_panel(self, event):
+        key = self.drag_state.get("key")
+        panel = self.panels.get(key)
+        if not key or not panel:
+            return
+        base = self.panel_defaults[key]
+        position = {
+            "x": self.drag_state["panel_x"] + event.x_root - self.drag_state["start_x"],
+            "y": self.drag_state["panel_y"] + event.y_root - self.drag_state["start_y"],
+            "width": base["width"],
+            "height": base["height"],
+        }
+        panel.place(**self._clamp_panel_position(key, position))
+
+    def _end_panel_drag(self, event=None):
+        key = self.drag_state.get("key")
+        panel = self.panels.get(key)
+        if not key or not panel:
+            self.drag_state = {}
+            return
+        info = panel.place_info()
+        state = load_ui_state()
+        positions = state.get("panel_positions") if isinstance(state.get("panel_positions"), dict) else {}
+        positions[key] = {
+            "x": int(float(info.get("x") or 0)),
+            "y": int(float(info.get("y") or 0)),
+        }
+        update_ui_state({"panel_positions": positions})
+        self.drag_state = {}
+
+    def _panel_title(self, parent, title):
+        row = tk.Frame(parent, bg=PANEL)
+        row.pack(fill="x", padx=18, pady=(16, 10))
+        key = getattr(parent, "axel_panel_key", "")
+        title_label = tk.Label(
+            row,
+            text=f"{PANEL_ICONS.get(key, '*')}  {title}" if key else title,
             bg=PANEL,
-            fg=ACCENT,
-            font=("Segoe UI Semibold", 20),
-        ).pack(anchor="w")
-        tk.Label(
-            header,
-            text="Escuta, resposta, leitura de contexto e pulso operacional.",
-            bg=PANEL,
-            fg=TEXT_DIM,
-            font=("Segoe UI", 10),
-        ).pack(anchor="w", pady=(4, 0))
+            fg=TEXT,
+            font=("Segoe UI Semibold", 12),
+        )
+        title_label.pack(side="left", anchor="w")
+        topbar = tk.Frame(row, bg=PANEL)
+        topbar.pack(side="right", anchor="e")
+        for color in ("#f87171", "#facc15", "#34d399"):
+            tk.Label(topbar, text="", bg=color, width=2, height=1).pack(side="left", padx=(4, 0))
+        if key:
+            for widget in (row, title_label, topbar):
+                widget.bind("<ButtonPress-1>", lambda event, name=key: self._start_panel_drag(name, event))
+                widget.bind("<B1-Motion>", self._drag_panel)
+                widget.bind("<ButtonRelease-1>", self._end_panel_drag)
 
-        self.canvas = tk.Canvas(self.left, bg=PANEL, highlightthickness=0, height=270)
-        self.canvas.pack(fill="x", padx=18, pady=(8, 10))
-
-        status_row = tk.Frame(self.left, bg=PANEL)
-        status_row.pack(fill="x", padx=18, pady=(0, 6))
-        status_row.grid_columnconfigure(0, weight=1)
-        status_row.grid_columnconfigure(1, weight=1)
-        status_row.grid_columnconfigure(2, weight=1)
-        self.status_value = self._metric_card(status_row, 0, 0, "STATUS")
-        self.mode_value = self._metric_card(status_row, 0, 1, "MODO")
-        self.activity_value = self._metric_card(status_row, 0, 2, "ATIVIDADE")
-
-        signal_row = tk.Frame(self.left, bg=PANEL)
-        signal_row.pack(fill="x", padx=18, pady=(0, 10))
-        signal_row.grid_columnconfigure(0, weight=1)
-        signal_row.grid_columnconfigure(1, weight=1)
-        signal_row.grid_columnconfigure(2, weight=1)
-        self.channel_value = self._metric_card(signal_row, 0, 0, "CANAL")
-        self.hotword_value = self._metric_card(signal_row, 0, 1, "ESCUTA")
-        self.signal_value = self._metric_card(signal_row, 0, 2, "SINAL")
-
-        self.heard_value = self._text_block(self.left, "ULTIMA FALA", PANEL, wrap=650, height=70)
-        self.response_value = self._text_block(self.left, "ULTIMA RESPOSTA", PANEL, wrap=650, height=92)
-
-        lower_grid = tk.Frame(self.left, bg=PANEL)
-        lower_grid.pack(fill="both", expand=True, padx=18, pady=(6, 18))
-        lower_grid.grid_columnconfigure(0, weight=1)
-        lower_grid.grid_columnconfigure(1, weight=1)
-        lower_grid.grid_rowconfigure(0, weight=1)
-
-        self.history_text = self._panel_list(lower_grid, 0, 0, "HISTORICO")
-        self.profile_text = self._panel_list(lower_grid, 0, 1, "OPERADOR")
-
-    def _build_right_panel(self):
-        header = tk.Frame(self.right, bg=PANEL_ALT)
-        header.pack(fill="x", padx=18, pady=(18, 10))
-
-        tk.Label(
-            header,
-            text="AUXILIAR / INTEL CONSOLE",
-            bg=PANEL_ALT,
-            fg=ACCENT_WARN,
-            font=("Segoe UI Semibold", 20),
-        ).pack(anchor="w")
-        tk.Label(
-            header,
-            text="Texto, atalhos, rotinas e proximos avancos do projeto.",
-            bg=PANEL_ALT,
-            fg=TEXT_DIM,
-            font=("Segoe UI", 10),
-        ).pack(anchor="w", pady=(4, 0))
-
-        top_grid = tk.Frame(self.right, bg=PANEL_ALT)
-        top_grid.pack(fill="x", padx=18, pady=(12, 8))
-        top_grid.grid_columnconfigure(0, weight=1)
-        top_grid.grid_columnconfigure(1, weight=1)
-        top_grid.grid_columnconfigure(2, weight=1)
-
-        self.time_value = self._metric_card(top_grid, 0, 0, "HORARIO", panel=PANEL_ALT)
-        self.mic_value = self._metric_card(top_grid, 0, 1, "MICROFONE", panel=PANEL_ALT)
-        self.profile_value = self._metric_card(top_grid, 0, 2, "PERFIL", panel=PANEL_ALT)
-        self.style_value = self._metric_card(top_grid, 1, 0, "ESTILO", panel=PANEL_ALT)
-        self.command_value = self._metric_card(top_grid, 1, 1, "ULTIMO COMANDO", panel=PANEL_ALT)
-        self.name_value = self._metric_card(top_grid, 1, 2, "ASSISTENTE", panel=PANEL_ALT)
-
-        composer = tk.Frame(self.right, bg=PANEL_ALT)
-        composer.pack(fill="x", padx=18, pady=(4, 10))
-        tk.Label(
-            composer,
-            text="MODO TEXTO / PAINEL",
-            bg=PANEL_ALT,
-            fg=TEXT_DIM,
-            font=("Segoe UI Semibold", 9),
-        ).pack(anchor="w")
-
-        entry_row = tk.Frame(composer, bg=PANEL_ALT)
-        entry_row.pack(fill="x", pady=(8, 0))
+    def _build_text_panel(self, parent):
+        self._panel_title(parent, "Texto")
+        entry_row = tk.Frame(parent, bg=PANEL)
+        entry_row.pack(fill="x", padx=16, pady=(0, 12))
         self.text_entry = tk.Entry(
             entry_row,
-            bg=CARD,
+            bg="#111827",
             fg=TEXT,
-            insertbackground=ACCENT,
+            insertbackground=TEXT,
             relief="flat",
             font=("Segoe UI", 11),
+            highlightthickness=1,
+            highlightbackground=LINE,
+            highlightcolor=LINE_STRONG,
         )
         self.text_entry.pack(side="left", fill="x", expand=True, ipady=10)
         self.text_entry.bind("<Return>", self._submit_text_command)
-
-        send_button = tk.Button(
+        tk.Button(
             entry_row,
-            text="ENVIAR",
+            text="\u21b5",
             command=self._submit_text_command,
-            bg=ACCENT_2,
-            fg="#031018",
-            activebackground=ACCENT,
-            activeforeground="#031018",
+            bg="#2563eb",
+            fg=TEXT,
+            activebackground="#60a5fa",
+            activeforeground=BG,
+            relief="flat",
+            font=("Segoe UI Semibold", 14),
+            padx=16,
+        ).pack(side="left", padx=(8, 0))
+
+        self.heard_value = self._text_block(parent, "ULTIMA FALA", PANEL, wrap=390, height=54)
+        self.response_value = self._text_block(parent, "ULTIMA RESPOSTA", PANEL, wrap=390, height=72)
+        self.history_text = self._panel_list(parent, None, None, "HISTORICO")
+
+    def _build_audio_panel(self, parent):
+        self._panel_title(parent, "Audio")
+        grid = tk.Frame(parent, bg=PANEL)
+        grid.pack(fill="x", padx=12, pady=(0, 10))
+        for column in range(2):
+            grid.grid_columnconfigure(column, weight=1)
+        self.status_value = self._metric_card(grid, 0, 0, "STATUS")
+        self.mode_value = self._metric_card(grid, 0, 1, "MODO")
+        self.activity_value = self._metric_card(grid, 1, 0, "ATIVIDADE")
+        self.hotword_value = self._metric_card(grid, 1, 1, "ESCUTA")
+        self.channel_value = self._metric_card(grid, 2, 0, "CANAL")
+        self.signal_value = self._metric_card(grid, 2, 1, "SINAL")
+
+    def _build_media_panel(self, parent):
+        self._panel_title(parent, "Midia")
+        top = tk.Frame(parent, bg=PANEL)
+        top.pack(fill="x", padx=18, pady=(0, 16))
+
+        self.media_art_canvas = tk.Canvas(
+            top,
+            width=132,
+            height=132,
+            bg=CARD,
+            highlightthickness=1,
+            highlightbackground=LINE,
+        )
+        self.media_art_canvas.pack(side="left")
+        self._draw_album_placeholder()
+
+        meta = tk.Frame(top, bg=PANEL)
+        meta.pack(side="left", fill="both", expand=True, padx=(14, 0))
+        self.media_track_value = tk.Label(
+            meta,
+            text="Nada tocando",
+            bg=PANEL,
+            fg=TEXT,
+            font=("Segoe UI Semibold", 12),
+            anchor="w",
+            justify="left",
+            wraplength=220,
+        )
+        self.media_track_value.pack(fill="x", anchor="w")
+        self.media_artist_value = tk.Label(
+            meta,
+            text="Spotify / sistema",
+            bg=PANEL,
+            fg=TEXT_SOFT,
+            font=("Segoe UI", 10),
+            anchor="w",
+            justify="left",
+            wraplength=220,
+        )
+        self.media_artist_value.pack(fill="x", anchor="w", pady=(6, 0))
+        self.media_status_value = tk.Label(
+            meta,
+            text="Aguardando metadados",
+            bg=PANEL,
+            fg=TEXT_DIM,
+            font=("Segoe UI", 9),
+            anchor="w",
+            justify="left",
+            wraplength=220,
+        )
+        self.media_status_value.pack(fill="x", anchor="w", pady=(12, 0))
+
+        main_row = tk.Frame(parent, bg=PANEL)
+        main_row.pack(fill="x", padx=18, pady=(0, 10))
+        for label, command in [
+            ("\u23ee", "musica anterior"),
+            ("\u25b6", "pausar ou continuar musica"),
+            ("\u23ed", "proxima musica"),
+        ]:
+            self._media_button(main_row, label, command).pack(side="left", fill="x", expand=True, padx=4)
+
+        volume_row = tk.Frame(parent, bg=PANEL)
+        volume_row.pack(fill="x", padx=18, pady=(0, 10))
+        for label, command in [
+            ("\u2212", "diminuir volume"),
+            ("\u25c9", "mutar volume"),
+            ("+", "aumentar volume"),
+        ]:
+            self._media_button(volume_row, label, command).pack(side="left", fill="x", expand=True, padx=4)
+
+        app_row = tk.Frame(parent, bg=PANEL)
+        app_row.pack(fill="x", padx=18, pady=(0, 14))
+        self._media_button(app_row, "\u266a", "abre o spotify").pack(side="left", fill="x", expand=True, padx=4)
+        self._command_button(app_row, "\u25cc", "o que tem na tela").pack(side="left", fill="x", expand=True, padx=4)
+
+        self.media_hint_value = tk.Label(
+            parent,
+            text="Capa real via Spotify. Fallback neural quando nao houver metadados.",
+            bg=CARD,
+            fg=TEXT_SOFT,
+            font=("Segoe UI", 9),
+            justify="left",
+            anchor="nw",
+            wraplength=350,
+            padx=14,
+            pady=12,
+            highlightthickness=1,
+            highlightbackground=LINE,
+        )
+        self.media_hint_value.pack(fill="x", padx=18)
+
+    def _media_button(self, parent, label, command):
+        return tk.Button(
+            parent,
+            text=label,
+            command=lambda cmd=command: self._queue_command(cmd, source="hud_media", silent=True),
+            bg="#151f31",
+            fg=TEXT,
+            activebackground="#2563eb",
+            activeforeground=BG,
+            relief="flat",
+            font=("Segoe UI Symbol", 14),
+            padx=10,
+            pady=8,
+        )
+
+    def _command_button(self, parent, label, command, source: str = "hud", silent: bool = False):
+        return tk.Button(
+            parent,
+            text=label,
+            command=lambda cmd=command, cmd_source=source, is_silent=silent: self._queue_command(
+                cmd,
+                source=cmd_source,
+                silent=is_silent,
+            ),
+            bg="#151f31",
+            fg=TEXT,
+            activebackground="#2563eb",
+            activeforeground=BG,
             relief="flat",
             font=("Segoe UI Semibold", 10),
-            padx=16,
+            padx=10,
+            pady=9,
         )
-        send_button.pack(side="left", padx=(10, 0))
 
-        shortcuts = tk.Frame(self.right, bg=PANEL_ALT)
-        shortcuts.pack(fill="x", padx=18, pady=(2, 10))
+    def _build_weather_panel(self, parent):
+        self._panel_title(parent, "Tempo")
+        hero = tk.Frame(parent, bg=PANEL)
+        hero.pack(fill="x", padx=18, pady=(0, 12))
+        self.weather_temp_value = tk.Label(
+            hero,
+            text="-- C",
+            bg=PANEL,
+            fg=TEXT,
+            font=("Segoe UI Semibold", 34),
+            anchor="w",
+        )
+        self.weather_temp_value.pack(side="left", anchor="w")
+        meta = tk.Frame(hero, bg=PANEL)
+        meta.pack(side="left", fill="both", expand=True, padx=(14, 0))
+        self.weather_place_value = tk.Label(meta, text="Clima local", bg=PANEL, fg=TEXT, font=("Segoe UI Semibold", 11), anchor="w")
+        self.weather_place_value.pack(fill="x")
+        self.weather_desc_value = tk.Label(meta, text="Aguardando consulta", bg=PANEL, fg=TEXT_SOFT, font=("Segoe UI", 10), anchor="w", wraplength=220, justify="left")
+        self.weather_desc_value.pack(fill="x", pady=(4, 0))
+        grid = tk.Frame(parent, bg=PANEL)
+        grid.pack(fill="x", padx=12, pady=(0, 10))
+        for column in range(3):
+            grid.grid_columnconfigure(column, weight=1)
+        self.weather_feels_value = self._metric_card(grid, 0, 0, "SENSA")
+        self.weather_rain_value = self._metric_card(grid, 0, 1, "CHUVA")
+        self.weather_wind_value = self._metric_card(grid, 0, 2, "VENTO")
+
+    def _build_invest_panel(self, parent):
+        self._panel_title(parent, "Invest")
+        grid = tk.Frame(parent, bg=PANEL)
+        grid.pack(fill="x", padx=12, pady=(0, 10))
+        for column in range(2):
+            grid.grid_columnconfigure(column, weight=1)
+        self.invest_total_value = self._metric_card(grid, 0, 0, "PATRIMONIO")
+        self.invest_return_value = self._metric_card(grid, 0, 1, "RETORNO")
+        self.invest_income_value = self._metric_card(grid, 1, 0, "PROVENTOS")
+        self.invest_update_value = self._metric_card(grid, 1, 1, "SNAPSHOT")
+        self.invest_text = self._panel_list(parent, None, None, "SINAIS")
+
+    def _build_maps_panel(self, parent):
+        self._panel_title(parent, "Mapas")
+        self.maps_status_value = tk.Label(
+            parent,
+            text="Modulo preparado para rotas, lugares e tempo de deslocamento.",
+            bg=CARD,
+            fg=TEXT_SOFT,
+            font=("Segoe UI", 10),
+            justify="left",
+            anchor="nw",
+            wraplength=300,
+            padx=14,
+            pady=12,
+            highlightthickness=1,
+            highlightbackground=LINE,
+        )
+        self.maps_status_value.pack(fill="x", padx=18, pady=(0, 14))
+        row = tk.Frame(parent, bg=PANEL)
+        row.pack(fill="x", padx=18, pady=(0, 10))
+        for label, command in [
+            ("\u2316  Mapa", "mostrar mapa"),
+            ("\u25cc  Tela", "o que tem na tela"),
+        ]:
+            self._command_button(row, label, command).pack(side="left", fill="x", expand=True, padx=4)
+
+    def _build_commands_panel(self, parent):
+        self._panel_title(parent, "Comandos")
+        status_grid = tk.Frame(parent, bg=PANEL)
+        status_grid.pack(fill="x", padx=12, pady=(0, 10))
+        for column in range(2):
+            status_grid.grid_columnconfigure(column, weight=1)
+        self.commands_voice_value = self._metric_card(status_grid, 0, 0, "VOZ")
+        self.commands_mode_value = self._metric_card(status_grid, 0, 1, "MODO")
+
+        shell = tk.Frame(parent, bg=CARD, highlightthickness=1, highlightbackground=LINE)
+        shell.pack(fill="both", expand=True, padx=18, pady=(0, 16))
         tk.Label(
-            shortcuts,
-            text="ATALHOS RAPIDOS",
-            bg=PANEL_ALT,
+            shell,
+            text="ATIVOS",
+            bg=CARD,
             fg=TEXT_DIM,
             font=("Segoe UI Semibold", 9),
-        ).pack(anchor="w")
+        ).pack(anchor="w", padx=14, pady=(12, 4))
 
-        buttons_wrap = tk.Frame(shortcuts, bg=PANEL_ALT)
-        buttons_wrap.pack(fill="x", pady=(8, 0))
-        for label, command in [
-            ("Tela", "o que tem na tela"),
-            ("Detalha", "detalha"),
-            ("Resuma", "resuma a tela"),
-            ("Ditado", "modo ditado"),
-            ("Chrome", "abre o chrome"),
-            ("Spotify", "abre o spotify"),
-        ]:
-            button = tk.Button(
-                buttons_wrap,
-                text=label,
-                command=lambda cmd=command: self._queue_command(cmd),
-                bg=CARD_ALT,
-                fg=TEXT,
-                activebackground=ACCENT_2,
-                activeforeground="#031018",
-                relief="flat",
-                font=("Segoe UI", 10),
-                padx=10,
-                pady=8,
-            )
-            button.pack(side="left", padx=(0, 8))
-            self.quick_buttons.append(button)
+        canvas = tk.Canvas(shell, bg=CARD, highlightthickness=0)
+        scrollbar = tk.Scrollbar(shell, orient="vertical", command=canvas.yview)
+        content = tk.Frame(canvas, bg=CARD)
+        content.bind(
+            "<Configure>",
+            lambda event: canvas.configure(scrollregion=canvas.bbox("all")),
+        )
+        content_window = canvas.create_window((0, 0), window=content, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(content_window, width=event.width))
+        canvas.pack(side="left", fill="both", expand=True, padx=(0, 0), pady=(0, 10))
+        scrollbar.pack(side="right", fill="y", pady=(0, 10))
 
-        lower_grid = tk.Frame(self.right, bg=PANEL_ALT)
-        lower_grid.pack(fill="both", expand=True, padx=18, pady=(4, 18))
-        lower_grid.grid_columnconfigure(0, weight=1)
-        lower_grid.grid_columnconfigure(1, weight=1)
-        lower_grid.grid_rowconfigure(0, weight=1)
-        lower_grid.grid_rowconfigure(1, weight=1)
+        for group, commands in COMMAND_GROUPS:
+            tk.Label(
+                content,
+                text=group.upper(),
+                bg=CARD,
+                fg=ACCENT_3,
+                font=("Segoe UI Semibold", 8),
+            ).pack(anchor="w", padx=14, pady=(12, 4))
+            for icon, label, command, silent in commands:
+                self._command_row(content, icon, label, command, silent=silent)
 
-        self.routines_value = self._panel_list(lower_grid, 0, 0, "ROTINAS")
-        self.macros_value = self._panel_list(lower_grid, 0, 1, "MACROS")
-        self.todo_value = self._panel_list(lower_grid, 1, 0, "PROXIMOS AVANCOS")
-        self.console_text = self._panel_list(lower_grid, 1, 1, "PONTE CODEx")
+    def _draw_album_placeholder(self):
+        canvas = getattr(self, "media_art_canvas", None)
+        if not canvas:
+            return
+        canvas.delete("all")
+        size = 132
+        canvas.create_rectangle(0, 0, size, size, fill="#06182d", outline="")
+        for step in range(0, size, 16):
+            color = "#0d2f55" if step % 32 == 0 else "#0a2543"
+            canvas.create_line(step, 0, step, size, fill=color)
+            canvas.create_line(0, step, size, step, fill=color)
+        center = size // 2
+        for radius, color in [(50, "#123f6e"), (34, ACCENT_2), (18, ACCENT)]:
+            canvas.create_oval(center - radius, center - radius, center + radius, center + radius, outline=color, width=2)
+        for index in range(10):
+            phase = self.angle * 1.4 + index * 0.7
+            x = center + math.cos(phase) * (18 + index * 3)
+            y = center + math.sin(phase * 1.2) * (14 + index * 2)
+            canvas.create_oval(x - 2, y - 2, x + 2, y + 2, fill=ACCENT_3, outline="")
+        canvas.create_text(center, center + 48, text="AXEL", fill=TEXT_SOFT, font=("Segoe UI Semibold", 9))
+
+    def _set_album_art(self, image_url: str):
+        if not image_url or image_url == self.media_art_url:
+            return
+        if not requests or Image is None or ImageTk is None:
+            self.media_art_url = image_url
+            return
+        try:
+            response = requests.get(image_url, timeout=8)
+            response.raise_for_status()
+            image = Image.open(BytesIO(response.content)).convert("RGB")
+            image = image.resize((132, 132))
+            self.media_art_image = ImageTk.PhotoImage(image)
+            self.media_art_canvas.delete("all")
+            self.media_art_canvas.create_image(0, 0, anchor="nw", image=self.media_art_image)
+            self.media_art_url = image_url
+        except Exception:
+            self.media_art_url = ""
+            self.media_art_image = None
+            self._draw_album_placeholder()
+
+    def _refresh_media_metadata(self):
+        now = time.time()
+        if now - self.media_last_fetch < 12:
+            return
+        self.media_last_fetch = now
+        snapshot = None
+        if spotify_current_playback:
+            snapshot = spotify_current_playback()
+        if not snapshot:
+            self.media_snapshot = {}
+            self.media_track_value.config(text="Nada tocando")
+            self.media_artist_value.config(text="Spotify / sistema")
+            self.media_status_value.config(text="Capa neural ativa")
+            if self.media_art_url:
+                self.media_art_url = ""
+                self.media_art_image = None
+                self._draw_album_placeholder()
+            return
+
+        self.media_snapshot = snapshot
+        track = snapshot.get("name") or "Faixa sem nome"
+        artists = snapshot.get("artists") or "Artista desconhecido"
+        album = snapshot.get("album") or "Album desconhecido"
+        status = "tocando" if snapshot.get("is_playing") else "pausado"
+        self.media_track_value.config(text=track)
+        self.media_artist_value.config(text=f"{artists}\n{album}")
+        self.media_status_value.config(text=status)
+        self._set_album_art(str(snapshot.get("image_url") or ""))
+
+    def _refresh_weather_metadata(self):
+        now = time.time()
+        if now - self.weather_last_fetch < 900:
+            return
+        self.weather_last_fetch = now
+        if not get_weather_snapshot:
+            self.weather_temp_value.config(text="-- C")
+            self.weather_desc_value.config(text="Clima indisponivel")
+            return
+        try:
+            snapshot = get_weather_snapshot()
+        except Exception:
+            self.weather_temp_value.config(text="-- C")
+            self.weather_desc_value.config(text="Nao consegui consultar agora")
+            return
+        self.weather_snapshot = snapshot
+        temp = "--" if snapshot.temperature_c is None else str(round(snapshot.temperature_c))
+        feels = "--" if snapshot.apparent_temperature_c is None else f"{round(snapshot.apparent_temperature_c)} C"
+        rain = "--" if snapshot.rain_chance_percent is None else f"{round(snapshot.rain_chance_percent)}%"
+        wind = "--" if snapshot.wind_kmh is None else f"{round(snapshot.wind_kmh)} km/h"
+        self.weather_temp_value.config(text=f"{temp} C")
+        self.weather_place_value.config(text=snapshot.location_label or "Clima local")
+        self.weather_desc_value.config(text=snapshot.weather_label)
+        self.weather_feels_value.config(text=feels)
+        self.weather_rain_value.config(text=rain)
+        self.weather_wind_value.config(text=wind)
+
+    def _metric_from_snapshot(self, snapshot: dict, key: str) -> str:
+        metric_map = snapshot.get("metric_map") if isinstance(snapshot.get("metric_map"), dict) else {}
+        value = str(metric_map.get(key) or "").strip()
+        if value:
+            return value
+        for line in list(snapshot.get("metrics") or []) + list(snapshot.get("lines") or []):
+            text = str(line or "")
+            if key.lower() in text.lower():
+                return text[:42]
+        return "--"
+
+    def _refresh_investment_metadata(self):
+        now = time.time()
+        if now - self.investment_last_fetch < 30:
+            return
+        self.investment_last_fetch = now
+        snapshot = load_investment_snapshot() if load_investment_snapshot else {}
+        if not snapshot:
+            self.invest_total_value.config(text="--")
+            self.invest_return_value.config(text="--")
+            self.invest_income_value.config(text="--")
+            self.invest_update_value.config(text="sem dados")
+            self._set_text_widget(self.invest_text, ["Snapshot ainda nao carregado."])
+            return
+        self.invest_total_value.config(text=self._metric_from_snapshot(snapshot, "patrimonio"))
+        self.invest_return_value.config(text=self._metric_from_snapshot(snapshot, "rentabilidade"))
+        self.invest_income_value.config(text=self._metric_from_snapshot(snapshot, "proventos"))
+        updated_at = float(snapshot.get("updated_at") or 0)
+        updated_label = time.strftime("%d/%m %H:%M", time.localtime(updated_at)) if updated_at else "--"
+        self.invest_update_value.config(text=updated_label)
+        lines = []
+        summary = str(snapshot.get("summary") or "").strip()
+        if summary:
+            lines.append(summary[:220])
+        positions = snapshot.get("asset_positions") if isinstance(snapshot.get("asset_positions"), dict) else {}
+        if positions:
+            tickers = list(positions.keys())[:5]
+            lines.append("Ativos: " + ", ".join(tickers))
+        breakdown = snapshot.get("category_breakdown") if isinstance(snapshot.get("category_breakdown"), dict) else {}
+        if breakdown:
+            lines.append("Classes: " + ", ".join(f"{k}: {v}" for k, v in list(breakdown.items())[:4]))
+        self._set_text_widget(self.invest_text, lines or ["Snapshot salvo, sem resumo compacto."])
+
+    def _build_context_panel(self, parent):
+        self._panel_title(parent, "Contexto")
+        grid = tk.Frame(parent, bg=PANEL)
+        grid.pack(fill="x", padx=12, pady=(0, 10))
+        for column in range(2):
+            grid.grid_columnconfigure(column, weight=1)
+        self.time_value = self._metric_card(grid, 0, 0, "HORARIO")
+        self.name_value = self._metric_card(grid, 0, 1, "ASSISTENTE")
+        self.mic_value = self._metric_card(grid, 1, 0, "MICROFONE")
+        self.profile_value = self._metric_card(grid, 1, 1, "PERFIL")
+        self.style_value = self._metric_card(grid, 2, 0, "ESTILO")
+        self.command_value = self._metric_card(grid, 2, 1, "ULTIMO COMANDO")
+
+        lists = tk.Frame(parent, bg=PANEL)
+        lists.pack(fill="both", expand=True, padx=12, pady=(0, 14))
+        lists.grid_columnconfigure(0, weight=1)
+        lists.grid_columnconfigure(1, weight=1)
+        lists.grid_rowconfigure(0, weight=1)
+        lists.grid_rowconfigure(1, weight=1)
+        lists.grid_rowconfigure(2, weight=1)
+        self.profile_text = self._panel_list(lists, 0, 0, "OPERADOR")
+        self.routines_value = self._panel_list(lists, 0, 1, "ROTINAS")
+        self.macros_value = self._panel_list(lists, 1, 0, "MACROS")
+        self.todo_value = self._panel_list(lists, 1, 1, "AVANCOS")
+        self.console_text = self._panel_list(lists, 2, 0, "CODEX")
 
     def _metric_card(self, parent, row, column, title, panel=None):
-        card = tk.Frame(parent, bg=CARD, highlightthickness=1, highlightbackground=GRID)
-        card.grid(row=row, column=column, sticky="nsew", padx=6, pady=6, ipadx=8, ipady=8)
+        card = tk.Frame(parent, bg=CARD, highlightthickness=1, highlightbackground=LINE)
+        card.grid(row=row, column=column, sticky="nsew", padx=6, pady=6, ipadx=12, ipady=12)
         top = tk.Frame(card, bg=CARD)
         top.pack(fill="x", pady=(0, 2))
         tk.Label(top, text=title, bg=CARD, fg=TEXT_DIM, font=("Segoe UI Semibold", 8)).pack(side="left", anchor="w")
-        deco = tk.Canvas(top, width=64, height=10, bg=CARD, highlightthickness=0)
-        deco.pack(side="right")
-        deco.create_line(0, 5, 48, 5, fill=GRID, width=1)
-        deco.create_line(48, 5, 60, 5, fill=ACCENT_2, width=2)
-        deco.create_oval(60, 3, 64, 7, fill=ACCENT, outline="")
         value = tk.Label(
             card,
             text="--",
@@ -676,12 +1254,12 @@ class AssistantHud:
             justify="left",
             anchor="w",
         )
-        value.pack(anchor="w", pady=(6, 0))
+        value.pack(anchor="w", pady=(8, 0))
         return value
 
     def _text_block(self, parent, title, panel_bg, wrap=500, height=70):
         box = tk.Frame(parent, bg=panel_bg)
-        box.pack(fill="x", padx=18, pady=(0, 10))
+        box.pack(fill="x", padx=18, pady=(0, 12))
         title_row = tk.Frame(box, bg=panel_bg)
         title_row.pack(fill="x")
         tk.Label(
@@ -691,11 +1269,6 @@ class AssistantHud:
             fg=TEXT_DIM,
             font=("Segoe UI Semibold", 9),
         ).pack(side="left", anchor="w")
-        title_canvas = tk.Canvas(title_row, width=90, height=10, bg=panel_bg, highlightthickness=0)
-        title_canvas.pack(side="right")
-        title_canvas.create_line(0, 5, 62, 5, fill=GRID)
-        title_canvas.create_line(62, 5, 82, 5, fill=ACCENT_2, width=2)
-        title_canvas.create_oval(82, 3, 88, 9, fill=ACCENT, outline="")
         body = tk.Label(
             box,
             text="--",
@@ -705,18 +1278,23 @@ class AssistantHud:
             fg=TEXT,
             wraplength=wrap,
             font=("Segoe UI", 11),
-            padx=12,
-            pady=10,
+            padx=14,
+            pady=12,
             height=max(2, height // 26),
+            highlightthickness=1,
+            highlightbackground=LINE,
         )
         body.pack(anchor="w", fill="x", pady=(8, 0))
         return body
 
     def _panel_list(self, parent, row, column, title):
-        card = tk.Frame(parent, bg=CARD, highlightthickness=1, highlightbackground=GRID)
-        card.grid(row=row, column=column, sticky="nsew", padx=6, pady=6)
+        card = tk.Frame(parent, bg=CARD, highlightthickness=1, highlightbackground=LINE)
+        if row is None or column is None:
+            card.pack(fill="both", expand=True, padx=18, pady=(0, 16))
+        else:
+            card.grid(row=row, column=column, sticky="nsew", padx=6, pady=6)
         header = tk.Frame(card, bg=CARD)
-        header.pack(fill="x", padx=12, pady=(10, 6))
+        header.pack(fill="x", padx=14, pady=(12, 6))
         tk.Label(
             header,
             text=title,
@@ -724,11 +1302,6 @@ class AssistantHud:
             fg=TEXT_DIM,
             font=("Segoe UI Semibold", 9),
         ).pack(side="left", anchor="w")
-        deco = tk.Canvas(header, width=84, height=10, bg=CARD, highlightthickness=0)
-        deco.pack(side="right")
-        deco.create_line(0, 5, 58, 5, fill=GRID)
-        deco.create_line(58, 5, 78, 5, fill=ACCENT_2, width=2)
-        deco.create_oval(78, 2, 84, 8, fill=ACCENT, outline="")
 
         text = tk.Text(
             card,
@@ -736,10 +1309,10 @@ class AssistantHud:
             fg=TEXT,
             relief="flat",
             wrap="word",
-            font=("Consolas", 9),
+            font=("Segoe UI", 9),
             height=8,
-            padx=12,
-            pady=6,
+            padx=14,
+            pady=8,
         )
         text.pack(fill="both", expand=True, padx=0, pady=(0, 8))
         text.configure(state="disabled")
@@ -748,14 +1321,14 @@ class AssistantHud:
     def _status_palette(self, status: str) -> tuple[str, str]:
         status = str(status or "").upper()
         if status in {"RESPOSTA", "CONVERSA"}:
-            return RESPOND, BUSY
+            return "#a9e8ff", "#38bdf8"
         if status in {"COMANDO", "ATIVA"}:
-            return ACCENT, ACCENT_3
+            return "#60a5fa", "#93c5fd"
         if status == "DITADO":
-            return GOOD, ACCENT
+            return "#54e6c2", "#60a5fa"
         if status == "PAUSADA":
-            return ALERT, BUSY
-        return ACCENT_2, ACCENT
+            return "#35506d", "#617087"
+        return "#2563eb", "#60a5fa"
 
     def _activity_label(self, state: dict) -> str:
         status = str(state.get("status", "")).upper()
@@ -779,137 +1352,300 @@ class AssistantHud:
             return "silencioso"
         return "standby"
 
+    def _draw_brain_core(self, cx, cy, primary, secondary, intensity, scale=1.14):
+        nodes = [
+            (-82, -44), (-54, -84), (-18, -58), (18, -86), (58, -48), (84, -6),
+            (52, 36), (18, 72), (-24, 54), (-64, 22), (-96, -8), (-42, -8),
+            (0, -22), (42, -8), (2, 28),
+        ]
+        nodes = [(x * scale, y * scale) for x, y in nodes]
+        links = [
+            (0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8),
+            (8, 9), (9, 10), (10, 0), (0, 11), (11, 12), (12, 13), (13, 5),
+            (11, 14), (14, 13), (9, 14), (2, 12), (4, 13), (8, 14),
+        ]
+
+        self.canvas.create_oval(cx - 132, cy - 118, cx + 12, cy + 110, outline="#222831", width=1)
+        self.canvas.create_oval(cx - 12, cy - 118, cx + 132, cy + 110, outline="#222831", width=1)
+
+        for index, (start, end) in enumerate(links):
+            x1, y1 = nodes[start]
+            x2, y2 = nodes[end]
+            phase = self.angle * (1.7 + intensity) + index * 0.72
+            color = secondary if math.sin(phase) > 0.22 - intensity * 0.2 else GRID
+            width = 1 + int(math.sin(phase) > 0.72 - intensity * 0.15)
+            bend = 18 * math.sin(phase * 0.7)
+            self.canvas.create_line(
+                cx + x1,
+                cy + y1,
+                cx + (x1 + x2) / 2,
+                cy + (y1 + y2) / 2 + bend,
+                cx + x2,
+                cy + y2,
+                fill=color,
+                width=width,
+                smooth=True,
+            )
+
+        for index, (x, y) in enumerate(nodes):
+            phase = self.angle * (2.1 + intensity) + index * 0.86
+            radius = 3.5 + intensity * 2.2 + max(0, math.sin(phase)) * 2.4
+            fill = primary if math.sin(phase) > -0.15 else secondary
+            self.canvas.create_oval(cx + x - radius, cy + y - radius, cx + x + radius, cy + y + radius, fill=fill, outline="")
+
+    def _draw_background_grid(self, width, height):
+        self.canvas.create_rectangle(0, 0, width, height, fill=BG, outline="")
+        for radius, color in [
+            (520, "#09111f"),
+            (390, "#091221"),
+            (270, "#08101d"),
+        ]:
+            self.canvas.create_oval(
+                -radius * 0.55,
+                -radius * 0.52,
+                radius * 1.15,
+                radius * 1.05,
+                fill=color,
+                outline="",
+            )
+        right_radius = 430
+        self.canvas.create_oval(
+            width - right_radius * 0.55,
+            -right_radius * 0.45,
+            width + right_radius * 0.75,
+            right_radius * 0.9,
+            fill="#061522",
+            outline="",
+        )
+
+        grid_bottom = int(height * 0.9)
+        for x in range(0, width, 38):
+            color = "#0d1726" if x % 76 else "#111d30"
+            self.canvas.create_line(x, 0, x, grid_bottom, fill=color)
+        for y in range(0, grid_bottom, 38):
+            color = "#0d1726" if y % 76 else "#111d30"
+            self.canvas.create_line(0, y, width, y, fill=color)
+
+        fade_start = int(height * 0.58)
+        for index in range(10):
+            y0 = fade_start + index * 32
+            self.canvas.create_rectangle(0, y0, width, y0 + 18, fill=BG, outline="")
+        self.canvas.create_oval(
+            width // 2 - 360,
+            height // 2 - 280,
+            width // 2 + 360,
+            height // 2 + 280,
+            outline="#0d1828",
+            width=1,
+        )
+
+    def _command_row(self, parent, icon, label, command, silent=False):
+        row = tk.Frame(parent, bg=CARD)
+        row.pack(fill="x", padx=14, pady=4)
+        badge = tk.Label(
+            row,
+            text=icon,
+            bg="#0b1220",
+            fg=ACCENT_3,
+            font=("Segoe UI Symbol", 12),
+            width=3,
+            height=1,
+        )
+        badge.pack(side="left", padx=(0, 10), ipady=6)
+        text = tk.Frame(row, bg=CARD)
+        text.pack(side="left", fill="x", expand=True)
+        tk.Label(
+            text,
+            text=label,
+            bg=CARD,
+            fg=TEXT,
+            font=("Segoe UI Semibold", 9),
+            anchor="w",
+        ).pack(fill="x")
+        tk.Label(
+            text,
+            text=command,
+            bg=CARD,
+            fg=TEXT_DIM,
+            font=("Segoe UI", 8),
+            anchor="w",
+        ).pack(fill="x", pady=(2, 0))
+        self._command_button(
+            row,
+            "\u21b5",
+            command,
+            source="hud_command_list",
+            silent=silent,
+        ).pack(side="right", padx=(10, 0))
+
+    def _draw_ambient_particles(self, cx, cy, primary, secondary, intensity):
+        for index in range(14):
+            phase = self.angle * (0.35 + intensity * 0.12) + index * 0.62
+            radius = 260 + (index % 4) * 34 + 8 * math.sin(phase * 1.7)
+            x = cx + math.cos(phase) * radius
+            y = cy + math.sin(phase * 0.83) * (radius * 0.52)
+            size = 1.1 + (index % 3) * 0.35
+            color = secondary if index % 4 == 0 else "#1d3d63"
+            self.canvas.create_oval(x - size, y - size, x + size, y + size, fill=color, outline="")
+            if index % 5 == 0:
+                tail = 16 + intensity * 10
+                self.canvas.create_line(x - tail, y, x - tail * 0.35, y, fill="#123050", width=1)
+
+    def _draw_dotted_ring(self, cx, cy, radius, color, active_color, intensity):
+        count = 96
+        spin = self.angle * (0.22 + intensity * 0.16)
+        for index in range(count):
+            if index % 2:
+                continue
+            phase = (math.tau * index / count) + spin
+            tick = 2.0 + (index % 6 == 0) * 1.4
+            x = cx + math.cos(phase) * radius
+            y = cy + math.sin(phase) * radius
+            fill = active_color if math.sin(self.angle * 1.4 + index * 0.31) > 0.65 - intensity * 0.22 else color
+            self.canvas.create_oval(x - tick, y - tick, x + tick, y + tick, fill=fill, outline="")
+
+    def _draw_target_brackets(self, cx, cy, radius, primary, secondary, intensity):
+        offset = radius + 76
+        corner = 58
+        color = "#123050"
+        hot = secondary if intensity > 0.6 else primary
+        for sx, sy in [(-1, -1), (1, -1), (-1, 1), (1, 1)]:
+            x = cx + sx * offset
+            y = cy + sy * offset * 0.62
+            self.canvas.create_line(x, y, x - sx * corner, y, fill=color, width=1)
+            self.canvas.create_line(x, y, x, y - sy * corner, fill=color, width=1)
+            self.canvas.create_line(x - sx * 12, y, x - sx * 28, y, fill=hot, width=2)
+            self.canvas.create_line(x, y - sy * 12, x, y - sy * 28, fill=hot, width=2)
+
+        scan = 42 * math.sin(self.angle * (0.9 + intensity * 0.4))
+        self.canvas.create_line(cx - offset + 112, cy + scan, cx - radius - 26, cy + scan, fill="#1d3d63", width=1)
+        self.canvas.create_line(cx + radius + 26, cy - scan, cx + offset - 112, cy - scan, fill="#1d3d63", width=1)
+
+    def _draw_hex_cluster(self, cx, cy, primary, secondary, intensity):
+        side = 16
+        spacing_x = side * 1.55
+        spacing_y = side * 1.36
+        cells = [(-1, -1), (0, -1), (1, -1), (-1, 0), (0, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
+        for index, (col, row) in enumerate(cells):
+            x = cx + col * spacing_x + (row % 2) * spacing_x * 0.5
+            y = cy + row * spacing_y
+            phase = self.angle * (1.1 + intensity * 0.4) + index * 0.8
+            outline = secondary if math.sin(phase) > 0.1 else "#263348"
+            fill = "#101827" if index != 4 else "#17244a"
+            points = []
+            for step in range(6):
+                ang = math.radians(60 * step + 30)
+                points.extend((x + math.cos(ang) * side, y + math.sin(ang) * side))
+            self.canvas.create_polygon(points, fill=fill, outline=outline)
+            if math.sin(phase) > 0.65:
+                self.canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill=primary, outline="")
+
     def _draw_core(self, state):
         self.canvas.delete("all")
         width = max(self.canvas.winfo_width(), 500)
         height = max(self.canvas.winfo_height(), 240)
 
         primary, secondary = self._status_palette(state.get("status", ""))
+        status = str(state.get("status", "INATIVO")).upper()
         speed = 1.0
-        if state.get("status") in {"RESPOSTA", "CONVERSA"}:
+        intensity = 0.35
+        if status in {"RESPOSTA", "CONVERSA"}:
             speed = 1.6
-        elif state.get("status") == "DITADO":
+            intensity = 1.0
+        elif status == "DITADO":
             speed = 1.3
+            intensity = 0.78
+        elif status in {"COMANDO", "ATIVA"}:
+            intensity = 0.66
 
-        for x in range(0, width, 26):
-            self.canvas.create_line(x, 0, x, height, fill="#0d2737")
-        for y in range(self.scan_offset, height, 18):
-            self.canvas.create_line(0, y, width, y, fill="#102b39")
+        self._draw_background_grid(width, height)
 
-        cx = 156
-        cy = height // 2
-        pulse = 8 * math.sin(self.angle * speed)
-        outer = 96 + pulse
-        mid = 70 + pulse * 0.5
-        inner = 48 + pulse * 0.2
+        cx = width // 2
+        cy = height // 2 - 28
+        self._draw_ambient_particles(cx, cy, primary, secondary, intensity)
+        pulse = (7 + intensity * 8) * math.sin(self.angle * speed)
+        outer = 158 + pulse
+        mid = 112 + pulse * 0.45
+        inner = 18 + pulse * 0.14
 
-        self.canvas.create_oval(cx - outer, cy - outer, cx + outer, cy + outer, outline="#123849", width=2)
-        self.canvas.create_oval(cx - mid, cy - mid, cx + mid, cy + mid, outline=secondary, width=3)
-        self.canvas.create_oval(cx - inner, cy - inner, cx + inner, cy + inner, fill="#092430", outline=primary, width=2)
+        self._draw_target_brackets(cx, cy, outer, primary, secondary, intensity)
+        self.canvas.create_oval(cx - outer, cy - outer, cx + outer, cy + outer, outline="#171a20", width=1)
+        self.canvas.create_oval(cx - outer - 28, cy - outer - 28, cx + outer + 28, cy + outer + 28, outline="#08243f", width=1)
+        self._draw_dotted_ring(cx, cy, outer + 18, "#17405f", secondary, intensity)
+        self.canvas.create_oval(cx - mid, cy - mid, cx + mid, cy + mid, outline=secondary, width=2)
+        self._draw_hex_cluster(cx, cy, primary, secondary, intensity)
+        self._draw_brain_core(cx, cy, primary, secondary, intensity)
+        self.canvas.create_oval(cx - inner, cy - inner, cx + inner, cy + inner, fill=primary, outline="")
 
-        for radius, step, color, size in (
-            (116, 16, primary, 6),
-            (88, 22, secondary, 5),
-            (62, 26, primary, 4),
-        ):
-            for tick in range(0, 360, step):
-                rad = math.radians(tick + self.angle * 8)
-                x1 = cx + math.cos(rad) * radius
-                y1 = cy + math.sin(rad) * radius
-                x2 = cx + math.cos(rad) * (radius + size)
-                y2 = cy + math.sin(rad) * (radius + size)
-                self.canvas.create_line(x1, y1, x2, y2, fill=color, width=1)
-
-        self.canvas.create_arc(
-            cx - 108,
-            cy - 108,
-            cx + 108,
-            cy + 108,
-            start=18 + self.angle * 12,
-            extent=120 + int((math.sin(self.angle * speed * 1.5) + 1) * 80),
-            style="arc",
-            outline=primary,
-            width=4,
-        )
-        self.canvas.create_arc(
-            cx - 84,
-            cy - 84,
-            cx + 84,
-            cy + 84,
-            start=210 - self.angle * 15,
-            extent=95 + int((math.cos(self.angle * speed * 1.2) + 1) * 65),
-            style="arc",
-            outline=secondary,
-            width=3,
-        )
         self.canvas.create_arc(
             cx - 118,
             cy - 118,
             cx + 118,
             cy + 118,
-            start=110 - self.angle * 10,
-            extent=44,
-            style="arc",
-            outline=secondary,
-            width=5,
-        )
-        self.canvas.create_arc(
-            cx - 72,
-            cy - 72,
-            cx + 72,
-            cy + 72,
-            start=300 + self.angle * 12,
-            extent=56,
+            start=26 + self.angle * 8,
+            extent=92 + int((math.sin(self.angle * speed * 1.2) + 1) * 34),
             style="arc",
             outline=primary,
-            width=4,
+            width=3,
         )
+        self.canvas.create_arc(
+            cx - 162,
+            cy - 162,
+            cx + 162,
+            cy + 162,
+            start=220 - self.angle * 6,
+            extent=48,
+            style="arc",
+            outline=secondary,
+            width=3,
+        )
+        magenta_phase = math.sin(self.angle * (1.1 + intensity))
+        if magenta_phase > -0.2:
+            self.canvas.create_arc(
+                cx - 176,
+                cy - 176,
+                cx + 176,
+                cy + 176,
+                start=318 - self.angle * 10,
+                extent=32 + int(max(0, magenta_phase) * 28),
+                style="arc",
+                outline=ACCENT_MAGENTA,
+                width=2,
+            )
+        for index in range(8):
+            phase = self.angle * (1.35 + intensity) + index * 0.78
+            radius = 194 + 12 * math.sin(phase)
+            dot_x = cx + math.cos(phase) * radius
+            dot_y = cy + math.sin(phase * 0.86) * (radius * 0.62)
+            size = 1.5 + intensity * 1.5
+            self.canvas.create_oval(dot_x - size, dot_y - size, dot_x + size, dot_y + size, fill=secondary, outline="")
+            if index % 2 == 0:
+                self.canvas.create_line(cx, cy, dot_x, dot_y, fill="#0e395f", width=1)
 
-        for i in range(8):
-            orbit_angle = self.angle * speed * 0.8 + i * 0.75
-            dot_x = cx + math.cos(orbit_angle) * (116 + (i % 2) * 8)
-            dot_y = cy + math.sin(orbit_angle) * (116 + (i % 2) * 8)
-            self.canvas.create_oval(dot_x - 2, dot_y - 2, dot_x + 2, dot_y + 2, fill=secondary, outline="")
+        self.canvas.create_text(cx, cy + 184, text="Axel", fill=TEXT, font=("Segoe UI Semibold", 30))
+        for side in (-1, 1):
+            x = cx + side * 252
+            for index in range(7):
+                y = cy - 44 + index * 15
+                wave = max(0.12, math.sin(self.angle * (1.25 + intensity) + index * 0.65 + side))
+                bar_width = 18 + 30 * wave
+                self.canvas.create_line(x, y, x + side * bar_width, y, fill="#1d3d63", width=2)
+                if index % 2 == 0:
+                    self.canvas.create_line(x, y + 5, x + side * (bar_width * 0.52), y + 5, fill=secondary, width=1)
 
-        status = str(state.get("status", "INATIVO")).upper()
-        mode = str(state.get("mode", "comando")).upper()
-        self.canvas.create_text(cx, cy - 10, text=status, fill=TEXT, font=("Segoe UI Semibold", 17))
-        self.canvas.create_text(cx, cy + 18, text=mode, fill=TEXT_SOFT, font=("Segoe UI", 10))
-
-        info_x = 330
-        self.canvas.create_text(info_x, 38, text="AXEL / ONLINE", fill=primary, anchor="w", font=("Segoe UI Semibold", 13))
-        self.canvas.create_text(info_x, 68, text=f"Escuta: {state.get('status', '--')}", fill=TEXT, anchor="w", font=("Segoe UI", 11))
-        self.canvas.create_text(info_x, 92, text=f"Modo: {state.get('mode', '--')}", fill=TEXT, anchor="w", font=("Segoe UI", 11))
-        self.canvas.create_text(info_x, 116, text=f"Microfone: {str(state.get('microphone', '--'))[:38]}", fill=TEXT, anchor="w", font=("Segoe UI", 11))
-        self.canvas.create_text(info_x, 140, text=f"Perfil: {state.get('voice_profile', '--')}", fill=TEXT, anchor="w", font=("Segoe UI", 11))
-        self.canvas.create_text(info_x, 164, text=f"Estilo: {state.get('assistant_style', '--')}", fill=TEXT, anchor="w", font=("Segoe UI", 11))
-
-        self.canvas.create_rectangle(info_x, 190, info_x + 168, 206, outline=GRID, width=1)
+        meter_width = 180
+        meter_x = cx - meter_width // 2
+        meter_y = cy + 254
+        self.canvas.create_rectangle(meter_x, meter_y, meter_x + meter_width, meter_y + 3, fill=GRID, outline="")
         level = 0.25
-        if state.get("status") in {"ATIVA", "COMANDO"}:
+        if status in {"ATIVA", "COMANDO"}:
             level = 0.62 + 0.12 * math.sin(self.angle * speed * 2.5)
-        elif state.get("status") in {"RESPOSTA", "CONVERSA"}:
+        elif status in {"RESPOSTA", "CONVERSA"}:
             level = 0.84 + 0.08 * math.sin(self.angle * speed * 3.0)
-        elif state.get("status") == "DITADO":
+        elif status == "DITADO":
             level = 0.75 + 0.10 * math.sin(self.angle * speed * 2.2)
-        fill_width = int(164 * max(0.08, min(0.98, level)))
-        self.canvas.create_rectangle(info_x + 2, 192, info_x + 2 + fill_width, 204, fill=secondary, outline="")
-        self.canvas.create_text(info_x, 216, text="CANAL DE ATIVIDADE", fill=TEXT_DIM, anchor="w", font=("Segoe UI", 9))
-
-        for i in range(5):
-            y = 44 + i * 22
-            self.canvas.create_line(width - 86, y, width - 22, y, fill=GRID)
-            self.canvas.create_line(width - 86, y + 8, width - 34, y + 8, fill=primary if i % 2 == 0 else secondary)
-
-        meter_x = width - 170
-        meter_bottom = height - 30
-        for i in range(10):
-            base = 16 + i * 1.2
-            bar_height = base + (math.sin(self.angle * speed * 2.2 + i * 0.52) + 1) * 24
-            x0 = meter_x + i * 13
-            color = primary if i % 2 == 0 else secondary
-            self.canvas.create_rectangle(x0, meter_bottom - bar_height, x0 + 8, meter_bottom, fill=color, outline="")
-        self.canvas.create_text(meter_x, meter_bottom + 10, text="PULSO DE ATIVIDADE", fill=TEXT_DIM, anchor="w", font=("Segoe UI", 9))
+        fill_width = int(meter_width * max(0.08, min(0.98, level)))
+        self.canvas.create_rectangle(meter_x, meter_y, meter_x + fill_width, meter_y + 3, fill=secondary, outline="")
 
     def _set_text_widget(self, widget, lines: list[str]):
         widget.configure(state="normal")
@@ -917,8 +1653,8 @@ class AssistantHud:
         widget.insert("1.0", "\n".join(lines) if lines else "--")
         widget.configure(state="disabled")
 
-    def _queue_command(self, command: str):
-        enqueue_ui_command(command)
+    def _queue_command(self, command: str, source: str = "hud", silent: bool = False):
+        enqueue_ui_command(command, source=source, silent=silent)
         self.text_entry.delete(0, "end")
 
     def _submit_text_command(self, event=None):
@@ -949,6 +1685,18 @@ class AssistantHud:
         self.style_value.config(text=state.get("assistant_style") or "--")
         self.name_value.config(text=state.get("assistant_name") or "Axel")
         self.time_value.config(text=datetime.now().strftime("%H:%M:%S"))
+        self.commands_voice_value.config(text="hotword" if state.get("hotword_enabled") else "manual")
+        if state.get("conversation_mode"):
+            self.commands_mode_value.config(text="conversa")
+        elif state.get("dictation_mode"):
+            self.commands_mode_value.config(text="ditado")
+        else:
+            self.commands_mode_value.config(text="comando")
+        if not self.media_snapshot:
+            self.media_status_value.config(text=f"Ultimo comando: {state.get('last_command') or '--'}")
+        self._refresh_media_metadata()
+        self._refresh_weather_metadata()
+        self._refresh_investment_metadata()
 
         history_lines = []
         for item in state.get("history", [])[-8:]:
@@ -1067,9 +1815,11 @@ class AssistantHud:
             speed = 1.45
 
         self.angle += 0.06 * speed
-        self.scan_offset = (self.scan_offset + max(1, int(speed * 2))) % 18
+        self.scan_offset = (self.scan_offset + max(1, int(speed * 2))) % 240
         if self.last_state:
             self._draw_core(self.last_state)
+        if not self.media_art_url:
+            self._draw_album_placeholder()
         self.root.after(38, self._animate)
 
     def close(self):
@@ -1089,3 +1839,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

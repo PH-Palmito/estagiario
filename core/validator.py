@@ -20,6 +20,13 @@ ALLOWED_ACTIONS = {
     "run_script",
     "type_text",
     "open_url",
+    "weather_summary",
+    "daily_briefing",
+    "agenda_add",
+    "agenda_list_today",
+    "agenda_list_tomorrow",
+    "agenda_list_all",
+    "agenda_remove",
     "browser_new_tab",
     "browser_close_tab",
     "browser_next_tab",
@@ -60,7 +67,11 @@ ALLOWED_ACTIONS = {
     "browser_zoom_reset",
     "browser_search_site",
     "browser_search_music",
+    "browser_surprise_music",
+    "browser_music_session",
+    "browser_queue_music",
     "spotify_diagnostic",
+    "spotify_like_current_track",
     "media_play_pause",
     "media_next",
     "media_previous",
@@ -126,6 +137,13 @@ REQUIRED_FIELDS = {
     "run_script": ["target"],
     "type_text": ["content"],
     "open_url": ["target"],
+    "weather_summary": ["location"],
+    "daily_briefing": [],
+    "agenda_add": ["text"],
+    "agenda_list_today": [],
+    "agenda_list_tomorrow": [],
+    "agenda_list_all": [],
+    "agenda_remove": ["index"],
     "browser_new_tab": [],
     "browser_close_tab": [],
     "browser_next_tab": [],
@@ -166,7 +184,11 @@ REQUIRED_FIELDS = {
     "browser_zoom_reset": [],
     "browser_search_site": ["site", "query"],
     "browser_search_music": ["service", "query"],
+    "browser_surprise_music": ["service"],
+    "browser_music_session": ["service", "vibe"],
+    "browser_queue_music": ["service", "query"],
     "spotify_diagnostic": [],
+    "spotify_like_current_track": [],
     "media_play_pause": [],
     "media_next": [],
     "media_previous": [],
@@ -237,6 +259,12 @@ def validate_command(command: Command):
                 return False, "Qual alvo?"
             if field == "content":
                 return False, "Qual texto?"
+            if field == "text":
+                return False, "Qual compromisso devo registrar?"
+            if field == "location":
+                return False, "Qual lugar devo consultar?"
+            if field == "vibe":
+                return False, "Qual clima ou gênero musical?"
             if field == "index":
                 return False, "Qual item?"
             if field == "kind":

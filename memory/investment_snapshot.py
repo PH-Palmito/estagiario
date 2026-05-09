@@ -3,10 +3,14 @@ import os
 import re
 import time
 import unicodedata
+from datetime import datetime, timezone
 from pathlib import Path
 
 from config import GEMINI_API_KEY
 from llm.gemini_client import ask_gemini_grounded_model
+from memory.investment_asset_fundamentals import fetch_asset_fundamentals
+from memory.obsidian_sync import sync_portfolio_snapshot_note
+from memory.news_api import summarize_asset_news
 from memory.investment_strategy import calculate_auto_price_ceiling, get_asset_strategy, get_auto_ceiling_settings
 
 
@@ -260,7 +264,96 @@ def _asset_positions(snapshot: dict) -> dict[str, dict]:
 
 def _asset_fundamentals(snapshot: dict) -> dict[str, dict]:
     fundamentals = snapshot.get("asset_fundamentals")
-    return fundamentals if isinstance(fundamentals, dict) else {}
+    if not isinstance(fundamentals, dict):
+        return {}
+
+    for ticker, data in list(fundamentals.items()):
+        if not isinstance(data, dict):
+            continue
+        company_name = str(data.get("company_name") or "").strip()
+        company_name_price = _parse_currency_value(company_name)
+        if company_name_price is None:
+            continue
+
+        dy_percent = data.get("dividend_yield_current_percent")
+        if dy_percent is None:
+            dy_percent = _parse_percent_value(data.get("dividend_yield_current"))
+
+        # Some Investidor10 pages expose the quote right after the ticker; the loose parser
+        # can mistake that value for the company name and pick another currency as quote.
+        data["quote"] = _format_brl(company_name_price)
+        data["quote_value"] = company_name_price
+        data["company_name"] = ""
+        if dy_percent is not None:
+            data["annual_dividend_estimate_per_share"] = company_name_price * (float(dy_percent) / 100.0)
+        fundamentals[str(ticker).upper()] = data
+    return fundamentals
+
+
+def _category_breakdown(snapshot: dict) -> dict[str, str]:
+    breakdown = snapshot.get("category_breakdown")
+    return breakdown if isinstance(breakdown, dict) else {}
+
+
+def _unresolved_category_counts(snapshot: dict) -> dict[str, dict]:
+    unresolved = snapshot.get("unresolved_category_counts")
+    return unresolved if isinstance(unresolved, dict) else {}
+
+
+def _ensure_asset_fundamentals(snapshot: dict, ticker: str) -> dict:
+    ticker = str(ticker or "").upper().strip()
+    if not ticker:
+        return {}
+    fundamentals_map = _asset_fundamentals(snapshot)
+    fundamentals = fundamentals_map.get(ticker, {})
+    if fundamentals:
+        return fundamentals
+    try:
+        fundamentals = fetch_asset_fundamentals(ticker) or {}
+    except Exception:
+        fundamentals = {}
+    if fundamentals:
+        fundamentals_map[ticker] = fundamentals
+        snapshot["asset_fundamentals"] = fundamentals_map
+    return fundamentals
+
+
+def _parse_iso_datetime(value: str) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone()
+    except Exception:
+        return None
+
+
+def _format_day_month(value: str) -> str:
+    parsed = _parse_iso_datetime(value)
+    if not parsed:
+        return ""
+    return parsed.strftime("%d/%m")
+
+
+def _rank_portfolio_positions(snapshot: dict) -> list[tuple[str, dict]]:
+    ranked: list[tuple[str, dict, float, float]] = []
+    for ticker, position in _asset_positions(snapshot).items():
+        portfolio_weight = _parse_percent_value(position.get("portfolio_percentage")) or 0.0
+        balance = _parse_currency_value(position.get("balance")) or 0.0
+        ranked.append((ticker, position, portfolio_weight, balance))
+    ranked.sort(key=lambda item: (item[2], item[3]), reverse=True)
+    return [(ticker, position) for ticker, position, _, _ in ranked]
+
+
+def _is_probable_fii_ticker(ticker: str, fundamentals: dict | None = None) -> bool:
+    code = str(ticker or "").upper().strip()
+    if code.endswith("11"):
+        return True
+    company_name = str((fundamentals or {}).get("company_name") or "").lower()
+    return "fundo" in company_name or "fii" in company_name
 
 
 def _resolve_reference_price(position: dict, strategy: dict) -> float | None:
@@ -298,6 +391,32 @@ def _effective_price_ceiling(snapshot: dict, ticker: str, position: dict) -> tup
     return float(auto_ceiling), "automatic"
 
 
+def _external_effective_price_ceiling(ticker: str, fundamentals: dict) -> tuple[float | None, str]:
+    strategy = get_asset_strategy(ticker)
+    manual_ceiling = strategy.get("price_ceiling")
+    if manual_ceiling is not None:
+        return float(manual_ceiling), "manual"
+
+    if not strategy.get("auto_ceiling_enabled"):
+        return None, "none"
+
+    annual_dividend = fundamentals.get("annual_dividend_estimate_per_share")
+    target_yield = strategy.get("auto_ceiling_target_yield_percent")
+    if annual_dividend and target_yield:
+        try:
+            ceiling = float(annual_dividend) / (float(target_yield) / 100.0)
+            if ceiling > 0:
+                return ceiling, "automatic_yield"
+        except Exception:
+            pass
+
+    quote_value = fundamentals.get("quote_value")
+    auto_ceiling = calculate_auto_price_ceiling(quote_value, strategy.get("auto_ceiling_margin_percent"))
+    if auto_ceiling is None:
+        return None, "none"
+    return float(auto_ceiling), "automatic"
+
+
 def _portfolio_items_above_ceiling(snapshot: dict) -> list[dict]:
     results: list[dict] = []
     for ticker, position in _asset_positions(snapshot).items():
@@ -318,10 +437,114 @@ def _portfolio_items_above_ceiling(snapshot: dict) -> list[dict]:
     return sorted(results, key=lambda item: item.get("premium_percent") or 0.0, reverse=True)
 
 
+def _portfolio_fii_dy_answer(snapshot: dict) -> str:
+    fii_rows: list[tuple[str, str, float]] = []
+    weighted_sum = 0.0
+    weight_total = 0.0
+
+    for ticker, position in _rank_portfolio_positions(snapshot):
+        fundamentals = _ensure_asset_fundamentals(snapshot, ticker)
+        if not _is_probable_fii_ticker(ticker, fundamentals):
+            continue
+        dy_label = str(fundamentals.get("dividend_yield_current") or "").strip()
+        dy_percent = fundamentals.get("dividend_yield_current_percent")
+        if not dy_label or dy_percent in (None, ""):
+            continue
+        weight = _parse_percent_value(position.get("portfolio_percentage")) or 0.0
+        fii_rows.append((ticker, dy_label, weight))
+        weighted_sum += float(dy_percent) * weight
+        weight_total += weight
+
+    if fii_rows:
+        listed = "; ".join(f"{ticker} em {dy}" for ticker, dy, _weight in fii_rows)
+        if weight_total > 0:
+            weighted_average = weighted_sum / weight_total
+            return (
+                f"O DY dos seus FIIs salvos hoje está assim: {listed}. "
+                f"Pelo peso atual desse bloco, o DY médio ponderado fica perto de {_format_percent(weighted_average, digits=2)}."
+            )
+        return f"O DY dos seus FIIs salvos hoje está assim: {listed}."
+
+    breakdown = _category_breakdown(snapshot)
+    fii_share = str(breakdown.get("FIIs") or "").strip()
+    if fii_share:
+        unresolved = _unresolved_category_counts(snapshot).get("FIIs", {})
+        reported = int(unresolved.get("reported") or 0) if isinstance(unresolved, dict) else 0
+        captured = int(unresolved.get("captured") or 0) if isinstance(unresolved, dict) else 0
+        detail_parts = []
+        if reported:
+            detail_parts.append(f"a fonte pública reporta {reported} ativos nesse bloco")
+        if captured:
+            detail_parts.append(f"e eu consegui individualizar {captured}")
+        details = ""
+        if detail_parts:
+            details = " Hoje, " + ", ".join(detail_parts) + "."
+        return (
+            f"Hoje eu sei que FIIs representam {fii_share} da sua carteira, mas a carteira pública ainda expõe esse bloco de forma agregada.{details} "
+            "Então eu ainda não consigo te dar o DY dos seus FIIs um por um com confiança. "
+            "Se você me disser um ticker específico, como XPML11 ou VGIA11, eu já consigo analisar DY, preço e dividendos dele."
+        )
+
+    return "No snapshot atual, eu não consegui identificar FIIs individualizados na carteira."
+
+
+def _portfolio_fii_dy_answer(snapshot: dict) -> str:
+    fii_rows: list[tuple[str, str, float]] = []
+    weighted_sum = 0.0
+    weight_total = 0.0
+
+    for ticker, position in _rank_portfolio_positions(snapshot):
+        fundamentals = _ensure_asset_fundamentals(snapshot, ticker)
+        if not _is_probable_fii_ticker(ticker, fundamentals):
+            continue
+        dy_label = str(fundamentals.get("dividend_yield_current") or "").strip()
+        dy_percent = fundamentals.get("dividend_yield_current_percent")
+        if not dy_label or dy_percent in (None, ""):
+            continue
+        weight = _parse_percent_value(position.get("portfolio_percentage")) or 0.0
+        fii_rows.append((ticker, dy_label, weight))
+        weighted_sum += float(dy_percent) * weight
+        weight_total += weight
+
+    if fii_rows:
+        listed = "; ".join(f"{ticker} em {dy}" for ticker, dy, _weight in fii_rows)
+        if weight_total > 0:
+            weighted_average = weighted_sum / weight_total
+            return (
+                f"O DY dos seus FIIs salvos hoje está assim: {listed}. "
+                f"Pelo peso atual desse bloco, o DY médio ponderado fica perto de {_format_percent(weighted_average, digits=2)}."
+            )
+        return f"O DY dos seus FIIs salvos hoje está assim: {listed}."
+
+    breakdown = _category_breakdown(snapshot)
+    fii_share = str(breakdown.get("FIIs") or "").strip()
+    if fii_share:
+        unresolved = _unresolved_category_counts(snapshot).get("FIIs", {})
+        reported = int(unresolved.get("reported") or 0) if isinstance(unresolved, dict) else 0
+        captured = int(unresolved.get("captured") or 0) if isinstance(unresolved, dict) else 0
+        source_label = "carteira privada" if str(snapshot.get("source", "")).strip() == "investidor10_private_wallet" else "carteira pública"
+        detail_parts = []
+        if reported:
+            detail_parts.append(f"a {source_label} reporta {reported} ativos nesse bloco")
+        if captured:
+            detail_parts.append(f"eu consegui individualizar {captured}")
+        details = ""
+        if detail_parts:
+            details = " Hoje, " + ", ".join(detail_parts) + "."
+        return (
+            f"Hoje eu sei que FIIs representam {fii_share} da sua carteira, mas a {source_label} ainda expõe esse bloco de forma agregada.{details} "
+            "Então eu ainda não consigo te dar o DY dos seus FIIs um por um com confiança. "
+            "Se você me disser um ticker específico, como XPML11 ou VGIA11, eu já consigo analisar DY, preço e dividendos dele."
+        )
+
+    return "No snapshot atual, eu não consegui identificar FIIs individualizados na carteira."
+
+
 def _portfolio_attention_items(snapshot: dict) -> list[dict]:
     items: list[dict] = []
     for ticker, position in _asset_positions(snapshot).items():
         reasons: list[str] = []
+        opinions: list[str] = []
         current_price = _parse_currency_value(position.get("current_price"))
         average_price = _parse_currency_value(position.get("average_price"))
         variation = _parse_percent_value(position.get("variation"))
@@ -334,22 +557,27 @@ def _portfolio_attention_items(snapshot: dict) -> list[dict]:
         ceiling, source = _effective_price_ceiling(snapshot, ticker, position)
         if source == "manual" and current_price is not None and ceiling is not None and current_price > ceiling:
             reasons.append("acima de seu preço-teto")
+            opinions.append("isso pede mais cautela antes de aumentar posição")
         if rentability is not None and rentability <= -10:
             reasons.append(f"rentabilidade fraca em {position.get('rentability')}")
+            opinions.append("vale revisar se a tese continua firme")
         if variation is not None and variation <= -10:
             reasons.append(f"queda recente de {position.get('variation')}")
         if portfolio_percentage is not None and ideal_percentage is not None and portfolio_percentage > (ideal_percentage + 0.75):
             reasons.append("peso acima do ideal")
+            opinions.append("talvez valha evitar concentrar ainda mais")
         if rating_text.isdigit() and int(rating_text) <= 5:
             reasons.append(f"nota interna em {rating_text}")
         if average_price is not None and current_price is not None and current_price < average_price and buy_more == "não":
             reasons.append("abaixo do preço médio sem sinal de compra adicional")
+            opinions.append("pode valer uma revisão de compra se a tese seguir intacta")
 
         if reasons:
             items.append(
                 {
                     "ticker": ticker,
                     "reasons": reasons,
+                    "opinions": opinions,
                     "current_price": position.get("current_price"),
                     "rentability": position.get("rentability"),
                 }
@@ -357,11 +585,322 @@ def _portfolio_attention_items(snapshot: dict) -> list[dict]:
     return items
 
 
+def _position_quick_opinion(snapshot: dict, ticker: str, position: dict) -> str:
+    current_price = _parse_currency_value(position.get("current_price"))
+    average_price = _parse_currency_value(position.get("average_price"))
+    variation = _parse_percent_value(position.get("variation"))
+    rentability = _parse_percent_value(position.get("rentability"))
+    strategy = get_asset_strategy(ticker)
+    ceiling, source = _effective_price_ceiling(snapshot, ticker, position)
+
+    if source == "manual" and current_price is not None and ceiling is not None and current_price > ceiling:
+        return "Para o seu critério, eu iria com mais cautela antes de aumentar posição."
+
+    if average_price is not None and current_price is not None and current_price < average_price:
+        if str(position.get("buy_more", "")).strip().lower() == "sim":
+            return "Como ele está abaixo do seu preço médio, pode fazer sentido estudar novo aporte se a tese seguir firme."
+        return "Estar abaixo do preço médio pode abrir oportunidade, mas eu revisaria a tese antes de comprar mais."
+
+    if rentability is not None and rentability <= -10:
+        return "Aqui eu daria mais peso à revisão da tese do que ao impulso de comprar por queda."
+
+    if variation is not None and variation <= -10:
+        return "Queda forte assim pede calma; eu tentaria entender se é ruído ou mudança de fundamento."
+
+    if current_price is not None and ceiling is not None and current_price <= ceiling:
+        return "Pelo seu critério de preço, ele parece mais perto de uma zona aceitável de entrada."
+
+    return "Eu olharia preço, tese e risco do setor juntos antes de decidir qualquer aporte."
+
+
+def _position_action_stance(snapshot: dict, ticker: str, position: dict) -> str:
+    current_price = _parse_currency_value(position.get("current_price"))
+    average_price = _parse_currency_value(position.get("average_price"))
+    variation = _parse_percent_value(position.get("variation"))
+    rentability = _parse_percent_value(position.get("rentability"))
+    ceiling, source = _effective_price_ceiling(snapshot, ticker, position)
+    buy_more = str(position.get("buy_more", "")).strip().lower()
+
+    if source == "manual" and current_price is not None and ceiling is not None and current_price > ceiling:
+        return "Hoje, eu trataria mais como ativo para observar do que para aportar."
+    if average_price is not None and current_price is not None and current_price < average_price:
+        if buy_more == "sim":
+            return "Hoje, ele me parece mais um nome para aporte estudado do que para simples espera."
+        return "Hoje, eu trataria mais como oportunidade em estudo do que como compra automática."
+    if rentability is not None and rentability <= -10:
+        return "Hoje, eu inclinaria mais para segurar e revisar a tese do que para aumentar posição."
+    if variation is not None and variation <= -10:
+        return "Hoje, eu deixaria mais em observação até entender melhor o motivo da queda."
+    if current_price is not None and ceiling is not None and current_price <= ceiling:
+        return "Hoje, ele parece mais próximo de uma faixa aceitável para aporte."
+    return "Hoje, eu trataria mais como posição para segurar e acompanhar."
+
+
+def _external_asset_opinion(ticker: str, fundamentals: dict) -> tuple[str, str]:
+    quote_value = fundamentals.get("quote_value")
+    dy_percent = fundamentals.get("dividend_yield_current_percent")
+    p_vp = _parse_percent_value(fundamentals.get("p_vp")) if isinstance(fundamentals.get("p_vp"), str) else None
+    try:
+        if p_vp is None and fundamentals.get("p_vp") not in (None, ""):
+            p_vp = float(str(fundamentals.get("p_vp")).replace(".", "").replace(",", "."))
+    except Exception:
+        p_vp = None
+    try:
+        p_l = float(str(fundamentals.get("p_l")).replace(".", "").replace(",", ".")) if fundamentals.get("p_l") not in (None, "") else None
+    except Exception:
+        p_l = None
+    ceiling, source = _external_effective_price_ceiling(ticker, fundamentals)
+
+    if quote_value is not None and ceiling is not None and quote_value > ceiling and source == "manual":
+        return (
+            "Pelo seu critério de preço, ele ainda pede cautela.",
+            "Hoje, eu trataria mais como ativo para observar do que para aportar.",
+        )
+    if quote_value is not None and ceiling is not None and quote_value <= ceiling:
+        return (
+            "Pelo seu critério de preço, ele parece mais aceitável para estudo de entrada.",
+            "Hoje, eu trataria mais como oportunidade em estudo do que como compra automática.",
+        )
+    if dy_percent is not None and dy_percent >= 8 and p_vp is not None and p_vp <= 1.05:
+        return (
+            "Para renda, o conjunto de dividend yield e preço patrimonial parece interessante, embora eu ainda confirmasse a qualidade do ativo.",
+            "Hoje, ele me parece mais um nome para aporte estudado do que para simples espera.",
+        )
+    if p_l is not None and p_l < 0:
+        return (
+            "Como o lucro ainda não sustenta bem a leitura, eu iria com mais prudência.",
+            "Hoje, eu trataria mais como ativo para observar do que para aportar.",
+        )
+    return (
+        "Eu cruzaria preço, qualidade e risco antes de chamar de oportunidade.",
+        "Hoje, eu trataria mais como posição para observar e acompanhar.",
+    )
+
+
+def _format_external_asset_reading(ticker: str, fundamentals: dict) -> str:
+    strategy = get_asset_strategy(ticker)
+    company_name = str(fundamentals.get("company_name") or "").strip()
+    quote = str(fundamentals.get("quote") or "").strip()
+    dy_current = str(fundamentals.get("dividend_yield_current") or "").strip()
+    dy_average = str(fundamentals.get("dividend_yield_5y_average") or "").strip()
+    p_vp = str(fundamentals.get("p_vp") or "").strip()
+    p_l = str(fundamentals.get("p_l") or "").strip()
+    ceiling, source = _external_effective_price_ceiling(ticker, fundamentals)
+    opinion, stance = _external_asset_opinion(ticker, fundamentals)
+
+    label = ticker
+    if company_name:
+        label += f", {company_name}"
+
+    parts = [f"Sobre {label}, a cotação atual está em {quote or 'valor não identificado'}."]
+    if dy_current:
+        if dy_average:
+            parts.append(f"O dividend yield atual está em {dy_current}, com média de 5 anos em {dy_average}.")
+        else:
+            parts.append(f"O dividend yield atual está em {dy_current}.")
+    if p_vp:
+        parts.append(f"O P sobre VP está em {p_vp}.")
+    if p_l:
+        parts.append(f"O P sobre L está em {p_l}.")
+    if ceiling is not None:
+        if source == "manual":
+            parts.append(f"Seu preço-teto salvo para {ticker} está em {_format_brl(ceiling)}.")
+        elif source == "automatic_yield":
+            parts.append(f"Pela base automática por yield alvo, o preço-teto estimado ficaria em {_format_brl(ceiling)}.")
+        elif source == "automatic":
+            parts.append(f"Pela base automática atual, o preço-teto estimado ficaria em {_format_brl(ceiling)}.")
+    thesis = str(strategy.get("thesis", "")).strip()
+    if thesis:
+        parts.append(f"Sua tese curta salva para esse ativo é: {thesis}")
+    if strategy.get("in_watchlist"):
+        parts.append(f"{ticker} já está na sua watchlist.")
+    parts.append(opinion)
+    parts.append(stance)
+    return " ".join(parts)
+
+
+def _ticker_dividend_events(snapshot: dict, ticker: str) -> list[dict]:
+    fundamentals = _ensure_asset_fundamentals(snapshot, ticker)
+    events = fundamentals.get("next_dividend_events")
+    if not isinstance(events, list):
+        return []
+    ranked_events: list[tuple[datetime, dict]] = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        payment_date = _parse_iso_datetime(event.get("payment_date"))
+        last_date_prior = _parse_iso_datetime(event.get("last_date_prior"))
+        sort_key = payment_date or last_date_prior
+        if not sort_key:
+            continue
+        ranked_events.append((sort_key, event))
+    ranked_events.sort(key=lambda item: item[0])
+    return [event for _, event in ranked_events]
+
+
+def _format_dividend_event(ticker: str, event: dict) -> str:
+    details: list[str] = []
+    rate_value = _parse_currency_value(event.get("rate"))
+    if rate_value is not None and rate_value > 1000:
+        rate_value = rate_value / 1_000_000
+    if rate_value is not None:
+        details.append(f"valor de {_format_brl(rate_value)} por cota")
+    payment_day = _format_day_month(event.get("payment_date"))
+    if payment_day:
+        details.append(f"pagamento em {payment_day}")
+    last_date = _format_day_month(event.get("last_date_prior"))
+    if last_date:
+        details.append(f"data-com ate {last_date}")
+    label = str(event.get("label") or "").strip()
+    prefix = f"{ticker}"
+    if label:
+        prefix += f" ({label})"
+    if details:
+        return prefix + ": " + ", ".join(details)
+    return prefix
+
+
+def _portfolio_dividend_schedule(snapshot: dict, limit: int = 5) -> list[dict]:
+    events: list[dict] = []
+    for ticker, position in _rank_portfolio_positions(snapshot):
+        ticker_events = _ticker_dividend_events(snapshot, ticker)
+        if not ticker_events:
+            continue
+        for event in ticker_events[:2]:
+            sort_key = _parse_iso_datetime(event.get("payment_date")) or _parse_iso_datetime(event.get("last_date_prior"))
+            if not sort_key:
+                continue
+            events.append(
+                {
+                    "ticker": ticker,
+                    "event": event,
+                    "sort_key": sort_key,
+                    "portfolio_percentage": _parse_percent_value(position.get("portfolio_percentage")) or 0.0,
+                }
+            )
+    events.sort(key=lambda item: (item["sort_key"], -item["portfolio_percentage"]))
+    return events[: max(1, limit)]
+
+
+def _portfolio_dividend_schedule_answer(snapshot: dict) -> str:
+    events = _portfolio_dividend_schedule(snapshot, limit=5)
+    if events:
+        details = "; ".join(_format_dividend_event(item["ticker"], item["event"]) for item in events)
+        return "Agenda de dividendos da carteira: " + details + "."
+
+    unresolved = _unresolved_category_counts(snapshot)
+    fii_gap = unresolved.get("FIIs", {}) if isinstance(unresolved, dict) else {}
+    fii_reported = int(fii_gap.get("reported") or 0) if isinstance(fii_gap, dict) else 0
+    fii_captured = int(fii_gap.get("captured") or 0) if isinstance(fii_gap, dict) else 0
+    other_missing = []
+    for category, data in unresolved.items():
+        if category == "FIIs" or not isinstance(data, dict):
+            continue
+        reported = int(data.get("reported") or 0)
+        captured = int(data.get("captured") or 0)
+        if reported > captured:
+            other_missing.append(f"{category}: {captured} de {reported}")
+
+    if fii_reported > fii_captured:
+        parts = [
+            "Ainda não encontrei uma agenda de dividendos confiável para a carteira inteira."
+        ]
+        parts.append(
+            f"Hoje a fonte pública reporta {fii_reported} FIIs nesse bloco, mas eu só consegui individualizar {fii_captured} deles na memória da carteira."
+        )
+        if other_missing:
+            parts.append("Também existem blocos ainda agregados em " + "; ".join(other_missing) + ".")
+        parts.append(
+            "Então os próximos proventos podem estar incompletos aqui. Se você me disser um ticker específico, como XPML11 ou VGIA11, eu já consigo checar DY e próximos dividendos dele."
+        )
+        return " ".join(parts)
+
+    return "Ainda não encontrei uma agenda de dividendos confiável para a carteira inteira."
+
+
+def _clean_news_lead(text: str, ticker: str) -> str:
+    cleaned = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not cleaned:
+        return ""
+    patterns = [
+        rf"^encontrei sinais relevantes sobre {re.escape(ticker)}\.\s*",
+        rf"^eu encontrei material sobre {re.escape(ticker)},\s*",
+        rf"^o que apareceu sobre {re.escape(ticker)}\s*",
+    ]
+    for pattern in patterns:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.I)
+    return cleaned.strip()
+
+
+def _portfolio_news_digest(snapshot: dict, limit_assets: int = 4, limit_summaries: int = 2) -> list[str]:
+    summaries: list[str] = []
+    for ticker, _position in _rank_portfolio_positions(snapshot)[: max(1, limit_assets)]:
+        fundamentals = _ensure_asset_fundamentals(snapshot, ticker)
+        company_name = str(fundamentals.get("company_name") or "").strip()
+        thesis = str(get_asset_strategy(ticker).get("thesis") or "").strip()
+        try:
+            summary = summarize_asset_news(
+                ticker,
+                company_name=company_name,
+                thesis=thesis,
+                market_data=fundamentals,
+            )
+        except Exception:
+            summary = None
+        cleaned = _clean_news_lead(summary or "", ticker)
+        if not cleaned:
+            continue
+        if "nada com confianca suficiente" in _normalize(cleaned):
+            continue
+        if "sensacionalista" in _normalize(cleaned):
+            continue
+        summaries.append(f"{ticker}: {cleaned}")
+        if len(summaries) >= limit_summaries:
+            break
+    return summaries
+
+
+def _portfolio_monitor_digest(snapshot: dict) -> str:
+    parts: list[str] = []
+
+    attention_items = _portfolio_attention_items(snapshot)[:3]
+    if attention_items:
+        attention_text = []
+        for item in attention_items:
+            reason_text = ", ".join(item["reasons"][:2])
+            opinion_text = ""
+            opinions = item.get("opinions") or []
+            if opinions:
+                opinion_text = str(opinions[0]).strip()
+            if opinion_text:
+                attention_text.append(f"{item['ticker']} ({reason_text}); minha leitura: {opinion_text}")
+            else:
+                attention_text.append(f"{item['ticker']} ({reason_text})")
+        parts.append("Pontos de atencao: " + "; ".join(attention_text) + ".")
+
+    dividend_events = _portfolio_dividend_schedule(snapshot, limit=2)
+    if dividend_events:
+        dividend_text = "; ".join(
+            _format_dividend_event(item["ticker"], item["event"]) for item in dividend_events
+        )
+        parts.append("Proximos dividendos identificados: " + dividend_text + ".")
+
+    news_items = _portfolio_news_digest(snapshot, limit_assets=4, limit_summaries=1)
+    if news_items:
+        parts.append("Noticia que merece radar: " + news_items[0] + ".")
+
+    if parts:
+        return "Monitoramento atual da carteira: " + " ".join(parts)
+    return "No momento, eu nao encontrei sinal forte de monitoramento alem do resumo normal da carteira."
+
+
 def _format_position_reading(snapshot: dict, ticker: str, position: dict) -> str:
     strategy = get_asset_strategy(ticker)
     fundamentals = _asset_fundamentals(snapshot).get(ticker, {})
+    current_price_text = str(position.get("current_price") or fundamentals.get("quote") or "").strip()
+    current_price_value = _parse_currency_value(current_price_text)
     parts = [
-        f"Sobre {ticker}, a cotação atual visível está em {position.get('current_price', 'valor não identificado')}.",
+        f"Sobre {ticker}, a cotação atual está em {current_price_text or 'valor não identificado'}.",
     ]
 
     if position.get("average_price"):
@@ -379,10 +918,9 @@ def _format_position_reading(snapshot: dict, ticker: str, position: dict) -> str
 
     ceiling = strategy.get("price_ceiling")
     if ceiling is not None:
-        current_price = _parse_currency_value(position.get("current_price"))
         parts.append(f"Seu preço-teto salvo para {ticker} é {_format_brl(float(ceiling))}.")
-        if current_price is not None:
-            relation = "abaixo" if current_price <= float(ceiling) else "acima"
+        if current_price_value is not None:
+            relation = "abaixo" if current_price_value <= float(ceiling) else "acima"
             parts.append(f"Pela cotação visível, ele está {relation} desse nível.")
     else:
         auto_ceiling, source = _effective_price_ceiling(snapshot, ticker, position)
@@ -407,7 +945,8 @@ def _format_position_reading(snapshot: dict, ticker: str, position: dict) -> str
     if strategy.get("in_watchlist"):
         parts.append(f"{ticker} já está na sua watchlist.")
 
-    parts.append("Minha leitura prática é cruzar esse preço com sua tese, o risco do setor e seu critério de entrada antes de chamar de oportunidade.")
+    parts.append(_position_quick_opinion(snapshot, ticker, position))
+    parts.append(_position_action_stance(snapshot, ticker, position))
     return " ".join(parts)
 
 
@@ -583,6 +1122,64 @@ def _ask_grounded_investment_reading(question: str, snapshot: dict) -> str | Non
     return None
 
 
+def _ask_grounded_asset_news(question: str, ticker: str, snapshot: dict) -> str | None:
+    if not GEMINI_API_KEY:
+        return None
+
+    strategy = get_asset_strategy(ticker)
+    thesis = str(strategy.get("thesis", "")).strip()
+    prompt = (
+        "Você é o Axel, assistente financeiro pessoal do Pedro Henrique.\n"
+        f"Ativo: {ticker}\n"
+        f"Tese salva: {thesis or 'não informada'}\n"
+        f"Pergunta: {question}\n\n"
+        "Pesquise notícias, fatos relevantes, comunicados, dividendos anunciados ou eventos recentes que afetem esse ativo.\n"
+        "Responda em português do Brasil.\n"
+        "Seja prático e útil.\n"
+        "Diga o que realmente importa para o investidor.\n"
+        "Se houver mais de um ponto importante, resuma em até 4 frases curtas.\n"
+        "Não cite links nem fontes a menos que isso seja pedido.\n"
+        "Se não encontrar nada realmente relevante, diga isso claramente."
+    )
+    try:
+        result = ask_gemini_grounded_model(
+            prompt,
+            timeout_seconds=30,
+            max_output_tokens=320,
+            temperature=0.2,
+        )
+        text = str((result or {}).get("text", "")).strip()
+        if text and len(text) >= 60 and any(punct in text for punct in ".!?"):
+            return text
+    except Exception:
+        return None
+    return None
+
+
+def _asset_news_answer(question: str, ticker: str, snapshot: dict, fundamentals: dict | None = None) -> str | None:
+    fundamentals = fundamentals or {}
+    strategy = get_asset_strategy(ticker)
+    company_name = str(fundamentals.get("company_name") or "").strip()
+    thesis = str(strategy.get("thesis") or "").strip()
+
+    try:
+        api_summary = summarize_asset_news(
+            ticker,
+            company_name=company_name,
+            thesis=thesis,
+            market_data=fundamentals,
+        )
+        if api_summary:
+            return api_summary
+    except Exception:
+        pass
+
+    grounded_news = _ask_grounded_asset_news(question, ticker, snapshot)
+    if grounded_news:
+        return grounded_news
+    return None
+
+
 def save_investment_snapshot(
     summary: str,
     metrics: list[str] | None = None,
@@ -603,7 +1200,36 @@ def save_investment_snapshot(
         payload.update(extra)
     if not isinstance(payload.get("metric_map"), dict):
         payload["metric_map"] = _extract_metric_map(payload.get("metrics"), payload.get("lines"))
+
+    current = _load_json(INVESTMENT_SNAPSHOT_PATH)
+    if isinstance(current, dict):
+        current_positions = current.get("asset_positions")
+        new_positions = payload.get("asset_positions")
+        if isinstance(current_positions, dict) and isinstance(new_positions, dict):
+            current_count = len(current_positions)
+            new_count = len(new_positions)
+            unresolved = payload.get("unresolved_category_counts")
+            looks_partial = bool(unresolved) or new_count < current_count
+            if current_count > new_count and looks_partial:
+                merged_positions = dict(current_positions)
+                merged_positions.update(new_positions)
+                payload["asset_positions"] = merged_positions
+
+                for key in ("asset_fundamentals", "asset_dividend_events"):
+                    old_map = current.get(key)
+                    new_map = payload.get(key)
+                    if isinstance(old_map, dict) and isinstance(new_map, dict):
+                        merged_map = dict(old_map)
+                        merged_map.update(new_map)
+                        payload[key] = merged_map
+
+                payload["partial_capture_merged"] = True
+                payload["partial_capture_note"] = (
+                    f"Atualização parcial preservou {current_count} posições anteriores "
+                    f"e atualizou {new_count} posições capturadas agora."
+                )
     _save_json(INVESTMENT_SNAPSHOT_PATH, payload)
+    sync_portfolio_snapshot_note(payload)
     return payload
 
 
@@ -642,6 +1268,9 @@ def answer_investment_snapshot_question(question: str) -> str:
     strategy = get_asset_strategy(question_ticker) if question_ticker else {}
     asset_positions = _asset_positions(snapshot)
     asset_position = asset_positions.get(question_ticker, {}) if question_ticker else {}
+
+    if question_ticker and _looks_like_broader_investment_question(normalized) and asset_position:
+        return _format_position_reading(snapshot, question_ticker, asset_position)
 
     if question_ticker and _mentions_price_ceiling(normalized):
         current_price = _parse_currency_value(asset_position.get("current_price")) if asset_position else _extract_current_price(snapshot)
@@ -742,8 +1371,15 @@ def answer_investment_snapshot_question(question: str) -> str:
         parts = []
         for item in items[:6]:
             reason_text = ", ".join(item["reasons"][:2])
+            opinion_text = ""
+            if item.get("opinions"):
+                opinion_text = str(item["opinions"][0]).strip().rstrip(".")
+            stance_text = _position_action_stance(snapshot, item["ticker"], _asset_positions(snapshot).get(item["ticker"], {})).strip().rstrip(".")
             extra = f" Cotação: {item['current_price']}." if item.get("current_price") else ""
-            parts.append(f"{item['ticker']}: {reason_text}.{extra}".strip())
+            if opinion_text:
+                parts.append(f"{item['ticker']}: {reason_text}. Minha leitura: {opinion_text}. Direção prática: {stance_text}.{extra}".strip())
+            else:
+                parts.append(f"{item['ticker']}: {reason_text}. Direção prática: {stance_text}.{extra}".strip())
         return "As posições que mais pedem atenção agora são: " + " ".join(parts)
 
     question_map = {
@@ -809,7 +1445,65 @@ def answer_investment_snapshot_question(question: str) -> str:
     asset_positions = _asset_positions(snapshot)
     asset_position = asset_positions.get(question_ticker, {}) if question_ticker else {}
     strategy = get_asset_strategy(question_ticker) if question_ticker else {}
-    fundamentals = _asset_fundamentals(snapshot).get(question_ticker, {}) if question_ticker else {}
+    fundamentals = _ensure_asset_fundamentals(snapshot, question_ticker) if question_ticker else {}
+
+    if question_ticker and not asset_position and fundamentals and _looks_like_broader_investment_question(normalized):
+        return _format_external_asset_reading(question_ticker, fundamentals)
+
+    if _contains_investment_phrase(
+        normalized,
+        "agenda de dividendos",
+        "dividendos agendados",
+        "proximos dividendos",
+        "proximos proventos",
+        "meus dividendos",
+        "meus proventos",
+        "proximo dividendo",
+        "data ex",
+        "data com",
+    ):
+        if question_ticker:
+            events = _ticker_dividend_events(snapshot, question_ticker)
+            if events:
+                details = "; ".join(_format_dividend_event(question_ticker, event) for event in events[:3])
+                return f"Os proximos eventos de dividendos que encontrei para {question_ticker} sao: {details}."
+            dy_current = str(fundamentals.get("dividend_yield_current") or "").strip()
+            if dy_current:
+                return (
+                    f"Ainda não encontrei uma próxima data de dividendo confiável para {question_ticker}. "
+                    f"O que eu já tenho salvo é um dividend yield atual de {dy_current}."
+                )
+            return f"Ainda nao encontrei uma agenda de dividendos confiavel para {question_ticker}."
+        return _portfolio_dividend_schedule_answer(snapshot)
+
+    if _contains_investment_phrase(
+        normalized,
+        "noticias confiaveis",
+        "noticias dos meus ativos",
+        "noticias da carteira",
+        "alguma noticia sobre minha carteira",
+        "tem alguma noticia sobre minha carteira",
+        "tem noticia sobre minha carteira",
+        "fatos relevantes da carteira",
+        "fato relevante da carteira",
+        "noticias relevantes",
+    ):
+        news_items = _portfolio_news_digest(snapshot, limit_assets=5, limit_summaries=3)
+        if news_items:
+            return "Noticias que parecem mais uteis na carteira agora: " + " ".join(news_items)
+        return "No momento, eu nao encontrei noticias realmente confiaveis e especificas o bastante para a carteira."
+
+    if _contains_investment_phrase(normalized, "monitoramento", "monitorar carteira", "radar da carteira"):
+        return _portfolio_monitor_digest(snapshot)
+
+    if _contains_investment_phrase(normalized, "dy", "yield") and _contains_investment_phrase(
+        normalized,
+        "fii",
+        "fiis",
+        "fundo imobiliario",
+        "fundos imobiliarios",
+    ):
+        return _portfolio_fii_dy_answer(snapshot)
 
     if question_ticker and _contains_investment_phrase(normalized, "dy", "dividend yield", "yield"):
         current_dy = fundamentals.get("dividend_yield_current")
@@ -823,17 +1517,10 @@ def answer_investment_snapshot_question(question: str) -> str:
     if question_ticker and _contains_investment_phrase(normalized, "cotacao", "cotação", "cotaçao"):
         current_price = asset_position.get("current_price") or fundamentals.get("quote")
         if current_price:
-            variation = asset_position.get("variation")
-            variation_value = _parse_percent_value(variation) if variation else None
-            if variation_value is not None:
-                if variation_value > 0:
-                    return f"A cotação visível de {question_ticker} está em {current_price}. No dia, ele está subindo, com variação de {variation}."
-                if variation_value < 0:
-                    return f"A cotação visível de {question_ticker} está em {current_price}. No dia, ele está caindo, com variação de {variation}."
-                return f"A cotação visível de {question_ticker} está em {current_price}. No dia, ele está estável, com variação de {variation}."
-            if variation:
-                return f"A cotação visível de {question_ticker} está em {current_price}, com variação visível de {variation}."
-            return f"A cotação visível de {question_ticker} está em {current_price}."
+            rentability = asset_position.get("rentability")
+            if rentability:
+                return f"A cotação de {question_ticker} está em {current_price}. Sua rentabilidade está em {rentability}."
+            return f"A cotação de {question_ticker} está em {current_price}."
         return f"Ainda não tenho cotação salva para {question_ticker}."
 
     if question_ticker and _contains_investment_phrase(normalized, "preco medio", "preço medio", "preço médio", "preco médio"):
@@ -842,16 +1529,38 @@ def answer_investment_snapshot_question(question: str) -> str:
             return f"O preço médio de {question_ticker} está em {average_price}."
         return f"Ainda não tenho preço médio salvo para {question_ticker}."
 
+    if question_ticker and _contains_investment_phrase(normalized, "variacao do dia", "variação do dia", "variacao hoje", "variação hoje", "no dia", "hoje"):
+        variation = asset_position.get("variation")
+        rentability = asset_position.get("rentability")
+        if variation or rentability:
+            parts = [f"Ainda não tenho uma fonte intradiária confiável para afirmar a variação do dia de {question_ticker}."]
+            if variation:
+                parts.append(f"No snapshot salvo da posição, a variação exibida está em {variation}.")
+            if rentability:
+                parts.append(f"Desde o seu preço médio, a rentabilidade está em {rentability}.")
+            return " ".join(parts)
+        return f"Ainda não tenho uma fonte confiável de variação do dia para {question_ticker}."
+
     if question_ticker and _contains_investment_phrase(normalized, "subindo", "caindo", "variacao", "variação", "alta", "queda"):
         variation = asset_position.get("variation")
+        rentability = asset_position.get("rentability")
         if variation:
             variation_value = _parse_percent_value(variation)
             if variation_value is not None:
                 if variation_value > 0:
-                    return f"No recorte atual, {question_ticker} está subindo, com variação de {variation}."
+                    response = f"No snapshot atual da posição, {question_ticker} aparece em alta, com variação de {variation}."
+                    if rentability:
+                        response += f" Desde o seu preço médio, a rentabilidade está em {rentability}."
+                    return response
                 if variation_value < 0:
-                    return f"No recorte atual, {question_ticker} está caindo, com variação de {variation}."
-                return f"No recorte atual, {question_ticker} está estável, com variação de {variation}."
+                    response = f"No snapshot atual da posição, {question_ticker} aparece em queda, com variação de {variation}."
+                    if rentability:
+                        response += f" Desde o seu preço médio, a rentabilidade está em {rentability}."
+                    return response
+                response = f"No snapshot atual da posição, {question_ticker} aparece estável, com variação de {variation}."
+                if rentability:
+                    response += f" Desde o seu preço médio, a rentabilidade está em {rentability}."
+                return response
             return f"A variação visível de {question_ticker} está em {variation}."
         return f"Ainda não tenho variação salva para {question_ticker}."
 
@@ -859,7 +1568,10 @@ def answer_investment_snapshot_question(question: str) -> str:
         return f"Ainda não tenho agenda de dividendos integrada para {question_ticker}. Hoje eu consigo ler proventos e DY salvos, mas não a próxima data com confiança."
 
     if question_ticker and _contains_investment_phrase(normalized, "fato relevante", "noticia", "notícias", "noticias", "relevante", "novidade"):
-        return f"Ainda não tenho notícias ou fatos relevantes integrados em tempo real para {question_ticker}. Isso já entrou na lista de avanços do modo investimentos."
+        news_answer = _asset_news_answer(question, question_ticker, snapshot, fundamentals)
+        if news_answer:
+            return news_answer
+        return f"Ainda não consegui buscar notícias ou fatos relevantes confiáveis para {question_ticker}."
 
     if question_ticker and _mentions_price_ceiling(normalized):
         current_price = _parse_currency_value(asset_position.get("current_price")) if asset_position else _extract_current_price(snapshot)
@@ -900,5 +1612,12 @@ def answer_investment_snapshot_question(question: str) -> str:
                 f"{item['ticker']} em {_format_brl(item['current_price'])}, acima do {source_label} de {_format_brl(item['ceiling'])} por cerca de {premium}"
             )
         return "Ativos acima do seu preço-teto no snapshot atual: " + "; ".join(parts) + "."
+
+    if question_ticker and _contains_investment_phrase(normalized, "dividendos agendados", "proventos agendados", "dividendos previstos", "dividendos programados", "proximo dividendo", "data ex", "data com"):
+        events = _ticker_dividend_events(snapshot, question_ticker)
+        if events:
+            details = "; ".join(_format_dividend_event(question_ticker, event) for event in events[:3])
+            return f"Os proximos eventos de dividendos que encontrei para {question_ticker} sao: {details}."
+        return f"Ainda nao encontrei uma agenda de dividendos confiavel para {question_ticker}."
 
     return _answer_investment_snapshot_question_base(question)

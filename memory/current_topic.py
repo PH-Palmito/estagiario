@@ -10,6 +10,12 @@ from memory.supabase_sync import fetch_memory_payload_safely, sync_memory_state_
 TOPIC_PATH = Path("memory/current_topic.json")
 
 
+def _fingerprint(payload: dict) -> str:
+    stable = dict(payload or {})
+    stable.pop("updated_at", None)
+    return json.dumps(stable, ensure_ascii=False, sort_keys=True)
+
+
 def _save(payload: dict):
     TOPIC_PATH.parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(payload, ensure_ascii=False, indent=2)
@@ -35,6 +41,9 @@ def load_current_topic() -> dict:
 
 def save_current_topic(payload: dict) -> dict:
     data = dict(payload or {})
+    current = load_current_topic()
+    if current and _fingerprint(current) == _fingerprint(data):
+        return current
     data["updated_at"] = time.time()
     _save(data)
     sync_memory_state_safely("current_topic", data, category="conversation")

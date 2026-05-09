@@ -24,6 +24,7 @@ import sounddevice as sd
 from faster_whisper import WhisperModel
 from huggingface_hub import snapshot_download
 from huggingface_hub.errors import LocalEntryNotFoundError
+from llm.gemini_tts_client import synthesize_gemini_tts_to_wav
 from memory.voice_preferences import load_voice_preferences
 from scipy.io.wavfile import read as read_wav
 from scipy.io.wavfile import write as write_wav
@@ -98,6 +99,8 @@ COMMAND_PROMPT = (
     "Comandos curtos em portugues do Brasil para controlar o computador. "
     "Transcreva sempre em portugues do Brasil, nunca em ingles. "
     "Verbos comuns: abrir, fechar, focar, trocar, minimizar, maximizar, restaurar, pesquisar, ler, selecionar. "
+    "Comandos de musica: tocar algo alegre, tocar algo calmo, tocar rock, tocar classico, me surpreenda, "
+    "adicionar na fila, tocar musicas curtidas, tocar filho meu, tocar blindado no Spotify. "
     "Alvos comuns: chrome, youtube, google, vscode, code, spotify, whatsapp, zap, bloco de notas, "
     "powershell, edge, github, android studio, steam, mercado livre, magalu."
 )
@@ -107,6 +110,7 @@ COMMAND_RESCUE_PROMPT = (
     "Priorize comandos curtos e simples. "
     "Exemplos provaveis: o que tem na tela, resuma a tela, detalha a tela, "
     "abrir youtube, abrir chrome, abrir spotify, fechar spotify, "
+    "tocar algo alegre, tocar algo calmo, tocar rock, tocar filho meu, tocar blindado no Spotify, me surpreenda, adicionar na fila, "
     "pesquisar notebook no mercado livre, abrir github, abrir whatsapp."
 )
 CONVERSATION_PROMPT = str(
@@ -148,6 +152,24 @@ COMMAND_VOCAB = {
     "github",
     "youtube",
     "spotify",
+    "tocar",
+    "toque",
+    "musica",
+    "musicas",
+    "alegre",
+    "calmo",
+    "calma",
+    "rock",
+    "classico",
+    "classica",
+    "jazz",
+    "gospel",
+    "fila",
+    "surpreenda",
+    "surpreende",
+    "filho",
+    "meu",
+    "blindado",
     "chrome",
     "google",
     "whatsapp",
@@ -572,6 +594,28 @@ def _should_retry_command_transcription(text: str) -> bool:
     return False
 
 
+def _is_prompt_hallucination(text: str) -> bool:
+    normalized = _normalize_recognized_text(text)
+    if not normalized:
+        return False
+
+    prompt_fragments = {
+        "comandos curtos em portugues do brasil",
+        "comandos em portugues do brasil",
+        "comandos em português do brasil",
+        "legendas pela comunidade de amara org",
+        "legendas pela comunidade amara org",
+        "amara org",
+        "transcreva sempre em portugues do brasil",
+        "conversa casual em portugues do brasil",
+        "verbos comuns abrir fechar focar trocar minimizar maximizar restaurar pesquisar ler selecionar",
+    }
+    if normalized in prompt_fragments:
+        return True
+
+    return any(fragment in normalized for fragment in prompt_fragments)
+
+
 def _extract_inline_command(text: str, hotword: str) -> str:
     hotword_normalized = _normalize_recognized_text(hotword)
     normalized_text = _normalize_recognized_text(text)
@@ -721,6 +765,18 @@ def _transcribe_audio(
 
         if not text:
             return VoiceResult(ok=False, error="Nenhuma fala reconhecida.")
+
+        if model_size == COMMAND_MODEL_SIZE and _is_prompt_hallucination(text):
+            rescue_text, _rescue_info = _transcribe_once(
+                None,
+                max(beam_size, 6),
+                max(best_of, 6),
+                False,
+            )
+            if rescue_text and not _is_prompt_hallucination(rescue_text):
+                text = rescue_text
+            else:
+                return VoiceResult(ok=False, error="Não captei com precisão.")
 
         if (
             model_size == COMMAND_MODEL_SIZE
@@ -1284,6 +1340,18 @@ def _normalize_numeric_token_for_tts(number: str) -> str:
 
 
 def _expand_currency_tts_patterns(text: str) -> str:
+    def scaled_currency_replacer(match: re.Match) -> str:
+        number = _normalize_numeric_token_for_tts(match.group(1))
+        scale = str(match.group(2) or "").strip()
+        return f"{number} {scale} de reais"
+
+    text = re.sub(
+        r"R\$\s*([-+]?\d+(?:[.,]\d+)?)\s*((?:bilh|milh)\w+|mil)\b",
+        scaled_currency_replacer,
+        text,
+        flags=re.IGNORECASE,
+    )
+
     def currency_replacer(match: re.Match) -> str:
         number = _normalize_numeric_token_for_tts(match.group(1))
         return f"{number} reais"
@@ -2247,6 +2315,64 @@ def _speak_with_piper(text: str) -> VoiceResult:
             pass
 
 
+def _gemini_cache_settings(voice_name: str, language_code: str, timeout_seconds: str) -> list[str]:
+    effect = str(VOICE_PREFERENCES.get("assistant_voice_effect", "")).strip().lower()
+    effect_strength = str(VOICE_PREFERENCES.get("assistant_voice_effect_strength", 0.0))
+    return [voice_name, language_code, timeout_seconds, effect, effect_strength]
+
+
+def _speak_with_gemini(text: str) -> VoiceResult:
+    text_for_tts = _prepare_tts_text(text)
+    voice_name = str(VOICE_PREFERENCES.get("gemini_tts_voice_name", "Kore")).strip() or "Kore"
+    language_code = str(VOICE_PREFERENCES.get("gemini_tts_language_code", "pt-BR")).strip() or "pt-BR"
+    timeout_seconds = _int_pref("gemini_tts_timeout_seconds", 60, 10, 180)
+
+    cache_path = None
+    cache_enabled = bool(VOICE_PREFERENCES.get("tts_cache_enabled", True))
+    if cache_enabled:
+        cache_path = _tts_cache_path(
+            "gemini",
+            text_for_tts,
+            _gemini_cache_settings(voice_name, language_code, str(timeout_seconds)),
+        )
+        if cache_path.exists():
+            interrupted = _play_wav(cache_path)
+            if interrupted:
+                return interrupted
+            return VoiceResult(ok=True, text=text)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
+        output_path = temp_file.name
+
+    try:
+        synthesize_gemini_tts_to_wav(
+            text_for_tts,
+            output_path,
+            voice_name=voice_name,
+            language_code=language_code,
+            timeout_seconds=timeout_seconds,
+        )
+        _apply_jarvis_audio_effect(output_path)
+
+        play_path = output_path
+        if cache_path:
+            shutil.copy2(output_path, cache_path)
+            play_path = str(cache_path)
+
+        interrupted = _play_wav(play_path)
+        if interrupted:
+            return interrupted
+
+        return VoiceResult(ok=True, text=text)
+    except Exception as exc:
+        return VoiceResult(ok=False, error=f"Gemini TTS falhou: {exc}")
+    finally:
+        try:
+            Path(output_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 def _speak_with_windows(text: str, culture: str | None = None) -> VoiceResult:
     selected_culture = culture or str(VOICE_PREFERENCES.get("tts_voice_culture", "pt-BR"))
     preferred_voice_name = str(VOICE_PREFERENCES.get("tts_voice_name", "")).strip()
@@ -2440,6 +2566,22 @@ def speak(text: str, culture: str | None = None) -> VoiceResult:
         return VoiceResult(ok=True, text=text)
 
     engine = str(VOICE_PREFERENCES.get("tts_engine", "windows")).strip().lower()
+
+    if engine == "gemini":
+        result = _speak_with_gemini(text)
+        if (
+            result.ok
+            or result.error == "Fala interrompida."
+            or not bool(VOICE_PREFERENCES.get("gemini_tts_fallback_to_piper", True))
+        ):
+            return result
+
+        if str(VOICE_PREFERENCES.get("piper_model_path", "")).strip():
+            piper_result = _speak_with_piper(text)
+            if piper_result.ok or piper_result.error == "Fala interrompida.":
+                return piper_result
+
+        return _speak_with_windows(text, culture=culture)
 
     if engine == "piper":
         result = _speak_with_piper(text)

@@ -2,6 +2,7 @@ import difflib
 import re
 import time
 import unicodedata
+from urllib.parse import quote_plus
 
 from memory.docs_context import docs_context_relevant, docs_plan_answer
 from memory.aliases import load_app_aliases, load_site_aliases, load_smart_app_aliases
@@ -76,6 +77,59 @@ MEDIA_TARGETS = {
     "you": "youtube",
     "chrome": "chrome",
     "navegador": "chrome",
+}
+
+MUSIC_SESSION_ALIASES = {
+    "alegre": "alegre",
+    "animada": "alegre",
+    "animado": "alegre",
+    "feliz": "alegre",
+    "pra cima": "alegre",
+    "algo agre": "alegre",
+    "igual agre": "alegre",
+    "agre": "alegre",
+    "calma": "calmo",
+    "calmo": "calmo",
+    "relaxante": "calmo",
+    "tranquila": "calmo",
+    "tranquilo": "calmo",
+    "rock": "rock",
+    "rock n rock": "rock",
+    "rock in rock": "rock",
+    "roque": "rock",
+    "rock and roll": "rock",
+    "classica": "classico",
+    "classico": "classico",
+    "musica classica": "classico",
+    "mpb": "mpb",
+    "jazz": "jazz",
+    "gospel": "gospel",
+    "louvor": "gospel",
+    "pop": "pop",
+    "eletronica": "eletronica",
+    "eletronico": "eletronica",
+    "rap": "rap",
+    "hip hop": "rap",
+    "samba": "samba",
+    "pagode": "samba",
+    "sertanejo": "sertanejo",
+    "foco": "foco",
+    "concentracao": "foco",
+    "estudo": "foco",
+    "treino": "treino",
+    "academia": "treino",
+    "triste": "triste",
+    "melancolica": "triste",
+    "melancolico": "triste",
+}
+
+SPOTIFY_STANDALONE_SONG_ALIASES = {
+    "filho meu": "filho meu",
+    "ah filho meu": "filho meu",
+    "a filho meu": "filho meu",
+    "o filho meu": "filho meu",
+    "do meu": "filho meu",
+    "filho mil": "filho meu",
 }
 
 BLUETOOTH_TERMS = {
@@ -205,6 +259,9 @@ RESTORE_PREFIXES = (
 )
 
 CHATTER_PATTERNS = {
+    "ok": "Certo.",
+    "okay": "Certo.",
+    "okey": "Certo.",
     "boa": "Estou ouvindo.",
     "opa": "Estou aqui.",
     "e ai": "Fala comigo.",
@@ -342,9 +399,71 @@ def _extract_after_fuzzy_prefix(text: str, prefixes, cutoff: float = 0.74):
 
 def _strip_leading_articles(text: str) -> str:
     words = text.split()
-    while words and words[0] in {"o", "a", "os", "as", "um", "uma", "do", "da", "dos", "das", "no", "na", "nos", "nas"}:
+    while words and words[0] in {"o", "a", "os", "as", "um", "uma", "de", "do", "da", "dos", "das", "no", "na", "nos", "nas"}:
         words = words[1:]
     return " ".join(words)
+
+
+def _strip_music_polite_prefix(text: str) -> str:
+    phrase = normalize_text(text).strip(" .,:;-")
+    phrase = re.sub(r"^(?:axel|estagiario|assistente)\s+", "", phrase).strip()
+    phrase = re.sub(r"^(?:voce|vc)\s+", "", phrase).strip()
+    phrase = re.sub(
+        r"^(?:poderia|pode|consegue|conseguiria|daria para|da para|por favor|por gentileza)\s+",
+        "",
+        phrase,
+    ).strip()
+    phrase = re.sub(r"^(?:tocar|toca|toque|colocar|coloca|coloque|botar|bota)\s+", "", phrase).strip()
+    phrase = re.sub(r"^(?:a\s+musica|uma\s+musica|musica|o\s+som|um\s+som|som)\s+", "", phrase).strip()
+    phrase = re.sub(r"\s+(?:no|na)\s+(?:spotify|spotfy|spoti|espotify)$", "", phrase).strip()
+    return _strip_leading_articles(phrase).strip(" .,:;-")
+
+
+def _extract_music_session_vibe(text: str) -> str:
+    phrase = _strip_leading_articles(normalize_text(text)).strip(" .,:;-")
+    for interjection in ("e ", "eh ", "é ", "cara ", "carai ", "ah ", "a "):
+        if phrase.startswith(interjection):
+            phrase = phrase[len(interjection):].strip(" .,:;-")
+            break
+    for prefix in (
+        "algo para ",
+        "algo pra ",
+        "algo ",
+        "alguma coisa para ",
+        "alguma coisa pra ",
+        "alguma coisa ",
+        "uma musica para ",
+        "uma musica pra ",
+        "uma musica ",
+        "musica para ",
+        "musica pra ",
+        "musica ",
+        "umas musicas para ",
+        "umas musicas pra ",
+        "umas musicas ",
+        "musicas para ",
+        "musicas pra ",
+        "musicas ",
+        "um som para ",
+        "um som pra ",
+        "um som ",
+        "som para ",
+        "som pra ",
+        "som ",
+        "uma playlist para ",
+        "uma playlist pra ",
+        "uma playlist ",
+        "playlist para ",
+        "playlist pra ",
+        "playlist ",
+        "um estilo ",
+        "estilo ",
+    ):
+        if phrase.startswith(prefix):
+            phrase = phrase[len(prefix):].strip(" .,:;-")
+            break
+    phrase = _strip_leading_articles(phrase).strip(" .,:;-")
+    return MUSIC_SESSION_ALIASES.get(phrase, "")
 
 
 def _normalize_target_phrase(text: str) -> str:
@@ -723,6 +842,12 @@ def detect_navigation_command(user_input: str):
     }:
         return {"intent": "browser_translate_last_selection", "target": None}
 
+    if (
+        any(token in lower for token in {"curtir", "curta", "adicionar", "adicione", "salvar", "salve"})
+        and any(token in lower for token in {"musicas curtidas", "músicas curtidas", "liked songs", "curtidas"})
+    ):
+        return {"intent": "spotify_like_current_track", "target": None}
+
     if re.match(
         r"^(?:e\s+)?(?:o\s+)?que\s+(?:tem|ta|esta)(?:\s+ai)?\s+na\s+tela$",
         lower,
@@ -830,6 +955,8 @@ def detect_navigation_command(user_input: str):
         "rentabilidade",
         "proventos",
         "dividendos",
+        "dy",
+        "yield",
         "lucro",
         "prejuizo",
         "prejuízo",
@@ -1224,6 +1351,152 @@ def detect_navigation_command(user_input: str):
     if find_match:
         return {"intent": "browser_find", "target": find_match.group(1).strip()}
 
+    if lower in {"que no mercado livre", "no mercado livre"}:
+        return {"intent": "respond", "target": None, "response": "Qual produto você quer pesquisar no Mercado Livre?"}
+
+    polite_site_search_match = re.match(
+        r"^(?:pode|poderia|consegue|conseguiria|da para|daria para)\s+(?:pesquisar|pesquise|pesquisa|esquisar|esquise|esquisa|quisar|quise|quisa|procurar|procure|buscar|busque)\s+(.+?)\s+(?:no|na|em|dentro\s+do|dentro\s+da)\s+(.+)$",
+        lower,
+    )
+    if polite_site_search_match:
+        query = polite_site_search_match.group(1).strip()
+        if query in {"nutbook", "notbook", "notebooke", "notebook"}:
+            query = "notebook"
+        return {
+            "intent": "browser_search_site",
+            "target": {
+                "query": query,
+                "site": _match_site_target(polite_site_search_match.group(2).strip()),
+            },
+        }
+
+    if "spotify" in lower and "filho" in lower and any(token in lower for token in {"meu", "mil"}):
+        return {
+            "intent": "browser_search_music",
+            "target": {"service": "spotify", "query": "filho meu"},
+        }
+
+    embedded_music_session_match = re.search(
+        r"(?:doca|docar|toca|tocar|toque|coloca|coloque|bota|botar)\s+([^?.,!]+)",
+        lower,
+    )
+    if embedded_music_session_match:
+        vibe = _extract_music_session_vibe(embedded_music_session_match.group(1))
+        if vibe:
+            return {
+                "intent": "browser_music_session",
+                "target": {"service": "spotify", "vibe": vibe},
+            }
+
+    has_music_request = (
+        "spotify" in lower
+        or any(token in lower.split() for token in {"tocar", "toca", "toque", "colocar", "coloca", "coloque", "botar", "bota"})
+    )
+    polite_music_query = _strip_music_polite_prefix(lower) if has_music_request else ""
+    if polite_music_query and polite_music_query != lower and polite_music_query not in MEDIA_TARGETS:
+        polite_vibe = _extract_music_session_vibe(polite_music_query)
+        if polite_vibe:
+            return {
+                "intent": "browser_music_session",
+                "target": {"service": "spotify", "vibe": polite_vibe},
+            }
+        return {
+            "intent": "browser_search_music",
+            "target": {
+                "service": "spotify",
+                "query": SPOTIFY_STANDALONE_SONG_ALIASES.get(polite_music_query, polite_music_query),
+            },
+        }
+
+    if lower in {
+        "me surpreenda",
+        "me surpreende",
+        "me surpreenda no spotify",
+        "me surpreende no spotify",
+        "surpreenda me",
+        "surpreenda-me",
+        "surpreende me",
+        "surpreende-me",
+        "surpreendo",
+        "surpreenda",
+        "surpreende",
+        "prinda",
+        "toca algo aleatorio",
+        "tocar algo aleatorio",
+        "toque algo aleatorio",
+        "toca qualquer coisa",
+        "tocar qualquer coisa",
+        "toque qualquer coisa",
+        "toca uma musica aleatoria",
+        "tocar uma musica aleatoria",
+        "toque uma musica aleatoria",
+        "toca uma surpresa",
+        "tocar uma surpresa",
+        "toque uma surpresa",
+        "me indica uma musica",
+        "indica uma musica",
+        "me recomende uma musica",
+        "recomende uma musica",
+        "me recomenda uma musica",
+        "recomenda uma musica",
+    }:
+        return {
+            "intent": "browser_surprise_music",
+            "target": {"service": "spotify"},
+        }
+
+    standalone_song_query = SPOTIFY_STANDALONE_SONG_ALIASES.get(lower)
+    if standalone_song_query:
+        return {
+            "intent": "browser_search_music",
+            "target": {"service": "spotify", "query": standalone_song_query},
+        }
+
+    standalone_vibe = _extract_music_session_vibe(lower)
+    if standalone_vibe:
+        return {
+            "intent": "browser_music_session",
+            "target": {"service": "spotify", "vibe": standalone_vibe},
+        }
+
+    music_session_match = re.match(
+        r"^(?:doca|docar|toca|tocar|toque|coloca|coloque|bota|botar)\s+(.+?)(?:\s+(?:no|na)\s+(spotify|spotfy|spoti|espotify))?$",
+        lower,
+    )
+    if music_session_match:
+        vibe = _extract_music_session_vibe(music_session_match.group(1))
+        if vibe:
+            return {
+                "intent": "browser_music_session",
+                "target": {"service": "spotify", "vibe": vibe},
+            }
+
+    queue_music_match = re.match(
+        r"^(?:adicionar|adicione|colocar|coloque|bota|botar|manda|mandar)\s+(.+?)\s+(?:na|a|para a|pra)\s+fila(?:\s+(?:do|no|da|na)\s+(spotify|spotfy|spoti|espotify))?$",
+        lower,
+    )
+    if queue_music_match:
+        return {
+            "intent": "browser_queue_music",
+            "target": {
+                "service": "spotify",
+                "query": _strip_leading_articles(queue_music_match.group(1).strip()),
+            },
+        }
+
+    queue_music_prefix_match = re.match(
+        r"^(?:adicionar|adicione|colocar|coloque|bota|botar)\s+(?:na|a|para a|pra)\s+fila\s+(.+)$",
+        lower,
+    )
+    if queue_music_prefix_match:
+        return {
+            "intent": "browser_queue_music",
+            "target": {
+                "service": "spotify",
+                "query": _strip_leading_articles(queue_music_prefix_match.group(1).strip()),
+            },
+        }
+
     music_match = re.match(
         r"^(?:doca|docar|toca|tocar|toque|procure|procurar|pesquise|pesquisar|buscar|busque)\s+(?:a\s+musica\s+|musica\s+)?(.+?)\s+(?:no|na)\s+(spotify|spotfy|spoti|espotify|youtube|you tube)$",
         lower,
@@ -1236,6 +1509,24 @@ def detect_navigation_command(user_input: str):
                 "service": service,
                 "query": _strip_leading_articles(music_match.group(1).strip()),
             },
+        }
+
+    if lower in {
+        "abrir curtidas",
+        "abrir minhas curtidas",
+        "abre curtidas",
+        "abre minhas curtidas",
+        "tocar curtidas",
+        "toque curtidas",
+        "abrir musicas curtidas",
+        "abrir minhas musicas curtidas",
+        "abre musicas curtidas",
+        "abre minhas musicas curtidas",
+        "playlist musicas curtidas",
+    }:
+        return {
+            "intent": "browser_search_music",
+            "target": {"service": "spotify", "query": "musicas curtidas"},
         }
 
     default_music_match = re.match(
@@ -1254,14 +1545,17 @@ def detect_navigation_command(user_input: str):
             }
 
     site_search_match = re.match(
-        r"^(?:pesquisa|pesquise|pesquisar|esquise|esquisar|procure|procurar|buscar|busque)\s+(.+?)\s+(?:no|na|em|dentro\s+do|dentro\s+da)\s+(.+)$",
+        r"^(?:pesquisa|pesquise|pesquisar|esquisa|esquise|esquisar|quisa|quise|quisar|procure|procurar|buscar|busque)\s+(.+?)\s+(?:no|na|em|dentro\s+do|dentro\s+da)\s+(.+)$",
         lower,
     )
     if site_search_match:
+        query = site_search_match.group(1).strip()
+        if query in {"nutbook", "notbook", "notebooke", "notebook"}:
+            query = "notebook"
         return {
             "intent": "browser_search_site",
             "target": {
-                "query": site_search_match.group(1).strip(),
+                "query": query,
                 "site": _match_site_target(site_search_match.group(2).strip()),
             },
         }
@@ -1960,6 +2254,21 @@ def detect_investment_question_command(user_input: str):
         "margem de segurança",
         "merecem atencao",
         "merecem atenção",
+        "noticia",
+        "noticias",
+        "fato relevante",
+        "fatos relevantes",
+        "agenda de dividendos",
+        "dividendos agendados",
+        "proximo dividendo",
+        "data ex",
+        "data com",
+        "monitoramento",
+        "radar da carteira",
+        "fii",
+        "fiis",
+        "fundo imobiliario",
+        "fundos imobiliarios",
     }
     investment_opinion_terms = {
         "vale a pena",
@@ -1996,6 +2305,13 @@ def detect_investment_question_command(user_input: str):
         "mostre ",
         "o que ",
         "vale ",
+        "tem ",
+        "agenda ",
+        "monitoramento",
+        "monitorar ",
+        "proximo ",
+        "prÃ³ximo ",
+        "houve ",
     )
     has_ticker = bool(re.search(r"\b[a-z]{4}\d{1,2}\b", lower))
 
@@ -2287,6 +2603,179 @@ def detect_open_chatgpt(user_input: str):
     return None
 
 
+def _default_profile_location() -> str:
+    return str(get_value("cidade") or "").strip() or "Salvador"
+
+
+def _extract_location_fragment(text: str, prefixes: tuple[str, ...]) -> str | None:
+    normalized = normalize_text(text)
+    for prefix in prefixes:
+        if normalized.startswith(prefix):
+            location = text[len(prefix):].strip(" .,:;-")
+            if location:
+                return location
+    return None
+
+
+def detect_weather_command(user_input: str):
+    lower = normalize_text(user_input)
+    location = None
+
+    direct_prefixes = (
+        "como esta o clima em ",
+        "como está o clima em ",
+        "qual o clima em ",
+        "qual é o clima em ",
+        "qual a temperatura em ",
+        "qual a temperatura de ",
+        "temperatura em ",
+        "tempo em ",
+        "previsao do tempo em ",
+        "previsão do tempo em ",
+        "vai chover em ",
+        "como vai ficar o tempo em ",
+        "clima em ",
+    )
+    location = _extract_location_fragment(user_input, direct_prefixes)
+
+    if not location and lower in {
+        "como esta o clima",
+        "como está o clima",
+        "qual o clima",
+        "qual é o clima",
+        "qual a temperatura",
+        "previsao do tempo",
+        "previsão do tempo",
+        "tempo agora",
+        "vai chover",
+        "clima",
+    }:
+        location = _default_profile_location()
+
+    if not location:
+        return None
+
+    return {"intent": "weather_summary", "target": location}
+
+
+def detect_briefing_command(user_input: str):
+    lower = normalize_text(user_input)
+
+    direct_commands = {
+        "briefing",
+        "briefing do dia",
+        "me de o briefing",
+        "me da o briefing",
+        "me de meu briefing",
+        "me da meu briefing",
+        "resumo do dia",
+        "panorama do dia",
+    }
+
+    if lower in direct_commands:
+        return {"intent": "daily_briefing", "target": None}
+
+    return None
+
+
+def detect_agenda_command(user_input: str):
+    lower = normalize_text(user_input)
+
+    add_prefixes = (
+        "adicionar na agenda ",
+        "adicionar compromisso ",
+        "adiciona na agenda ",
+        "adiciona compromisso ",
+        "marcar na agenda ",
+        "marque na agenda ",
+        "anotar na agenda ",
+        "anote na agenda ",
+    )
+    for prefix in add_prefixes:
+        if lower.startswith(prefix):
+            text = user_input[len(prefix):].strip()
+            if not text:
+                return {"intent": "respond", "target": None, "response": "Qual compromisso devo registrar?"}
+            return {"intent": "agenda_add", "target": text}
+
+    if lower in {"agenda de hoje", "compromissos de hoje", "o que eu tenho hoje"}:
+        return {"intent": "agenda_list_today", "target": None}
+
+    if lower in {"agenda de amanha", "agenda de amanhã", "compromissos de amanha", "compromissos de amanhã"}:
+        return {"intent": "agenda_list_tomorrow", "target": None}
+
+    if lower in {"agenda", "minha agenda", "listar agenda", "meus compromissos", "proximos compromissos"}:
+        return {"intent": "agenda_list_all", "target": None}
+
+    remove_match = re.match(
+        r"^(?:remover|remove|tirar|tire|apagar|apague)\s+(?:compromisso|item)\s+(\d+)(?:\s+da\s+agenda)?(?:\s+de\s+(hoje|amanha|amanhã))?$",
+        lower,
+    )
+    if remove_match:
+        scope = remove_match.group(2) or "today"
+        if scope in {"amanha", "amanhã"}:
+            scope = "tomorrow"
+        else:
+            scope = "today"
+        return {
+            "intent": "agenda_remove",
+            "target": {
+                "index": remove_match.group(1),
+                "scope": scope,
+            },
+        }
+
+    return None
+
+
+def detect_map_command(user_input: str):
+    lower = normalize_text(user_input)
+
+    route_match = re.search(r"\brota de (.+?) para (.+)$", lower)
+    if route_match:
+        origin = route_match.group(1).strip(" .,:;-")
+        destination = route_match.group(2).strip(" .,:;-")
+        if origin and destination:
+            return {
+                "intent": "open_url",
+                "target": (
+                    "https://www.google.com/maps/dir/?api=1"
+                    f"&origin={quote_plus(origin)}&destination={quote_plus(destination)}"
+                ),
+            }
+
+    map_prefixes = (
+        "mostrar no mapa ",
+        "mostra no mapa ",
+        "me mostra no mapa ",
+        "abrir mapa de ",
+        "abrir mapa do ",
+        "abrir mapa da ",
+        "mapa de ",
+        "mapa do ",
+        "mapa da ",
+        "onde fica ",
+    )
+    location = _extract_location_fragment(user_input, map_prefixes)
+
+    if not location and lower in {
+        "abrir mapa",
+        "mostrar mapa",
+        "mostra mapa",
+        "onde fica minha cidade",
+        "mostrar minha cidade no mapa",
+    }:
+        location = _default_profile_location()
+
+    if not location:
+        return None
+
+    return {
+        "intent": "open_url",
+        "target": f"https://www.google.com/maps/search/?api=1&query={quote_plus(location)}",
+    }
+
+
 def detect_open_url(user_input: str):
     lower = normalize_text(user_input)
     sites = _site_options()
@@ -2557,6 +3046,87 @@ def detect_delete_macro(user_input: str):
     return None
 
 
+def _marketplace_query_cleanup(query: str) -> str:
+    cleaned = normalize_text(query).strip(" .,:;-")
+    replacements = {
+        "nutbook": "notebook",
+        "notbook": "notebook",
+        "notebooke": "notebook",
+    }
+    return replacements.get(cleaned, cleaned)
+
+
+def detect_fast_path_command(user_input: str):
+    lower = normalize_text(user_input).strip(" .")
+    if not lower:
+        return None
+
+    if lower in {"abrir spotify", "abre spotify", "abrir o spotify", "abre o spotify"}:
+        return {"intent": "open_app", "target": "spotify"}
+
+    if lower in {"que no mercado livre", "no mercado livre"}:
+        return {"intent": "respond", "target": None, "response": "Qual produto você quer pesquisar no Mercado Livre?"}
+
+    market_match = re.match(
+        r"^(?:comandos?\s+(?:de|para|pra)\s+)?(?:pode\s+|poderia\s+|consegue\s+|conseguiria\s+|da\s+para\s+|daria\s+para\s+)?(?:pesquisa|pesquise|pesquisar|esquisa|esquise|esquisar|quisa|quise|quisar|procure|procurar|buscar|busque)\s+(.+?)\s+(?:no|na|em|dentro\s+do|dentro\s+da)\s+(mercado\s+livre|mercadolivre|mercado\s+de)$",
+        lower,
+    )
+    if market_match:
+        return {
+            "intent": "browser_search_site",
+            "target": {
+                "query": _marketplace_query_cleanup(market_match.group(1)),
+                "site": "https://www.mercadolivre.com.br",
+            },
+        }
+
+    if lower in SPOTIFY_STANDALONE_SONG_ALIASES:
+        return {
+            "intent": "browser_search_music",
+            "target": {"service": "spotify", "query": SPOTIFY_STANDALONE_SONG_ALIASES[lower]},
+        }
+
+    if "spotify" in lower and "filho" in lower and any(token in lower for token in {"meu", "mil"}):
+        return {
+            "intent": "browser_search_music",
+            "target": {"service": "spotify", "query": "filho meu"},
+        }
+
+    if lower in {
+        "me surpreenda",
+        "me surpreende",
+        "surpreenda",
+        "surpreende",
+        "surpreendo",
+        "prinda",
+    }:
+        return {"intent": "browser_surprise_music", "target": {"service": "spotify"}}
+
+    music_session_match = re.search(
+        r"(?:doca|docar|toca|tocar|toque|coloca|coloque|bota|botar)\s+([^?.,!]+)",
+        lower,
+    )
+    if music_session_match:
+        vibe = _extract_music_session_vibe(music_session_match.group(1))
+        if vibe:
+            return {"intent": "browser_music_session", "target": {"service": "spotify", "vibe": vibe}}
+
+    direct_vibe = _extract_music_session_vibe(lower)
+    if direct_vibe:
+        return {"intent": "browser_music_session", "target": {"service": "spotify", "vibe": direct_vibe}}
+
+    direct_music_match = re.match(
+        r"^(?:doca|docar|toca|tocar|toque)\s+(?:a\s+musica\s+|uma\s+musica\s+|musica\s+)?(.+?)(?:\s+(?:no|na)\s+(?:spotify|spotfy|spoti|espotify))?$",
+        lower,
+    )
+    if direct_music_match:
+        query = _strip_leading_articles(direct_music_match.group(1).strip())
+        if query and query not in MEDIA_TARGETS:
+            return {"intent": "browser_search_music", "target": {"service": "spotify", "query": query}}
+
+    return None
+
+
 def detect_short_unclear_text(user_input: str):
     text = normalize_text(user_input)
 
@@ -2630,6 +3200,7 @@ def detect_type_text(user_input: str):
 
 def route(user_input: str):
     detectors = [
+        detect_fast_path_command,
         detect_create_macro_start,
         detect_run_routine,
         detect_run_macro,
@@ -2644,6 +3215,10 @@ def route(user_input: str):
         detect_voice_correction_command,
         detect_navigation_command,
         detect_media_command,
+        detect_weather_command,
+        detect_briefing_command,
+        detect_agenda_command,
+        detect_map_command,
         detect_browser_command,
         detect_code_inspection_command,
         detect_image_analysis_command,

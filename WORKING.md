@@ -41,6 +41,12 @@ Transformar o Axel em um mordomo local realmente útil:
 - decidir schema de memória estruturada
 - começar a camada de pesquisa com fontes
 - acompanhar notícias importantes dos ativos da carteira
+- integrar informações de clima ao fluxo conversacional
+- criar um modo de mapa geográfico útil e consultável
+- ampliar variações de fala para o Axel inteiro, não só para investimentos
+- evoluir o briefing com agenda, tarefas e alertas mais proativos
+- adicionar alertas úteis sobre preço-teto, dividendos, vacância, volatilidade e fatos relevantes
+- deixar o Axel mais proativo em resumos e perguntas de continuação
 
 ## Não fazer agora
 

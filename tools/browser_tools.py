@@ -10,11 +10,16 @@ import unicodedata
 import webbrowser
 from urllib.parse import quote, quote_plus, unquote, urlparse
 
-from config import INVESTIDOR10_WALLET_URL
+from config import INVESTIDOR10_PRIVATE_WALLET_URL, INVESTIDOR10_WALLET_URL
 from llm.ollama_client import ask_model
 from memory.investment_snapshot import save_investment_snapshot
-from memory.public_wallet_refresh import format_public_wallet_refresh_result
+from memory.public_wallet_refresh import (
+    format_public_wallet_refresh_result,
+    parse_wallet_text_blob,
+    refresh_wallet_snapshot_auto,
+)
 from memory.vision_history import remember_vision_analysis
+from tools.spotify_api import spotify_add_to_queue, spotify_search_track, spotify_start_playback
 from tools.system_tools import focus_app
 
 
@@ -66,11 +71,357 @@ SPOTIFY_TRACK_RESULT_CLICKS = (
     (0.49, 0.50),
     (0.56, 0.52),
 )
+SPOTIFY_LIKED_SONGS_QUERIES = {
+    "curtidas",
+    "minhas curtidas",
+    "as curtidas",
+    "musicas curtidas",
+    "minhas musicas curtidas",
+    "as musicas curtidas",
+    "musicas que eu curti",
+    "playlist musicas curtidas",
+    "liked songs",
+    "liked song",
+}
+SPOTIFY_SURPRISE_QUERIES = (
+    "Everybody Wants To Rule The World Tears For Fears",
+    "September Earth Wind Fire",
+    "Lovely Day Bill Withers",
+    "Sultans Of Swing Dire Straits",
+    "The Less I Know The Better Tame Impala",
+    "Get Lucky Daft Punk",
+    "Feeling Good Nina Simone",
+    "Take Five Dave Brubeck",
+    "Oceano Djavan",
+    "Ainda Bem Marisa Monte",
+    "Tempo Perdido Legiao Urbana",
+    "Lanterna Dos Afogados Os Paralamas Do Sucesso",
+    "Back In Black AC/DC",
+    "Sweet Child O Mine Guns N Roses",
+    "No Surprises Radiohead",
+    "Good Days SZA",
+    "Lose Yourself Eminem",
+    "Clair De Lune Debussy",
+    "A Horse With No Name America",
+    "Billie Jean Michael Jackson",
+)
+SPOTIFY_SESSION_QUEUE_TARGET = 5
+SPOTIFY_MUSIC_SESSION_POOLS = {
+    "alegre": (
+        "September Earth Wind Fire",
+        "Lovely Day Bill Withers",
+        "Walking On Sunshine Katrina And The Waves",
+        "Happy Pharrell Williams",
+        "Don't Stop Me Now Queen",
+        "Get Lucky Daft Punk",
+        "Good As Hell Lizzo",
+        "Aquarela Do Brasil Gal Costa",
+    ),
+    "calmo": (
+        "Oceano Djavan",
+        "Ainda Bem Marisa Monte",
+        "Clair De Lune Debussy",
+        "No Surprises Radiohead",
+        "Banana Pancakes Jack Johnson",
+        "Sparks Coldplay",
+        "Heartbeats Jose Gonzalez",
+        "Come Away With Me Norah Jones",
+    ),
+    "rock": (
+        "Back In Black AC/DC",
+        "Sultans Of Swing Dire Straits",
+        "Sweet Child O Mine Guns N Roses",
+        "Everlong Foo Fighters",
+        "Tempo Perdido Legiao Urbana",
+        "Smells Like Teen Spirit Nirvana",
+        "Another Brick In The Wall Pink Floyd",
+        "Black Dog Led Zeppelin",
+    ),
+    "classico": (
+        "Clair De Lune Debussy",
+        "Nocturne Op 9 No 2 Chopin",
+        "The Four Seasons Spring Vivaldi",
+        "Moonlight Sonata Beethoven",
+        "Gymnopedie No 1 Erik Satie",
+        "Canon In D Pachelbel",
+        "Swan Lake Tchaikovsky",
+        "Air On The G String Bach",
+    ),
+    "mpb": (
+        "Oceano Djavan",
+        "Ainda Bem Marisa Monte",
+        "Lanterna Dos Afogados Os Paralamas Do Sucesso",
+        "Tempo Perdido Legiao Urbana",
+        "So Hoje Jota Quest",
+        "Resposta Skank",
+        "Velha Infancia Tribalistas",
+        "Pais E Filhos Legiao Urbana",
+    ),
+    "jazz": (
+        "Take Five Dave Brubeck",
+        "Feeling Good Nina Simone",
+        "So What Miles Davis",
+        "My Favorite Things John Coltrane",
+        "What A Wonderful World Louis Armstrong",
+        "Blue In Green Miles Davis",
+        "Cantaloupe Island Herbie Hancock",
+        "Misty Erroll Garner",
+    ),
+    "gospel": (
+        "Filho Meu Thalles Roberto",
+        "Eu Sou De Jesus Luma Elpidio",
+        "Ninguem Explica Deus Preto No Branco",
+        "Aquieta Minh'alma Ministerio Zoe",
+        "Lugar Secreto Gabriela Rocha",
+        "Todavia Me Alegrarei Samuel Messias",
+        "Deus Provera Gabriela Gomes",
+        "Raridade Anderson Freire",
+    ),
+    "pop": (
+        "Billie Jean Michael Jackson",
+        "Blinding Lights The Weeknd",
+        "As It Was Harry Styles",
+        "Levitating Dua Lipa",
+        "Good Days SZA",
+        "Treasure Bruno Mars",
+        "Anti Hero Taylor Swift",
+        "Bad Guy Billie Eilish",
+    ),
+    "eletronica": (
+        "Get Lucky Daft Punk",
+        "Strobe Deadmau5",
+        "One More Time Daft Punk",
+        "Levels Avicii",
+        "Midnight City M83",
+        "Titanium David Guetta Sia",
+        "Innerbloom Rufus Du Sol",
+        "Opus Eric Prydz",
+    ),
+    "rap": (
+        "Lose Yourself Eminem",
+        "Alright Kendrick Lamar",
+        "Juicy The Notorious B.I.G.",
+        "N.Y. State Of Mind Nas",
+        "Jesus Walks Kanye West",
+        "A Milli Lil Wayne",
+        "HUMBLE. Kendrick Lamar",
+        "99 Problems Jay Z",
+    ),
+    "samba": (
+        "Deixa A Vida Me Levar Zeca Pagodinho",
+        "Trem Das Onze Demônios Da Garoa",
+        "O Mundo E Um Moinho Cartola",
+        "Preciso Me Encontrar Cartola",
+        "Mas Que Nada Jorge Ben Jor",
+        "Aquarela Brasileira Martinho Da Vila",
+        "Vou Festejar Beth Carvalho",
+        "Não Deixe O Samba Morrer Alcione",
+    ),
+    "sertanejo": (
+        "Evidencias Chitaozinho E Xororo",
+        "Infiel Marilia Mendonca",
+        "Cuida Bem Dela Henrique E Juliano",
+        "Propaganda Jorge E Mateus",
+        "Flor E O Beija Flor Henrique E Juliano",
+        "Atrasadinha Felipe Araujo Ferrugem",
+        "Sosseguei Jorge E Mateus",
+        "De Quem E A Culpa Marilia Mendonca",
+    ),
+    "foco": (
+        "Weightless Marconi Union",
+        "Intro The xx",
+        "Dayvan Cowboy Boards Of Canada",
+        "Experience Ludovico Einaudi",
+        "Avril 14th Aphex Twin",
+        "Time Hans Zimmer",
+        "Near Light Olafur Arnalds",
+        "A Walk Tycho",
+    ),
+    "treino": (
+        "Lose Yourself Eminem",
+        "Till I Collapse Eminem",
+        "Eye Of The Tiger Survivor",
+        "Stronger Kanye West",
+        "Thunderstruck AC/DC",
+        "Can't Hold Us Macklemore",
+        "Remember The Name Fort Minor",
+        "Power Kanye West",
+    ),
+    "triste": (
+        "No Surprises Radiohead",
+        "Someone Like You Adele",
+        "The Night We Met Lord Huron",
+        "Fix You Coldplay",
+        "Everybody Hurts R.E.M.",
+        "Tears In Heaven Eric Clapton",
+        "Creep Radiohead",
+        "Hurt Johnny Cash",
+    ),
+}
+SPOTIFY_MUSIC_SESSION_LABELS = {
+    "alegre": "alegre",
+    "calmo": "calma",
+    "rock": "rock",
+    "classico": "clássica",
+    "mpb": "MPB",
+    "jazz": "jazz",
+    "gospel": "gospel",
+    "pop": "pop",
+    "eletronica": "eletrônica",
+    "rap": "rap",
+    "samba": "samba e pagode",
+    "sertanejo": "sertaneja",
+    "foco": "de foco",
+    "treino": "de treino",
+    "triste": "melancólica",
+}
+
+
+def _spotify_play_track_via_app(query: str, track_name: str = "", track_artists: str = "") -> bool:
+    search_query = track_name or query
+    if track_artists:
+        search_query = f"{search_query} {track_artists}"
+    try:
+        os.startfile(f"spotify:search:{quote(SPOTIFY_TRACK_SEARCH_PREFIX + search_query)}")
+        time.sleep(1.4)
+        focus_app("spotify")
+        time.sleep(0.4)
+        if _click_spotify_track_by_name(track_name or query):
+            return True
+        return _click_spotify_first_visible_track()
+    except Exception:
+        return False
+
+
+def _play_spotify_track_result(query: str, best_track: dict, *, surprise: bool = False) -> str:
+    track_uri = str(best_track.get("uri") or "").strip()
+    track_id = str(best_track.get("id") or "").strip()
+    track_name = str(best_track.get("name") or query).strip()
+    track_artists = str(best_track.get("artists") or "").strip()
+
+    if track_uri and spotify_start_playback(track_uri):
+        if surprise:
+            if track_artists:
+                return f"Surpresa escolhida: tocando {track_name}, de {track_artists}, no Spotify."
+            return f"Surpresa escolhida: tocando {track_name} no Spotify."
+        if track_artists:
+            return f"Tocando {track_name}, de {track_artists}, no Spotify."
+        return f"Tocando {track_name} no Spotify."
+
+    if _spotify_play_track_via_app(query, track_name, track_artists):
+        if surprise:
+            if track_artists:
+                return f"Surpresa escolhida: tentando tocar {track_name}, de {track_artists}, no Spotify."
+            return f"Surpresa escolhida: tentando tocar {track_name} no Spotify."
+        if track_artists:
+            return f"Tentando tocar {track_name}, de {track_artists}, no Spotify."
+        return f"Tentando tocar {track_name} no Spotify."
+
+    try:
+        if track_id:
+            os.startfile(f"spotify:track:{track_id}")
+        elif track_uri:
+            os.startfile(track_uri)
+        else:
+            raise RuntimeError("track_not_found")
+        time.sleep(1.4)
+        focus_app("spotify")
+        verb = "Surpresa escolhida: abrindo" if surprise else "Abrindo"
+        if track_artists:
+            return f"{verb} {track_name}, de {track_artists}, no Spotify."
+        return f"{verb} {track_name} no Spotify."
+    except Exception:
+        track_url = str(best_track.get("url") or "").strip()
+        if track_url:
+            webbrowser.open(track_url)
+        verb = "Surpresa escolhida: abrindo" if surprise else "Abrindo"
+        if track_artists:
+            return f"{verb} {track_name}, de {track_artists}, no Spotify."
+        return f"{verb} {track_name} no Spotify."
+
+
+def _spotify_track_label(track: dict, fallback: str = "a faixa escolhida") -> str:
+    name = str(track.get("name") or fallback).strip()
+    artists = str(track.get("artists") or "").strip()
+    if artists:
+        return f"{name}, de {artists}"
+    return name
+
+
+def _search_spotify_session_tracks(queries, limit: int = SPOTIFY_SESSION_QUEUE_TARGET) -> list[dict]:
+    tracks = []
+    seen = set()
+    query_list = list(queries or [])
+    if not query_list:
+        return tracks
+
+    for query in random.sample(query_list, k=len(query_list)):
+        try:
+            track = spotify_search_track(query)
+        except Exception:
+            track = None
+        if not track:
+            continue
+
+        key = str(track.get("uri") or track.get("id") or track.get("name") or query).casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        tracks.append(track)
+        if len(tracks) >= limit:
+            break
+
+    return tracks
+
+
+def _start_spotify_session(queries, label: str, *, surprise: bool = False) -> str:
+    tracks = _search_spotify_session_tracks(queries)
+    if not tracks:
+        return f"Tentei montar uma sessão {label} no Spotify, mas não encontrei faixas agora."
+
+    first_track = tracks[0]
+    first_uri = str(first_track.get("uri") or "").strip()
+    started = bool(first_uri and spotify_start_playback(first_uri))
+    if not started:
+        started = _spotify_play_track_via_app(
+            str(first_track.get("name") or ""),
+            str(first_track.get("name") or ""),
+            str(first_track.get("artists") or ""),
+        )
+
+    if not started:
+        return _play_spotify_track_result(str(first_track.get("name") or label), first_track, surprise=surprise)
+
+    queued = []
+    for track in tracks[1:]:
+        track_uri = str(track.get("uri") or "").strip()
+        if track_uri and spotify_add_to_queue(track_uri):
+            queued.append(track)
+
+    prefix = "Surpresa escolhida" if surprise else f"Sessão {label} iniciada"
+    response = f"{prefix}: tocando {_spotify_track_label(first_track)}."
+    if queued:
+        response += f" Também deixei mais {len(queued)} faixas na fila."
+    elif len(tracks) > 1:
+        response += " Encontrei outras faixas, mas não consegui adicionar à fila agora."
+    return response
 LAST_BROWSER_ELEMENTS = []
 LAST_BROWSER_CONTEXT = ""
 LAST_BROWSER_CONTEXT_CHANGED_AT = 0.0
 LAST_SELECTED_TEXT = ""
-DEFAULT_INVESTIDOR10_WALLET_URL = INVESTIDOR10_WALLET_URL or "https://investidor10.com.br/wallet/my-wallet"
+DEFAULT_INVESTIDOR10_WALLET_URL = (
+    INVESTIDOR10_WALLET_URL
+    or INVESTIDOR10_PRIVATE_WALLET_URL
+    or "https://investidor10.com.br/wallet/my-wallet"
+)
+EDGE_BROWSER_CANDIDATES = (
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+)
+CHROME_BROWSER_CANDIDATES = (
+    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+)
 
 
 class _WinRect(ctypes.Structure):
@@ -344,11 +695,15 @@ def _set_clipboard_text(text: str):
         pass
 
 
-def _activate_browser_window() -> bool:
-    names = ", ".join(f"'{name}'" for name in BROWSER_ACTIVATE_NAMES)
+def _activate_window_names(names) -> bool:
+    names = [str(name or "").strip() for name in list(names or []) if str(name or "").strip()]
+    if not names:
+        return False
+
+    joined = ", ".join(f"'{name}'" for name in names)
     script = f"""
 $shell = New-Object -ComObject WScript.Shell
-$names = @({names})
+$names = @({joined})
 
 foreach ($name in $names) {{
     try {{
@@ -370,6 +725,45 @@ Write-Output "NO"
         return False
 
     return completed.returncode == 0 and "OK" in (completed.stdout or "")
+
+
+def _first_existing_browser(candidates) -> str:
+    for candidate in candidates:
+        if candidate and os.path.exists(candidate):
+            return candidate
+    return ""
+
+
+def _preferred_wallet_browser() -> tuple[str, str]:
+    edge_path = _first_existing_browser(EDGE_BROWSER_CANDIDATES)
+    if edge_path:
+        return edge_path, "msedge"
+
+    chrome_path = _first_existing_browser(CHROME_BROWSER_CANDIDATES)
+    if chrome_path:
+        return chrome_path, "chrome"
+
+    return "", ""
+
+
+def _open_url_in_wallet_browser(url: str) -> str:
+    browser_path, app_name = _preferred_wallet_browser()
+    if browser_path:
+        try:
+            subprocess.Popen([browser_path, "--new-tab", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return app_name
+        except Exception:
+            pass
+
+    try:
+        webbrowser.open(url, new=2)
+        return ""
+    except Exception:
+        return ""
+
+
+def _activate_browser_window() -> bool:
+    return _activate_window_names(BROWSER_ACTIVATE_NAMES)
 
 
 def _tap(vk_code: int):
@@ -743,7 +1137,7 @@ return true;
     return _run_browser_javascript(script)
 
 
-def _click_browser_element_by_text(query: str):
+def _click_browser_element_by_text(query: str, app_names=None):
     query_words = [
         word
         for word in _normalize_text_for_match(query).split()
@@ -753,7 +1147,8 @@ def _click_browser_element_by_text(query: str):
         return False
 
     ps_words = ", ".join(f"'{word}'" for word in query_words)
-    names = ", ".join(f"'{name}'" for name in BROWSER_ACTIVATE_NAMES)
+    target_names = app_names or BROWSER_ACTIVATE_NAMES
+    names = ", ".join(f"'{name}'" for name in target_names)
     script = f"""
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -3178,8 +3573,11 @@ def browser_describe_listed_item(index: int):
     return f"Item {index}: {item['text']}."
 
 
-def _read_selected_text_from_browser():
-    if not _activate_browser_window():
+def _read_selected_text_from_browser(app_name: str | None = None):
+    if app_name:
+        if not _activate_window_names([app_name]):
+            return None
+    elif not _activate_browser_window():
         return None
 
     old_clipboard = _get_clipboard_text()
@@ -3190,6 +3588,46 @@ def _read_selected_text_from_browser():
         time.sleep(0.25)
         selected = _get_clipboard_text()
     finally:
+        _set_clipboard_text(old_clipboard)
+
+    return selected
+
+
+def _read_full_page_text_from_browser(wait_seconds: float = 0.35, app_name: str | None = None):
+    if app_name:
+        if not _activate_window_names([app_name]):
+            return None
+    elif not _activate_browser_window():
+        return None
+
+    old_clipboard = _get_clipboard_text()
+
+    try:
+        _set_clipboard_text("")
+        _shortcut(VK_CONTROL, VK_A)
+        time.sleep(0.12)
+        _shortcut(VK_CONTROL, VK_C)
+        time.sleep(wait_seconds)
+        selected = _get_clipboard_text()
+    finally:
+        _tap(VK_ESCAPE)
+        _set_clipboard_text(old_clipboard)
+
+    return selected
+
+
+def _read_full_page_text_from_foreground(wait_seconds: float = 0.35):
+    old_clipboard = _get_clipboard_text()
+
+    try:
+        _set_clipboard_text("")
+        _shortcut(VK_CONTROL, VK_A)
+        time.sleep(0.12)
+        _shortcut(VK_CONTROL, VK_C)
+        time.sleep(wait_seconds)
+        selected = _get_clipboard_text()
+    finally:
+        _tap(VK_ESCAPE)
         _set_clipboard_text(old_clipboard)
 
     return selected
@@ -3431,15 +3869,126 @@ def browser_investment_snapshot():
     return response
 
 
+def _visible_wallet_capture_summary_legacy(url: str, close_tab: bool = True):
+    app_name = _open_url_in_wallet_browser(url)
+    if app_name is None:
+        return None
+
+    time.sleep(3.2)
+
+    captured_text = ""
+    try:
+        captured_text = str(_read_full_page_text_from_foreground(wait_seconds=0.55) or "").strip()
+        if not captured_text or "Patrimônio total" not in captured_text:
+            captured_text = str(_read_full_page_text_from_browser(wait_seconds=0.55) or "").strip()
+        if (not captured_text or "Patrimônio total" not in captured_text) and app_name:
+            captured_text = str(_read_full_page_text_from_browser(wait_seconds=0.55, app_name=app_name) or "").strip()
+        if not captured_text:
+            return None
+
+        extra_sections = []
+        for section_label in ("Patrimônio", "Proventos"):
+            try:
+                if _click_browser_element_by_text(section_label, app_names=[app_name] if app_name else None):
+                    time.sleep(2.0)
+                    section_text = str(_read_full_page_text_from_foreground(wait_seconds=0.55) or "").strip()
+                    if section_text and section_text not in captured_text:
+                        extra_sections.append(section_text)
+            except Exception:
+                continue
+        if extra_sections:
+            captured_text = "\n".join([captured_text, *extra_sections])
+
+        snapshot = parse_wallet_text_blob(captured_text, url)
+        summary = str(snapshot.get("summary", "")).strip()
+        if not summary:
+            return "Carteira lida pela aba visível e memória atualizada."
+        return summary
+    except Exception:
+        return None
+    finally:
+        if close_tab:
+            try:
+                if app_name:
+                    if _activate_window_names([app_name]):
+                        _shortcut(VK_CONTROL, VK_W)
+                else:
+                    browser_close_tab()
+            except Exception:
+                pass
+
+
+def _visible_wallet_capture_summary(url: str, close_tab: bool = True, max_seconds: float = 12.0):
+    app_name = _open_url_in_wallet_browser(url)
+    if app_name is None:
+        return None
+
+    deadline = time.time() + max(4.0, float(max_seconds or 12.0))
+    time.sleep(3.2)
+
+    captured_text = ""
+    try:
+        captured_text = str(_read_full_page_text_from_foreground(wait_seconds=0.55) or "").strip()
+        if not captured_text or "Patrimônio total" not in captured_text:
+            captured_text = str(_read_full_page_text_from_browser(wait_seconds=0.55) or "").strip()
+        if (not captured_text or "Patrimônio total" not in captured_text) and app_name:
+            captured_text = str(_read_full_page_text_from_browser(wait_seconds=0.55, app_name=app_name) or "").strip()
+        if not captured_text:
+            return None
+
+        extra_sections = []
+        for section_label in ("Patrimônio",):
+            if time.time() >= deadline:
+                break
+            try:
+                if _click_browser_element_by_text(section_label, app_names=[app_name] if app_name else None):
+                    time.sleep(min(1.4, max(0.2, deadline - time.time())))
+                    section_text = str(_read_full_page_text_from_foreground(wait_seconds=0.55) or "").strip()
+                    if section_text and section_text not in captured_text:
+                        extra_sections.append(section_text)
+            except Exception:
+                continue
+        if extra_sections:
+            captured_text = "\n".join([captured_text, *extra_sections])
+
+        snapshot = parse_wallet_text_blob(captured_text, url)
+        summary = str(snapshot.get("summary", "")).strip()
+        if not summary:
+            return "Carteira lida pela aba visível e memória atualizada."
+        return summary
+    except Exception:
+        return None
+    finally:
+        if close_tab:
+            try:
+                if app_name:
+                    if _activate_window_names([app_name]):
+                        _shortcut(VK_CONTROL, VK_W)
+                else:
+                    browser_close_tab()
+            except Exception:
+                pass
+
+
 def browser_open_wallet_and_summarize():
-    webbrowser.open(DEFAULT_INVESTIDOR10_WALLET_URL)
-    time.sleep(1.5)
-    if INVESTIDOR10_WALLET_URL and "/wallet/public/" in INVESTIDOR10_WALLET_URL:
+    private_wallet_url = str(INVESTIDOR10_PRIVATE_WALLET_URL or "").strip()
+    if private_wallet_url and "/wallet/" in private_wallet_url.lower():
+        visible_summary = _visible_wallet_capture_summary(private_wallet_url, close_tab=True)
+        if visible_summary:
+            return "Abri sua carteira do Investidor10. " + visible_summary
+
+    if DEFAULT_INVESTIDOR10_WALLET_URL and "/wallet/" in DEFAULT_INVESTIDOR10_WALLET_URL:
         try:
-            summary = format_public_wallet_refresh_result(force=True)
+            snapshot = refresh_wallet_snapshot_auto(force=True)
+            summary = str(snapshot.get("summary", "")).strip() or format_public_wallet_refresh_result(force=True)
             return "Abri sua carteira do Investidor10. " + summary
         except Exception:
-            pass
+            visible_summary = _visible_wallet_capture_summary(DEFAULT_INVESTIDOR10_WALLET_URL, close_tab=True)
+            if visible_summary:
+                return "Abri sua carteira do Investidor10. " + visible_summary
+
+    webbrowser.open(DEFAULT_INVESTIDOR10_WALLET_URL)
+    time.sleep(1.5)
 
     time.sleep(1.0)
     summary = browser_investment_snapshot()
@@ -3638,29 +4187,95 @@ def browser_search_music(service: str, query: str):
         return "Qual musica voce quer procurar?"
 
     service = (service or "").lower().strip()
+    normalized_query = _normalize_text_for_match(query)
 
     if service == "spotify":
+        if normalized_query in SPOTIFY_LIKED_SONGS_QUERIES:
+            try:
+                os.startfile("spotify:collection:tracks")
+                time.sleep(1.0)
+                focus_app("spotify")
+                return "Abrindo suas músicas curtidas no Spotify."
+            except Exception:
+                webbrowser.open("https://open.spotify.com/collection/tracks")
+                return "Abrindo suas músicas curtidas no Spotify."
+
+        try:
+            best_track = spotify_search_track(query)
+        except Exception:
+            best_track = None
+
+        if best_track:
+            return _play_spotify_track_result(query, best_track)
+
         try:
             spotify_query = f"{SPOTIFY_TRACK_SEARCH_PREFIX}{query}"
             os.startfile(f"spotify:search:{quote(spotify_query)}")
-            time.sleep(2.0)
+            time.sleep(1.2)
             focus_app("spotify")
-            time.sleep(1.0)
-
-            if _click_spotify_music_filter():
-                time.sleep(0.8)
-
-            for _ in range(6):
-                if _click_spotify_track_by_name(query):
-                    return f"Tentando dar play em {query} no Spotify."
-                if _click_spotify_first_visible_track():
-                    return f"Tentando dar play em {query} no Spotify."
-                time.sleep(0.7)
-
-            return f"Pesquisei {query} no Spotify, mas nao consegui clicar no play."
+            return f"Abrindo a busca por {query} no Spotify."
         except Exception:
             webbrowser.open(f"https://open.spotify.com/search/{quote_plus(query)}")
-            return f"Procurando {query} no Spotify."
+            return f"Abrindo a busca por {query} no Spotify."
 
     webbrowser.open(f"https://www.youtube.com/results?search_query={quote_plus(query)}")
     return f"Procurando {query} no YouTube."
+
+
+def browser_surprise_music(service: str = "spotify"):
+    service = (service or "spotify").lower().strip()
+    if service != "spotify":
+        return "Por enquanto, o modo surpresa musical está preparado para o Spotify."
+
+    return _start_spotify_session(SPOTIFY_SURPRISE_QUERIES, "surpresa", surprise=True)
+
+
+def browser_music_session(service: str = "spotify", vibe: str = ""):
+    service = (service or "spotify").lower().strip()
+    if service != "spotify":
+        return "Por enquanto, sessões por clima e gênero estão preparadas para o Spotify."
+
+    normalized_vibe = _normalize_text_for_match(vibe)
+    queries = SPOTIFY_MUSIC_SESSION_POOLS.get(normalized_vibe)
+    if not queries:
+        return f"Ainda não tenho uma sessão pronta para {vibe}. Posso tocar uma música específica se você quiser."
+
+    label = SPOTIFY_MUSIC_SESSION_LABELS.get(normalized_vibe, normalized_vibe)
+    return _start_spotify_session(queries, label)
+
+
+def browser_queue_music(service: str, query: str):
+    if not query:
+        return "Qual música você quer adicionar à fila?"
+
+    service = (service or "").lower().strip()
+    if service != "spotify":
+        return "Por enquanto, fila automática só está preparada para o Spotify."
+
+    try:
+        best_track = spotify_search_track(query)
+    except Exception:
+        best_track = None
+
+    if not best_track:
+        return f"Não encontrei {query} no Spotify para colocar na fila."
+
+    track_uri = str(best_track.get("uri") or "").strip()
+    track_name = str(best_track.get("name") or query).strip()
+    track_artists = str(best_track.get("artists") or "").strip()
+    if track_uri and spotify_add_to_queue(track_uri):
+        if track_artists:
+            return f"Adicionei {track_name}, de {track_artists}, à fila do Spotify."
+        return f"Adicionei {track_name} à fila do Spotify."
+
+    return (
+        "Encontrei a música, mas ainda não consigo adicionar à fila sem o OAuth do Spotify com permissão de playback. "
+        "Posso abrir ou tocar a faixa por enquanto."
+    )
+
+
+def spotify_like_current_track():
+    return (
+        "Ainda não consigo adicionar a música atual às curtidas com segurança. "
+        "Para isso eu preciso do OAuth do Spotify com permissão de biblioteca; por enquanto, posso abrir suas músicas curtidas."
+    )

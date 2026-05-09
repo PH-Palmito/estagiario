@@ -108,6 +108,7 @@ Fazer o Axel conversar melhor e formular opiniões úteis sobre assuntos gerais.
 - distinção entre resposta factual e resposta interpretativa
 - respostas curtas, mais humanas e menos aleatórias
 - follow-up mais coerente
+- variações de fala para o Axel inteiro, com cadência diferente por contexto
 
 ### Formato ideal de resposta
 
@@ -132,6 +133,7 @@ Ao perguntar algo aberto, o Axel:
 - separação `chat factual` e `chat interpretativo`
 - memória curta de contexto conversacional
 - heurística para detectar pedido de opinião
+- biblioteca global de variações de resposta por contexto
 
 ## Fase 3: Pesquisa com fontes
 
@@ -145,6 +147,9 @@ Permitir que o Axel responda temas dependentes de atualidade com fundamento.
 - busca de fontes atuais
 - síntese com citação de origem
 - separação entre dado e leitura
+- respostas úteis sobre clima e contexto operacional do dia
+- agenda local conectada ao briefing diário
+- suporte futuro a mapa geográfico consultável
 
 ### Casos de uso
 
@@ -152,6 +157,10 @@ Permitir que o Axel responda temas dependentes de atualidade com fundamento.
 - “qual cenário parece mais provável?”
 - “o que está acontecendo com esse assunto?”
 - “quem está liderando essa disputa?”
+- “como está o clima hoje?”
+- “vai chover?”
+- “mostrar no mapa”
+- “onde fica isso?”
 
 ### Definição de pronto
 
@@ -170,6 +179,8 @@ Em assuntos atuais, o Axel:
   - fatos verificados
   - leitura
   - limites
+- integração com clima atual e previsão curta
+- camada futura de mapa geográfico e localização contextual
 
 ## Fase 4: Investimentos
 
@@ -187,6 +198,7 @@ Transformar o Axel em um analista pessoal útil, com base nas suas regras.
 - comparação entre preço atual e critério pessoal
 - resumo de tese e risco
 - acompanhamento de notícias importantes por ativo
+- monitoramento proativo de preço, dividendos, volatilidade e fatos relevantes
 
 ### Perguntas que ele deve responder
 
@@ -196,6 +208,10 @@ Transformar o Axel em um analista pessoal útil, com base nas suas regras.
 - “quais notícias afetam essa tese?”
 - “houve alguma notícia importante sobre meus ativos?”
 - “esse ativo está caro ou barato pelo meu critério?”
+- “mercado abriu como hoje?”
+- “algum ativo meu merece atenção agora?”
+- “houve dividendos creditados?”
+- “algum fundo está com vacância aumentando?”
 
 ### Definição de pronto
 
@@ -213,6 +229,8 @@ O Axel deixa de só ler a página e passa a:
 - normalização de preço, rentabilidade e proventos
 - camada de `investment_reasoning`
 - coleta de notícias relevantes por ticker com priorização por impacto
+- camada de `portfolio_monitoring`
+- biblioteca de respostas com variações por contexto
 
 ## Fase 5: Persistência estruturada
 
@@ -266,6 +284,8 @@ Tornar o Axel mais modular e mais autônomo sem perder controle.
 - rotinas agendadas
 - propostas automáticas de melhoria
 - backlog interno de evolução
+- mapa navegável de capacidades e estados do Axel
+- modo de mapa geográfico para contexto visual e localização
 
 ### Skills candidatas
 

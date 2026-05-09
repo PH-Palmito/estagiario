@@ -23,6 +23,7 @@ from memory.action_candidates import (
     reject_first_action_candidate,
     save_action_candidates,
 )
+from memory.assistant_phrases import ACTION_PROGRESS_VARIANTS, STYLE_VARIANTS, next_phrase
 from memory.auto_advances import load_auto_advances, save_auto_advances
 from memory.bottlenecks import load_bottlenecks, save_bottlenecks
 from memory.codex_bridge import load_codex_request, save_codex_request
@@ -68,7 +69,7 @@ from memory.piper_voice_manager import (
 )
 from memory.session import clear
 from memory.self_evolution import load_self_evolution_plan, save_self_evolution_plan
-from memory.ui_commands import dequeue_ui_command
+from memory.ui_commands import dequeue_ui_command_item
 from memory.ui_state import append_ui_history, load_ui_state, reset_ui_state, update_ui_state
 from memory.verification_runs import (
     load_verification_runs,
@@ -89,6 +90,7 @@ from memory.tts_pronunciations import (
 )
 from tools.smart_open_tools import smart_open_needs_choice
 from tools.system_tools import type_text
+from tools.investment_tools import start_background_investment_refresh_loop
 from voice.windows_voice import (
     HOTKEY_NAME,
     HOTWORD_LISTENING_ENABLED,
@@ -126,6 +128,7 @@ ui_hud_started = False
 last_improvement_refresh = 0.0
 repeat_listen_until = 0.0
 UI_HISTORY_MAX_ITEMS = 40
+silent_ui_command_active = False
 
 creating_macro = False
 macro_name = None
@@ -175,47 +178,46 @@ def action_progress_message(command) -> str | None:
         "image_analyze_browser": "Análise de imagem pausada por enquanto.",
         "image_analyze_clipboard": "Análise de imagem pausada por enquanto.",
         "image_analyze": "Análise de imagem pausada por enquanto.",
-        "vision_answer_question": "Consultando a última análise salva...",
-        "browser_describe_screen": "Lendo a tela...",
-        "browser_explain_screen": "Analisando o conteúdo principal...",
-        "browser_summarize_screen": "Resumindo a tela...",
-        "browser_investment_snapshot": "Analisando seus investimentos...",
-        "browser_open_wallet_and_summarize": "Abrindo e analisando sua carteira...",
-        "investment_refresh_public_wallet": "Atualizando a memória da sua carteira...",
-        "investment_memory_summary": "Consultando a memória local da carteira...",
-        "investment_memory_answer": "Consultando a memória local da carteira...",
-        "investment_memory_status": "Verificando a memória local da carteira...",
-        "browser_read_selection": "Lendo o texto selecionado...",
-        "browser_read_selected_products": "Lendo os produtos selecionados...",
-        "browser_translate_last_selection": "Traduzindo o último texto selecionado...",
-        "browser_translate_selection": "Traduzindo o texto selecionado...",
-        "browser_read_more": "Lendo mais conteúdo da página...",
-        "browser_find": "Procurando na página...",
-        "browser_search_site": "Pesquisando no site...",
-        "code_inspect_workspace": "Inspecionando o código do projeto...",
-        "code_inspect_target": "Inspecionando o arquivo solicitado...",
-        "code_inspect_selection": "Inspecionando o código selecionado...",
-    }
-    investment_overrides = {
-        "investment_refresh_public_wallet": "Atualizando sua carteira...",
-        "investment_memory_summary": "Verificando sua carteira...",
-        "investment_memory_answer": "Verificando sua carteira...",
-        "investment_memory_status": "Verificando sua carteira...",
+        "vision_answer_question": next_phrase("progress_vision_answer_question", ACTION_PROGRESS_VARIANTS["vision_answer_question"]),
+        "browser_describe_screen": next_phrase("progress_browser_describe_screen", ACTION_PROGRESS_VARIANTS["browser_describe_screen"]),
+        "browser_explain_screen": next_phrase("progress_browser_explain_screen", ACTION_PROGRESS_VARIANTS["browser_explain_screen"]),
+        "browser_summarize_screen": next_phrase("progress_browser_summarize_screen", ACTION_PROGRESS_VARIANTS["browser_summarize_screen"]),
+        "browser_investment_snapshot": next_phrase("progress_browser_investment_snapshot", ACTION_PROGRESS_VARIANTS["browser_investment_snapshot"]),
+        "browser_open_wallet_and_summarize": next_phrase("progress_browser_open_wallet_and_summarize", ACTION_PROGRESS_VARIANTS["browser_open_wallet_and_summarize"]),
+        "investment_refresh_public_wallet": next_phrase("progress_investment_refresh_public_wallet", ACTION_PROGRESS_VARIANTS["investment_refresh_public_wallet"]),
+        "investment_memory_summary": next_phrase("progress_investment_memory_summary", ACTION_PROGRESS_VARIANTS["investment_memory_summary"]),
+        "investment_memory_answer": next_phrase("progress_investment_memory_answer", ACTION_PROGRESS_VARIANTS["investment_memory_answer"]),
+        "investment_memory_status": next_phrase("progress_investment_memory_status", ACTION_PROGRESS_VARIANTS["investment_memory_status"]),
+        "browser_read_selection": next_phrase("progress_browser_read_selection", ACTION_PROGRESS_VARIANTS["browser_read_selection"]),
+        "browser_read_selected_products": next_phrase("progress_browser_read_selected_products", ACTION_PROGRESS_VARIANTS["browser_read_selected_products"]),
+        "browser_translate_last_selection": next_phrase("progress_browser_translate_last_selection", ACTION_PROGRESS_VARIANTS["browser_translate_last_selection"]),
+        "browser_translate_selection": next_phrase("progress_browser_translate_selection", ACTION_PROGRESS_VARIANTS["browser_translate_selection"]),
+        "browser_read_more": next_phrase("progress_browser_read_more", ACTION_PROGRESS_VARIANTS["browser_read_more"]),
+        "browser_find": next_phrase("progress_browser_find", ACTION_PROGRESS_VARIANTS["browser_find"]),
+        "browser_search_site": next_phrase("progress_browser_search_site", ACTION_PROGRESS_VARIANTS["browser_search_site"]),
+        "code_inspect_workspace": next_phrase("progress_code_inspect_workspace", ACTION_PROGRESS_VARIANTS["code_inspect_workspace"]),
+        "code_inspect_target": next_phrase("progress_code_inspect_target", ACTION_PROGRESS_VARIANTS["code_inspect_target"]),
+        "code_inspect_selection": next_phrase("progress_code_inspect_selection", ACTION_PROGRESS_VARIANTS["code_inspect_selection"]),
+        "weather_summary": next_phrase("progress_weather_summary", ACTION_PROGRESS_VARIANTS["weather_summary"]),
+        "daily_briefing": next_phrase("progress_daily_briefing", ACTION_PROGRESS_VARIANTS["daily_briefing"]),
+        "agenda_list_today": next_phrase("progress_agenda_list", ACTION_PROGRESS_VARIANTS["agenda_list"]),
+        "agenda_list_tomorrow": next_phrase("progress_agenda_list", ACTION_PROGRESS_VARIANTS["agenda_list"]),
+        "agenda_list_all": next_phrase("progress_agenda_list", ACTION_PROGRESS_VARIANTS["agenda_list"]),
     }
     action_name = getattr(command, "action", "")
-    if action_name in investment_overrides:
-        return investment_overrides[action_name]
     return messages.get(action_name)
 
 
 def show_action_progress(command, voice_mode: bool = False):
+    global silent_ui_command_active
+
     message = action_progress_message(command)
     if not message:
         return
     terminal_print(f"IA: {message}")
     append_ui_history("assistant", message, max_items=UI_HISTORY_MAX_ITEMS)
     refresh_ui_runtime_state({"status": "PROCESSANDO", "last_response": message})
-    if voice_mode:
+    if voice_mode and not silent_ui_command_active:
         speak(message)
 
 
@@ -377,8 +379,8 @@ def style_response(message: str) -> str:
             "Abrindo code.": "Perfeitamente. Abrindo VS Code.",
             "Fechando spotify.": "Encerrando Spotify.",
             "Fechando code.": "Encerrando VS Code.",
-            "Nao entendi.": "Não captei com precisão.",
-            "Pode repetir?": "Pode repetir com calma?",
+            "Nao entendi.": next_phrase("style_assistente_unclear", STYLE_VARIANTS["unclear_command"]),
+            "Pode repetir?": next_phrase("style_assistente_repeat", STYLE_VARIANTS["repeat_prompt"]),
             "Nao identifiquei o comando.": "Não identifiquei o comando.",
             "Escuta pausada.": "Escuta em pausa.",
             "Escuta retomada.": "Escuta restabelecida.",
@@ -401,12 +403,13 @@ def style_response(message: str) -> str:
             "Pausando ",
         )
         if message.startswith(action_prefixes):
-            return _next_style_variant(
+            return next_phrase(
+                "style_assistente_action_prefix",
                 (
                     f"Perfeitamente. {message}",
                     f"Com certeza. {message}",
                     f"Entendido. {message}",
-                )
+                ),
             )
 
         return message
@@ -417,27 +420,34 @@ def style_response(message: str) -> str:
         "Abrindo code.": "Certamente. Abrindo VS Code.",
         "Fechando spotify.": "Encerrando Spotify.",
         "Fechando code.": "Encerrando VS Code.",
-        "Nao entendi.": "Não captei com precisão.",
-        "Pode repetir?": "Pode repetir com calma?",
-        "Nao identifiquei o comando.": "Esse comando não ficou claro para mim.",
+        "Nao entendi.": next_phrase("style_jarvis_unclear", STYLE_VARIANTS["unclear_command"]),
+        "Pode repetir?": next_phrase("style_jarvis_repeat", STYLE_VARIANTS["repeat_prompt"]),
+        "Nao identifiquei o comando.": next_phrase("style_jarvis_unclear_command", STYLE_VARIANTS["unclear_command"]),
         "Escuta pausada.": "Escuta em pausa.",
         "Escuta retomada.": "Escuta restabelecida.",
         "Acao cancelada.": "Ação cancelada.",
-        "Pode falar.": _next_style_variant((
-            f"Estou ouvindo, {address_user}.",
-            "Estou ouvindo.",
-            "Pode prosseguir.",
-        )),
-        "Pode falar...": _next_style_variant((
-            f"Estou ouvindo, {address_user}.",
-            "Estou ouvindo.",
-            "Pode prosseguir.",
-        )),
-        "Pode responder...": _next_style_variant((
-            f"Pode responder, {address_user}.",
-            "Pode responder.",
-            "Estou pronto para a resposta.",
-        )),
+        "Pode falar.": next_phrase(
+            "style_ready_prompt",
+            (
+                *tuple(phrase.format(address_user=address_user) for phrase in STYLE_VARIANTS["ready_prompt_addressed"]),
+                *STYLE_VARIANTS["ready_prompt"],
+            ),
+        ),
+        "Pode falar...": next_phrase(
+            "style_ready_prompt_ellipsis",
+            (
+                *tuple(phrase.format(address_user=address_user) for phrase in STYLE_VARIANTS["ready_prompt_addressed"]),
+                *STYLE_VARIANTS["ready_prompt"],
+            ),
+        ),
+        "Pode responder...": next_phrase(
+            "style_answer_prompt",
+            (
+                f"Pode responder, {address_user}.",
+                "Pode responder.",
+                "Estou pronto para a resposta.",
+            ),
+        ),
         "Encerrando.": "Encerrando por agora.",
         "Modo conversa encerrado. Voltei para comandos.": "Modo conversa encerrado. Voltei aos comandos.",
         "Responda com sim ou nao.": "Preciso apenas de sim ou não.",
@@ -466,12 +476,12 @@ def style_response(message: str) -> str:
         "Pausando ",
     )
     if message.startswith(action_prefixes):
-        return _next_style_variant(
-            (
-                f"Certamente. {message}",
-                f"Perfeitamente. {message}",
-                f"Como desejar, {address_user}. {message}",
-            )
+        return next_phrase(
+            "style_jarvis_action_prefix",
+            tuple(
+                phrase.format(message=message, address_user=address_user)
+                for phrase in STYLE_VARIANTS["action_prefix"]
+            ),
         )
 
     return message
@@ -480,6 +490,7 @@ def style_response(message: str) -> str:
 def output_response(message: str, voice_mode: bool):
     global repeat_listen_until
     global direct_response_ready_announced
+    global silent_ui_command_active
 
     styled_message = style_response(message)
     log_execution_event(
@@ -509,7 +520,7 @@ def output_response(message: str, voice_mode: bool):
         "Nao identifiquei o comando.",
     }
 
-    if voice_mode and styled_message not in quiet_messages:
+    if voice_mode and not silent_ui_command_active and styled_message not in quiet_messages:
         speak(styled_message)
 
 
@@ -1846,10 +1857,19 @@ def maybe_announce_codex_suggestion(voice_mode: bool):
 
 
 def poll_ui_text_command() -> str:
-    queued = dequeue_ui_command()
-    if not queued:
+    global silent_ui_command_active
+
+    queued_item = dequeue_ui_command_item()
+    if not queued_item:
+        silent_ui_command_active = False
         return ""
 
+    queued = str(queued_item.get("text", "")).strip()
+    if not queued:
+        silent_ui_command_active = False
+        return ""
+
+    silent_ui_command_active = bool(queued_item.get("silent", False))
     append_ui_history("user", queued, max_items=UI_HISTORY_MAX_ITEMS)
     refresh_ui_runtime_state({"last_heard": queued})
     return queued
@@ -3040,6 +3060,7 @@ def main():
     reset_ui_state()
     refresh_ui_runtime_state({"visible": False})
     refresh_improvement_brain(force=True)
+    start_background_investment_refresh_loop()
 
     if ui_mode:
         show_ui_hud()

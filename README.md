@@ -115,6 +115,33 @@ Variáveis principais:
 - `AXEL_INVESTIDOR10_WALLET_URL`
   Seu link direto da carteira no Investidor10. Pode ser um link privado/autenticado ou uma carteira pública.
 
+- `AXEL_WALLET_PLAYWRIGHT_USER_DATA_DIR`
+  Opcional. Perfil dedicado do navegador para o Axel ler a carteira privada com Playwright. Rode `.\venv\Scripts\python.exe .\scripts\open_wallet_playwright_profile.py`, faca login no Investidor10 uma vez e use o caminho mostrado nessa variavel.
+
+- `AXEL_BRAPI_TOKEN`
+  Token opcional da BRAPI para ampliar a cobertura de cotações e fundamentos por ticker, especialmente fora do snapshot da carteira.
+
+- `AXEL_BRAPI_ENABLED`
+  Liga ou desliga a tentativa de usar BRAPI antes do fallback atual via Investidor10.
+
+- Clima
+  O Axel usa Open-Meteo para consultas de clima. Nessa integraçao, nao e preciso configurar chave.
+
+- `AXEL_NEWSAPI_KEY`
+  Chave opcional da NewsAPI para buscar notícias recentes por ativo.
+
+- `AXEL_NEWSAPI_ENABLED`
+  Liga ou desliga o uso da NewsAPI nas respostas de fatos relevantes e notícias.
+
+- `AXEL_SPOTIFY_CLIENT_ID` e `AXEL_SPOTIFY_CLIENT_SECRET`
+  Credenciais opcionais da Spotify Web API para o Axel buscar a faixa certa antes de abrir/tocar.
+
+- `AXEL_SPOTIFY_ACCESS_TOKEN`
+  Opcional. Se você gerar um token de usuário com permissão de playback, o Axel também pode mandar tocar via API em vez de só abrir a faixa.
+
+- `AXEL_SPOTIFY_DEVICE_ID`
+  Opcional. Permite fixar em qual dispositivo Spotify a reprodução deve começar.
+
 Se essa variável da carteira não estiver preenchida, o Axel ainda abre a área geral do Investidor10, mas não pula direto para o seu link da carteira.
 
 ## Gemini opcional como principal
@@ -229,6 +256,13 @@ O Axel trabalha com dois modos para investimentos:
    Depois disso, perguntas como `modo investimentos`, `valor investido`, `quanto rendeu?` e `qual meu patrimônio?` são respondidas usando a memória local salva.
 
 Isso deixa a resposta mais rápida, mas os dados podem estar desatualizados até uma nova atualização.
+
+Também existe um modo híbrido por ticker:
+
+- primeiro o Axel tenta responder pela memória local da carteira
+- se faltar contexto do ativo, ele pode consultar BRAPI (quando configurada)
+- se ainda faltar cobertura, usa o fallback atual por página do Investidor10
+- para notícias e fatos relevantes, o Axel tenta NewsAPI primeiro e usa Gemini como complemento ou fallback
 
 ## Estrutura do projeto
 

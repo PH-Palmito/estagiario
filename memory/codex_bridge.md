@@ -1,27 +1,29 @@
 # Pedido do Axel ao Codex
 
 **Assistente:** Axel
-**Foco atual:** Lapidar robustez geral do Axel
+**Foco atual:** Fortalecer entendimento de voz e correcoes de fala
 
 ## Contexto
 O assistente local se chama Axel.
 O operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.
-Melhoria sugerida agora: Dar ao Axel memoria operacional de preferencias e contexto.
-Motivo: O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.
-Origem da sugestao: perfil.
-Ultima fala relevante do usuario: PETR4 está acima do meu preço teto?.
-Ultima resposta do assistente: Seu preço-teto salvo para PETR4 é R$ 48,00. Pela cotação visível, ele está acima desse nível..
+Melhoria sugerida agora: Resolver gargalo: Entendimento de voz instavel.
+Motivo: O detector automatico marcou esse problema 1 vez(es) no uso recente.
+Origem da sugestao: detector-de-gargalos.
+Ultima fala relevante do usuario: Musica clássica..
+Ultima resposta do assistente: Sessão clássica iniciada: tocando Air on a G String, de Johann Sebastian Bach, HAUSER, London Symphony Orchestra, Robert Ziegler. Também deixei mais 4 faixas na fila..
 Historico recente:
-Axel: Verificando sua carteira...
-Axel: No recorte atual, PETR4 está subindo, com variação de 9,61%.
-Usuario: o que acha de PETR4?
-Axel: Verificando sua carteira...
-Axel: Pedro, sobre PETR4, vejo que a
-Usuario: PETR4 está acima do meu preço teto?
+Axel: Estou ouvindo, senhor.
+Usuario: Quisa notebook no mercado livre?
+Axel: Esse comando não ficou claro para mim.
+Axel: Pode falar, senhor.
+Usuario: Legendas pela comunidade de Amara.org
+Axel: Estou ouvindo.
+Gargalos detectados recentemente:
+- Entendimento de voz instavel (1 ocorrencia(s))
 Propostas iniciais de patch:
-- Lapidar robustez geral do Axel | arquivos: main.py, ui/assistant_hud.py
+- Fortalecer entendimento de voz e correcoes de fala | arquivos: main.py, core/voice_command_classifier.py, memory/voice_corrections.py, voice/windows_voice.py
 Status da aprovacao humana: pending.
-Proposta em revisao: Lapidar robustez geral do Axel.
+Proposta em revisao: Fortalecer entendimento de voz e correcoes de fala.
 Status da verificacao da melhoria: idle.
 Status da aplicacao supervisionada do handoff: blocked.
 Quero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.

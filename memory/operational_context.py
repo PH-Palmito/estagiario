@@ -49,6 +49,8 @@ STOPWORDS = {
     "vou", "quero", "gostaria", "axel", "codex",
 }
 
+TICKER_RE = re.compile(r"\b[A-Za-z]{4}\d{1,2}\b")
+
 
 def _save_json(path: Path, payload: dict):
     content = json.dumps(payload, ensure_ascii=False, indent=2)
@@ -62,6 +64,12 @@ def _load_json(path: Path):
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def _fingerprint(payload: dict) -> str:
+    stable = dict(payload or {})
+    stable.pop("generated_at", None)
+    return json.dumps(stable, ensure_ascii=False, sort_keys=True)
 
 
 def _normalize(text: str) -> str:
@@ -140,6 +148,40 @@ def _extract_named_hits(texts: list[str], hints: dict[str, str], limit: int = 4)
     return hits
 
 
+def _extract_recent_tickers(texts: list[str], limit: int = 8) -> list[str]:
+    seen = set()
+    hits = []
+    for text in texts:
+        for match in TICKER_RE.findall(str(text or "")):
+            ticker = str(match).upper().strip()
+            if ticker in seen:
+                continue
+            seen.add(ticker)
+            hits.append(ticker)
+            if len(hits) >= limit:
+                return hits
+    return hits
+
+
+def _load_open_tasks(limit: int = 6) -> list[str]:
+    todo_path = MEMORY_DIR / "todo.md"
+    try:
+        lines = todo_path.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return []
+    tasks = []
+    for raw in lines:
+        line = str(raw or "").strip()
+        if not line.startswith("- [ ]"):
+            continue
+        task = line[len("- [ ]"):].strip()
+        if task:
+            tasks.append(task)
+        if len(tasks) >= limit:
+            break
+    return tasks
+
+
 def generate_operational_context() -> dict:
     profile = load_profile() or {}
     advances = load_auto_advances() or []
@@ -168,6 +210,8 @@ def generate_operational_context() -> dict:
     recent_apps = _extract_named_hits(context_texts, APP_HINTS, limit=4)
     recent_sites = _extract_named_hits(context_texts, SITE_HINTS, limit=4)
     recent_topics = _extract_keywords(user_texts, limit=6)
+    recent_tickers = _extract_recent_tickers(context_texts, limit=8)
+    open_tasks = _load_open_tasks(limit=6)
     current_topic = load_current_topic()
 
     operator = str(profile.get("nome", "")).strip() or "Operador"
@@ -185,9 +229,13 @@ def generate_operational_context() -> dict:
         summary_parts.append("Contexto web: " + ", ".join(recent_sites) + ".")
     if recent_topics:
         summary_parts.append("Topicos recentes: " + ", ".join(recent_topics[:4]) + ".")
+    if recent_tickers:
+        summary_parts.append("Tickers recentes: " + ", ".join(recent_tickers[:4]) + ".")
     topic_name = str(current_topic.get("topic", "")).strip()
     if topic_name:
         summary_parts.append(f"Assunto atual: {topic_name}.")
+    if open_tasks:
+        summary_parts.append("Tarefas abertas: " + "; ".join(open_tasks[:2]) + ".")
 
     payload = {
         "generated_at": time.time(),
@@ -199,10 +247,12 @@ def generate_operational_context() -> dict:
         "recent_apps": recent_apps,
         "recent_sites": recent_sites,
         "recent_topics": recent_topics,
+        "recent_tickers": recent_tickers,
         "current_topic": current_topic,
         "conversation_mode": bool(ui_state.get("conversation_mode")),
         "dictation_mode": bool(ui_state.get("dictation_mode")),
         "next_advances": next_advances,
+        "open_tasks": open_tasks,
         "active_bottlenecks": active_bottlenecks,
         "summary": " ".join(summary_parts).strip(),
     }
@@ -211,6 +261,9 @@ def generate_operational_context() -> dict:
 
 def save_operational_context() -> dict:
     payload = generate_operational_context()
+    current = _load_json(OPERATIONAL_CONTEXT_PATH)
+    if isinstance(current, dict) and current and _fingerprint(current) == _fingerprint(payload):
+        return current
     _save_json(OPERATIONAL_CONTEXT_PATH, payload)
     sync_memory_state_safely("operational_context", payload, category="context")
     sync_operational_context_note(payload)

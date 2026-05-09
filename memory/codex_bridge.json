@@ -1,18 +1,18 @@
 {
-  "generated_at": 1777860161.8752878,
+  "generated_at": 1778291708.1076667,
   "assistant_name": "Axel",
-  "title": "Lapidar robustez geral do Axel",
-  "reason": "O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.",
-  "source": "perfil",
-  "prompt": "O assistente local se chama Axel.\nO operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.\nMelhoria sugerida agora: Dar ao Axel memoria operacional de preferencias e contexto.\nMotivo: O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.\nOrigem da sugestao: perfil.\nUltima fala relevante do usuario: PETR4 está acima do meu preço teto?.\nUltima resposta do assistente: Seu preço-teto salvo para PETR4 é R$ 48,00. Pela cotação visível, ele está acima desse nível..\nHistorico recente:\nAxel: Verificando sua carteira...\nAxel: No recorte atual, PETR4 está subindo, com variação de 9,61%.\nUsuario: o que acha de PETR4?\nAxel: Verificando sua carteira...\nAxel: Pedro, sobre PETR4, vejo que a\nUsuario: PETR4 está acima do meu preço teto?\nPropostas iniciais de patch:\n- Lapidar robustez geral do Axel | arquivos: main.py, ui/assistant_hud.py\nStatus da aprovacao humana: pending.\nProposta em revisao: Lapidar robustez geral do Axel.\nStatus da verificacao da melhoria: idle.\nStatus da aplicacao supervisionada do handoff: blocked.\nQuero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.",
+  "title": "Fortalecer entendimento de voz e correcoes de fala",
+  "reason": "O detector automatico marcou esse problema 1 vez(es) no uso recente.",
+  "source": "detector-de-gargalos",
+  "prompt": "O assistente local se chama Axel.\nO operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.\nMelhoria sugerida agora: Resolver gargalo: Entendimento de voz instavel.\nMotivo: O detector automatico marcou esse problema 1 vez(es) no uso recente.\nOrigem da sugestao: detector-de-gargalos.\nUltima fala relevante do usuario: Musica clássica..\nUltima resposta do assistente: Sessão clássica iniciada: tocando Air on a G String, de Johann Sebastian Bach, HAUSER, London Symphony Orchestra, Robert Ziegler. Também deixei mais 4 faixas na fila..\nHistorico recente:\nAxel: Estou ouvindo, senhor.\nUsuario: Quisa notebook no mercado livre?\nAxel: Esse comando não ficou claro para mim.\nAxel: Pode falar, senhor.\nUsuario: Legendas pela comunidade de Amara.org\nAxel: Estou ouvindo.\nGargalos detectados recentemente:\n- Entendimento de voz instavel (1 ocorrencia(s))\nPropostas iniciais de patch:\n- Fortalecer entendimento de voz e correcoes de fala | arquivos: main.py, core/voice_command_classifier.py, memory/voice_corrections.py, voice/windows_voice.py\nStatus da aprovacao humana: pending.\nProposta em revisao: Fortalecer entendimento de voz e correcoes de fala.\nStatus da verificacao da melhoria: idle.\nStatus da aplicacao supervisionada do handoff: blocked.\nQuero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.",
   "history": [
-    "Axel: Verificando sua carteira...",
-    "Axel: No recorte atual, PETR4 está subindo, com variação de 9,61%.",
-    "Usuario: o que acha de PETR4?",
-    "Axel: Verificando sua carteira...",
-    "Axel: Pedro, sobre PETR4, vejo que a",
-    "Usuario: PETR4 está acima do meu preço teto?",
-    "Axel: Verificando sua carteira...",
-    "Axel: Seu preço-teto salvo para PETR4 é R$ 48,00. Pela cotação visível, ele está acima desse nível."
+    "Axel: Estou ouvindo, senhor.",
+    "Usuario: Quisa notebook no mercado livre?",
+    "Axel: Esse comando não ficou claro para mim.",
+    "Axel: Pode falar, senhor.",
+    "Usuario: Legendas pela comunidade de Amara.org",
+    "Axel: Estou ouvindo.",
+    "Usuario: Musica clássica.",
+    "Axel: Sessão clássica iniciada: tocando Air on a G String, de Johann Sebastian Bach, HAUSER, London Symphony Orchestra, Robert Ziegler. Também deixei mais 4 faixas na fila."
   ]
 }

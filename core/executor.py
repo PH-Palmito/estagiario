@@ -25,9 +25,12 @@ from tools.browser_tools import (
     browser_translate_selection,
     browser_read_more,
     browser_refresh,
+    browser_music_session,
+    browser_queue_music,
     browser_search,
     browser_search_music,
     browser_search_site,
+    browser_surprise_music,
     browser_scroll_bottom,
     browser_scroll_down,
     browser_scroll_down_small,
@@ -39,6 +42,7 @@ from tools.browser_tools import (
     browser_zoom_out,
     browser_zoom_reset,
     spotify_diagnostic,
+    spotify_like_current_track,
 )
 from tools.bluetooth_tools import (
     bluetooth_off,
@@ -92,6 +96,15 @@ from tools.file_tools import (
 )
 from tools.folder_tools import create_folder
 from tools.web_tools import google_search, open_chatgpt
+from tools.weather_tools import weather_summary
+from tools.briefing_tools import daily_briefing
+from memory.agenda import (
+    add_agenda_item,
+    list_agenda_all,
+    list_agenda_today,
+    list_agenda_tomorrow,
+    remove_agenda_item,
+)
 from tools.code_tools import inspect_code_target, inspect_selected_code, inspect_workspace_code
 from tools.image_tools import (
     analyze_browser_image,
@@ -166,6 +179,13 @@ ACTIONS = {
     "run_script": lambda p: run_script(p["target"]),
     "type_text": lambda p: type_text(p["content"]),
     "open_url": lambda p: open_url(p["target"]),
+    "weather_summary": lambda p: weather_summary(p.get("location")),
+    "daily_briefing": lambda p: daily_briefing(),
+    "agenda_add": lambda p: add_agenda_item(p["text"]),
+    "agenda_list_today": lambda p: list_agenda_today(),
+    "agenda_list_tomorrow": lambda p: list_agenda_tomorrow(),
+    "agenda_list_all": lambda p: list_agenda_all(),
+    "agenda_remove": lambda p: remove_agenda_item(p["index"], p.get("scope", "today")),
     "browser_new_tab": lambda p: browser_new_tab(),
     "browser_close_tab": lambda p: browser_close_tab(),
     "browser_next_tab": lambda p: browser_next_tab(),
@@ -214,7 +234,11 @@ ACTIONS = {
     "browser_zoom_reset": lambda p: browser_zoom_reset(),
     "browser_search_site": lambda p: browser_search_site(p["site"], p["query"]),
     "browser_search_music": lambda p: browser_search_music(p["service"], p["query"]),
+    "browser_surprise_music": lambda p: browser_surprise_music(p.get("service", "spotify")),
+    "browser_music_session": lambda p: browser_music_session(p.get("service", "spotify"), p["vibe"]),
+    "browser_queue_music": lambda p: browser_queue_music(p["service"], p["query"]),
     "spotify_diagnostic": lambda p: spotify_diagnostic(),
+    "spotify_like_current_track": lambda p: spotify_like_current_track(),
     "media_play_pause": lambda p: media_play_pause(),
     "media_next": lambda p: media_next(),
     "media_previous": lambda p: media_previous(),

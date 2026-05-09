@@ -1,4 +1,17 @@
 {
-  "generated_at": 1777860161.909955,
-  "items": []
+  "generated_at": 1778291707.983733,
+  "items": [
+    {
+      "kind": "voice_understanding",
+      "title": "Entendimento de voz instavel",
+      "reason": "O Axel ainda esta tendo dificuldade para interpretar falas e comandos de forma consistente.",
+      "count": 1,
+      "examples": [
+        "quisa notebook no mercado livre?"
+      ],
+      "assistant_signals": [
+        "esse comando nao ficou claro para mim."
+      ]
+    }
+  ]
 }

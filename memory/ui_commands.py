@@ -26,7 +26,7 @@ def _save_queue(queue: list[dict]):
     os.replace(tmp_path, QUEUE_PATH)
 
 
-def enqueue_ui_command(text: str, source: str = "hud"):
+def enqueue_ui_command(text: str, source: str = "hud", silent: bool = False):
     content = str(text or "").strip()
     if not content:
         return
@@ -35,17 +35,24 @@ def enqueue_ui_command(text: str, source: str = "hud"):
     queue.append({
         "text": content,
         "source": source,
+        "silent": bool(silent),
         "created_at": time.time(),
     })
     _save_queue(queue[-20:])
 
 
-def dequeue_ui_command() -> str:
+def dequeue_ui_command_item() -> dict:
     queue = _load_queue()
     if not queue:
-        return ""
+        return {}
 
     item = queue.pop(0)
     _save_queue(queue)
-    return str(item.get("text", "")).strip()
+    return item
 
+
+def dequeue_ui_command() -> str:
+    item = dequeue_ui_command_item()
+    if not item:
+        return ""
+    return str(item.get("text", "")).strip()
