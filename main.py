@@ -57,8 +57,11 @@ from memory.handoff_retry_plan import load_handoff_retry_plan, save_handoff_retr
 from memory.handoff_validation import load_handoff_validation, save_handoff_validation
 from memory.macros import add_macro
 from memory.operational_context import (
+    forget_operational_preference,
+    format_operational_memory,
     format_operational_context,
     load_operational_context,
+    remember_operational_preference,
     save_operational_context,
 )
 from memory.patch_proposals import load_patch_proposals, save_patch_proposals
@@ -90,7 +93,13 @@ from memory.tts_pronunciations import (
     set_tts_pronunciation,
 )
 from tools.smart_open_tools import smart_open_needs_choice
-from tools.system_tools import type_text
+from tools.briefing_tools import daily_briefing
+from tools.system_tools import (
+    disable_windows_startup,
+    enable_windows_startup,
+    type_text,
+    windows_startup_status,
+)
 from tools.investment_tools import start_background_investment_refresh_loop
 from voice.windows_voice import (
     HOTKEY_NAME,
@@ -492,7 +501,13 @@ def style_response(message: str) -> str:
     return message
 
 
-def output_response(message: str, voice_mode: bool):
+def output_response(
+    message: str,
+    voice_mode: bool,
+    *,
+    interrupt_current_tts: bool = False,
+    wait_for_tts: bool | None = None,
+):
     global repeat_listen_until
     global direct_response_ready_announced
     global silent_ui_command_active
@@ -526,7 +541,11 @@ def output_response(message: str, voice_mode: bool):
     }
 
     if voice_mode and not silent_ui_command_active and styled_message not in quiet_messages:
-        speak(styled_message)
+        speak(
+            styled_message,
+            interrupt_current=interrupt_current_tts,
+            wait_for_playback=wait_for_tts,
+        )
 
 
 def maybe_announce_due_reminders(voice_mode: bool):
@@ -551,7 +570,33 @@ def maybe_announce_due_reminders(voice_mode: bool):
     else:
         texts = [str(item.get("text", "")).strip() for item in due if str(item.get("text", "")).strip()]
         message = "Lembretes: " + "; ".join(texts[:3]) + "."
-    output_response(message, voice_mode)
+    output_response(
+        message,
+        voice_mode,
+        interrupt_current_tts=True,
+        wait_for_tts=True,
+    )
+
+
+def maybe_send_startup_briefing(voice_mode: bool):
+    if "--no-startup-briefing" in sys.argv:
+        return
+    if not bool(VOICE_PREFERENCES.get("startup_briefing_enabled", True)):
+        return
+
+    try:
+        briefing = daily_briefing()
+    except Exception:
+        return
+
+    briefing = str(briefing or "").strip()
+    if briefing:
+        output_response(
+            briefing,
+            voice_mode,
+            interrupt_current_tts=True,
+            wait_for_tts=True,
+        )
 
 
 def common_tts_cache_phrases() -> list[str]:
@@ -1752,6 +1797,42 @@ def maybe_handle_operational_context_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
     compact = re.sub(r"\s+", " ", normalized).strip()
 
+    remember_match = re.match(
+        r"^(?:lembre|lembra|memorize|salve|guarde)\s+(?:na\s+)?(?:memoria operacional|memória operacional|contexto operacional|preferencia operacional|preferência operacional)\s+(?:que\s+)?(.+)$",
+        user_input.strip(),
+        flags=re.I,
+    )
+    if remember_match:
+        return remember_operational_preference(remember_match.group(1), kind="preference")
+
+    note_match = re.match(
+        r"^(?:anote|registre)\s+(?:no\s+)?(?:contexto operacional|memoria operacional|memória operacional)\s+(?:que\s+)?(.+)$",
+        user_input.strip(),
+        flags=re.I,
+    )
+    if note_match:
+        return remember_operational_preference(note_match.group(1), kind="note")
+
+    forget_match = re.match(
+        r"^(?:esqueça|esqueca|remova|apague)\s+(?:da\s+)?(?:memoria operacional|memória operacional|contexto operacional|preferencia operacional|preferência operacional)\s+(.+)$",
+        user_input.strip(),
+        flags=re.I,
+    )
+    if forget_match:
+        return forget_operational_preference(forget_match.group(1))
+
+    if normalized in {
+        "minhas preferencias operacionais",
+        "minhas preferências operacionais",
+        "preferencias operacionais",
+        "preferências operacionais",
+        "memoria operacional salva",
+        "memória operacional salva",
+        "mostrar memoria operacional",
+        "mostrar memória operacional",
+    }:
+        return format_operational_memory()
+
     if normalized in {
         "qual meu foco",
         "qual o meu foco",
@@ -2181,6 +2262,19 @@ def cli_text_after(flag: str) -> str | None:
 
     text = " ".join(parts).strip()
     return text or None
+
+
+def handle_windows_startup_cli() -> bool:
+    if "--install-startup" in sys.argv or "--enable-startup" in sys.argv:
+        print(enable_windows_startup())
+        return True
+    if "--uninstall-startup" in sys.argv or "--disable-startup" in sys.argv:
+        print(disable_windows_startup())
+        return True
+    if "--startup-status" in sys.argv:
+        print(windows_startup_status())
+        return True
+    return False
 
 
 def handle_voice_profile_cli() -> bool:
@@ -3284,6 +3378,9 @@ def main():
     hotword_ui_enabled = voice_mode and hotword_mode
     ui_hud_started = False
 
+    if handle_windows_startup_cli():
+        return
+
     if handle_voice_profile_cli():
         return
 
@@ -3341,6 +3438,7 @@ def main():
                 output_response(startup_message, voice_mode=True)
 
         warm_common_tts_cache_async()
+        maybe_send_startup_briefing(voice_mode=True)
 
     refresh_ui_runtime_state()
 

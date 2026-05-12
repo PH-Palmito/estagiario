@@ -19,6 +19,7 @@ from memory.reminders import load_reminders
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 OPERATIONAL_CONTEXT_PATH = MEMORY_DIR / "operational_context.json"
+OPERATIONAL_MEMORY_PATH = MEMORY_DIR / "operational_memory.json"
 
 
 APP_HINTS = {
@@ -230,6 +231,83 @@ def _collect_operational_preferences() -> dict:
     }
 
 
+def load_operational_memory() -> dict:
+    data = _load_json(OPERATIONAL_MEMORY_PATH)
+    if not isinstance(data, dict):
+        return {"preferences": [], "notes": []}
+
+    preferences = data.get("preferences")
+    notes = data.get("notes")
+    data["preferences"] = preferences if isinstance(preferences, list) else []
+    data["notes"] = notes if isinstance(notes, list) else []
+    return data
+
+
+def _save_operational_memory(data: dict) -> dict:
+    payload = dict(data or {})
+    payload["updated_at"] = time.time()
+    _save_json(OPERATIONAL_MEMORY_PATH, payload)
+    sync_memory_state_safely("operational_memory", payload, category="context")
+    return payload
+
+
+def remember_operational_preference(text: str, kind: str = "preference") -> str:
+    clean = re.sub(r"\s+", " ", str(text or "")).strip(" .")
+    if not clean:
+        return "Qual preferência operacional devo lembrar?"
+
+    memory = load_operational_memory()
+    key = "notes" if kind == "note" else "preferences"
+    items = [str(item).strip() for item in memory.get(key, []) if str(item).strip()]
+    normalized = _normalize(clean)
+    if not any(_normalize(item) == normalized for item in items):
+        items.append(clean)
+    memory[key] = items[-40:]
+    _save_operational_memory(memory)
+    save_operational_context()
+
+    if key == "notes":
+        return f"Anotei no contexto operacional: {clean}."
+    return f"Preferência operacional salva: {clean}."
+
+
+def forget_operational_preference(text: str) -> str:
+    target = _normalize(text)
+    if not target:
+        return "Qual preferência operacional devo esquecer?"
+
+    memory = load_operational_memory()
+    removed = []
+    for key in ("preferences", "notes"):
+        kept = []
+        for item in [str(value).strip() for value in memory.get(key, []) if str(value).strip()]:
+            normalized = _normalize(item)
+            if target in normalized or normalized in target:
+                removed.append(item)
+            else:
+                kept.append(item)
+        memory[key] = kept
+
+    if not removed:
+        return "Não encontrei essa preferência operacional."
+
+    _save_operational_memory(memory)
+    save_operational_context()
+    return "Removi da memória operacional: " + "; ".join(removed[:3]) + "."
+
+
+def format_operational_memory() -> str:
+    memory = load_operational_memory()
+    preferences = [str(item).strip() for item in memory.get("preferences", []) if str(item).strip()]
+    notes = [str(item).strip() for item in memory.get("notes", []) if str(item).strip()]
+    parts = []
+    if preferences:
+        parts.append("Preferências: " + "; ".join(preferences[:6]) + ".")
+    if notes:
+        parts.append("Notas: " + "; ".join(notes[:4]) + ".")
+    return " ".join(parts) if parts else "Ainda não há preferências operacionais salvas."
+
+
 def _format_preference_summary(preferences: dict) -> str:
     if not preferences:
         return ""
@@ -275,7 +353,18 @@ def _format_preference_summary(preferences: dict) -> str:
 def generate_operational_context() -> dict:
     profile = load_profile() or {}
     preferences = _collect_operational_preferences()
+    operational_memory = load_operational_memory()
     preference_summary = _format_preference_summary(preferences)
+    saved_preferences = [
+        str(item).strip()
+        for item in operational_memory.get("preferences", [])
+        if str(item).strip()
+    ]
+    saved_notes = [
+        str(item).strip()
+        for item in operational_memory.get("notes", [])
+        if str(item).strip()
+    ]
     advances = load_auto_advances() or []
     bottlenecks = load_bottlenecks() or []
     self_evolution = load_self_evolution_plan() or {}
@@ -284,15 +373,16 @@ def generate_operational_context() -> dict:
     assistant_texts = _collect_recent_assistant_texts(limit=8)
     context_texts = user_texts + assistant_texts
 
-    current_focus = str(self_evolution.get("current_focus", "")).strip()
-    if not current_focus and advances:
-        current_focus = str(advances[0].get("title", "")).strip()
-
     next_advances = [
         str(item.get("title", "")).strip()
         for item in advances[:3]
         if isinstance(item, dict) and str(item.get("title", "")).strip()
     ]
+    current_focus = str(self_evolution.get("current_focus", "")).strip()
+    if next_advances and current_focus not in next_advances:
+        current_focus = next_advances[0]
+    elif not current_focus and next_advances:
+        current_focus = next_advances[0]
     active_bottlenecks = [
         str(item.get("title", "")).strip()
         for item in bottlenecks[:3]
@@ -326,6 +416,10 @@ def generate_operational_context() -> dict:
         summary_parts.append("Tickers recentes: " + ", ".join(recent_tickers[:4]) + ".")
     if preference_summary:
         summary_parts.append("Preferencias operacionais: " + preference_summary + ".")
+    if saved_preferences:
+        summary_parts.append("Preferencias salvas: " + "; ".join(saved_preferences[:3]) + ".")
+    if saved_notes:
+        summary_parts.append("Notas operacionais: " + "; ".join(saved_notes[:2]) + ".")
     topic_name = str(current_topic.get("topic", "")).strip()
     if topic_name:
         summary_parts.append(f"Assunto atual: {topic_name}.")
@@ -346,6 +440,8 @@ def generate_operational_context() -> dict:
         "recent_topics": recent_topics,
         "recent_tickers": recent_tickers,
         "operational_preferences": preferences,
+        "saved_preferences": saved_preferences,
+        "saved_notes": saved_notes,
         "preference_summary": preference_summary,
         "current_topic": current_topic,
         "conversation_mode": bool(ui_state.get("conversation_mode")),
@@ -387,9 +483,6 @@ def format_operational_context() -> str:
     next_advances = payload.get("next_advances") or []
     if next_advances:
         parts.append("Proximos passos: " + "; ".join(str(item) for item in next_advances[:3]) + ".")
-    preference_summary = str(payload.get("preference_summary", "")).strip()
-    if preference_summary:
-        parts.append("Preferencias operacionais: " + preference_summary + ".")
     active_bottlenecks = payload.get("active_bottlenecks") or []
     if active_bottlenecks:
         parts.append("Gargalos vivos: " + "; ".join(str(item) for item in active_bottlenecks[:2]) + ".")

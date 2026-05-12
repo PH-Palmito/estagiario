@@ -76,6 +76,8 @@ from tools.smart_open_tools import (
 )
 from tools.system_tools import (
     close_app,
+    disable_windows_startup,
+    enable_windows_startup,
     focus_app,
     maximize_app,
     minimize_app,
@@ -84,6 +86,7 @@ from tools.system_tools import (
     restore_app,
     run_script,
     type_text,
+    windows_startup_status,
 )
 from tools.file_tools import (
     list_files,
@@ -202,6 +205,9 @@ ACTIONS = {
     "ui_show_map": lambda p: ui_show_map(p["target"]),
     "weather_summary": lambda p: weather_summary(p.get("location")),
     "daily_briefing": lambda p: daily_briefing(),
+    "windows_startup_enable": lambda p: enable_windows_startup(),
+    "windows_startup_disable": lambda p: disable_windows_startup(),
+    "windows_startup_status": lambda p: windows_startup_status(),
     "reminder_add": lambda p: add_reminder(p["text"]),
     "reminder_list": lambda p: list_reminders(),
     "reminder_remove": lambda p: remove_reminder(p["index"]),

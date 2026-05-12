@@ -2439,14 +2439,14 @@ def detect_investment_strategy_command(user_input: str):
         return {"intent": "investment_get_auto_ceiling_settings", "target": None}
 
     match = re.search(
-        r"(?:adicionar|colocar|incluir)\s+([a-z]{4}\d{1,2})\s+(?:na|a\s+na)?\s*watchlist",
+        r"(?:adicionar|colocar|incluir)\s+([a-z]{3,5}\d{0,2})(?:[-/](?:brl|usd|usdt))?\s+(?:na|a\s+na)?\s*watchlist",
         lower,
     )
     if match:
         return {"intent": "investment_add_watchlist", "ticker": match.group(1).upper()}
 
     match = re.search(
-        r"(?:remover|tirar|excluir)\s+([a-z]{4}\d{1,2})\s+(?:da|da\s+minha|da\s+watchlist)?",
+        r"(?:remover|tirar|excluir)\s+([a-z]{3,5}\d{0,2})(?:[-/](?:brl|usd|usdt))?\s+(?:da|da\s+minha|da\s+watchlist)?",
         lower,
     )
     if match and "watchlist" in lower:
@@ -2827,6 +2827,33 @@ def detect_reminder_command(user_input: str):
         return {"intent": "reminder_remove", "target": {"index": remove_match.group(1)}}
 
     return None
+
+
+def detect_windows_startup_command(user_input: str):
+    lower = normalize_text(user_input)
+    if "windows" not in lower and "pc" not in lower and "computador" not in lower:
+        return None
+
+    startup_terms = (
+        "inicializacao",
+        "iniciar junto",
+        "iniciar com",
+        "abrir junto",
+        "abrir com",
+        "ligar junto",
+        "ligar com",
+    )
+    if not any(term in lower for term in startup_terms):
+        return None
+
+    disable_terms = ("desativ", "deslig", "remov", "tir", "nao iniciar", "parar de iniciar")
+    status_terms = ("status", "esta ativ", "ta ativ", "esta lig", "ta lig")
+
+    if any(term in lower for term in disable_terms):
+        return {"intent": "windows_startup_disable", "target": None}
+    if any(term in lower for term in status_terms):
+        return {"intent": "windows_startup_status", "target": None}
+    return {"intent": "windows_startup_enable", "target": None}
 
 
 def detect_map_command(user_input: str):
@@ -3474,6 +3501,7 @@ def route(user_input: str):
         detect_media_command,
         detect_weather_command,
         detect_briefing_command,
+        detect_windows_startup_command,
         detect_reminder_command,
         detect_agenda_command,
         detect_map_command,

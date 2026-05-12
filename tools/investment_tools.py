@@ -34,7 +34,7 @@ _BACKGROUND_REFRESH_LOCK = threading.Lock()
 
 
 def _extract_ticker(question: str) -> str:
-    match = re.search(r"\b([A-Za-z]{4}\d{1,2})\b", str(question or ""))
+    match = re.search(r"\b([A-Za-z]{3,5}\d{0,2})(?:[-/](?:BRL|USD|USDT))?\b", str(question or ""))
     return match.group(1).upper() if match else ""
 
 

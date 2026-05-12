@@ -20,6 +20,7 @@ PROGRAM_FILES = os.environ.get("ProgramFiles", r"C:\Program Files")
 PROGRAM_FILES_X86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
 LOCAL_APPDATA = os.environ.get("LOCALAPPDATA", "")
 APPDATA = os.environ.get("APPDATA", "")
+STARTUP_ENTRY_NAME = "Axel Assistant.cmd"
 
 ALLOWED_APPS = {
     "bloco de notas": ["notepad.exe"],
@@ -461,3 +462,81 @@ def open_url(url: str):
         return "Abrindo o site."
     except Exception as e:
         return f"Erro ao abrir URL: {e}"
+
+
+def _startup_folder() -> Path | None:
+    appdata = os.environ.get("APPDATA", "")
+    if not appdata:
+        return None
+    return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+
+
+def _startup_entry_path() -> Path | None:
+    folder = _startup_folder()
+    if folder is None:
+        return None
+    return folder / STARTUP_ENTRY_NAME
+
+
+def _quote_cmd_arg(value: str) -> str:
+    return '"' + str(value).replace('"', '""') + '"'
+
+
+def _startup_command_args() -> list[str]:
+    repo_dir = Path(__file__).resolve().parents[1]
+    main_py = repo_dir / "main.py"
+    return [
+        str(sys.executable),
+        str(main_py),
+        "--voice",
+        "--hotword",
+        "--ui",
+        "--startup",
+    ]
+
+
+def enable_windows_startup() -> str:
+    entry_path = _startup_entry_path()
+    if entry_path is None:
+        return "Nao encontrei a pasta de inicializacao do Windows neste ambiente."
+
+    repo_dir = Path(__file__).resolve().parents[1]
+    args = _startup_command_args()
+    command = " ".join(_quote_cmd_arg(arg) for arg in args)
+    content = (
+        "@echo off\n"
+        f"cd /d {_quote_cmd_arg(str(repo_dir))}\n"
+        f"start \"Axel\" /min {command}\n"
+    )
+
+    try:
+        entry_path.parent.mkdir(parents=True, exist_ok=True)
+        entry_path.write_text(content, encoding="utf-8")
+    except Exception as e:
+        return f"Nao consegui ativar a inicializacao com o Windows: {e}"
+
+    return "Inicializacao com o Windows ativada. Vou abrir em modo voz, hotword e painel."
+
+
+def disable_windows_startup() -> str:
+    entry_path = _startup_entry_path()
+    if entry_path is None:
+        return "Nao encontrei a pasta de inicializacao do Windows neste ambiente."
+
+    try:
+        if entry_path.exists():
+            entry_path.unlink()
+            return "Inicializacao com o Windows desativada."
+    except Exception as e:
+        return f"Nao consegui desativar a inicializacao com o Windows: {e}"
+
+    return "A inicializacao com o Windows ja estava desativada."
+
+
+def windows_startup_status() -> str:
+    entry_path = _startup_entry_path()
+    if entry_path is None:
+        return "Nao encontrei a pasta de inicializacao do Windows neste ambiente."
+    if entry_path.exists():
+        return "Inicializacao com o Windows esta ativada."
+    return "Inicializacao com o Windows esta desativada."

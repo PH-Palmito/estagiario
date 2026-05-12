@@ -15,7 +15,12 @@ memory/*.json
 memory/*.jsonl
 memory/*.md
 memory/obsidian_vault/
+memory/audio_diagnostics/
+memory/chunks/
+memory/map_cache/
+memory/wallet*
 !memory/*.py
+!memory/todo.md
 
 models/
 

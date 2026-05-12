@@ -167,14 +167,6 @@ def generate_auto_advances(limit: int = 6) -> list[dict]:
             "lista-manual",
         )
 
-    if profile.get("assistente", {}).get("nome") == "Axel":
-        _push(
-            items,
-            "Dar ao Axel memoria operacional de preferencias e contexto",
-            "O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.",
-            "perfil",
-        )
-
     foco = " ".join(str(item) for item in profile.get("foco_profissional", []))
     if any(word in foco.lower() for word in {"mobile", "react native", "front-end"}):
         _push(

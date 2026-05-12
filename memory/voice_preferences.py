@@ -46,6 +46,7 @@ DEFAULTS = {
     "assistant_style": "jarvis",
     "assistant_address_user": "senhor",
     "assistant_brief_confirmations": True,
+    "startup_briefing_enabled": True,
     "chat_enabled": True,
     "chat_model": "qwen2.5:0.5b",
     "chat_timeout_seconds": 8,

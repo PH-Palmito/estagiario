@@ -162,6 +162,17 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent in {
+        "windows_startup_enable",
+        "windows_startup_disable",
+        "windows_startup_status",
+    }:
+        return Command(
+            action=intent,
+            params={},
+            source="router",
+        )
+
     if intent == "agenda_add":
         return Command(
             action="agenda_add",

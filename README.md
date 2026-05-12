@@ -227,6 +227,22 @@ Teste rápido de voz:
 .\venv\Scripts\python.exe .\main.py --voice-test
 ```
 
+Ativar inicializacao com o Windows:
+
+```powershell
+.\venv\Scripts\python.exe .\main.py --install-startup
+```
+
+Desativar ou verificar:
+
+```powershell
+.\venv\Scripts\python.exe .\main.py --uninstall-startup
+.\venv\Scripts\python.exe .\main.py --startup-status
+```
+
+Quando ativado, o Axel inicia com `--voice --hotword --ui --startup`, entao lembretes vencidos podem ser anunciados por voz mesmo sem voce chamar primeiro.
+Ao ligar em modo voz, ele tambem manda o briefing do dia automaticamente. Para abrir sem briefing em algum teste, use `--no-startup-briefing`.
+
 Baixar uma voz Piper:
 
 ```powershell

@@ -46,6 +46,7 @@ _PIPER_WORKER_PROCESS = None
 _PIPER_WORKER_SIGNATURE = None
 _PIPER_WORKER_SAMPLE_RATE = 22050
 _PIPER_WORKER_WARM = False
+_TTS_WAIT_FOR_PLAYBACK_OVERRIDE = None
 
 
 def _float_pref(name: str, default: float, minimum: float, maximum: float) -> float:
@@ -932,6 +933,21 @@ _HUNDRED_WORDS = {
     900: "novecentos",
 }
 
+_MONTH_NAMES_PTBR = {
+    1: "janeiro",
+    2: "fevereiro",
+    3: "março",
+    4: "abril",
+    5: "maio",
+    6: "junho",
+    7: "julho",
+    8: "agosto",
+    9: "setembro",
+    10: "outubro",
+    11: "novembro",
+    12: "dezembro",
+}
+
 _SPELLED_LETTER_NAMES = {
     "A": "á",
     "B": "bê",
@@ -1058,6 +1074,8 @@ _BUILTIN_TTS_PRONUNCIATIONS = {
     "piper": "paiper",
     "Ollama": "olâma",
     "ollama": "olâma",
+    "Mobile": "môbail",
+    "mobile": "môbail",
     "screenpilot": "screen pilot",
     "ScreenPilot": "screen pilot",
 }
@@ -1113,6 +1131,28 @@ def _expand_time_expression(match: re.Match) -> str:
     minute_word = _number_to_pt(minute_value, feminine_one=True)
     minute_unit = "minuto" if minute_value == 1 else "minutos"
     return f"{hour_word} horas e {minute_word} {minute_unit}"
+
+
+def _expand_date_expression(match: re.Match) -> str:
+    try:
+        day = int(match.group(1))
+        month = int(match.group(2))
+    except (TypeError, ValueError):
+        return match.group(0)
+
+    if day < 1 or day > 31 or month not in _MONTH_NAMES_PTBR:
+        return match.group(0)
+
+    day_text = "primeiro" if day == 1 else _number_to_pt(day)
+    year = match.group(3)
+    year_text = ""
+    if year:
+        year_value = int(year)
+        if year_value < 100:
+            year_value += 2000 if year_value < 50 else 1900
+        year_text = f" de {_number_to_pt(year_value)}"
+
+    return f"{day_text} de {_MONTH_NAMES_PTBR[month]}{year_text}"
 
 
 def _expand_temperature_expression(match: re.Match) -> str:
@@ -1559,6 +1599,7 @@ def _prepare_tts_text(text: str) -> str:
     prepared = _expand_currency_tts_patterns(prepared)
     prepared = _expand_percent_tts_patterns(prepared)
     prepared = _expand_general_decimal_tts_patterns(prepared)
+    prepared = re.sub(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b", _expand_date_expression, prepared)
     prepared = _normalize_tts_punctuation(prepared)
     prepared = _expand_tts_reading_patterns(prepared)
     prepared = _restore_common_ptbr_accents(prepared)
@@ -1878,7 +1919,10 @@ def _wait_for_wav_playback(path: str | Path) -> VoiceResult | None:
 
 def _play_wav(path: str | Path) -> VoiceResult | None:
     winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC)
-    if not bool(VOICE_PREFERENCES.get("tts_wait_for_playback", True)):
+    wait_for_playback = _TTS_WAIT_FOR_PLAYBACK_OVERRIDE
+    if wait_for_playback is None:
+        wait_for_playback = bool(VOICE_PREFERENCES.get("tts_wait_for_playback", True))
+    if not wait_for_playback:
         return None
 
     return _wait_for_wav_playback(path)
@@ -2558,38 +2602,58 @@ def listen_conversation_once(timeout_seconds: float | None = None, culture: str 
     )
 
 
-def speak(text: str, culture: str | None = None) -> VoiceResult:
+def speak(
+    text: str,
+    culture: str | None = None,
+    *,
+    interrupt_current: bool = False,
+    wait_for_playback: bool | None = None,
+) -> VoiceResult:
+    global _TTS_WAIT_FOR_PLAYBACK_OVERRIDE
+
     if not text:
         return VoiceResult(ok=False, error="Nada para falar.")
 
     if not bool(VOICE_PREFERENCES.get("tts_enabled", True)):
         return VoiceResult(ok=True, text=text)
 
-    engine = str(VOICE_PREFERENCES.get("tts_engine", "windows")).strip().lower()
+    previous_wait_override = _TTS_WAIT_FOR_PLAYBACK_OVERRIDE
+    _TTS_WAIT_FOR_PLAYBACK_OVERRIDE = wait_for_playback
 
-    if engine == "gemini":
-        result = _speak_with_gemini(text)
-        if (
-            result.ok
-            or result.error == "Fala interrompida."
-            or not bool(VOICE_PREFERENCES.get("gemini_tts_fallback_to_piper", True))
-        ):
-            return result
+    if interrupt_current:
+        try:
+            winsound.PlaySound(None, 0)
+        except Exception:
+            pass
 
-        if str(VOICE_PREFERENCES.get("piper_model_path", "")).strip():
-            piper_result = _speak_with_piper(text)
-            if piper_result.ok or piper_result.error == "Fala interrompida.":
-                return piper_result
+    try:
+        engine = str(VOICE_PREFERENCES.get("tts_engine", "windows")).strip().lower()
+
+        if engine == "gemini":
+            result = _speak_with_gemini(text)
+            if (
+                result.ok
+                or result.error == "Fala interrompida."
+                or not bool(VOICE_PREFERENCES.get("gemini_tts_fallback_to_piper", True))
+            ):
+                return result
+
+            if str(VOICE_PREFERENCES.get("piper_model_path", "")).strip():
+                piper_result = _speak_with_piper(text)
+                if piper_result.ok or piper_result.error == "Fala interrompida.":
+                    return piper_result
+
+            return _speak_with_windows(text, culture=culture)
+
+        if engine == "piper":
+            result = _speak_with_piper(text)
+            if (
+                result.ok
+                or result.error == "Fala interrompida."
+                or not bool(VOICE_PREFERENCES.get("piper_fallback_to_windows", True))
+            ):
+                return result
 
         return _speak_with_windows(text, culture=culture)
-
-    if engine == "piper":
-        result = _speak_with_piper(text)
-        if (
-            result.ok
-            or result.error == "Fala interrompida."
-            or not bool(VOICE_PREFERENCES.get("piper_fallback_to_windows", True))
-        ):
-            return result
-
-    return _speak_with_windows(text, culture=culture)
+    finally:
+        _TTS_WAIT_FOR_PLAYBACK_OVERRIDE = previous_wait_override

@@ -39,6 +39,19 @@ except Exception:
     load_investment_snapshot = None
 
 try:
+    from memory.operational_context import (
+        forget_operational_preference,
+        load_operational_memory,
+        remember_operational_preference,
+        save_operational_context,
+    )
+except Exception:
+    forget_operational_preference = None
+    load_operational_memory = None
+    remember_operational_preference = None
+    save_operational_context = None
+
+try:
     from config import NEWSAPI_ENABLED, NEWSAPI_KEY
     from memory.news_api import analyze_asset_news
 except Exception:
@@ -599,6 +612,8 @@ class AssistantHud:
         self.investment_last_fetch = 0.0
         self.news_last_fetch = 0.0
         self.news_snapshot = []
+        self.operational_memory_signature = ""
+        self.operational_memory_items = []
         self.map_snapshot = {}
         self.map_last_request_key = ""
         self.map_tile_image = None
@@ -610,7 +625,7 @@ class AssistantHud:
             "tempo": {"x": 410, "y": 34, "width": 360, "height": 238},
             "invest": {"x": 34, "y": 300, "width": 620, "height": 430},
             "mapas": {"x": 330, "y": 64, "width": 700, "height": 540},
-            "contexto": {"x": 860, "y": 34, "width": 460, "height": 560},
+            "contexto": {"x": 810, "y": 34, "width": 520, "height": 660},
             "comandos": {"x": 700, "y": 90, "width": 620, "height": 640},
             "sessao": {"x": 34, "y": 34, "width": 380, "height": 310},
             "noticias": {"x": 700, "y": 300, "width": 620, "height": 430},
@@ -662,7 +677,7 @@ class AssistantHud:
         self.news_panel = self._floating_panel("noticias", x=700, y=300, width=620, height=430)
         self._build_news_panel(self.news_panel)
 
-        self.context_panel = self._floating_panel("contexto", x=860, y=34, width=460, height=560)
+        self.context_panel = self._floating_panel("contexto", x=810, y=34, width=520, height=660)
         self._build_context_panel(self.context_panel)
 
         self.commands_panel = self._floating_panel("comandos", x=700, y=90, width=620, height=640)
@@ -1857,6 +1872,86 @@ class AssistantHud:
         self.style_value = self._metric_card(grid, 2, 0, "ESTILO")
         self.command_value = self._metric_card(grid, 2, 1, "ULTIMO COMANDO")
 
+        memory_editor = tk.Frame(parent, bg=PANEL)
+        memory_editor.pack(fill="x", padx=18, pady=(0, 10))
+        tk.Label(
+            memory_editor,
+            text="MEMORIA OPERACIONAL",
+            bg=PANEL,
+            fg=TEXT_DIM,
+            font=("Segoe UI Semibold", 9),
+        ).pack(anchor="w")
+        memory_entry_row = tk.Frame(memory_editor, bg=PANEL)
+        memory_entry_row.pack(fill="x", pady=(7, 6))
+        self.operational_memory_entry = tk.Entry(
+            memory_entry_row,
+            bg=CARD,
+            fg=TEXT,
+            insertbackground=TEXT,
+            relief="flat",
+            font=("Segoe UI", 10),
+            highlightthickness=1,
+            highlightbackground=LINE,
+        )
+        self.operational_memory_entry.pack(side="left", fill="x", expand=True, ipady=7)
+        self.operational_memory_entry.bind("<Return>", lambda event: self._add_operational_memory("preference"))
+        tk.Button(
+            memory_entry_row,
+            text="+ Preferencia",
+            command=lambda: self._add_operational_memory("preference"),
+            bg=ACCENT_2,
+            fg=TEXT,
+            activebackground=ACCENT,
+            activeforeground=BG,
+            relief="flat",
+            font=("Segoe UI Semibold", 9),
+            padx=10,
+            pady=7,
+        ).pack(side="left", padx=(8, 0))
+        tk.Button(
+            memory_entry_row,
+            text="+ Nota",
+            command=lambda: self._add_operational_memory("note"),
+            bg=CARD_ALT,
+            fg=TEXT,
+            activebackground=LINE_STRONG,
+            activeforeground=TEXT,
+            relief="flat",
+            font=("Segoe UI Semibold", 9),
+            padx=10,
+            pady=7,
+        ).pack(side="left", padx=(6, 0))
+
+        memory_list_row = tk.Frame(memory_editor, bg=PANEL)
+        memory_list_row.pack(fill="x")
+        self.operational_memory_list = tk.Listbox(
+            memory_list_row,
+            bg=CARD,
+            fg=TEXT,
+            selectbackground=ACCENT_2,
+            selectforeground=TEXT,
+            relief="flat",
+            height=4,
+            font=("Segoe UI", 9),
+            activestyle="none",
+            highlightthickness=1,
+            highlightbackground=LINE,
+        )
+        self.operational_memory_list.pack(side="left", fill="x", expand=True)
+        tk.Button(
+            memory_list_row,
+            text="Remover",
+            command=self._remove_selected_operational_memory,
+            bg=CARD,
+            fg=TEXT_SOFT,
+            activebackground=ALERT,
+            activeforeground=TEXT,
+            relief="flat",
+            font=("Segoe UI Semibold", 9),
+            padx=10,
+            pady=7,
+        ).pack(side="left", fill="y", padx=(8, 0))
+
         lists = tk.Frame(parent, bg=PANEL)
         lists.pack(fill="both", expand=True, padx=12, pady=(0, 14))
         lists.grid_columnconfigure(0, weight=1)
@@ -1869,6 +1964,88 @@ class AssistantHud:
         self.macros_value = self._panel_list(lists, 1, 0, "MACROS")
         self.todo_value = self._panel_list(lists, 1, 1, "AVANCOS")
         self.console_text = self._panel_list(lists, 2, 0, "CODEX")
+
+    def _operational_memory_rows(self) -> list[tuple[str, str, str]]:
+        if load_operational_memory is None:
+            return []
+        try:
+            data = load_operational_memory() or {}
+        except Exception:
+            return []
+        rows = []
+        for kind, label in (("preferences", "Preferencia"), ("notes", "Nota")):
+            values = data.get(kind) if isinstance(data, dict) else []
+            if not isinstance(values, list):
+                continue
+            for value in values:
+                text = str(value).strip()
+                if text:
+                    rows.append((kind, label, text))
+        return rows
+
+    def _refresh_operational_memory_list(self, force: bool = False):
+        widget = getattr(self, "operational_memory_list", None)
+        if widget is None:
+            return
+        rows = self._operational_memory_rows()
+        signature = hashlib.sha1(json.dumps(rows, ensure_ascii=False).encode("utf-8")).hexdigest()
+        if not force and signature == self.operational_memory_signature:
+            return
+        selected_text = ""
+        selection = widget.curselection()
+        if selection and 0 <= selection[0] < len(self.operational_memory_items):
+            selected_text = self.operational_memory_items[selection[0]][2]
+        widget.delete(0, "end")
+        self.operational_memory_items = rows
+        for _, label, text in rows:
+            widget.insert("end", f"{label}: {text}")
+        if not rows:
+            widget.insert("end", "Sem memorias salvas.")
+        elif selected_text:
+            for index, item in enumerate(rows):
+                if item[2] == selected_text:
+                    widget.selection_set(index)
+                    break
+        self.operational_memory_signature = signature
+
+    def _add_operational_memory(self, kind: str):
+        entry = getattr(self, "operational_memory_entry", None)
+        if entry is None or remember_operational_preference is None:
+            return
+        text = entry.get().strip()
+        if not text:
+            return
+        try:
+            response = remember_operational_preference(text, kind=kind)
+            if save_operational_context is not None:
+                save_operational_context()
+        except Exception as exc:
+            response = f"Falha ao salvar memoria: {exc}"
+        entry.delete(0, "end")
+        if hasattr(self, "command_value"):
+            self.command_value.config(text=response[:120])
+        self._refresh_operational_memory_list(force=True)
+
+    def _remove_selected_operational_memory(self):
+        widget = getattr(self, "operational_memory_list", None)
+        if widget is None or forget_operational_preference is None:
+            return
+        selection = widget.curselection()
+        if not selection:
+            return
+        index = selection[0]
+        if index < 0 or index >= len(self.operational_memory_items):
+            return
+        text = self.operational_memory_items[index][2]
+        try:
+            response = forget_operational_preference(text)
+            if save_operational_context is not None:
+                save_operational_context()
+        except Exception as exc:
+            response = f"Falha ao remover memoria: {exc}"
+        if hasattr(self, "command_value"):
+            self.command_value.config(text=response[:120])
+        self._refresh_operational_memory_list(force=True)
 
     def _metric_card(self, parent, row, column, title, panel=None):
         card = tk.Frame(parent, bg=CARD, highlightthickness=1, highlightbackground=LINE)
@@ -2615,6 +2792,7 @@ class AssistantHud:
         self._set_text_widget(self.todo_value, todos)
         self._set_text_widget(self.console_text, console_lines)
         self._set_text_widget(self.profile_text, profile_lines)
+        self._refresh_operational_memory_list()
 
         self._draw_core(state)
         self.root.after(240, self._refresh_state)

@@ -5,7 +5,7 @@ from memory.profile import load_profile, save_profile
 
 
 def _normalize_ticker(value: str) -> str:
-    match = re.search(r"\b([A-Za-z]{4}\d{1,2})\b", str(value or ""))
+    match = re.search(r"\b([A-Za-z]{3,5}\d{0,2})(?:[-/](?:BRL|USD|USDT))?\b", str(value or ""))
     return match.group(1).upper() if match else ""
 
 
