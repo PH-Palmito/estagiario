@@ -441,6 +441,7 @@ def sync_operational_context_note(payload: dict) -> bool:
     next_advances = [str(item).strip() for item in (data.get("next_advances") or []) if str(item).strip()]
     active_bottlenecks = [str(item).strip() for item in (data.get("active_bottlenecks") or []) if str(item).strip()]
     open_tasks = [str(item).strip() for item in (data.get("open_tasks") or []) if str(item).strip()]
+    preference_summary = str(data.get("preference_summary", "")).strip()
 
     content = [
         _frontmatter(
@@ -468,6 +469,8 @@ def sync_operational_context_note(payload: dict) -> bool:
     if recent_sites:
         content.extend(["", "## Contexto web"])
         content.extend(f"- {item}" for item in recent_sites[:6])
+    if preference_summary:
+        content.extend(["", "## Preferencias operacionais", preference_summary])
     if next_advances:
         content.extend(["", "## Próximos passos"])
         content.extend(f"- {item}" for item in next_advances[:6])

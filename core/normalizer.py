@@ -140,6 +140,14 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent == "ui_show_map":
+        payload = target if isinstance(target, dict) else {"location": target, "label": target}
+        return Command(
+            action="ui_show_map",
+            params={"target": payload},
+            source="router",
+        )
+
     if intent == "weather_summary":
         return Command(
             action="weather_summary",
@@ -158,6 +166,27 @@ def normalize_action(old_action: dict) -> Command:
         return Command(
             action="agenda_add",
             params={"text": target},
+            source="router",
+        )
+
+    if intent == "reminder_add":
+        return Command(
+            action="reminder_add",
+            params={"text": target},
+            source="router",
+        )
+
+    if intent == "reminder_list":
+        return Command(
+            action="reminder_list",
+            params={},
+            source="router",
+        )
+
+    if intent == "reminder_remove":
+        return Command(
+            action="reminder_remove",
+            params={"index": target.get("index") if isinstance(target, dict) else None},
             source="router",
         )
 
@@ -254,6 +283,7 @@ def normalize_action(old_action: dict) -> Command:
         "browser_investment_snapshot",
         "browser_open_wallet_and_summarize",
         "investment_memory_summary",
+        "investment_financial_report",
         "investment_memory_status",
         "browser_read_selection",
         "browser_read_selected_products",
@@ -361,10 +391,89 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent == "investment_refresh_public_wallet":
+        return Command(
+            action="investment_refresh_public_wallet",
+            params={},
+            source="router",
+        )
+
+    if intent == "investment_set_price_ceiling":
+        return Command(
+            action="investment_set_price_ceiling",
+            params={
+                "ticker": old_action.get("ticker"),
+                "price": old_action.get("price"),
+            },
+            source="router",
+        )
+
+    if intent == "investment_set_auto_ceiling_margin":
+        return Command(
+            action="investment_set_auto_ceiling_margin",
+            params={"value": old_action.get("value")},
+            source="router",
+        )
+
+    if intent == "investment_get_auto_ceiling_settings":
+        return Command(
+            action="investment_get_auto_ceiling_settings",
+            params={},
+            source="router",
+        )
+
+    if intent == "investment_add_watchlist":
+        return Command(
+            action="investment_add_watchlist",
+            params={"ticker": old_action.get("ticker")},
+            source="router",
+        )
+
+    if intent == "investment_remove_watchlist":
+        return Command(
+            action="investment_remove_watchlist",
+            params={"ticker": old_action.get("ticker")},
+            source="router",
+        )
+
+    if intent == "investment_list_watchlist":
+        return Command(
+            action="investment_list_watchlist",
+            params={},
+            source="router",
+        )
+
+    if intent == "investment_set_thesis":
+        return Command(
+            action="investment_set_thesis",
+            params={
+                "ticker": old_action.get("ticker"),
+                "thesis": old_action.get("thesis"),
+            },
+            source="router",
+        )
+
     if intent == "spotify_like_current_track":
         return Command(
             action="spotify_like_current_track",
             params={},
+            source="router",
+        )
+
+    if intent in {
+        "spotify_dislike_current_track",
+        "spotify_more_like_current_track",
+    }:
+        return Command(
+            action=intent,
+            params={},
+            source="router",
+        )
+
+    if intent == "spotify_less_music_vibe":
+        return Command(
+            action="spotify_less_music_vibe",
+            params={"vibe": target.get("vibe") if isinstance(target, dict) else target},
             source="router",
         )
 

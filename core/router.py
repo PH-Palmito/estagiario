@@ -281,15 +281,22 @@ CHATTER_PATTERNS = {
     "muito bom": "Boa. Isso significa que estamos evoluindo.",
     "vamos trabalhar": "Vamos sim. Me diga o que quer fazer.",
     "vamos avancar": "Vamos avancar. Qual frente voce quer puxar agora?",
-    "quem e voce": "Sou seu estagiario local. Eu abro apps, controlo janelas, navego e estou aprendendo a conversar melhor.",
-    "o que voce e": "Sou seu estagiario local. Ainda meio junior, mas dedicado.",
-    "qual seu nome": "Meu nome e Estagiario. Simples, funcional, com leve cheiro de cafe frio.",
-    "qual e seu nome": "Meu nome e Estagiario. Simples, funcional, com leve cheiro de cafe frio.",
-    "o que voce sabe fazer": "Posso abrir apps e sites, controlar janelas, navegar no navegador, controlar midia, lembrar atalhos e responder comandos por voz.",
-    "o que voce consegue fazer": "Posso abrir apps e sites, controlar janelas, navegar no navegador, controlar midia, lembrar atalhos e responder comandos por voz.",
+    "quem e voce": "Sou o Axel, seu assistente local. Eu ajudo no computador, organizo contexto e aprendo seus atalhos para transformar comandos em ação.",
+    "o que voce e": "Sou seu assistente local. Ainda em evolução, mas dedicado.",
+    "qual seu nome": "Meu nome é Axel. Local, prático e com uma paciência computacional quase elegante.",
+    "qual e seu nome": "Meu nome é Axel. Local, prático e com uma paciência computacional quase elegante.",
+    "o que voce sabe fazer": "Posso abrir aplicativos e sites, controlar janelas, navegar no navegador, controlar mídia, lembrar atalhos e responder comandos por voz.",
+    "o que voce consegue fazer": "Posso abrir aplicativos e sites, controlar janelas, navegar no navegador, controlar mídia, lembrar atalhos e responder comandos por voz.",
     "me conta uma coisa interessante": "Uma coisa interessante: quase toda automacao boa nasce de uma frase irritante repetida muitas vezes. A gente esta transformando irritacao em botao invisivel.",
     "fala uma coisa interessante": "Uma coisa interessante: quase toda automacao boa nasce de uma frase irritante repetida muitas vezes. A gente esta transformando irritacao em botao invisivel.",
 }
+
+AXEL_INTRODUCTION = (
+    "Prazer, eu sou o Axel, o assistente local do Pedro. "
+    "Eu ajudo a controlar o computador por voz, abrir aplicativos e sites, navegar, ler telas, organizar contexto e lembrar preferências importantes. "
+    "A ideia não é substituir ninguém: é tirar pequenos atritos do caminho para o Pedro pensar, estudar, programar e decidir melhor. "
+    "Ainda estou evoluindo, mas já tenho uma especialidade bem clara: transformar frases soltas em ações úteis."
+)
 
 REPEAT_PATTERNS = {
     "de novo",
@@ -647,6 +654,32 @@ def detect_profile_question(user_input: str):
 
 def detect_greeting(user_input: str):
     text = normalize_text(user_input)
+
+    if text in {
+        "axel se apresente",
+        "axel apresente se",
+        "axel apresenta voce",
+        "axel se apresenta",
+        "axel pode se apresentar",
+        "axel pode se apresente",
+        "se apresente",
+        "apresente se",
+        "apresenta voce",
+        "apresenta o axel",
+        "apresente o axel",
+        "quem e o axel",
+        "quem e axel",
+        "o que e o axel",
+        "fale de voce",
+        "fala de voce",
+        "conte quem voce e",
+        "conta quem voce e",
+    }:
+        return {"intent": "respond", "target": None, "response": AXEL_INTRODUCTION}
+
+    if text.startswith("axel ") and any(phrase in text for phrase in {"se apresente", "apresente se", "quem voce e", "quem e voce"}):
+        return {"intent": "respond", "target": None, "response": AXEL_INTRODUCTION}
+
     if text in CHATTER_PATTERNS:
         return {"intent": "respond", "target": None, "response": CHATTER_PATTERNS[text]}
 
@@ -1745,11 +1778,21 @@ def detect_code_inspection_command(user_input: str):
     if lower in {
         "inspecionar codigo",
         "inspecionar o codigo",
+        "inspecione codigo",
+        "inspecione o codigo",
         "inspecionar codigo do projeto",
+        "inspecione codigo do projeto",
+        "inspecione o codigo do projeto",
         "analisar codigo",
         "analisar o codigo",
+        "analise codigo",
+        "analise o codigo",
         "revisar codigo",
         "revisar o codigo",
+        "verificar codigo",
+        "verificar o codigo",
+        "verifique codigo",
+        "verifique o codigo",
         "procurar erros no codigo",
         "procurar erros no projeto",
         "achar erros no codigo",
@@ -2220,6 +2263,23 @@ def detect_investment_question_command(user_input: str):
     if not lower:
         return None
 
+    if any(
+        phrase in lower
+        for phrase in {
+            "relatorio financeiro",
+            "relatório financeiro",
+            "relatorio da carteira",
+            "relatório da carteira",
+            "relatorio consolidado",
+            "relatório consolidado",
+            "gerar relatorio",
+            "gerar relatório",
+            "fechar relatorio financeiro",
+            "fechar relatório financeiro",
+        }
+    ):
+        return {"intent": "investment_financial_report", "target": None}
+
     investment_terms = {
         "patrimonio",
         "patrimônio",
@@ -2356,7 +2416,11 @@ def detect_investment_strategy_command(user_input: str):
         }
 
     margin_match = re.search(r"(?:margem\s+de\s+seguranca|margem\s+de\s+segurança).{0,12}?(\d+(?:[.,]\d{1,2})?)", user_input, flags=re.I)
-    if any(term in lower for term in {"definir", "salvar", "ajustar", "mudar", "colocar", "setar"}) and margin_match:
+    if margin_match and (
+        any(term in lower for term in {"definir", "salvar", "ajustar", "mudar", "colocar", "setar"})
+        or "automatica" in lower
+        or "automatico" in lower
+    ):
         return {
             "intent": "investment_set_auto_ceiling_margin",
             "value": margin_match.group(1),
@@ -2402,7 +2466,16 @@ def detect_investment_strategy_command(user_input: str):
                 "thesis": thesis,
             }
 
-    if lower in {"watchlist", "minha watchlist", "lista de ativos", "lista da watchlist"}:
+    if lower in {
+        "watchlist",
+        "minha watchlist",
+        "listar watchlist",
+        "liste watchlist",
+        "listar minha watchlist",
+        "liste minha watchlist",
+        "lista de ativos",
+        "lista da watchlist",
+    }:
         return {"intent": "investment_list_watchlist", "target": None}
 
     return None
@@ -2472,7 +2545,7 @@ def detect_vision_model_command(user_input: str):
 
 def detect_create_file(user_input: str):
     lower = normalize_text(user_input)
-    for prefix in ["crie um arquivo ", "criar arquivo "]:
+    for prefix in ["crie um arquivo ", "crie arquivo ", "criar arquivo "]:
         if lower.startswith(prefix):
             name = user_input[len(prefix):].strip()
             if name:
@@ -2728,6 +2801,34 @@ def detect_agenda_command(user_input: str):
     return None
 
 
+def detect_reminder_command(user_input: str):
+    lower = normalize_text(user_input)
+
+    add_patterns = (
+        r"^(?:me\s+)?(?:lembre|lembra|lembrar)\s+(?:de\s+|que\s+)?(.+)$",
+        r"^(?:me\s+)?(?:avise|avisa|avisar)\s+(?:de\s+|que\s+)?(.+)$",
+    )
+    for pattern in add_patterns:
+        match = re.match(pattern, lower)
+        if match:
+            text = user_input[match.start(1):].strip()
+            if not text:
+                return {"intent": "respond", "target": None, "response": "O que devo lembrar?"}
+            return {"intent": "reminder_add", "target": text}
+
+    if lower in {"lembretes", "meus lembretes", "listar lembretes", "quais lembretes", "lembretes pendentes"}:
+        return {"intent": "reminder_list", "target": None}
+
+    remove_match = re.match(
+        r"^(?:remover|remove|tirar|tire|apagar|apague)\s+(?:lembrete|aviso)\s+(\d+)$",
+        lower,
+    )
+    if remove_match:
+        return {"intent": "reminder_remove", "target": {"index": remove_match.group(1)}}
+
+    return None
+
+
 def detect_map_command(user_input: str):
     lower = normalize_text(user_input)
 
@@ -2737,17 +2838,32 @@ def detect_map_command(user_input: str):
         destination = route_match.group(2).strip(" .,:;-")
         if origin and destination:
             return {
-                "intent": "open_url",
-                "target": (
-                    "https://www.google.com/maps/dir/?api=1"
-                    f"&origin={quote_plus(origin)}&destination={quote_plus(destination)}"
-                ),
+                "intent": "ui_show_map",
+                "target": {
+                    "kind": "route",
+                    "origin": origin,
+                    "destination": destination,
+                    "label": f"{origin} -> {destination}",
+                    "url": (
+                        "https://www.google.com/maps/dir/?api=1"
+                        f"&origin={quote_plus(origin)}&destination={quote_plus(destination)}"
+                    ),
+                },
             }
 
     map_prefixes = (
         "mostrar no mapa ",
         "mostra no mapa ",
         "me mostra no mapa ",
+        "mostrar mapa de ",
+        "mostrar mapa do ",
+        "mostrar mapa da ",
+        "mostra mapa de ",
+        "mostra mapa do ",
+        "mostra mapa da ",
+        "abrir o mapa de ",
+        "abrir o mapa do ",
+        "abrir o mapa da ",
         "abrir mapa de ",
         "abrir mapa do ",
         "abrir mapa da ",
@@ -2771,14 +2887,26 @@ def detect_map_command(user_input: str):
         return None
 
     return {
-        "intent": "open_url",
-        "target": f"https://www.google.com/maps/search/?api=1&query={quote_plus(location)}",
+        "intent": "ui_show_map",
+        "target": {
+            "kind": "place",
+            "location": location,
+            "label": location,
+            "url": f"https://www.google.com/maps/search/?api=1&query={quote_plus(location)}",
+        },
     }
 
 
 def detect_open_url(user_input: str):
     lower = normalize_text(user_input)
     sites = _site_options()
+
+    direct_url = re.search(r"\b(?:https?://|www\.)\S+", user_input.strip(), flags=re.I)
+    if direct_url and any(lower.startswith(prefix.strip()) for prefix in OPEN_PREFIXES):
+        url = direct_url.group(0).strip(" .,")
+        if url.startswith("www."):
+            url = "https://" + url
+        return {"intent": "open_url", "target": url}
 
     if lower.startswith("abra o site "):
         url = user_input[len("abra o site "):].strip()
@@ -2794,6 +2922,9 @@ def detect_open_url(user_input: str):
     open_target = _extract_after_prefix(lower, OPEN_PREFIXES)
     if open_target:
         open_target = _strip_leading_articles(open_target)
+        if open_target.startswith(("http://", "https://", "www.")):
+            url = open_target if not open_target.startswith("www.") else "https://" + open_target
+            return {"intent": "open_url", "target": url}
         if _best_fuzzy_match(open_target, _app_options(), cutoff=0.68):
             return None
         site = _best_fuzzy_match(open_target, sites, cutoff=0.7)
@@ -3056,6 +3187,19 @@ def _marketplace_query_cleanup(query: str) -> str:
     return replacements.get(cleaned, cleaned)
 
 
+def _site_query_cleanup(query: str) -> str:
+    cleaned = normalize_text(query).strip(" .,:;-")
+    cleaned = re.sub(
+        r"\b(?:comandos?|comando|de|para|pra|pode|poderia|consegue|conseguiria|"
+        r"pesquisa|pesquise|pesquisar|esquisa|esquise|esquisar|quisa|quise|quisar|"
+        r"procure|procurar|buscar|busque|procura|no|na|em|dentro|do|da)\b",
+        " ",
+        cleaned,
+    )
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
+    return cleaned
+
+
 def detect_fast_path_command(user_input: str):
     lower = normalize_text(user_input).strip(" .")
     if not lower:
@@ -3064,8 +3208,72 @@ def detect_fast_path_command(user_input: str):
     if lower in {"abrir spotify", "abre spotify", "abrir o spotify", "abre o spotify"}:
         return {"intent": "open_app", "target": "spotify"}
 
+    if lower in {
+        "gostei dessa",
+        "gostei dessa musica",
+        "gostei da musica",
+        "curte essa",
+        "curtir essa",
+        "salva essa",
+        "salve essa",
+        "adiciona essa nas curtidas",
+        "adicione essa nas curtidas",
+    }:
+        return {"intent": "spotify_like_current_track", "target": None}
+
+    if lower in {
+        "nao gostei",
+        "nao gostei dessa",
+        "nao gostei dessa musica",
+        "não gostei",
+        "não gostei dessa",
+        "pula essa",
+        "pular essa",
+        "proxima musica",
+        "próxima musica",
+        "proxima faixa",
+    }:
+        return {"intent": "spotify_dislike_current_track", "target": None}
+
+    if lower in {
+        "mais desse estilo",
+        "mais nessa linha",
+        "mais disso",
+        "toca algo parecido",
+        "toque algo parecido",
+        "coloca algo parecido",
+        "mais parecidas",
+    }:
+        return {"intent": "spotify_more_like_current_track", "target": None}
+
+    less_vibe_match = re.match(r"^(?:menos|nao quero|não quero)\s+(.+)$", lower)
+    if less_vibe_match:
+        vibe = _extract_music_session_vibe(less_vibe_match.group(1))
+        if vibe:
+            return {"intent": "spotify_less_music_vibe", "target": {"vibe": vibe}}
+
     if lower in {"que no mercado livre", "no mercado livre"}:
         return {"intent": "respond", "target": None, "response": "Qual produto você quer pesquisar no Mercado Livre?"}
+
+    if "mercado livre" in lower or "mercadolivre" in lower or "mercado de" in lower:
+        market_query = re.sub(r"\b(?:mercado\s+livre|mercadolivre|mercado\s+de)\b", " ", lower)
+        market_query = re.sub(
+            r"\b(?:comandos?|comando|de|para|pra|pode|poderia|consegue|conseguiria|"
+            r"pesquisa|pesquise|pesquisar|esquisa|esquise|esquisar|quisa|quise|quisar|"
+            r"procure|procurar|buscar|busque|no|na|em|dentro|do|da)\b",
+            " ",
+            market_query,
+        )
+        market_query = re.sub(r"\s+", " ", market_query).strip(" .")
+        market_query = _marketplace_query_cleanup(market_query)
+        if market_query and market_query not in {"que", "o que", "isso"}:
+            return {
+                "intent": "browser_search_site",
+                "target": {
+                    "query": market_query,
+                    "site": "https://www.mercadolivre.com.br",
+                },
+            }
 
     market_match = re.match(
         r"^(?:comandos?\s+(?:de|para|pra)\s+)?(?:pode\s+|poderia\s+|consegue\s+|conseguiria\s+|da\s+para\s+|daria\s+para\s+)?(?:pesquisa|pesquise|pesquisar|esquisa|esquise|esquisar|quisa|quise|quisar|procure|procurar|buscar|busque)\s+(.+?)\s+(?:no|na|em|dentro\s+do|dentro\s+da)\s+(mercado\s+livre|mercadolivre|mercado\s+de)$",
@@ -3077,6 +3285,44 @@ def detect_fast_path_command(user_input: str):
             "target": {
                 "query": _marketplace_query_cleanup(market_match.group(1)),
                 "site": "https://www.mercadolivre.com.br",
+            },
+        }
+
+    youtube_music_match = re.match(
+        r"^(?:pode\s+|poderia\s+|consegue\s+|conseguiria\s+)?(?:doca|docar|toca|tocar|toque|coloca|coloque|bota|botar)\s+(?:a\s+musica\s+|musica\s+)?(.+?)\s+(?:no|na)\s+(youtube|you\s+tube)$",
+        lower,
+    )
+    if youtube_music_match:
+        return {
+            "intent": "browser_search_music",
+            "target": {"service": "youtube", "query": youtube_music_match.group(1).strip()},
+        }
+
+    if (
+        ("youtube" in lower or "you tube" in lower)
+        and lower not in {"youtube", "you tube", "abrir youtube", "abre youtube", "abrir o youtube", "abre o youtube"}
+    ):
+        youtube_query = re.sub(r"\b(?:youtube|you\s+tube)\b", " ", lower)
+        youtube_query = _site_query_cleanup(youtube_query)
+        if youtube_query and youtube_query not in {"que", "o que", "isso"}:
+            return {
+                "intent": "browser_search_site",
+                "target": {
+                    "query": youtube_query,
+                    "site": "https://www.youtube.com",
+                },
+            }
+
+    youtube_match = re.match(
+        r"^(?:comandos?\s+(?:de|para|pra)\s+)?(?:pode\s+|poderia\s+|consegue\s+|conseguiria\s+|da\s+para\s+|daria\s+para\s+)?(?:pesquisa|pesquise|pesquisar|esquisa|esquise|esquisar|quisa|quise|quisar|procure|procurar|buscar|busque)\s+(.+?)\s+(?:no|na|em|dentro\s+do|dentro\s+da)\s+(youtube|you\s+tube)$",
+        lower,
+    )
+    if youtube_match:
+        return {
+            "intent": "browser_search_site",
+            "target": {
+                "query": _site_query_cleanup(youtube_match.group(1)),
+                "site": "https://www.youtube.com",
             },
         }
 
@@ -3206,27 +3452,6 @@ def route(user_input: str):
         detect_run_macro,
         detect_list_macros,
         detect_delete_macro,
-        detect_type_text,
-        detect_user_name,
-        detect_greeting,
-        detect_math,
-        detect_bluetooth_command,
-        detect_memory_command,
-        detect_voice_correction_command,
-        detect_navigation_command,
-        detect_media_command,
-        detect_weather_command,
-        detect_briefing_command,
-        detect_agenda_command,
-        detect_map_command,
-        detect_browser_command,
-        detect_code_inspection_command,
-        detect_image_analysis_command,
-        detect_visual_question_command,
-        detect_investment_strategy_command,
-        detect_investment_question_command,
-        detect_vision_model_command,
-        detect_docs_context_command,
         detect_create_file,
         detect_write_file,
         detect_append_file,
@@ -3237,11 +3462,33 @@ def route(user_input: str):
         detect_rename_file,
         detect_list_files,
         detect_create_folder,
+        detect_type_text,
+        detect_user_name,
+        detect_greeting,
+        detect_math,
+        detect_bluetooth_command,
+        detect_memory_command,
+        detect_voice_correction_command,
+        detect_code_inspection_command,
+        detect_navigation_command,
+        detect_media_command,
+        detect_weather_command,
+        detect_briefing_command,
+        detect_reminder_command,
+        detect_agenda_command,
+        detect_map_command,
+        detect_investment_strategy_command,
+        detect_browser_command,
+        detect_image_analysis_command,
+        detect_visual_question_command,
+        detect_investment_question_command,
+        detect_vision_model_command,
+        detect_docs_context_command,
         detect_open_chatgpt,
         detect_close_app,
         detect_window_command,
-        detect_open_app,
         detect_open_url,
+        detect_open_app,
         detect_run_script,
         detect_profile_question,
         detect_short_unclear_text,

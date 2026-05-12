@@ -20,8 +20,12 @@ ALLOWED_ACTIONS = {
     "run_script",
     "type_text",
     "open_url",
+    "ui_show_map",
     "weather_summary",
     "daily_briefing",
+    "reminder_add",
+    "reminder_list",
+    "reminder_remove",
     "agenda_add",
     "agenda_list_today",
     "agenda_list_tomorrow",
@@ -51,9 +55,18 @@ ALLOWED_ACTIONS = {
     "browser_explain_screen",
     "browser_investment_snapshot",
     "browser_open_wallet_and_summarize",
+    "investment_refresh_public_wallet",
     "investment_memory_summary",
+    "investment_financial_report",
     "investment_memory_answer",
     "investment_memory_status",
+    "investment_set_price_ceiling",
+    "investment_set_auto_ceiling_margin",
+    "investment_get_auto_ceiling_settings",
+    "investment_add_watchlist",
+    "investment_remove_watchlist",
+    "investment_list_watchlist",
+    "investment_set_thesis",
     "browser_summarize_screen",
     "browser_zoom_in",
     "browser_describe_screen",
@@ -72,6 +85,9 @@ ALLOWED_ACTIONS = {
     "browser_queue_music",
     "spotify_diagnostic",
     "spotify_like_current_track",
+    "spotify_dislike_current_track",
+    "spotify_more_like_current_track",
+    "spotify_less_music_vibe",
     "media_play_pause",
     "media_next",
     "media_previous",
@@ -137,8 +153,12 @@ REQUIRED_FIELDS = {
     "run_script": ["target"],
     "type_text": ["content"],
     "open_url": ["target"],
+    "ui_show_map": ["target"],
     "weather_summary": ["location"],
     "daily_briefing": [],
+    "reminder_add": ["text"],
+    "reminder_list": [],
+    "reminder_remove": ["index"],
     "agenda_add": ["text"],
     "agenda_list_today": [],
     "agenda_list_tomorrow": [],
@@ -168,9 +188,18 @@ REQUIRED_FIELDS = {
     "browser_explain_screen": [],
     "browser_investment_snapshot": [],
     "browser_open_wallet_and_summarize": [],
+    "investment_refresh_public_wallet": [],
     "investment_memory_summary": [],
+    "investment_financial_report": [],
     "investment_memory_answer": ["question"],
     "investment_memory_status": [],
+    "investment_set_price_ceiling": ["ticker", "price"],
+    "investment_set_auto_ceiling_margin": ["value"],
+    "investment_get_auto_ceiling_settings": [],
+    "investment_add_watchlist": ["ticker"],
+    "investment_remove_watchlist": ["ticker"],
+    "investment_list_watchlist": [],
+    "investment_set_thesis": ["ticker", "thesis"],
     "browser_summarize_screen": [],
     "browser_describe_screen": [],
     "browser_read_selection": [],
@@ -189,6 +218,9 @@ REQUIRED_FIELDS = {
     "browser_queue_music": ["service", "query"],
     "spotify_diagnostic": [],
     "spotify_like_current_track": [],
+    "spotify_dislike_current_track": [],
+    "spotify_more_like_current_track": [],
+    "spotify_less_music_vibe": ["vibe"],
     "media_play_pause": [],
     "media_next": [],
     "media_previous": [],
@@ -277,6 +309,14 @@ def validate_command(command: Command):
                 return False, "Qual pergunta?"
             if field == "steps":
                 return False, "A macro está vazia."
+            if field == "ticker":
+                return False, "Qual ticker?"
+            if field == "price":
+                return False, "Qual preço?"
+            if field == "value":
+                return False, "Qual valor?"
+            if field == "thesis":
+                return False, "Qual tese?"
             return False, f"Parâmetro obrigatório ausente: {field}"
 
     return True, None

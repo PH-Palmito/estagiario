@@ -1,29 +1,26 @@
 # Pedido do Axel ao Codex
 
 **Assistente:** Axel
-**Foco atual:** Fortalecer entendimento de voz e correcoes de fala
+**Foco atual:** Lapidar robustez geral do Axel
 
 ## Contexto
 O assistente local se chama Axel.
 O operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.
-Melhoria sugerida agora: Resolver gargalo: Entendimento de voz instavel.
-Motivo: O detector automatico marcou esse problema 1 vez(es) no uso recente.
-Origem da sugestao: detector-de-gargalos.
-Ultima fala relevante do usuario: Musica clássica..
-Ultima resposta do assistente: Sessão clássica iniciada: tocando Air on a G String, de Johann Sebastian Bach, HAUSER, London Symphony Orchestra, Robert Ziegler. Também deixei mais 4 faixas na fila..
+Melhoria sugerida agora: Dar ao Axel memoria operacional de preferencias e contexto.
+Motivo: O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.
+Origem da sugestao: perfil.
+Ultima fala relevante do usuario: briefing.
+Ultima resposta do assistente: Bom dia, chefe. Agora em Salvador, predomínio de sol e 27 graus. Chance alta de chuva hoje, perto de 91 por cento. Vale sair preparado para chuva. Agenda sem compromissos próximos. Próximo avanço sugerido: Dar ao Axel memoria operacional de preferencias e contexto. Radar da carteira: sem alerta novo agora. Carteira: patrimônio R$ 8.409,14. Rentabilidade 15,57%..
 Historico recente:
-Axel: Estou ouvindo, senhor.
-Usuario: Quisa notebook no mercado livre?
-Axel: Esse comando não ficou claro para mim.
-Axel: Pode falar, senhor.
-Usuario: Legendas pela comunidade de Amara.org
-Axel: Estou ouvindo.
-Gargalos detectados recentemente:
-- Entendimento de voz instavel (1 ocorrencia(s))
+Axel: Modo voz ativado. Aperte F8 para falar. Aperte F9 para pausar/retomar.
+Axel: Axel online. Inteligência adaptativa pronta para começar.
+Usuario: briefing
+Axel: Preparando seu briefing...
+Axel: Bom dia, chefe. Agora em Salvador, predomínio de sol e 27 graus. Chance alta de chuva hoje, perto de 91 por cento. Vale sair preparado para chuva. Agenda sem compromissos próximos. Próximo avanço sugerido: Dar ao Axel memoria operacional de preferencias e contexto. Radar da carteira: sem alerta novo agora. Carteira: patrimônio R$ 8.409,14. Rentabilidade 15,57%.
 Propostas iniciais de patch:
-- Fortalecer entendimento de voz e correcoes de fala | arquivos: main.py, core/voice_command_classifier.py, memory/voice_corrections.py, voice/windows_voice.py
+- Lapidar robustez geral do Axel | arquivos: main.py, ui/assistant_hud.py
 Status da aprovacao humana: pending.
-Proposta em revisao: Fortalecer entendimento de voz e correcoes de fala.
+Proposta em revisao: Lapidar robustez geral do Axel.
 Status da verificacao da melhoria: idle.
 Status da aplicacao supervisionada do handoff: blocked.
 Quero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.

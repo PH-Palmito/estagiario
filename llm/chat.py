@@ -210,6 +210,9 @@ def _operational_context_text() -> str:
     recent_requests = context.get("recent_user_requests") or []
     if recent_requests:
         parts.append("Pedidos recentes: " + " | ".join(str(item) for item in recent_requests[-3:]) + ".")
+    preference_summary = str(context.get("preference_summary", "")).strip()
+    if preference_summary:
+        parts.append("Preferencias operacionais: " + preference_summary + ".")
     next_advances = context.get("next_advances") or []
     if next_advances:
         parts.append("Proximos avancos: " + "; ".join(str(item) for item in next_advances[:2]) + ".")

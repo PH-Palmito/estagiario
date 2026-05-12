@@ -195,6 +195,33 @@ def _authorized_put(path: str, *, token: str, params: dict | None = None, json_b
     response.raise_for_status()
 
 
+def _authorized_delete(path: str, *, token: str, params: dict | None = None, json_body: dict | None = None):
+    response = _session().delete(
+        f"{SPOTIFY_API_BASE_URL}{path}",
+        params=params or {},
+        json=json_body or {},
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=15,
+    )
+    response.raise_for_status()
+
+
+def _track_from_item(item: dict) -> dict:
+    artists = ", ".join(
+        str(artist.get("name") or "").strip()
+        for artist in (item.get("artists") or [])
+        if str(artist.get("name") or "").strip()
+    )
+    external_urls = item.get("external_urls") or {}
+    return {
+        "id": str(item.get("id") or "").strip(),
+        "uri": str(item.get("uri") or "").strip(),
+        "name": str(item.get("name") or "").strip(),
+        "artists": artists,
+        "url": str(external_urls.get("spotify") or "").strip(),
+    }
+
+
 def _available_devices(token: str) -> list[dict]:
     try:
         payload = _authorized_get("/me/player/devices", token=token)
@@ -270,21 +297,33 @@ def spotify_search_track(query: str) -> dict | None:
         return score, popularity
 
     best = max(items, key=score_track)
-    artists = ", ".join(
-        str(artist.get("name") or "").strip()
-        for artist in (best.get("artists") or [])
-        if str(artist.get("name") or "").strip()
-    )
-    external_urls = best.get("external_urls") or {}
-    result = {
-        "id": str(best.get("id") or "").strip(),
-        "uri": str(best.get("uri") or "").strip(),
-        "name": str(best.get("name") or "").strip(),
-        "artists": artists,
-        "url": str(external_urls.get("spotify") or "").strip(),
-    }
+    result = _track_from_item(best)
     _remember_track(text, result)
     return result
+
+
+def spotify_search_tracks(query: str, limit: int = 5) -> list[dict]:
+    text = str(query or "").strip()
+    if not text:
+        return []
+
+    token = _search_token()
+    if not token:
+        return []
+
+    payload = _authorized_get(
+        "/search",
+        token=token,
+        params={
+            "q": text,
+            "type": "track",
+            "limit": max(1, min(int(limit or 5), 10)),
+            "market": "BR",
+        },
+    )
+    items = ((payload.get("tracks") or {}).get("items") or [])
+    tracks = [_track_from_item(item) for item in items if isinstance(item, dict)]
+    return [track for track in tracks if track.get("uri") and track.get("name")]
 
 
 def spotify_start_playback(track_uri: str) -> bool:
@@ -328,6 +367,52 @@ def spotify_add_to_queue(track_uri: str) -> bool:
         return False
 
 
+def spotify_next_track() -> bool:
+    token = _user_access_token()
+    if not SPOTIFY_API_ENABLED or not token:
+        return False
+
+    params = {}
+    device_id = _best_device_id(token)
+    if device_id:
+        params["device_id"] = device_id
+    try:
+        response = _session().post(
+            f"{SPOTIFY_API_BASE_URL}/me/player/next",
+            params=params,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=8,
+        )
+        response.raise_for_status()
+        return True
+    except Exception:
+        return False
+
+
+def spotify_save_track(track_id: str) -> bool:
+    token = _user_access_token()
+    if not SPOTIFY_API_ENABLED or not token or not track_id:
+        return False
+
+    try:
+        _authorized_put("/me/tracks", token=token, params={"ids": track_id})
+        return True
+    except Exception:
+        return False
+
+
+def spotify_remove_saved_track(track_id: str) -> bool:
+    token = _user_access_token()
+    if not SPOTIFY_API_ENABLED or not token or not track_id:
+        return False
+
+    try:
+        _authorized_delete("/me/tracks", token=token, params={"ids": track_id})
+        return True
+    except Exception:
+        return False
+
+
 def spotify_current_playback() -> dict | None:
     token = _user_access_token()
     if not SPOTIFY_API_ENABLED or not token:
@@ -362,6 +447,8 @@ def spotify_current_playback() -> dict | None:
         if str(artist.get("name") or "").strip()
     )
     return {
+        "id": str(item.get("id") or "").strip(),
+        "uri": str(item.get("uri") or "").strip(),
         "name": str(item.get("name") or "").strip(),
         "artists": artists,
         "album": str(album.get("name") or "").strip() if isinstance(album, dict) else "",

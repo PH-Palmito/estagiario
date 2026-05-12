@@ -4,6 +4,7 @@ import time
 
 from memory.investment_snapshot import (
     answer_investment_snapshot_question,
+    format_investment_financial_report,
     format_investment_snapshot_summary,
     load_investment_snapshot,
 )
@@ -124,6 +125,11 @@ def start_background_investment_refresh_loop() -> bool:
 def investment_memory_summary():
     _ensure_investment_snapshot_for_mode()
     return format_investment_snapshot_summary()
+
+
+def investment_financial_report():
+    _ensure_investment_snapshot_for_mode()
+    return format_investment_financial_report()
 
 
 def investment_memory_answer(question: str):

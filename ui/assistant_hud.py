@@ -1,7 +1,10 @@
 import json
+import hashlib
 import math
+import re
 import tkinter as tk
 import time
+import webbrowser
 from io import BytesIO
 from datetime import datetime
 from pathlib import Path
@@ -35,9 +38,19 @@ try:
 except Exception:
     load_investment_snapshot = None
 
+try:
+    from config import NEWSAPI_ENABLED, NEWSAPI_KEY
+    from memory.news_api import analyze_asset_news
+except Exception:
+    NEWSAPI_ENABLED = False
+    NEWSAPI_KEY = ""
+    analyze_asset_news = None
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
+MAP_CACHE_DIR = MEMORY_DIR / "map_cache"
+MAP_GEOCODE_CACHE_PATH = MAP_CACHE_DIR / "geocode.json"
 TODO_PATH = MEMORY_DIR / "todo.md"
 ROUTINES_PATH = MEMORY_DIR / "routines.json"
 MACROS_PATH = MEMORY_DIR / "macros.json"
@@ -92,6 +105,8 @@ PANEL_ICONS = {
     "mapas": "\u2316",
     "contexto": "\u2318",
     "comandos": "\u2691",
+    "sessao": "\u25c7",
+    "noticias": "\u25f0",
 }
 
 COMMAND_GROUPS = [
@@ -129,11 +144,20 @@ COMMAND_GROUPS = [
         "Dados",
         [
             ("\u2601", "Clima", "como esta o clima", False),
-            ("\u2197", "Invest", "resumo da carteira", False),
+            ("\u2197", "Carteira", "resumo da carteira", False),
+            ("\u25f0", "Noticias", "tem noticias da carteira", False),
             ("\u25cc", "Tela", "o que tem na tela", False),
-            ("\u2316", "Mapa", "mostrar mapa", False),
         ],
     ),
+]
+
+FAVORITE_COMMANDS = [
+    ("\u25b6", "Play/Pause", "pausar ou continuar musica", True),
+    ("\u25cc", "Tela", "o que tem na tela", False),
+    ("\u2601", "Clima", "como esta o clima", False),
+    ("\u2197", "Carteira", "resumo da carteira", False),
+    ("\u25f0", "Noticias", "tem noticias da carteira", False),
+    ("\u25cf", "Conversa", "quero conversar", False),
 ]
 
 
@@ -143,6 +167,10 @@ def _load_json(path: Path) -> dict:
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
+
+
+def _normalize_map_query(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "").strip().lower())
 
 
 def _load_todo_lines(limit: int = 6) -> list[str]:
@@ -550,28 +578,46 @@ class AssistantHud:
 
         self.angle = 0.0
         self.scan_offset = 0
+        self.axel_corner_progress = 0.0
         self.last_state = {}
         self.quick_buttons = []
         self.panels = {}
         self.panel_buttons = {}
+        self.dock_buttons = {}
+        self.command_group_frames = {}
+        self.command_group_buttons = {}
+        self.open_command_groups = {"Favoritos", "Midia"}
+        self.action_pulse_until = 0.0
+        self.focus_panel_key = ""
         self.media_art_image = None
         self.media_art_url = ""
         self.media_snapshot = {}
         self.media_last_fetch = 0.0
         self.weather_last_fetch = 0.0
         self.weather_snapshot = None
+        self.investment_snapshot = {}
         self.investment_last_fetch = 0.0
+        self.news_last_fetch = 0.0
+        self.news_snapshot = []
+        self.map_snapshot = {}
+        self.map_last_request_key = ""
+        self.map_tile_image = None
+        self.map_tile_source_image = None
         self.panel_defaults = {
             "text": {"x": 34, "y": 34, "width": 460, "height": 316},
             "audio": {"x": 34, "y": 370, "width": 360, "height": 246},
             "midia": {"x": 410, "y": 330, "width": 420, "height": 410},
             "tempo": {"x": 410, "y": 34, "width": 360, "height": 238},
-            "invest": {"x": 34, "y": 640, "width": 420, "height": 300},
-            "mapas": {"x": 480, "y": 640, "width": 360, "height": 260},
+            "invest": {"x": 34, "y": 300, "width": 620, "height": 430},
+            "mapas": {"x": 330, "y": 64, "width": 700, "height": 540},
             "contexto": {"x": 860, "y": 34, "width": 460, "height": 560},
-            "comandos": {"x": 870, "y": 90, "width": 420, "height": 640},
+            "comandos": {"x": 700, "y": 90, "width": 620, "height": 640},
+            "sessao": {"x": 34, "y": 34, "width": 380, "height": 310},
+            "noticias": {"x": 700, "y": 300, "width": 620, "height": 430},
         }
         self.drag_state = {}
+        self.drag_pending_position = None
+        self.drag_after_id = None
 
         self._build_layout()
         self._refresh_state()
@@ -604,16 +650,22 @@ class AssistantHud:
         self.weather_panel = self._floating_panel("tempo", x=410, y=34, width=360, height=238)
         self._build_weather_panel(self.weather_panel)
 
-        self.invest_panel = self._floating_panel("invest", x=34, y=640, width=420, height=300)
+        self.invest_panel = self._floating_panel("invest", x=34, y=300, width=620, height=430)
         self._build_invest_panel(self.invest_panel)
 
-        self.maps_panel = self._floating_panel("mapas", x=480, y=640, width=360, height=260)
+        self.maps_panel = self._floating_panel("mapas", x=330, y=64, width=700, height=540)
         self._build_maps_panel(self.maps_panel)
+
+        self.session_panel = self._floating_panel("sessao", x=34, y=34, width=380, height=310)
+        self._build_session_panel(self.session_panel)
+
+        self.news_panel = self._floating_panel("noticias", x=700, y=300, width=620, height=430)
+        self._build_news_panel(self.news_panel)
 
         self.context_panel = self._floating_panel("contexto", x=860, y=34, width=460, height=560)
         self._build_context_panel(self.context_panel)
 
-        self.commands_panel = self._floating_panel("comandos", x=870, y=90, width=420, height=640)
+        self.commands_panel = self._floating_panel("comandos", x=700, y=90, width=620, height=640)
         self._build_commands_panel(self.commands_panel)
 
     def _build_dock(self):
@@ -622,14 +674,14 @@ class AssistantHud:
 
         for key, label in [
             ("text", "Texto"),
-            ("midia", "Midia"),
+            ("midia", "M\u00eddia"),
             ("tempo", "Tempo"),
-            ("invest", "Invest"),
-            ("mapas", "Mapas"),
+            ("invest", "Carteira"),
+            ("noticias", "Not\u00edcias"),
         ]:
             button = tk.Button(
                 dock,
-                text=f"{PANEL_ICONS.get(key, '*')}  {label}",
+                text=self._dock_label(key, label),
                 command=lambda name=key: self._toggle_panel(name),
                 bg="#0b1220",
                 fg=TEXT_SOFT,
@@ -637,11 +689,19 @@ class AssistantHud:
                 activeforeground=TEXT,
                 relief="flat",
                 font=("Segoe UI Semibold", 10),
-                padx=18,
+                padx=10,
                 pady=12,
+                width=10,
+                anchor="w",
+                highlightthickness=1,
+                highlightbackground="#0b1220",
             )
+            button.axel_dock_active = False
+            button.bind("<Enter>", lambda event, b=button: self._dock_hover(b, True))
+            button.bind("<Leave>", lambda event, b=button: self._dock_hover(b, False))
             button.pack(side="left", padx=(3, 3), pady=3)
             self.panel_buttons[key] = button
+            self.dock_buttons[key] = button
 
     def _build_settings_button(self):
         settings = tk.Frame(self.stage, bg=BG)
@@ -661,7 +721,7 @@ class AssistantHud:
         )
         button.pack(side="top", anchor="e")
         self.settings_menu = tk.Frame(settings, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
-        for key, label in [("audio", "Audio"), ("contexto", "Contexto"), ("comandos", "Comandos")]:
+        for key, label in [("audio", "Audio"), ("sessao", "Sess\u00e3o"), ("contexto", "Contexto"), ("comandos", "Comandos")]:
             item = tk.Button(
                 self.settings_menu,
                 text=f"{PANEL_ICONS.get(key, '*')}  {label}",
@@ -678,12 +738,67 @@ class AssistantHud:
             )
             item.pack(fill="x")
             self.panel_buttons[key] = item
+        reset_item = tk.Button(
+            self.settings_menu,
+            text="\u21bb  Restaurar layout",
+            command=self._reset_panel_layout,
+            bg=PANEL,
+            fg=TEXT_SOFT,
+            activebackground=CARD,
+            activeforeground=TEXT,
+            relief="flat",
+            font=("Segoe UI Semibold", 10),
+            padx=16,
+            pady=9,
+            anchor="w",
+        )
+        reset_item.pack(fill="x")
 
     def _toggle_settings_menu(self):
         if self.settings_menu.winfo_ismapped():
             self.settings_menu.pack_forget()
             return
         self.settings_menu.pack(side="top", anchor="e", pady=(8, 0))
+
+    def _reset_panel_layout(self):
+        update_ui_state({"panel_positions": {}})
+        for key, panel in self.panels.items():
+            if panel.winfo_ismapped():
+                panel.place(**self._panel_position(key))
+
+    def _dock_label(self, key, label, active=False):
+        return f"{PANEL_ICONS.get(key, '*')} {label}"
+
+    def _dock_hover(self, button, is_hovered):
+        if getattr(button, "axel_dock_active", False):
+            return
+        button.config(bg=CARD if is_hovered else "#0b1220", fg=TEXT if is_hovered else TEXT_SOFT)
+
+    def _set_dock_button_state(self, key, active):
+        button = self.dock_buttons.get(key)
+        if not button:
+            return
+        button.axel_dock_active = active
+        button.config(
+            bg="#12355f" if active else "#0b1220",
+            fg=TEXT if active else TEXT_SOFT,
+            activebackground="#1d4ed8" if active else CARD,
+            activeforeground=TEXT,
+            highlightbackground=ACCENT if active else "#0b1220",
+        )
+
+    def _refresh_dock_states(self, state):
+        labels = {
+            "text": "Texto",
+            "midia": "M\u00eddia",
+            "tempo": "Tempo",
+            "invest": "Carteira",
+            "noticias": "Not\u00edcias",
+        }
+        for key, button in self.dock_buttons.items():
+            active = bool(self.panels.get(key) and self.panels[key].winfo_ismapped())
+            button.config(text=self._dock_label(key, labels.get(key, key.title()), active=active))
+            self._set_dock_button_state(key, active)
 
     def _floating_panel(self, key, x, y, width, height):
         panel = tk.Frame(self.stage, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
@@ -695,6 +810,9 @@ class AssistantHud:
 
     def _panel_position(self, key):
         defaults = dict(self.panel_defaults.get(key) or {})
+        state = load_ui_state()
+        if key == "mapas" and state.get("map_panel_open"):
+            return self._clamp_panel_position(key, {"x": 34, "y": 34, "width": 700, "height": 540})
         positions = load_ui_state().get("panel_positions")
         saved = positions.get(key) if isinstance(positions, dict) else None
         if isinstance(saved, dict):
@@ -723,15 +841,60 @@ class AssistantHud:
             return
         if panel.winfo_ismapped():
             panel.place_forget()
-            self.panel_buttons[key].config(bg=CARD, fg=TEXT_SOFT)
+            if key in self.dock_buttons:
+                self._set_dock_button_state(key, False)
+            elif key in self.panel_buttons:
+                self.panel_buttons[key].config(bg=CARD, fg=TEXT_SOFT)
+            if key == "mapas":
+                update_ui_state({"map_panel_open": False})
             return
-        panel.place(**self._panel_position(key))
-        self.panel_buttons[key].config(bg="#1d4ed8", fg=TEXT)
+        self.focus_panel_key = key
+        self._focus_panel(key)
+        self._animate_panel_open(key, self._panel_position(key))
+        if key in self.dock_buttons:
+            self._set_dock_button_state(key, True)
+        elif key in self.panel_buttons:
+            self.panel_buttons[key].config(bg="#1d4ed8", fg=TEXT)
+
+    def _ensure_panel_open(self, key):
+        panel = self.panels.get(key)
+        if not panel:
+            return
+        self.focus_panel_key = key
+        self._focus_panel(key)
+        if not panel.winfo_ismapped():
+            self._animate_panel_open(key, self._panel_position(key))
+        button = self.panel_buttons.get(key)
+        if button:
+            if key in self.dock_buttons:
+                self._set_dock_button_state(key, True)
+            else:
+                button.config(bg="#1d4ed8", fg=TEXT)
+
+    def _focus_panel(self, key):
+        for panel_key, panel in self.panels.items():
+            panel.config(highlightbackground=LINE_STRONG if panel_key == key else LINE)
+        panel = self.panels.get(key)
+        if panel:
+            panel.lift()
+
+    def _animate_panel_open(self, key, target, step=0):
+        panel = self.panels.get(key)
+        if not panel:
+            return
+        start_y = target["y"] + 18
+        eased = 1 - (0.55 ** (step + 1))
+        current = dict(target)
+        current["y"] = int(start_y + (target["y"] - start_y) * eased)
+        panel.place(**current)
+        if step < 5:
+            self.root.after(16, lambda: self._animate_panel_open(key, target, step + 1))
 
     def _start_panel_drag(self, key, event):
         panel = self.panels.get(key)
         if not panel:
             return
+        panel.lift()
         info = panel.place_info()
         self.drag_state = {
             "key": key,
@@ -740,6 +903,7 @@ class AssistantHud:
             "panel_x": int(float(info.get("x") or 0)),
             "panel_y": int(float(info.get("y") or 0)),
         }
+        self.drag_pending_position = None
 
     def _drag_panel(self, event):
         key = self.drag_state.get("key")
@@ -753,9 +917,33 @@ class AssistantHud:
             "width": base["width"],
             "height": base["height"],
         }
-        panel.place(**self._clamp_panel_position(key, position))
+        self.drag_pending_position = self._clamp_panel_position(key, position)
+        if self.drag_after_id is None:
+            self.drag_after_id = self.root.after(16, self._apply_drag_position)
+
+    def _apply_drag_position(self):
+        key = self.drag_state.get("key")
+        panel = self.panels.get(key)
+        position = self.drag_pending_position
+        self.drag_after_id = None
+        if not key or not panel or not position:
+            return
+        panel.place(**position)
+        self.drag_pending_position = None
 
     def _end_panel_drag(self, event=None):
+        if self.drag_after_id is not None:
+            try:
+                self.root.after_cancel(self.drag_after_id)
+            except Exception:
+                pass
+            self.drag_after_id = None
+        if self.drag_pending_position:
+            key = self.drag_state.get("key")
+            panel = self.panels.get(key)
+            if key and panel:
+                panel.place(**self.drag_pending_position)
+            self.drag_pending_position = None
         key = self.drag_state.get("key")
         panel = self.panels.get(key)
         if not key or not panel:
@@ -946,7 +1134,7 @@ class AssistantHud:
             pady=8,
         )
 
-    def _command_button(self, parent, label, command, source: str = "hud", silent: bool = False):
+    def _command_button(self, parent, label, command, source: str = "hud", silent: bool = False, compact: bool = False):
         return tk.Button(
             parent,
             text=label,
@@ -960,9 +1148,9 @@ class AssistantHud:
             activebackground="#2563eb",
             activeforeground=BG,
             relief="flat",
-            font=("Segoe UI Semibold", 10),
-            padx=10,
-            pady=9,
+            font=("Segoe UI Symbol" if compact else "Segoe UI Semibold", 9 if compact else 10),
+            padx=9 if compact else 10,
+            pady=4 if compact else 9,
         )
 
     def _build_weather_panel(self, parent):
@@ -993,7 +1181,7 @@ class AssistantHud:
         self.weather_wind_value = self._metric_card(grid, 0, 2, "VENTO")
 
     def _build_invest_panel(self, parent):
-        self._panel_title(parent, "Invest")
+        self._panel_title(parent, "Carteira")
         grid = tk.Frame(parent, bg=PANEL)
         grid.pack(fill="x", padx=12, pady=(0, 10))
         for column in range(2):
@@ -1002,32 +1190,317 @@ class AssistantHud:
         self.invest_return_value = self._metric_card(grid, 0, 1, "RETORNO")
         self.invest_income_value = self._metric_card(grid, 1, 0, "PROVENTOS")
         self.invest_update_value = self._metric_card(grid, 1, 1, "SNAPSHOT")
+        self.invest_chart_canvas = tk.Canvas(parent, bg="#08111f", height=128, highlightthickness=1, highlightbackground=LINE)
+        self.invest_chart_canvas.pack(fill="x", padx=18, pady=(0, 10))
+        self.invest_chart_canvas.bind("<Configure>", lambda _event: self._draw_invest_chart(self.investment_snapshot))
         self.invest_text = self._panel_list(parent, None, None, "SINAIS")
 
     def _build_maps_panel(self, parent):
         self._panel_title(parent, "Mapas")
+        header = tk.Frame(parent, bg=PANEL)
+        header.pack(fill="x", padx=18, pady=(0, 10))
         self.maps_status_value = tk.Label(
-            parent,
-            text="Modulo preparado para rotas, lugares e tempo de deslocamento.",
-            bg=CARD,
-            fg=TEXT_SOFT,
-            font=("Segoe UI", 10),
+            header,
+            text="Aguardando destino.",
+            bg=PANEL,
+            fg=TEXT,
+            font=("Segoe UI Semibold", 12),
             justify="left",
-            anchor="nw",
-            wraplength=300,
-            padx=14,
-            pady=12,
+            anchor="w",
+        )
+        self.maps_status_value.pack(side="left", fill="x", expand=True)
+        self.maps_mode_value = tk.Label(
+            header,
+            text="UX",
+            bg="#0b1424",
+            fg=ACCENT_3,
+            font=("Segoe UI Semibold", 9),
+            padx=10,
+            pady=5,
             highlightthickness=1,
             highlightbackground=LINE,
         )
-        self.maps_status_value.pack(fill="x", padx=18, pady=(0, 14))
+        self.maps_mode_value.pack(side="right", anchor="e")
+
+        self.maps_canvas = tk.Canvas(parent, bg="#08111f", highlightthickness=1, highlightbackground=LINE_STRONG)
+        self.maps_canvas.pack(fill="both", expand=True, padx=18, pady=(0, 12))
+        self.maps_canvas.bind("<Configure>", lambda _event: self._draw_map_canvas())
+        self.maps_detail_value = tk.Label(
+            parent,
+            text="Diga 'mostrar no mapa Salvador' ou 'rota de casa para faculdade'.",
+            bg=PANEL,
+            fg=TEXT_SOFT,
+            font=("Segoe UI", 10),
+            justify="left",
+            anchor="w",
+            wraplength=620,
+        )
+        self.maps_detail_value.pack(fill="x", padx=18, pady=(0, 12))
         row = tk.Frame(parent, bg=PANEL)
-        row.pack(fill="x", padx=18, pady=(0, 10))
+        row.pack(fill="x", padx=18, pady=(0, 16))
         for label, command in [
-            ("\u2316  Mapa", "mostrar mapa"),
+            ("\u21bb  Atualizar", "mostrar mapa"),
             ("\u25cc  Tela", "o que tem na tela"),
         ]:
             self._command_button(row, label, command).pack(side="left", fill="x", expand=True, padx=4)
+        self.maps_external_button = tk.Button(
+            row,
+            text="\u2197  Google",
+            command=self._open_current_map_external,
+            bg=CARD,
+            fg=TEXT_SOFT,
+            activebackground="#1d4ed8",
+            activeforeground=TEXT,
+            relief="flat",
+            font=("Segoe UI Semibold", 10),
+            padx=12,
+            pady=9,
+        )
+        self.maps_external_button.pack(side="left", fill="x", expand=True, padx=4)
+
+    def _open_current_map_external(self):
+        url = str((self.map_snapshot or {}).get("url") or "").strip()
+        if url:
+            webbrowser.open(url)
+
+    def _map_request_key(self, request: dict) -> str:
+        try:
+            return json.dumps(request or {}, sort_keys=True, ensure_ascii=True)
+        except Exception:
+            return str(request or "")
+
+    def _refresh_map_metadata(self, state):
+        panel = self.panels.get("mapas")
+        should_update_state = bool(state.get("map_panel_open"))
+        if panel and panel.winfo_ismapped():
+            panel.place_forget()
+            should_update_state = True
+        if should_update_state:
+            update_ui_state({"map_panel_open": False})
+        return
+
+        request = state.get("map_request") if isinstance(state.get("map_request"), dict) else {}
+        if state.get("map_panel_open"):
+            self._ensure_panel_open("mapas")
+
+        if state.get("map_panel_open") and not request:
+            request = {
+                "kind": "place",
+                "location": "Salvador",
+                "label": "Salvador",
+                "url": "https://www.google.com/maps/search/?api=1&query=Salvador",
+            }
+
+        key = self._map_request_key(request)
+        if key == self.map_last_request_key:
+            return
+
+        self.map_last_request_key = key
+        label = str(request.get("label") or request.get("location") or request.get("destination") or "Mapa").strip()
+        kind = str(request.get("kind") or "place").strip()
+        url = str(request.get("url") or "").strip()
+        self.map_snapshot = {"label": label, "kind": kind, "url": url, "request": request}
+        self.maps_status_value.config(text=label)
+        self.maps_mode_value.config(text="ROTA" if kind == "route" else "LOCAL")
+        if kind == "route":
+            detail = f"Origem: {request.get('origin') or '--'}    Destino: {request.get('destination') or '--'}"
+        else:
+            detail = f"Local: {label}"
+        self.maps_detail_value.config(text=detail)
+        self._load_map_tile(request)
+        self._draw_map_canvas()
+
+    def _load_map_tile(self, request: dict):
+        self.map_tile_image = None
+        self.map_tile_source_image = None
+        if not requests or not Image or not ImageTk:
+            return
+
+        query = str(request.get("location") or request.get("destination") or request.get("label") or "").strip()
+        if not query:
+            return
+
+        try:
+            lat, lon, display_name = self._geocode_map_query(query)
+            image = self._fetch_osm_tile_grid(lat, lon)
+            if image:
+                self.map_tile_source_image = image
+                self.map_snapshot["lat"] = lat
+                self.map_snapshot["lon"] = lon
+                self.map_snapshot["display_name"] = display_name
+        except Exception:
+            self.map_tile_image = None
+            self.map_tile_source_image = None
+
+    def _map_http_get(self, url: str, **kwargs):
+        headers = dict(kwargs.pop("headers", {}) or {})
+        headers.setdefault("User-Agent", "AxelHud/1.0 (local assistant)")
+        try:
+            session = requests.Session()
+            session.trust_env = False
+            return session.get(url, headers=headers, timeout=kwargs.pop("timeout", 8), **kwargs)
+        except Exception:
+            return requests.get(url, headers=headers, timeout=kwargs.pop("timeout", 8), **kwargs)
+
+    def _load_geocode_cache(self):
+        try:
+            data = json.loads(MAP_GEOCODE_CACHE_PATH.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    def _save_geocode_cache(self, cache: dict):
+        try:
+            MAP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            tmp_path = MAP_GEOCODE_CACHE_PATH.with_suffix(".json.tmp")
+            tmp_path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp_path.replace(MAP_GEOCODE_CACHE_PATH)
+        except Exception:
+            pass
+
+    def _geocode_map_query(self, query: str):
+        normalized = _normalize_map_query(query)
+        cache = self._load_geocode_cache()
+        cached = cache.get(normalized)
+        if isinstance(cached, dict) and cached.get("lat") and cached.get("lon"):
+            return float(cached["lat"]), float(cached["lon"]), str(cached.get("display_name") or query)
+
+        response = self._map_http_get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                "q": query,
+                "format": "json",
+                "limit": 1,
+                "addressdetails": 1,
+                "countrycodes": "br",
+            },
+            timeout=8,
+        )
+        response.raise_for_status()
+        results = response.json()
+        if not results:
+            raise ValueError("local nao encontrado")
+
+        first = results[0]
+        lat = float(first["lat"])
+        lon = float(first["lon"])
+        display_name = str(first.get("display_name") or query)
+        cache[normalized] = {"lat": lat, "lon": lon, "display_name": display_name, "updated_at": time.time()}
+        self._save_geocode_cache(cache)
+        return lat, lon, display_name
+
+    def _tile_cache_path(self, zoom: int, x: int, y: int) -> Path:
+        digest = hashlib.sha1(f"{zoom}-{x}-{y}".encode("ascii")).hexdigest()[:16]
+        return MAP_CACHE_DIR / "tiles" / str(zoom) / f"{digest}.png"
+
+    def _load_tile(self, zoom: int, x: int, y: int):
+        path = self._tile_cache_path(zoom, x, y)
+        if path.exists():
+            return Image.open(path).convert("RGB")
+
+        response = self._map_http_get(
+            f"https://tile.openstreetmap.org/{zoom}/{x}/{y}.png",
+            timeout=8,
+        )
+        response.raise_for_status()
+        tile = Image.open(BytesIO(response.content)).convert("RGB")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tile.save(path)
+        except Exception:
+            pass
+        return tile
+
+    def _fetch_osm_tile_grid(self, lat: float, lon: float, zoom: int = 13):
+        lat_rad = math.radians(lat)
+        n = 2 ** zoom
+        center_x = int((lon + 180.0) / 360.0 * n)
+        center_y = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
+        tile_size = 256
+        cols, rows = 4, 3
+        image = Image.new("RGB", (cols * tile_size, rows * tile_size), "#08111f")
+        for col in range(cols):
+            for row in range(rows):
+                x = center_x + col - cols // 2
+                y = center_y + row - rows // 2
+                tile = self._load_tile(zoom, x, y)
+                image.paste(tile, (col * tile_size, row * tile_size))
+        return image
+
+    def _map_canvas_image(self, width: int, height: int):
+        if not self.map_tile_source_image:
+            return None
+        source = self.map_tile_source_image
+        scale = max(width / source.width, height / source.height)
+        target_size = (max(1, int(source.width * scale)), max(1, int(source.height * scale)))
+        resample = getattr(getattr(Image, "Resampling", Image), "LANCZOS", 1)
+        resized = source.resize(target_size, resample)
+        left = max(0, (resized.width - width) // 2)
+        top = max(0, (resized.height - height) // 2)
+        cropped = resized.crop((left, top, left + width, top + height))
+        self.map_tile_image = ImageTk.PhotoImage(cropped)
+        return self.map_tile_image
+
+    def _draw_map_canvas(self):
+        canvas = getattr(self, "maps_canvas", None)
+        if not canvas:
+            return
+        width = max(canvas.winfo_width(), 320)
+        height = max(canvas.winfo_height(), 220)
+        canvas.delete("all")
+
+        canvas_image = self._map_canvas_image(width, height)
+        if canvas_image:
+            canvas.create_image(0, 0, image=canvas_image, anchor="nw")
+            canvas.create_rectangle(0, 0, width, height, outline="#16395d", width=2)
+        else:
+            canvas.create_rectangle(0, 0, width, height, fill="#07111f", outline="#16395d", width=2)
+            canvas.create_oval(width // 2 - 74, height // 2 - 74, width // 2 + 74, height // 2 + 74, outline="#1d4ed8", width=2)
+            canvas.create_line(width // 2 - 96, height // 2, width // 2 + 96, height // 2, fill="#123050", width=1)
+            canvas.create_line(width // 2, height // 2 - 96, width // 2, height // 2 + 96, fill="#123050", width=1)
+            canvas.create_text(
+                width // 2,
+                height // 2 + 112,
+                text="Mapa real indisponivel agora",
+                fill=TEXT_SOFT,
+                font=("Segoe UI Semibold", 11),
+            )
+
+        label = str((self.map_snapshot or {}).get("label") or "Mapa").strip()
+        kind = str((self.map_snapshot or {}).get("kind") or "place").strip()
+        pin_x, pin_y = width // 2, height // 2
+        if kind == "route":
+            start_x, start_y = int(width * 0.24), int(height * 0.62)
+            end_x, end_y = int(width * 0.72), int(height * 0.34)
+            canvas.create_line(start_x, start_y, width // 2, int(height * 0.52), end_x, end_y, fill=ACCENT_3, width=4, smooth=True)
+            canvas.create_oval(start_x - 8, start_y - 8, start_x + 8, start_y + 8, fill=GOOD, outline="")
+            pin_x, pin_y = end_x, end_y
+        canvas.create_oval(pin_x - 14, pin_y - 14, pin_x + 14, pin_y + 14, fill=ALERT, outline=TEXT, width=2)
+        canvas.create_line(pin_x, pin_y + 14, pin_x, pin_y + 34, fill=ALERT, width=3)
+        canvas.create_rectangle(18, 18, min(width - 18, 360), 74, fill="#07111f", outline="#16395d")
+        canvas.create_text(34, 34, text=label[:46], fill=TEXT, font=("Segoe UI Semibold", 13), anchor="nw")
+        canvas.create_text(34, 56, text="OpenStreetMap" if self.map_tile_image else "Use Google para abrir o mapa completo", fill=TEXT_SOFT, font=("Segoe UI", 9), anchor="nw")
+
+    def _build_session_panel(self, parent):
+        self._panel_title(parent, "Sessao")
+        grid = tk.Frame(parent, bg=PANEL)
+        grid.pack(fill="x", padx=12, pady=(0, 10))
+        for column in range(2):
+            grid.grid_columnconfigure(column, weight=1)
+        self.session_state_value = self._metric_card(grid, 0, 0, "ESTADO")
+        self.session_next_value = self._metric_card(grid, 0, 1, "PROXIMO")
+        self.session_command_value = self._text_block(parent, "ULTIMA ORDEM", PANEL, wrap=320, height=50)
+        self.session_response_value = self._text_block(parent, "ULTIMA RESPOSTA", PANEL, wrap=320, height=68)
+
+    def _build_news_panel(self, parent):
+        self._panel_title(parent, "Noticias")
+        grid = tk.Frame(parent, bg=PANEL)
+        grid.pack(fill="x", padx=12, pady=(0, 10))
+        for column in range(2):
+            grid.grid_columnconfigure(column, weight=1)
+        self.news_source_value = self._metric_card(grid, 0, 0, "FONTE")
+        self.news_update_value = self._metric_card(grid, 0, 1, "RADAR")
+        self.news_text = self._panel_list(parent, None, None, "RADAR")
 
     def _build_commands_panel(self, parent):
         self._panel_title(parent, "Comandos")
@@ -1038,19 +1511,28 @@ class AssistantHud:
         self.commands_voice_value = self._metric_card(status_grid, 0, 0, "VOZ")
         self.commands_mode_value = self._metric_card(status_grid, 0, 1, "MODO")
 
-        shell = tk.Frame(parent, bg=CARD, highlightthickness=1, highlightbackground=LINE)
+        shell = tk.Frame(parent, bg="#08111f", highlightthickness=1, highlightbackground=LINE_STRONG)
         shell.pack(fill="both", expand=True, padx=18, pady=(0, 16))
+        overlay_head = tk.Frame(shell, bg="#08111f")
+        overlay_head.pack(fill="x", padx=14, pady=(12, 8))
         tk.Label(
-            shell,
-            text="ATIVOS",
-            bg=CARD,
-            fg=TEXT_DIM,
+            overlay_head,
+            text="COMMAND OVERLAY",
+            bg="#08111f",
+            fg=ACCENT_3,
             font=("Segoe UI Semibold", 9),
-        ).pack(anchor="w", padx=14, pady=(12, 4))
+        ).pack(side="left", anchor="w")
+        tk.Label(
+            overlay_head,
+            text=f"{sum(len(commands) for _, commands in COMMAND_GROUPS)} ativos",
+            bg="#08111f",
+            fg=TEXT_DIM,
+            font=("Segoe UI", 8),
+        ).pack(side="right", anchor="e")
 
-        canvas = tk.Canvas(shell, bg=CARD, highlightthickness=0)
+        canvas = tk.Canvas(shell, bg="#08111f", highlightthickness=0)
         scrollbar = tk.Scrollbar(shell, orient="vertical", command=canvas.yview)
-        content = tk.Frame(canvas, bg=CARD)
+        content = tk.Frame(canvas, bg="#08111f")
         content.bind(
             "<Configure>",
             lambda event: canvas.configure(scrollregion=canvas.bbox("all")),
@@ -1061,16 +1543,27 @@ class AssistantHud:
         canvas.pack(side="left", fill="both", expand=True, padx=(0, 0), pady=(0, 10))
         scrollbar.pack(side="right", fill="y", pady=(0, 10))
 
+        self._command_table_header(content)
+        self._command_group_section(content, "Favoritos", FAVORITE_COMMANDS)
         for group, commands in COMMAND_GROUPS:
+            self._command_group_section(content, group, commands)
+
+    def _command_table_header(self, parent):
+        header = tk.Frame(parent, bg="#08111f")
+        header.pack(fill="x", padx=14, pady=(0, 4))
+        for column, weight in enumerate((0, 2, 5, 0)):
+            header.grid_columnconfigure(column, weight=weight)
+        columns = [("", 0, 4), ("AÇÃO", 1, 18), ("COMANDO", 2, 18), ("", 3, 4)]
+        for text, column, width in columns:
             tk.Label(
-                content,
-                text=group.upper(),
-                bg=CARD,
-                fg=ACCENT_3,
+                header,
+                text=text,
+                bg="#08111f",
+                fg=TEXT_DIM,
                 font=("Segoe UI Semibold", 8),
-            ).pack(anchor="w", padx=14, pady=(12, 4))
-            for icon, label, command, silent in commands:
-                self._command_row(content, icon, label, command, silent=silent)
+                width=width,
+                anchor="w",
+            ).grid(row=0, column=column, sticky="ew", padx=(0, 8))
 
     def _draw_album_placeholder(self):
         canvas = getattr(self, "media_art_canvas", None)
@@ -1186,11 +1679,13 @@ class AssistantHud:
             return
         self.investment_last_fetch = now
         snapshot = load_investment_snapshot() if load_investment_snapshot else {}
+        self.investment_snapshot = snapshot if isinstance(snapshot, dict) else {}
         if not snapshot:
             self.invest_total_value.config(text="--")
             self.invest_return_value.config(text="--")
             self.invest_income_value.config(text="--")
             self.invest_update_value.config(text="sem dados")
+            self._draw_invest_chart({})
             self._set_text_widget(self.invest_text, ["Snapshot ainda nao carregado."])
             return
         self.invest_total_value.config(text=self._metric_from_snapshot(snapshot, "patrimonio"))
@@ -1210,7 +1705,144 @@ class AssistantHud:
         breakdown = snapshot.get("category_breakdown") if isinstance(snapshot.get("category_breakdown"), dict) else {}
         if breakdown:
             lines.append("Classes: " + ", ".join(f"{k}: {v}" for k, v in list(breakdown.items())[:4]))
+        self._draw_invest_chart(snapshot)
         self._set_text_widget(self.invest_text, lines or ["Snapshot salvo, sem resumo compacto."])
+
+    def _number_from_text(self, value) -> float:
+        text = str(value or "")
+        match = re.search(r"-?[\d.]+(?:,\d+)?|-?\d+(?:\.\d+)?", text)
+        if not match:
+            return 0.0
+        raw = match.group(0)
+        if "," in raw:
+            raw = raw.replace(".", "").replace(",", ".")
+        try:
+            return abs(float(raw))
+        except Exception:
+            return 0.0
+
+    def _draw_invest_chart(self, snapshot: dict):
+        canvas = getattr(self, "invest_chart_canvas", None)
+        if not canvas:
+            return
+        width = max(canvas.winfo_width(), 320)
+        height = max(canvas.winfo_height(), 128)
+        canvas.delete("all")
+        canvas.create_rectangle(0, 0, width, height, fill="#08111f", outline="")
+        canvas.create_text(14, 12, text="ALOCACAO", fill=TEXT_DIM, font=("Segoe UI Semibold", 8), anchor="nw")
+
+        breakdown = snapshot.get("category_breakdown") if isinstance(snapshot, dict) else {}
+        items = []
+        if isinstance(breakdown, dict):
+            for name, value in breakdown.items():
+                amount = self._number_from_text(value)
+                if amount > 0:
+                    items.append((str(name), amount))
+        if not items and isinstance(snapshot, dict):
+            grouped = {}
+            positions = snapshot.get("asset_positions") if isinstance(snapshot.get("asset_positions"), dict) else {}
+            for data in positions.values():
+                if not isinstance(data, dict):
+                    continue
+                category = str(data.get("category") or data.get("type") or "Outros").strip() or "Outros"
+                amount = self._number_from_text(data.get("balance") or data.get("allocation_balance") or data.get("value"))
+                if amount > 0:
+                    grouped[category] = grouped.get(category, 0.0) + amount
+            items = list(grouped.items())
+        if not items:
+            canvas.create_text(width // 2, height // 2 + 8, text="Sem dados de alocacao", fill=TEXT_SOFT, font=("Segoe UI", 10))
+            return
+
+        items.sort(key=lambda item: item[1], reverse=True)
+        total = sum(amount for _, amount in items) or 1.0
+        colors = [ACCENT, ACCENT_3, GOOD, ACCENT_MAGENTA, ACCENT_WARN, "#f59e0b"]
+        x = 14
+        y = 42
+        bar_width = width - 28
+        bar_height = 18
+        cursor = x
+        for index, (name, amount) in enumerate(items[:6]):
+            segment = max(2, int(bar_width * amount / total))
+            color = colors[index % len(colors)]
+            canvas.create_rectangle(cursor, y, min(cursor + segment, x + bar_width), y + bar_height, fill=color, outline="")
+            cursor += segment
+        canvas.create_rectangle(x, y, x + bar_width, y + bar_height, outline="#1f3b5d", width=1)
+
+        legend_x = x
+        legend_y = y + 34
+        for index, (name, amount) in enumerate(items[:4]):
+            pct = amount / total * 100
+            color = colors[index % len(colors)]
+            canvas.create_rectangle(legend_x, legend_y + 3, legend_x + 8, legend_y + 11, fill=color, outline="")
+            canvas.create_text(
+                legend_x + 14,
+                legend_y,
+                text=f"{name[:12]} {pct:.0f}%",
+                fill=TEXT_SOFT,
+                font=("Segoe UI", 8),
+                anchor="nw",
+            )
+            legend_x += max(92, int(width / 4.3))
+
+    def _news_tickers(self, limit=4):
+        snapshot = self.investment_snapshot or (load_investment_snapshot() if load_investment_snapshot else {})
+        positions = snapshot.get("asset_positions") if isinstance(snapshot, dict) else {}
+        if not isinstance(positions, dict):
+            return []
+        ranked = []
+        for ticker, data in positions.items():
+            if not isinstance(data, dict):
+                continue
+            category = str(data.get("category") or "").lower()
+            if "cripto" in category or "tesouro" in category:
+                continue
+            balance = str(data.get("balance") or data.get("allocation_balance") or "")
+            numbers = re.findall(r"[\d.,]+", balance)
+            score = 0.0
+            if numbers:
+                try:
+                    score = float(numbers[0].replace(".", "").replace(",", "."))
+                except Exception:
+                    score = 0.0
+            ranked.append((score, str(ticker).upper(), str(data.get("name") or "")))
+        ranked.sort(reverse=True)
+        return [(ticker, name) for _, ticker, name in ranked[:limit]]
+
+    def _refresh_news_metadata(self):
+        now = time.time()
+        if now - self.news_last_fetch < 1800:
+            return
+        self.news_last_fetch = now
+        if not NEWSAPI_ENABLED or not NEWSAPI_KEY or not analyze_asset_news:
+            self.news_snapshot = []
+            self.news_source_value.config(text="offline")
+            self.news_update_value.config(text="sem chave")
+            self._set_text_widget(
+                self.news_text,
+                [
+                    "NewsAPI nao configurada.",
+                    "Com AXEL_NEWSAPI_KEY ativa, este radar acompanha noticias dos principais ativos da carteira.",
+                ],
+            )
+            return
+
+        lines = []
+        for ticker, company_name in self._news_tickers(limit=3):
+            try:
+                items = analyze_asset_news(ticker, company_name=company_name)[:2]
+            except Exception:
+                items = []
+            for item in items:
+                title = str(item.get("title") or "").strip()
+                source = str(item.get("source") or "").strip()
+                classification = str(item.get("classificacao") or "").strip()
+                if title:
+                    prefix = f"{ticker} / {classification}" if classification else ticker
+                    lines.append(f"{prefix}: {title}" + (f" ({source})" if source else ""))
+        self.news_snapshot = lines
+        self.news_source_value.config(text="NewsAPI")
+        self.news_update_value.config(text=time.strftime("%H:%M", time.localtime(now)))
+        self._set_text_widget(self.news_text, lines or ["Sem noticias fortes nos ativos principais agora."])
 
     def _build_context_panel(self, parent):
         self._panel_title(parent, "Contexto")
@@ -1440,43 +2072,92 @@ class AssistantHud:
         )
 
     def _command_row(self, parent, icon, label, command, silent=False):
-        row = tk.Frame(parent, bg=CARD)
-        row.pack(fill="x", padx=14, pady=4)
+        row = tk.Frame(parent, bg="#0b1424", highlightthickness=1, highlightbackground="#15243a")
+        row.pack(fill="x", padx=14, pady=2)
+        row.grid_columnconfigure(0, weight=0)
+        row.grid_columnconfigure(1, weight=2)
+        row.grid_columnconfigure(2, weight=5)
+        row.grid_columnconfigure(3, weight=0)
         badge = tk.Label(
             row,
             text=icon,
             bg="#0b1220",
             fg=ACCENT_3,
             font=("Segoe UI Symbol", 12),
-            width=3,
+            width=2,
             height=1,
         )
-        badge.pack(side="left", padx=(0, 10), ipady=6)
-        text = tk.Frame(row, bg=CARD)
-        text.pack(side="left", fill="x", expand=True)
+        badge.grid(row=0, column=0, sticky="w", padx=(8, 10), pady=6, ipady=2)
         tk.Label(
-            text,
+            row,
             text=label,
-            bg=CARD,
+            bg="#0b1424",
             fg=TEXT,
             font=("Segoe UI Semibold", 9),
             anchor="w",
-        ).pack(fill="x")
+        ).grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=6)
         tk.Label(
-            text,
+            row,
             text=command,
-            bg=CARD,
+            bg="#0b1424",
             fg=TEXT_DIM,
             font=("Segoe UI", 8),
             anchor="w",
-        ).pack(fill="x", pady=(2, 0))
+        ).grid(row=0, column=2, sticky="ew", padx=(0, 10), pady=6)
         self._command_button(
             row,
-            "\u21b5",
+            "\u25b6",
             command,
             source="hud_command_list",
             silent=silent,
-        ).pack(side="right", padx=(10, 0))
+            compact=True,
+        ).grid(row=0, column=3, sticky="e", padx=(0, 8), pady=5)
+
+    def _command_group_section(self, parent, group, commands):
+        header = tk.Button(
+            parent,
+            text=self._command_group_label(group, len(commands)),
+            command=lambda name=group: self._toggle_command_group(name),
+            bg="#08111f",
+            fg=ACCENT_3,
+            activebackground="#151f31",
+            activeforeground=TEXT,
+            relief="flat",
+            font=("Segoe UI Semibold", 8),
+            padx=14,
+            pady=8,
+            anchor="w",
+        )
+        header.pack(fill="x", pady=(8, 0))
+        body = tk.Frame(parent, bg="#08111f")
+        self.command_group_buttons[group] = header
+        self.command_group_frames[group] = body
+        for icon, label, command, silent in commands:
+            self._command_row(body, icon, label, command, silent=silent)
+        if group in self.open_command_groups:
+            body.pack(fill="x")
+
+    def _command_group_label(self, group, count):
+        marker = "\u25be" if group in self.open_command_groups else "\u25b8"
+        return f"{marker}  {group.upper()}    {count:02d}"
+
+    def _toggle_command_group(self, group):
+        body = self.command_group_frames.get(group)
+        header = self.command_group_buttons.get(group)
+        if not body or not header:
+            return
+        if group in self.open_command_groups:
+            self.open_command_groups.remove(group)
+            body.pack_forget()
+        else:
+            self.open_command_groups.add(group)
+            body.pack(fill="x")
+        command_count = 0
+        for name, commands in COMMAND_GROUPS:
+            if name == group:
+                command_count = len(commands)
+                break
+        header.config(text=self._command_group_label(group, command_count))
 
     def _draw_ambient_particles(self, cx, cy, primary, secondary, intensity):
         for index in range(14):
@@ -1521,6 +2202,76 @@ class AssistantHud:
         self.canvas.create_line(cx - offset + 112, cy + scan, cx - radius - 26, cy + scan, fill="#1d3d63", width=1)
         self.canvas.create_line(cx + radius + 26, cy - scan, cx + offset - 112, cy - scan, fill="#1d3d63", width=1)
 
+    def _draw_side_aim_marks(self, cx, cy, primary, secondary, intensity):
+        for side in (-1, 1):
+            anchor_x = cx + side * 292
+            hot = secondary if intensity > 0.62 else "#1d3d63"
+            for index in range(5):
+                y = cy - 92 + index * 46
+                pulse = max(0.18, math.sin(self.angle * (1.05 + intensity) + index * 0.75 + side))
+                long_tick = 34 + 22 * pulse
+                short_tick = 10 + 9 * pulse
+                self.canvas.create_line(anchor_x, y, anchor_x + side * long_tick, y, fill="#173553", width=1)
+                self.canvas.create_line(anchor_x + side * 6, y + 8, anchor_x + side * (6 + short_tick), y + 8, fill=hot, width=1)
+                if index in {1, 3}:
+                    cross_x = anchor_x + side * (54 + 8 * pulse)
+                    self.canvas.create_line(cross_x - 5, y - 5, cross_x + 5, y + 5, fill=primary, width=1)
+                    self.canvas.create_line(cross_x - 5, y + 5, cross_x + 5, y - 5, fill=primary, width=1)
+
+            bracket_y = cy + 132
+            self.canvas.create_line(anchor_x, bracket_y, anchor_x + side * 42, bracket_y, fill="#123050", width=1)
+            self.canvas.create_line(anchor_x, bracket_y, anchor_x, bracket_y - 28, fill="#123050", width=1)
+            self.canvas.create_oval(
+                anchor_x + side * 72 - 3,
+                bracket_y - 3,
+                anchor_x + side * 72 + 3,
+                bracket_y + 3,
+                fill=hot,
+                outline="",
+            )
+
+    def _draw_axel_signature(self, cx, cy, primary, secondary, status, speed):
+        name_y = cy + 184
+        line_y = name_y - 34
+        pulse_left = max(0.0, self.action_pulse_until - time.time())
+        if pulse_left > 0:
+            pulse_radius = 124 + (0.7 - pulse_left) * 90
+            pulse_color = secondary if pulse_left > 0.35 else primary
+            self.canvas.create_oval(
+                cx - pulse_radius,
+                cy - pulse_radius,
+                cx + pulse_radius,
+                cy + pulse_radius,
+                outline=pulse_color,
+                width=2,
+            )
+        self.canvas.create_line(cx, cy + 128, cx, line_y, fill="#102a47", width=1)
+        self.canvas.create_oval(cx - 2, line_y - 2, cx + 2, line_y + 2, fill=secondary, outline="")
+        self.canvas.create_line(cx - 70, line_y, cx + 70, line_y, fill="#173553", width=1)
+        self.canvas.create_line(cx - 34, line_y, cx + 34, line_y, fill=primary, width=2)
+        self.canvas.create_text(cx, name_y, text="Axel", fill=TEXT, font=("Segoe UI Semibold", 30))
+
+        meter_width = 184
+        meter_x = cx - meter_width // 2
+        meter_y = name_y + 58
+        level = 0.25
+        if status in {"ATIVA", "COMANDO"}:
+            level = 0.62 + 0.12 * math.sin(self.angle * speed * 2.5)
+        elif status in {"RESPOSTA", "CONVERSA"}:
+            level = 0.84 + 0.08 * math.sin(self.angle * speed * 3.0)
+        elif status == "DITADO":
+            level = 0.75 + 0.10 * math.sin(self.angle * speed * 2.2)
+        elif status == "PAUSADA":
+            level = 0.16
+
+        self.canvas.create_rectangle(meter_x, meter_y, meter_x + meter_width, meter_y + 3, fill=GRID, outline="")
+        fill_width = int(meter_width * max(0.08, min(0.98, level)))
+        self.canvas.create_rectangle(meter_x, meter_y, meter_x + fill_width, meter_y + 3, fill=secondary, outline="")
+        for index in range(5):
+            tick_x = meter_x + index * (meter_width / 4)
+            color = primary if index / 4 <= level else "#173553"
+            self.canvas.create_line(tick_x, meter_y + 10, tick_x + 16, meter_y + 10, fill=color, width=1)
+
     def _draw_hex_cluster(self, cx, cy, primary, secondary, intensity):
         side = 16
         spacing_x = side * 1.55
@@ -1539,6 +2290,53 @@ class AssistantHud:
             self.canvas.create_polygon(points, fill=fill, outline=outline)
             if math.sin(phase) > 0.65:
                 self.canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill=primary, outline="")
+
+    def _draw_compact_axel(self, width, height, primary, secondary, status, speed):
+        progress = max(0.0, min(1.0, self.axel_corner_progress))
+        base_cx = width // 2
+        base_cy = height // 2 - 28
+        corner_cx = width - 128
+        corner_cy = height - 150
+        cx = int(base_cx + (corner_cx - base_cx) * progress)
+        cy = int(base_cy + (corner_cy - base_cy) * progress)
+        scale = 1.0 - 0.52 * progress
+        pulse = 4 * math.sin(self.angle * speed)
+        outer = int((126 + pulse) * scale)
+        mid = int((78 + pulse * 0.4) * scale)
+        inner = max(7, int(14 * scale))
+
+        self.canvas.create_oval(cx - outer, cy - outer, cx + outer, cy + outer, outline="#0f2742", width=1)
+        self.canvas.create_oval(cx - mid, cy - mid, cx + mid, cy + mid, outline=secondary, width=2)
+        for index in range(28):
+            phase = (math.tau * index / 28) + self.angle * 0.35
+            radius = outer + 11
+            x = cx + math.cos(phase) * radius
+            y = cy + math.sin(phase) * radius
+            color = secondary if index % 4 == 0 else "#17405f"
+            self.canvas.create_oval(x - 1.7, y - 1.7, x + 1.7, y + 1.7, fill=color, outline="")
+        for index in range(6):
+            phase = self.angle * 1.4 + index * math.tau / 6
+            x = cx + math.cos(phase) * mid * 0.68
+            y = cy + math.sin(phase) * mid * 0.68
+            self.canvas.create_line(cx, cy, x, y, fill="#123050", width=1)
+            self.canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill=secondary, outline="")
+        self.canvas.create_oval(cx - inner, cy - inner, cx + inner, cy + inner, fill=primary, outline="")
+
+        name_size = max(15, int(30 * scale))
+        name_y = cy + outer + int(34 * scale)
+        self.canvas.create_text(cx, name_y, text="Axel", fill=TEXT, font=("Segoe UI Semibold", name_size))
+        meter_width = int(138 * scale)
+        meter_x = cx - meter_width // 2
+        meter_y = name_y + int(30 * scale)
+        level = 0.34
+        if status in {"ATIVA", "COMANDO"}:
+            level = 0.62 + 0.12 * math.sin(self.angle * speed * 2.5)
+        elif status in {"RESPOSTA", "CONVERSA"}:
+            level = 0.84 + 0.08 * math.sin(self.angle * speed * 3.0)
+        elif status == "DITADO":
+            level = 0.75 + 0.10 * math.sin(self.angle * speed * 2.2)
+        self.canvas.create_rectangle(meter_x, meter_y, meter_x + meter_width, meter_y + 3, fill=GRID, outline="")
+        self.canvas.create_rectangle(meter_x, meter_y, meter_x + int(meter_width * level), meter_y + 3, fill=secondary, outline="")
 
     def _draw_core(self, state):
         self.canvas.delete("all")
@@ -1560,8 +2358,19 @@ class AssistantHud:
 
         self._draw_background_grid(width, height)
 
-        cx = width // 2
-        cy = height // 2 - 28
+        invest_open = bool(self.panels.get("invest") and self.panels["invest"].winfo_ismapped())
+        news_open = bool(self.panels.get("noticias") and self.panels["noticias"].winfo_ismapped())
+        target_progress = 1.0 if invest_open or news_open else 0.0
+        self.axel_corner_progress += (target_progress - self.axel_corner_progress) * 0.18
+        if self.axel_corner_progress > 0.92:
+            self._draw_compact_axel(width, height, primary, secondary, status, speed)
+            return
+        base_cx = width // 2
+        base_cy = height // 2 - 28
+        corner_cx = width - 210
+        corner_cy = height - 250
+        cx = int(base_cx + (corner_cx - base_cx) * self.axel_corner_progress)
+        cy = int(base_cy + (corner_cy - base_cy) * self.axel_corner_progress)
         self._draw_ambient_particles(cx, cy, primary, secondary, intensity)
         pulse = (7 + intensity * 8) * math.sin(self.angle * speed)
         outer = 158 + pulse
@@ -1569,6 +2378,7 @@ class AssistantHud:
         inner = 18 + pulse * 0.14
 
         self._draw_target_brackets(cx, cy, outer, primary, secondary, intensity)
+        self._draw_side_aim_marks(cx, cy, primary, secondary, intensity)
         self.canvas.create_oval(cx - outer, cy - outer, cx + outer, cy + outer, outline="#171a20", width=1)
         self.canvas.create_oval(cx - outer - 28, cy - outer - 28, cx + outer + 28, cy + outer + 28, outline="#08243f", width=1)
         self._draw_dotted_ring(cx, cy, outer + 18, "#17405f", secondary, intensity)
@@ -1622,7 +2432,6 @@ class AssistantHud:
             if index % 2 == 0:
                 self.canvas.create_line(cx, cy, dot_x, dot_y, fill="#0e395f", width=1)
 
-        self.canvas.create_text(cx, cy + 184, text="Axel", fill=TEXT, font=("Segoe UI Semibold", 30))
         for side in (-1, 1):
             x = cx + side * 252
             for index in range(7):
@@ -1633,19 +2442,7 @@ class AssistantHud:
                 if index % 2 == 0:
                     self.canvas.create_line(x, y + 5, x + side * (bar_width * 0.52), y + 5, fill=secondary, width=1)
 
-        meter_width = 180
-        meter_x = cx - meter_width // 2
-        meter_y = cy + 254
-        self.canvas.create_rectangle(meter_x, meter_y, meter_x + meter_width, meter_y + 3, fill=GRID, outline="")
-        level = 0.25
-        if status in {"ATIVA", "COMANDO"}:
-            level = 0.62 + 0.12 * math.sin(self.angle * speed * 2.5)
-        elif status in {"RESPOSTA", "CONVERSA"}:
-            level = 0.84 + 0.08 * math.sin(self.angle * speed * 3.0)
-        elif status == "DITADO":
-            level = 0.75 + 0.10 * math.sin(self.angle * speed * 2.2)
-        fill_width = int(meter_width * max(0.08, min(0.98, level)))
-        self.canvas.create_rectangle(meter_x, meter_y, meter_x + fill_width, meter_y + 3, fill=secondary, outline="")
+        self._draw_axel_signature(cx, cy, primary, secondary, status, speed)
 
     def _set_text_widget(self, widget, lines: list[str]):
         widget.configure(state="normal")
@@ -1654,6 +2451,7 @@ class AssistantHud:
         widget.configure(state="disabled")
 
     def _queue_command(self, command: str, source: str = "hud", silent: bool = False):
+        self.action_pulse_until = time.time() + 0.7
         enqueue_ui_command(command, source=source, silent=silent)
         self.text_entry.delete(0, "end")
 
@@ -1692,11 +2490,26 @@ class AssistantHud:
             self.commands_mode_value.config(text="ditado")
         else:
             self.commands_mode_value.config(text="comando")
+        self.session_state_value.config(text=self._activity_label(state))
+        if state.get("conversation_mode"):
+            next_step = "responder"
+        elif state.get("dictation_mode"):
+            next_step = "ditar"
+        elif state.get("hotword_enabled"):
+            next_step = "falar"
+        else:
+            next_step = "comando"
+        self.session_next_value.config(text=next_step)
+        self.session_command_value.config(text=state.get("last_command") or state.get("last_heard") or "--")
+        self.session_response_value.config(text=state.get("last_response") or "--")
         if not self.media_snapshot:
             self.media_status_value.config(text=f"Ultimo comando: {state.get('last_command') or '--'}")
         self._refresh_media_metadata()
         self._refresh_weather_metadata()
         self._refresh_investment_metadata()
+        self._refresh_news_metadata()
+        self._refresh_map_metadata(state)
+        self._refresh_dock_states(state)
 
         history_lines = []
         for item in state.get("history", [])[-8:]:
@@ -1807,6 +2620,10 @@ class AssistantHud:
         self.root.after(240, self._refresh_state)
 
     def _animate(self):
+        commands_panel = self.panels.get("comandos")
+        if self.drag_state or (commands_panel and commands_panel.winfo_ismapped()):
+            self.root.after(38, self._animate)
+            return
         state = self.last_state or {}
         speed = 1.0
         if state.get("status") in {"RESPOSTA", "CONVERSA"}:

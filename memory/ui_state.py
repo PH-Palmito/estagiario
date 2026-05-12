@@ -22,6 +22,8 @@ DEFAULT_UI_STATE = {
     "hotword_enabled": False,
     "conversation_mode": False,
     "dictation_mode": False,
+    "map_panel_open": False,
+    "map_request": {},
     "history": [],
     "updated_at": 0.0,
 }

@@ -12,6 +12,8 @@ from memory.profile import load_profile
 from memory.self_evolution import load_self_evolution_plan
 from memory.supabase_sync import sync_memory_state_safely
 from memory.ui_state import load_ui_state
+from memory.voice_preferences import load_voice_preferences
+from memory.reminders import load_reminders
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +52,26 @@ STOPWORDS = {
 }
 
 TICKER_RE = re.compile(r"\b[A-Za-z]{4}\d{1,2}\b")
+
+PREFERENCE_KEYS = (
+    "assistant_style",
+    "assistant_address_user",
+    "assistant_brief_confirmations",
+    "assistant_humor_enabled",
+    "assistant_humor_style",
+    "assistant_humor_level",
+    "chat_enabled",
+    "chat_model",
+    "tts_enabled",
+    "tts_engine",
+    "tts_voice_name",
+    "tts_voice_culture",
+    "gemini_tts_voice_name",
+    "audio_input_device",
+    "hotword",
+    "trigger_hotkey",
+    "toggle_listening_hotkey",
+)
 
 
 def _save_json(path: Path, payload: dict):
@@ -182,8 +204,78 @@ def _load_open_tasks(limit: int = 6) -> list[str]:
     return tasks
 
 
+def _load_pending_reminders(limit: int = 4) -> list[str]:
+    reminders = load_reminders().get("items") or []
+    pending = []
+    for item in sorted(reminders, key=lambda value: str((value or {}).get("due_at", ""))):
+        if not isinstance(item, dict) or item.get("notified_at"):
+            continue
+        text = str(item.get("text", "")).strip()
+        due_at = str(item.get("due_at", "")).strip()
+        if text and due_at:
+            pending.append(f"{due_at}: {text}")
+        elif text:
+            pending.append(text)
+        if len(pending) >= limit:
+            break
+    return pending
+
+
+def _collect_operational_preferences() -> dict:
+    preferences = load_voice_preferences() or {}
+    return {
+        key: preferences.get(key)
+        for key in PREFERENCE_KEYS
+        if key in preferences and preferences.get(key) not in ("", None)
+    }
+
+
+def _format_preference_summary(preferences: dict) -> str:
+    if not preferences:
+        return ""
+
+    parts = []
+    style = str(preferences.get("assistant_style") or preferences.get("assistant_humor_style") or "").strip()
+    if style:
+        parts.append(f"estilo {style}")
+
+    address = str(preferences.get("assistant_address_user") or "").strip()
+    if address:
+        parts.append(f"tratamento '{address}'")
+
+    if "assistant_brief_confirmations" in preferences:
+        brief = "confirmacoes breves" if bool(preferences.get("assistant_brief_confirmations")) else "confirmacoes detalhadas"
+        parts.append(brief)
+
+    if "assistant_humor_enabled" in preferences:
+        if bool(preferences.get("assistant_humor_enabled")):
+            humor_style = str(preferences.get("assistant_humor_style") or "seco").strip()
+            humor_level = preferences.get("assistant_humor_level", 2)
+            parts.append(f"humor {humor_style} nivel {humor_level}")
+        else:
+            parts.append("humor desligado")
+
+    if "chat_model" in preferences:
+        parts.append(f"modelo de chat {preferences.get('chat_model')}")
+
+    tts_engine = str(preferences.get("tts_engine") or "").strip()
+    tts_voice = str(preferences.get("tts_voice_name") or preferences.get("gemini_tts_voice_name") or "").strip()
+    if tts_engine and tts_voice:
+        parts.append(f"voz {tts_engine}/{tts_voice}")
+    elif tts_engine:
+        parts.append(f"voz {tts_engine}")
+
+    hotword = str(preferences.get("hotword") or "").strip()
+    if hotword:
+        parts.append(f"hotword '{hotword}'")
+
+    return ", ".join(parts[:8])
+
+
 def generate_operational_context() -> dict:
     profile = load_profile() or {}
+    preferences = _collect_operational_preferences()
+    preference_summary = _format_preference_summary(preferences)
     advances = load_auto_advances() or []
     bottlenecks = load_bottlenecks() or []
     self_evolution = load_self_evolution_plan() or {}
@@ -212,6 +304,7 @@ def generate_operational_context() -> dict:
     recent_topics = _extract_keywords(user_texts, limit=6)
     recent_tickers = _extract_recent_tickers(context_texts, limit=8)
     open_tasks = _load_open_tasks(limit=6)
+    pending_reminders = _load_pending_reminders(limit=4)
     current_topic = load_current_topic()
 
     operator = str(profile.get("nome", "")).strip() or "Operador"
@@ -231,11 +324,15 @@ def generate_operational_context() -> dict:
         summary_parts.append("Topicos recentes: " + ", ".join(recent_topics[:4]) + ".")
     if recent_tickers:
         summary_parts.append("Tickers recentes: " + ", ".join(recent_tickers[:4]) + ".")
+    if preference_summary:
+        summary_parts.append("Preferencias operacionais: " + preference_summary + ".")
     topic_name = str(current_topic.get("topic", "")).strip()
     if topic_name:
         summary_parts.append(f"Assunto atual: {topic_name}.")
     if open_tasks:
         summary_parts.append("Tarefas abertas: " + "; ".join(open_tasks[:2]) + ".")
+    if pending_reminders:
+        summary_parts.append("Lembretes pendentes: " + "; ".join(pending_reminders[:2]) + ".")
 
     payload = {
         "generated_at": time.time(),
@@ -248,11 +345,14 @@ def generate_operational_context() -> dict:
         "recent_sites": recent_sites,
         "recent_topics": recent_topics,
         "recent_tickers": recent_tickers,
+        "operational_preferences": preferences,
+        "preference_summary": preference_summary,
         "current_topic": current_topic,
         "conversation_mode": bool(ui_state.get("conversation_mode")),
         "dictation_mode": bool(ui_state.get("dictation_mode")),
         "next_advances": next_advances,
         "open_tasks": open_tasks,
+        "pending_reminders": pending_reminders,
         "active_bottlenecks": active_bottlenecks,
         "summary": " ".join(summary_parts).strip(),
     }
@@ -287,6 +387,9 @@ def format_operational_context() -> str:
     next_advances = payload.get("next_advances") or []
     if next_advances:
         parts.append("Proximos passos: " + "; ".join(str(item) for item in next_advances[:3]) + ".")
+    preference_summary = str(payload.get("preference_summary", "")).strip()
+    if preference_summary:
+        parts.append("Preferencias operacionais: " + preference_summary + ".")
     active_bottlenecks = payload.get("active_bottlenecks") or []
     if active_bottlenecks:
         parts.append("Gargalos vivos: " + "; ".join(str(item) for item in active_bottlenecks[:2]) + ".")

@@ -1,4 +1,5 @@
 import json
+import hashlib
 import os
 import re
 import time
@@ -17,6 +18,8 @@ from memory.investment_strategy import calculate_auto_price_ceiling, get_asset_s
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 INVESTMENT_SNAPSHOT_PATH = MEMORY_DIR / "investment_snapshot.json"
+INVESTMENT_NEWS_SEEN_PATH = MEMORY_DIR / "investment_news_seen.json"
+INVESTMENT_SIGNAL_SEEN_PATH = MEMORY_DIR / "investment_signal_seen.json"
 
 VALUE_RE = re.compile(
     r"[-+]?\d+(?:,\d+)?\s*%|(?:r\$\s*)?[-+]?\d{1,3}(?:\.\d{3})*(?:,\d{2})",
@@ -51,6 +54,74 @@ def _load_json(path: Path):
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def _news_seen_state() -> dict:
+    data = _load_json(INVESTMENT_NEWS_SEEN_PATH)
+    return data if isinstance(data, dict) else {}
+
+
+def _save_news_seen_state(state: dict) -> None:
+    if not isinstance(state, dict):
+        return
+    try:
+        _save_json(INVESTMENT_NEWS_SEEN_PATH, state)
+    except Exception:
+        pass
+
+
+def _signal_seen_state() -> dict:
+    data = _load_json(INVESTMENT_SIGNAL_SEEN_PATH)
+    return data if isinstance(data, dict) else {}
+
+
+def _save_signal_seen_state(state: dict) -> None:
+    if not isinstance(state, dict):
+        return
+    try:
+        _save_json(INVESTMENT_SIGNAL_SEEN_PATH, state)
+    except Exception:
+        pass
+
+
+def _news_fingerprint(text: str) -> str:
+    normalized = _normalize(text)
+    if not normalized:
+        return ""
+    return hashlib.sha1(normalized.encode("utf-8")).hexdigest()
+
+
+def _signal_fingerprint(kind: str, text: str) -> str:
+    return _news_fingerprint(f"{kind}: {text}")
+
+
+def _filter_new_signal_texts(kind: str, texts: list[str], *, only_new: bool = False, mark_seen: bool = False) -> list[str]:
+    if not only_new and not mark_seen:
+        return texts
+
+    state = _signal_seen_state()
+    seen_by_kind = state.get(kind)
+    if not isinstance(seen_by_kind, list):
+        seen_by_kind = []
+    seen_hashes = set(str(item) for item in seen_by_kind)
+    fresh: list[str] = []
+    new_hashes: list[str] = []
+
+    for text in texts:
+        fingerprint = _signal_fingerprint(kind, text)
+        if only_new and fingerprint and fingerprint in seen_hashes:
+            continue
+        fresh.append(text)
+        if fingerprint:
+            new_hashes.append(fingerprint)
+
+    if mark_seen and new_hashes:
+        combined = list(dict.fromkeys([*seen_hashes, *new_hashes]))
+        state[kind] = combined[-80:]
+        state["updated_at"] = time.time()
+        _save_signal_seen_state(state)
+
+    return fresh
 
 
 def _normalize(text: str) -> str:
@@ -750,7 +821,7 @@ def _format_dividend_event(ticker: str, event: dict) -> str:
         details.append(f"pagamento em {payment_day}")
     last_date = _format_day_month(event.get("last_date_prior"))
     if last_date:
-        details.append(f"data-com ate {last_date}")
+        details.append(f"data-com até {last_date}")
     label = str(event.get("label") or "").strip()
     prefix = f"{ticker}"
     if label:
@@ -758,6 +829,18 @@ def _format_dividend_event(ticker: str, event: dict) -> str:
     if details:
         return prefix + ": " + ", ".join(details)
     return prefix
+
+
+def _format_dividend_event_brief(ticker: str, event: dict) -> str:
+    label = str(event.get("label") or "").strip()
+    payment_day = _format_day_month(event.get("payment_date"))
+    if label and payment_day:
+        return f"{ticker} paga {label} em {payment_day}"
+    if payment_day:
+        return f"{ticker} paga em {payment_day}"
+    if label:
+        return f"{ticker} tem {label} no radar"
+    return ticker
 
 
 def _portfolio_dividend_schedule(snapshot: dict, limit: int = 5) -> list[dict]:
@@ -818,6 +901,22 @@ def _portfolio_dividend_schedule_answer(snapshot: dict) -> str:
     return "Ainda não encontrei uma agenda de dividendos confiável para a carteira inteira."
 
 
+def format_upcoming_dividend_brief(limit: int = 2) -> str:
+    snapshot = load_investment_snapshot()
+    events = _portfolio_dividend_schedule(snapshot, limit=max(1, int(limit)))
+    if not events:
+        return ""
+
+    details = [
+        _format_dividend_event_brief(item["ticker"], item["event"])
+        for item in events
+    ]
+    details = [item for item in details if item]
+    if not details:
+        return ""
+    return "Dividendos próximos: " + "; ".join(details) + "."
+
+
 def _clean_news_lead(text: str, ticker: str) -> str:
     cleaned = re.sub(r"\s+", " ", str(text or "")).strip()
     if not cleaned:
@@ -832,8 +931,19 @@ def _clean_news_lead(text: str, ticker: str) -> str:
     return cleaned.strip()
 
 
-def _portfolio_news_digest(snapshot: dict, limit_assets: int = 4, limit_summaries: int = 2) -> list[str]:
+def _portfolio_news_digest(
+    snapshot: dict,
+    limit_assets: int = 4,
+    limit_summaries: int = 2,
+    *,
+    only_new: bool = False,
+    mark_seen: bool = False,
+) -> list[str]:
     summaries: list[str] = []
+    seen_state = _news_seen_state() if only_new or mark_seen else {}
+    seen_hashes = set(str(item) for item in (seen_state.get("seen") or []))
+    new_hashes: list[str] = []
+
     for ticker, _position in _rank_portfolio_positions(snapshot)[: max(1, limit_assets)]:
         fundamentals = _ensure_asset_fundamentals(snapshot, ticker)
         company_name = str(fundamentals.get("company_name") or "").strip()
@@ -850,14 +960,65 @@ def _portfolio_news_digest(snapshot: dict, limit_assets: int = 4, limit_summarie
         cleaned = _clean_news_lead(summary or "", ticker)
         if not cleaned:
             continue
-        if "nada com confianca suficiente" in _normalize(cleaned):
+        normalized_cleaned = _normalize(cleaned)
+        if "nada com confianca suficiente" in normalized_cleaned:
             continue
-        if "sensacionalista" in _normalize(cleaned):
+        if "sensacionalista" in normalized_cleaned:
             continue
-        summaries.append(f"{ticker}: {cleaned}")
+        if not any(
+            term in normalized_cleaned
+            for term in {
+                "resultado",
+                "lucro",
+                "prejuizo",
+                "dividendo",
+                "provento",
+                "jcp",
+                "fato relevante",
+                "guidance",
+                "aquisicao",
+                "fusao",
+                "oferta",
+                "captacao",
+                "venda",
+                "compra",
+                "risco",
+                "divida",
+                "selic",
+                "juros",
+            }
+        ):
+            continue
+        fingerprint = _news_fingerprint(f"{ticker}: {cleaned}")
+        if only_new and fingerprint and fingerprint in seen_hashes:
+            continue
+        summaries.append(f"{ticker}: {_compact_report_news(cleaned, max_chars=150)}")
+        if fingerprint:
+            new_hashes.append(fingerprint)
         if len(summaries) >= limit_summaries:
             break
+
+    if mark_seen and new_hashes:
+        combined = list(dict.fromkeys([*seen_hashes, *new_hashes]))
+        seen_state["seen"] = combined[-80:]
+        seen_state["updated_at"] = time.time()
+        _save_news_seen_state(seen_state)
     return summaries
+
+
+def _compact_report_news(news_text: str, max_chars: int = 230) -> str:
+    text = re.sub(r"\s+", " ", str(news_text or "")).strip()
+    if not text:
+        return ""
+    text = re.sub(r"\bIsso importa porque\b", "Relevância:", text, flags=re.I)
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    compact = " ".join(sentence for sentence in sentences[:2] if sentence).strip()
+    if not compact:
+        compact = text
+    if len(compact) <= max_chars:
+        return compact
+    trimmed = compact[:max_chars].rsplit(" ", 1)[0].strip()
+    return trimmed.rstrip(".,;:") + "."
 
 
 def _portfolio_monitor_digest(snapshot: dict) -> str:
@@ -876,16 +1037,28 @@ def _portfolio_monitor_digest(snapshot: dict) -> str:
                 attention_text.append(f"{item['ticker']} ({reason_text}); minha leitura: {opinion_text}")
             else:
                 attention_text.append(f"{item['ticker']} ({reason_text})")
+        attention_text = _filter_new_signal_texts("attention", attention_text, only_new=True, mark_seen=True)
+        attention_text = attention_text[:3]
+    else:
+        attention_text = []
+    if attention_text:
         parts.append("Pontos de atencao: " + "; ".join(attention_text) + ".")
 
     dividend_events = _portfolio_dividend_schedule(snapshot, limit=2)
     if dividend_events:
-        dividend_text = "; ".join(
+        dividend_items = [
             _format_dividend_event(item["ticker"], item["event"]) for item in dividend_events
+        ]
+        dividend_items = _filter_new_signal_texts(
+            "dividend",
+            dividend_items,
+            only_new=True,
+            mark_seen=True,
         )
-        parts.append("Proximos dividendos identificados: " + dividend_text + ".")
+        if dividend_items:
+            parts.append("Proximos dividendos identificados: " + "; ".join(dividend_items[:2]) + ".")
 
-    news_items = _portfolio_news_digest(snapshot, limit_assets=4, limit_summaries=1)
+    news_items = _portfolio_news_digest(snapshot, limit_assets=4, limit_summaries=1, only_new=True, mark_seen=True)
     if news_items:
         parts.append("Noticia que merece radar: " + news_items[0] + ".")
 
@@ -1258,6 +1431,98 @@ def format_investment_snapshot_summary() -> str:
     return "Tenho uma carteira atualizada, mas ainda com poucos dados úteis extraídos."
 
 
+def format_investment_financial_report() -> str:
+    snapshot = load_investment_snapshot()
+    updated_at = float(snapshot.get("updated_at") or 0)
+    metric_map = snapshot.get("metric_map") or {}
+
+    if not updated_at and not snapshot.get("summary"):
+        return "Ainda não tenho dados suficientes para montar um relatório financeiro. Atualize a carteira primeiro."
+
+    report_parts: list[str] = []
+
+    patrimonio = str(metric_map.get("patrimonio") or "").strip()
+    rentabilidade = str(metric_map.get("rentabilidade") or "").strip()
+    proventos = str(metric_map.get("proventos") or "").strip()
+    summary_bits = []
+    if patrimonio:
+        summary_bits.append(f"patrimônio {patrimonio}")
+    if rentabilidade:
+        summary_bits.append(f"rentabilidade {rentabilidade}")
+    if proventos:
+        summary_bits.append(f"proventos {proventos}")
+    if summary_bits:
+        report_parts.append("Resumo: " + "; ".join(summary_bits) + ".")
+    else:
+        summary = str(snapshot.get("summary") or "").strip()
+        if summary:
+            report_parts.append("Resumo: " + summary.strip(".") + ".")
+
+    breakdown = _category_breakdown(snapshot)
+    if breakdown:
+        allocation = "; ".join(f"{category} {value}" for category, value in list(breakdown.items())[:3] if value)
+        if allocation:
+            report_parts.append("Alocação atual: " + allocation + ".")
+
+    attention_items = _portfolio_attention_items(snapshot)[:2]
+    if attention_items:
+        attention_parts = []
+        for item in attention_items:
+            reason_text = ", ".join(item.get("reasons", [])[:1])
+            opinion = ""
+            opinions = item.get("opinions") or []
+            if opinions:
+                opinion = str(opinions[0]).strip()
+            attention_parts.append(f"{item['ticker']}: {reason_text}")
+        attention_parts = _filter_new_signal_texts("attention", attention_parts, only_new=True, mark_seen=True)
+        attention_parts = attention_parts[:2]
+    else:
+        attention_parts = []
+    if attention_parts:
+        report_parts.append("Atenção: " + "; ".join(attention_parts) + ".")
+
+    ceiling_items = _portfolio_items_above_ceiling(snapshot)[:2]
+    if ceiling_items:
+        ceiling_parts = []
+        for item in ceiling_items:
+            premium = _format_percent(item.get("premium_percent"), digits=1)
+            ceiling_parts.append(
+                f"{item['ticker']} acima do teto em {premium}"
+                if premium
+                else f"{item['ticker']} acima do teto"
+            )
+        ceiling_parts = _filter_new_signal_texts("price_ceiling", ceiling_parts, only_new=True, mark_seen=True)
+        ceiling_parts = ceiling_parts[:2]
+    else:
+        ceiling_parts = []
+    if ceiling_parts:
+        report_parts.append("Preço-teto: " + "; ".join(ceiling_parts) + ".")
+
+    dividend_events = _portfolio_dividend_schedule(snapshot, limit=1)
+    if dividend_events:
+        dividend_parts = [_format_dividend_event_brief(item["ticker"], item["event"]) for item in dividend_events]
+        dividend_parts = _filter_new_signal_texts("dividend", dividend_parts, only_new=True, mark_seen=True)
+        if dividend_parts:
+            report_parts.append("Próximo dividendo no radar: " + "; ".join(dividend_parts[:1]) + ".")
+
+    news_items = _portfolio_news_digest(snapshot, limit_assets=5, limit_summaries=1, only_new=True, mark_seen=True)
+    if news_items:
+        compact_news = _compact_report_news(news_items[0])
+        if compact_news:
+            report_parts.append("Notícia nova relevante: " + compact_news)
+
+    if attention_parts or ceiling_parts:
+        report_parts.append(
+            "Leitura geral: revisar antes de aumentar posição."
+        )
+    else:
+        report_parts.append(
+            "Leitura geral: sem alerta crítico novo salvo agora."
+        )
+
+    return "Relatório financeiro. " + " ".join(part for part in report_parts if part)
+
+
 def answer_investment_snapshot_question(question: str) -> str:
     snapshot = load_investment_snapshot()
     updated_at = float(snapshot.get("updated_at") or 0)
@@ -1488,10 +1753,16 @@ def answer_investment_snapshot_question(question: str) -> str:
         "fato relevante da carteira",
         "noticias relevantes",
     ):
-        news_items = _portfolio_news_digest(snapshot, limit_assets=5, limit_summaries=3)
+        news_items = _portfolio_news_digest(
+            snapshot,
+            limit_assets=5,
+            limit_summaries=3,
+            only_new=True,
+            mark_seen=True,
+        )
         if news_items:
-            return "Noticias que parecem mais uteis na carteira agora: " + " ".join(news_items)
-        return "No momento, eu nao encontrei noticias realmente confiaveis e especificas o bastante para a carteira."
+            return "Noticias novas que parecem mais uteis na carteira agora: " + " ".join(news_items)
+        return "No momento, eu nao encontrei noticia nova, confiavel e especifica o bastante para a carteira."
 
     if _contains_investment_phrase(normalized, "monitoramento", "monitorar carteira", "radar da carteira"):
         return _portfolio_monitor_digest(snapshot)

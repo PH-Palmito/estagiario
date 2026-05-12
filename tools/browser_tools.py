@@ -19,7 +19,16 @@ from memory.public_wallet_refresh import (
     refresh_wallet_snapshot_auto,
 )
 from memory.vision_history import remember_vision_analysis
-from tools.spotify_api import spotify_add_to_queue, spotify_search_track, spotify_start_playback
+from tools.spotify_api import (
+    spotify_add_to_queue,
+    spotify_current_playback,
+    spotify_next_track,
+    spotify_remove_saved_track,
+    spotify_save_track,
+    spotify_search_track,
+    spotify_search_tracks,
+    spotify_start_playback,
+)
 from tools.system_tools import focus_app
 
 
@@ -4171,15 +4180,19 @@ def browser_search_site(site: str, query: str):
     query = query.strip()
 
     if "mercadolivre.com.br" in site:
-        webbrowser.open(f"https://lista.mercadolivre.com.br/{quote_plus(query)}")
-        return f"Pesquisando {query} no Mercado Livre."
+        webbrowser.open(f"https://lista.mercadolivre.com.br/{quote_plus(query)}", new=2)
+        return f"Pesquisando {query} no Mercado Livre em uma nova aba."
 
     if "magazineluiza.com.br" in site:
-        webbrowser.open(f"https://www.magazineluiza.com.br/busca/{quote_plus(query)}/")
-        return f"Pesquisando {query} no Magazine Luiza."
+        webbrowser.open(f"https://www.magazineluiza.com.br/busca/{quote_plus(query)}/", new=2)
+        return f"Pesquisando {query} no Magazine Luiza em uma nova aba."
 
-    webbrowser.open(f"https://www.google.com/search?q={quote_plus(query + ' site:' + site)}")
-    return f"Pesquisando {query} em {site}."
+    if "youtube.com" in site:
+        webbrowser.open(f"https://www.youtube.com/results?search_query={quote_plus(query)}", new=2)
+        return f"Pesquisando {query} no YouTube em uma nova aba."
+
+    webbrowser.open(f"https://www.google.com/search?q={quote_plus(query + ' site:' + site)}", new=2)
+    return f"Pesquisando {query} em {site} em uma nova aba."
 
 
 def browser_search_music(service: str, query: str):
@@ -4274,8 +4287,97 @@ def browser_queue_music(service: str, query: str):
     )
 
 
+def _current_track_or_message():
+    current = spotify_current_playback()
+    if not current or not current.get("name"):
+        return None, "Não identifiquei uma música tocando agora no Spotify."
+    return current, ""
+
+
 def spotify_like_current_track():
-    return (
-        "Ainda não consigo adicionar a música atual às curtidas com segurança. "
-        "Para isso eu preciso do OAuth do Spotify com permissão de biblioteca; por enquanto, posso abrir suas músicas curtidas."
-    )
+    current, message = _current_track_or_message()
+    if not current:
+        return message
+
+    track_id = str(current.get("id") or "").strip()
+    label = _spotify_track_label(current, "a música atual")
+    if track_id and spotify_save_track(track_id):
+        return f"Gostei do seu gosto. Salvei {label} nas suas músicas curtidas."
+
+    return f"Encontrei {label}, mas não consegui salvar nas curtidas agora."
+
+
+def spotify_dislike_current_track():
+    current, message = _current_track_or_message()
+    if not current:
+        return message
+
+    track_id = str(current.get("id") or "").strip()
+    label = _spotify_track_label(current, "essa faixa")
+    removed = bool(track_id and spotify_remove_saved_track(track_id))
+    skipped = spotify_next_track()
+
+    if removed and skipped:
+        return f"Entendido. Tirei {label} das curtidas, se estava lá, e pulei para a próxima."
+    if skipped:
+        return f"Entendido. Pulei {label}. Vamos tentar algo melhor."
+    if removed:
+        return f"Entendido. Tirei {label} das curtidas, se estava lá."
+    return f"Entendi que {label} não agradou, mas não consegui alterar o playback agora."
+
+
+def spotify_more_like_current_track():
+    current, message = _current_track_or_message()
+    if not current:
+        return message
+
+    artists = str(current.get("artists") or "").strip()
+    primary_artist = artists.split(",")[0].strip()
+    if not primary_artist:
+        return "Eu ouvi a faixa atual, mas não consegui identificar o artista para montar algo parecido."
+
+    try:
+        tracks = spotify_search_tracks(f'artist:"{primary_artist}"', limit=6)
+    except Exception:
+        tracks = []
+
+    current_id = str(current.get("id") or "").strip()
+    tracks = [track for track in tracks if str(track.get("id") or "") != current_id]
+    if not tracks:
+        return f"Tentei puxar mais músicas parecidas com {primary_artist}, mas não encontrei uma fila boa agora."
+
+    first = tracks[0]
+    started = bool(first.get("uri") and spotify_start_playback(str(first.get("uri"))))
+    if not started:
+        started = _spotify_play_track_via_app(str(first.get("name") or primary_artist), str(first.get("name") or ""), str(first.get("artists") or ""))
+
+    queued = []
+    for track in tracks[1:SPOTIFY_SESSION_QUEUE_TARGET]:
+        if track.get("uri") and spotify_add_to_queue(str(track.get("uri"))):
+            queued.append(track)
+
+    if started:
+        response = f"Seguindo essa linha: tocando {_spotify_track_label(first)}."
+        if queued:
+            response += f" Também deixei mais {len(queued)} faixas parecidas na fila."
+        return response
+
+    return _play_spotify_track_result(str(first.get("name") or primary_artist), first)
+
+
+def spotify_less_music_vibe(vibe: str = ""):
+    normalized = _normalize_text_for_match(vibe)
+    alternatives = {
+        "triste": ("alegre", "menos melancólica"),
+        "melancolico": ("alegre", "menos melancólica"),
+        "melancolica": ("alegre", "menos melancólica"),
+        "agitado": ("calmo", "mais calma"),
+        "agitada": ("calmo", "mais calma"),
+        "pesado": ("calmo", "mais leve"),
+        "pesada": ("calmo", "mais leve"),
+    }
+    target_vibe, label = alternatives.get(normalized, ("calmo", "mais equilibrada"))
+    queries = SPOTIFY_MUSIC_SESSION_POOLS.get(target_vibe)
+    if not queries:
+        return "Consigo ajustar o clima, mas ainda não tenho uma sessão alternativa pronta para isso."
+    return _start_spotify_session(queries, label)

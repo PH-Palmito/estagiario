@@ -42,7 +42,10 @@ from tools.browser_tools import (
     browser_zoom_out,
     browser_zoom_reset,
     spotify_diagnostic,
+    spotify_dislike_current_track,
     spotify_like_current_track,
+    spotify_less_music_vibe,
+    spotify_more_like_current_track,
 )
 from tools.bluetooth_tools import (
     bluetooth_off,
@@ -105,6 +108,8 @@ from memory.agenda import (
     list_agenda_tomorrow,
     remove_agenda_item,
 )
+from memory.reminders import add_reminder, list_reminders, remove_reminder
+from memory.ui_state import update_ui_state
 from tools.code_tools import inspect_code_target, inspect_selected_code, inspect_workspace_code
 from tools.image_tools import (
     analyze_browser_image,
@@ -115,6 +120,7 @@ from tools.image_tools import (
 )
 from tools.investment_tools import (
     investment_add_watchlist,
+    investment_financial_report,
     investment_get_auto_ceiling_settings,
     investment_memory_answer,
     investment_refresh_public_wallet,
@@ -140,6 +146,20 @@ from tools.vision_tools import (
 
 def _image_feature_paused(*_args, **_kwargs):
     return "Análise de imagem está pausada por enquanto. Vamos focar em tela, navegador e investimentos."
+
+
+def ui_show_map(payload: dict) -> str:
+    target = payload if isinstance(payload, dict) else {"location": str(payload or "").strip()}
+    update_ui_state(
+        {
+            "visible": True,
+            "map_panel_open": True,
+            "map_request": target,
+            "last_command": "mostrar mapa",
+        }
+    )
+    label = str(target.get("label") or target.get("location") or target.get("destination") or "mapa").strip()
+    return f"Mapa aberto na interface: {label}."
 
 
 def execute_many(raw_steps):
@@ -179,8 +199,12 @@ ACTIONS = {
     "run_script": lambda p: run_script(p["target"]),
     "type_text": lambda p: type_text(p["content"]),
     "open_url": lambda p: open_url(p["target"]),
+    "ui_show_map": lambda p: ui_show_map(p["target"]),
     "weather_summary": lambda p: weather_summary(p.get("location")),
     "daily_briefing": lambda p: daily_briefing(),
+    "reminder_add": lambda p: add_reminder(p["text"]),
+    "reminder_list": lambda p: list_reminders(),
+    "reminder_remove": lambda p: remove_reminder(p["index"]),
     "agenda_add": lambda p: add_agenda_item(p["text"]),
     "agenda_list_today": lambda p: list_agenda_today(),
     "agenda_list_tomorrow": lambda p: list_agenda_tomorrow(),
@@ -207,6 +231,7 @@ ACTIONS = {
     "browser_open_wallet_and_summarize": lambda p: browser_open_wallet_and_summarize(),
     "investment_refresh_public_wallet": lambda p: investment_refresh_public_wallet(),
     "investment_memory_summary": lambda p: investment_memory_summary(),
+    "investment_financial_report": lambda p: investment_financial_report(),
     "investment_memory_answer": lambda p: investment_memory_answer(p["question"]),
     "investment_memory_status": lambda p: investment_memory_status(),
     "investment_set_price_ceiling": lambda p: investment_set_price_ceiling(p["ticker"], p["price"]),
@@ -239,6 +264,9 @@ ACTIONS = {
     "browser_queue_music": lambda p: browser_queue_music(p["service"], p["query"]),
     "spotify_diagnostic": lambda p: spotify_diagnostic(),
     "spotify_like_current_track": lambda p: spotify_like_current_track(),
+    "spotify_dislike_current_track": lambda p: spotify_dislike_current_track(),
+    "spotify_more_like_current_track": lambda p: spotify_more_like_current_track(),
+    "spotify_less_music_vibe": lambda p: spotify_less_music_vibe(p.get("vibe", "")),
     "media_play_pause": lambda p: media_play_pause(),
     "media_next": lambda p: media_next(),
     "media_previous": lambda p: media_previous(),

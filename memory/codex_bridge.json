@@ -1,18 +1,15 @@
 {
-  "generated_at": 1778291708.1076667,
+  "generated_at": 1778509722.6311178,
   "assistant_name": "Axel",
-  "title": "Fortalecer entendimento de voz e correcoes de fala",
-  "reason": "O detector automatico marcou esse problema 1 vez(es) no uso recente.",
-  "source": "detector-de-gargalos",
-  "prompt": "O assistente local se chama Axel.\nO operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.\nMelhoria sugerida agora: Resolver gargalo: Entendimento de voz instavel.\nMotivo: O detector automatico marcou esse problema 1 vez(es) no uso recente.\nOrigem da sugestao: detector-de-gargalos.\nUltima fala relevante do usuario: Musica clássica..\nUltima resposta do assistente: Sessão clássica iniciada: tocando Air on a G String, de Johann Sebastian Bach, HAUSER, London Symphony Orchestra, Robert Ziegler. Também deixei mais 4 faixas na fila..\nHistorico recente:\nAxel: Estou ouvindo, senhor.\nUsuario: Quisa notebook no mercado livre?\nAxel: Esse comando não ficou claro para mim.\nAxel: Pode falar, senhor.\nUsuario: Legendas pela comunidade de Amara.org\nAxel: Estou ouvindo.\nGargalos detectados recentemente:\n- Entendimento de voz instavel (1 ocorrencia(s))\nPropostas iniciais de patch:\n- Fortalecer entendimento de voz e correcoes de fala | arquivos: main.py, core/voice_command_classifier.py, memory/voice_corrections.py, voice/windows_voice.py\nStatus da aprovacao humana: pending.\nProposta em revisao: Fortalecer entendimento de voz e correcoes de fala.\nStatus da verificacao da melhoria: idle.\nStatus da aplicacao supervisionada do handoff: blocked.\nQuero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.",
+  "title": "Lapidar robustez geral do Axel",
+  "reason": "O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.",
+  "source": "perfil",
+  "prompt": "O assistente local se chama Axel.\nO operador principal e Pedro Henrique, com foco em front-end, mobile, React Native, TypeScript.\nMelhoria sugerida agora: Dar ao Axel memoria operacional de preferencias e contexto.\nMotivo: O projeto ja tem perfil, voz e HUD; o proximo passo natural e usar isso para respostas e sugestoes mais contextualizadas.\nOrigem da sugestao: perfil.\nUltima fala relevante do usuario: briefing.\nUltima resposta do assistente: Bom dia, chefe. Agora em Salvador, predomínio de sol e 27 graus. Chance alta de chuva hoje, perto de 91 por cento. Vale sair preparado para chuva. Agenda sem compromissos próximos. Próximo avanço sugerido: Dar ao Axel memoria operacional de preferencias e contexto. Radar da carteira: sem alerta novo agora. Carteira: patrimônio R$ 8.409,14. Rentabilidade 15,57%..\nHistorico recente:\nAxel: Modo voz ativado. Aperte F8 para falar. Aperte F9 para pausar/retomar.\nAxel: Axel online. Inteligência adaptativa pronta para começar.\nUsuario: briefing\nAxel: Preparando seu briefing...\nAxel: Bom dia, chefe. Agora em Salvador, predomínio de sol e 27 graus. Chance alta de chuva hoje, perto de 91 por cento. Vale sair preparado para chuva. Agenda sem compromissos próximos. Próximo avanço sugerido: Dar ao Axel memoria operacional de preferencias e contexto. Radar da carteira: sem alerta novo agora. Carteira: patrimônio R$ 8.409,14. Rentabilidade 15,57%.\nPropostas iniciais de patch:\n- Lapidar robustez geral do Axel | arquivos: main.py, ui/assistant_hud.py\nStatus da aprovacao humana: pending.\nProposta em revisao: Lapidar robustez geral do Axel.\nStatus da verificacao da melhoria: idle.\nStatus da aplicacao supervisionada do handoff: blocked.\nQuero que o Codex use isso como briefing para melhorar o Axel com seguranca e impacto pratico.",
   "history": [
-    "Axel: Estou ouvindo, senhor.",
-    "Usuario: Quisa notebook no mercado livre?",
-    "Axel: Esse comando não ficou claro para mim.",
-    "Axel: Pode falar, senhor.",
-    "Usuario: Legendas pela comunidade de Amara.org",
-    "Axel: Estou ouvindo.",
-    "Usuario: Musica clássica.",
-    "Axel: Sessão clássica iniciada: tocando Air on a G String, de Johann Sebastian Bach, HAUSER, London Symphony Orchestra, Robert Ziegler. Também deixei mais 4 faixas na fila."
+    "Axel: Modo voz ativado. Aperte F8 para falar. Aperte F9 para pausar/retomar.",
+    "Axel: Axel online. Inteligência adaptativa pronta para começar.",
+    "Usuario: briefing",
+    "Axel: Preparando seu briefing...",
+    "Axel: Bom dia, chefe. Agora em Salvador, predomínio de sol e 27 graus. Chance alta de chuva hoje, perto de 91 por cento. Vale sair preparado para chuva. Agenda sem compromissos próximos. Próximo avanço sugerido: Dar ao Axel memoria operacional de preferencias e contexto. Radar da carteira: sem alerta novo agora. Carteira: patrimônio R$ 8.409,14. Rentabilidade 15,57%."
   ]
 }

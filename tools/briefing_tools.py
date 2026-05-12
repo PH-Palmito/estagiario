@@ -2,10 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+import re
 
 from memory.agenda import agenda_brief_summary
-from memory.investment_snapshot import load_investment_snapshot
-from memory.news_api import summarize_asset_news
+from memory.auto_advances import load_auto_advances
+from memory.investment_snapshot import (
+    format_investment_financial_report,
+    format_upcoming_dividend_brief,
+    load_investment_snapshot,
+)
+from memory.reminders import list_reminders
 from tools.weather_tools import get_weather_snapshot
 
 
@@ -64,11 +70,30 @@ def _load_open_todo_items(limit: int = 2) -> list[str]:
     return items
 
 
-def todo_brief_summary(limit: int = 2) -> str:
+def todo_brief_summary(limit: int = 1) -> str:
+    try:
+        advances = load_auto_advances()
+    except Exception:
+        advances = []
+
+    if advances:
+        title = str((advances[0] or {}).get("title") or "").strip().rstrip(".;")
+        if title:
+            return "Próximo avanço sugerido: " + title + "."
+
     items = _load_open_todo_items(limit=limit)
     if not items:
         return "Sem tarefas em aberto de destaque."
-    return "Tarefas em aberto: " + " ; ".join(items) + "."
+    if len(items) == 1:
+        return "Próximo avanço sugerido: " + items[0] + "."
+    return "Próximos avanços sugeridos: " + " ; ".join(items) + "."
+
+
+def _compact_text(text: str, max_chars: int = 300) -> str:
+    compact = " ".join(str(text or "").split()).strip()
+    if len(compact) <= max_chars:
+        return compact
+    return compact[:max_chars].rsplit(" ", 1)[0].rstrip(" ,.;") + "."
 
 
 def _climate_brief() -> str:
@@ -90,6 +115,9 @@ def _climate_brief() -> str:
 
     if snapshot.rain_chance_percent is not None and snapshot.rain_chance_percent >= 70:
         parts.append(f"Chance alta de chuva hoje, perto de {round(snapshot.rain_chance_percent)} por cento.")
+        parts.append("Vale sair preparado para chuva.")
+    elif snapshot.max_c is not None and snapshot.max_c >= 32:
+        parts.append("Dia quente; vale hidratar e evitar deslocamento no pico do calor.")
 
     return " ".join(parts) if parts else "Clima indisponível no momento."
 
@@ -98,57 +126,67 @@ def _investment_brief() -> str:
     snapshot = load_investment_snapshot()
     metrics = snapshot.get("metric_map") or {}
     patrimonio = str(metrics.get("patrimonio") or "").strip()
-    investido = str(metrics.get("valor investido") or "").strip()
     rentabilidade = str(metrics.get("rentabilidade") or "").strip()
-    proventos = str(metrics.get("proventos") or "").strip()
 
-    parts = ["Carteira atualizada."]
+    parts = ["Carteira:"]
     if patrimonio:
-        parts.append(f"Patrimônio em {patrimonio}.")
-    if investido:
-        parts.append(f"Valor investido em {investido}.")
+        parts.append(f"patrimônio {patrimonio}.")
     if rentabilidade:
-        parts.append(f"Rentabilidade em {rentabilidade}.")
-    if proventos:
-        parts.append(f"Proventos em {proventos}.")
+        parts.append(f"Rentabilidade {rentabilidade}.")
     return " ".join(parts)
 
 
-def _portfolio_news_brief() -> str:
-    snapshot = load_investment_snapshot()
-    positions = snapshot.get("asset_positions") or {}
-    fundamentals = snapshot.get("asset_fundamentals") or {}
-    ranked = []
-    for ticker, position in positions.items():
-        raw_weight = str((position or {}).get("portfolio_percentage") or "").replace("%", "").replace(",", ".").strip()
-        try:
-            weight = float(raw_weight)
-        except Exception:
-            weight = 0.0
-        ranked.append((ticker, weight))
+def _portfolio_radar_brief() -> str:
+    try:
+        report = format_investment_financial_report()
+    except Exception:
+        return "Radar da carteira indisponível agora."
 
-    ranked.sort(key=lambda item: item[1], reverse=True)
+    text = _polish_pt_br(report)
+    if "Ainda não tenho dados suficientes" in text or "Ainda năo tenho dados suficientes" in text:
+        return "Radar da carteira: atualize a carteira para eu cruzar alertas financeiros."
 
-    for ticker, _weight in ranked[:3]:
-        fund = fundamentals.get(ticker) or {}
-        company_name = str(fund.get("company_name") or "").strip()
-        summary = summarize_asset_news(
-            ticker,
-            company_name=company_name,
-            market_data=fund,
-        )
-        if not summary:
-            continue
+    text = text.replace("Relatório financeiro.", "").strip()
+    text = re.sub(
+        r"^Resumo:.*?(?=(Alocação atual:|Atenção:|Preço-teto:|Próximo dividendo|Notícia nova|Leitura geral:))",
+        "",
+        text,
+        flags=re.I,
+    ).strip()
+    text = re.sub(
+        r"^Alocação atual:.*?(?=(Atenção:|Preço-teto:|Próximo dividendo|Notícia nova|Leitura geral:))",
+        "",
+        text,
+        flags=re.I,
+    ).strip()
 
-        normalized = summary.lower()
-        if "nada com confiança suficiente" in normalized or "sensacionalista" in normalized:
-            continue
+    if not text:
+        return "Radar da carteira: sem alerta crítico novo salvo agora."
 
-        summary = summary.replace(f"Encontrei sinais relevantes sobre {ticker}. ", "")
-        summary = summary.replace(f"Encontrei sinais relevantes sobre {ticker}.", "")
-        return f"Notícia relevante: {summary}"
+    signals = []
+    attention_match = re.search(r"Atenção:\s*(.*?)(?=(Preço-teto:|Próximo dividendo|Notícia nova|Leitura geral:|$))", text, flags=re.I)
+    if attention_match:
+        tickers = re.findall(r"\b[A-Z]{4}\d{1,2}\b", attention_match.group(1))
+        if tickers:
+            signals.append("atenção em " + ", ".join(dict.fromkeys(tickers[:2])))
 
-    return "Sem notícia relevante de destaque na carteira agora."
+    ceiling_match = re.search(r"Preço-teto:\s*(.*?)(?=(Próximo dividendo|Notícia nova|Leitura geral:|$))", text, flags=re.I)
+    if ceiling_match:
+        tickers = re.findall(r"\b[A-Z]{4}\d{1,2}\b", ceiling_match.group(1))
+        if tickers:
+            signals.append("acima do teto: " + ", ".join(dict.fromkeys(tickers[:2])))
+
+    dividend_match = re.search(r"Próximo dividendo no radar:\s*(.*?)(?=(Notícia nova|Leitura geral:|$))", text, flags=re.I)
+    if dividend_match:
+        signals.append(_compact_text(dividend_match.group(1).strip(), max_chars=80).rstrip("."))
+
+    if signals:
+        return "Radar da carteira: " + "; ".join(signals) + "."
+
+    if "sem alerta crítico novo" in text.lower() or "leitura geral:" in text.lower():
+        return "Radar da carteira: sem alerta novo agora."
+
+    return "Radar da carteira: " + _compact_text(text, max_chars=220)
 
 
 def _short_agenda_brief() -> str:
@@ -156,13 +194,29 @@ def _short_agenda_brief() -> str:
     return _polish_pt_br(summary.replace("amanha", "amanhã"))
 
 
+def _dividend_agenda_brief() -> str:
+    try:
+        return _polish_pt_br(format_upcoming_dividend_brief(limit=2))
+    except Exception:
+        return ""
+
+
+def _short_reminders_brief() -> str:
+    summary = list_reminders(limit=3)
+    if "Nao ha lembretes pendentes" in summary:
+        return ""
+    return _compact_text(_polish_pt_br(summary), max_chars=220)
+
+
 def daily_briefing() -> str:
     sections = [
         _time_greeting(),
         _climate_brief(),
         _short_agenda_brief(),
+        _dividend_agenda_brief(),
+        _short_reminders_brief(),
         todo_brief_summary(),
-        _portfolio_news_brief(),
+        _portfolio_radar_brief(),
         _investment_brief(),
     ]
     return _polish_pt_br(" ".join(part.strip() for part in sections if str(part or "").strip()))

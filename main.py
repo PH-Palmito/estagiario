@@ -67,6 +67,7 @@ from memory.piper_voice_manager import (
     download_piper_voice,
     list_piper_voices,
 )
+from memory.reminders import consume_due_reminders
 from memory.session import clear
 from memory.self_evolution import load_self_evolution_plan, save_self_evolution_plan
 from memory.ui_commands import dequeue_ui_command_item
@@ -112,11 +113,13 @@ from voice.windows_voice import (
 
 runtime_state = RuntimeState()
 pending_command = None
+pending_command_learning_text = ""
 pending_smart_open_choice = None
 pending_smart_open_invalid_attempts = 0
 voice_status = None
 hotword_ui_enabled = False
 rendered_status_line = ""
+last_reminder_check_at = 0.0
 style_variation_index = 0
 conversation_mode = False
 conversation_ready_announced = False
@@ -124,6 +127,8 @@ dictation_mode = False
 dictation_ready_announced = False
 direct_response_ready_announced = False
 last_voice_text = ""
+last_terminal_user_command_printed = ""
+last_terminal_user_command_printed_at = 0.0
 ui_hud_started = False
 last_improvement_refresh = 0.0
 repeat_listen_until = 0.0
@@ -524,6 +529,31 @@ def output_response(message: str, voice_mode: bool):
         speak(styled_message)
 
 
+def maybe_announce_due_reminders(voice_mode: bool):
+    global last_reminder_check_at
+
+    now = time.time()
+    if now - last_reminder_check_at < 20:
+        return
+    last_reminder_check_at = now
+
+    try:
+        due = consume_due_reminders()
+    except Exception:
+        return
+
+    if not due:
+        return
+
+    if len(due) == 1:
+        text = str(due[0].get("text", "")).strip()
+        message = f"Lembrete: {text}." if text else "Voce tem um lembrete vencido."
+    else:
+        texts = [str(item.get("text", "")).strip() for item in due if str(item.get("text", "")).strip()]
+        message = "Lembretes: " + "; ".join(texts[:3]) + "."
+    output_response(message, voice_mode)
+
+
 def common_tts_cache_phrases() -> list[str]:
     phrases = [
         str(
@@ -710,6 +740,21 @@ def hide_ui_hud() -> str:
     return "Interface oculta."
 
 
+def show_map_in_ui(map_request: dict | None = None) -> str:
+    payload = map_request if isinstance(map_request, dict) else {}
+    label = str(payload.get("label") or payload.get("location") or payload.get("destination") or "mapa").strip()
+    update_ui_state(
+        {
+            "visible": True,
+            "map_panel_open": True,
+            "map_request": payload,
+            "last_command": f"mostrar mapa {label}".strip(),
+        }
+    )
+    launch_ui_hud()
+    return f"Mapa aberto na interface: {label}."
+
+
 def maybe_handle_ui_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
 
@@ -745,6 +790,12 @@ def maybe_handle_ui_command(user_input: str) -> str | None:
     if normalized in {"interface atual", "status da interface", "painel atual"}:
         state = "ativa" if load_ui_state().get("visible", False) else "oculta"
         return f"Interface {state}."
+
+    raw_action = route(user_input)
+    if raw_action.get("intent") == "ui_show_map":
+        processed = process_action(raw_action)
+        if not isinstance(processed, str):
+            return show_map_in_ui(processed.params.get("target"))
 
     return None
 
@@ -2448,6 +2499,25 @@ def terminal_print(message: str):
     render_status_line()
 
 
+def terminal_print_user_command(source: str, text: str):
+    global last_terminal_user_command_printed
+    global last_terminal_user_command_printed_at
+
+    content = str(text or "").strip()
+    if not content:
+        return
+
+    label = str(source or "comando").strip().lower()
+    fingerprint = content
+    now = time.time()
+    if last_terminal_user_command_printed == fingerprint and now - last_terminal_user_command_printed_at < 1.0:
+        return
+
+    terminal_print(f"Voce ({label}): {content}")
+    last_terminal_user_command_printed = fingerprint
+    last_terminal_user_command_printed_at = now
+
+
 def terminal_input(prompt: str) -> str:
     clear_status_line()
     try:
@@ -2491,7 +2561,7 @@ def read_user_input(
         text = heard.text.strip()
         if ignored_text_filter and ignored_text_filter(text):
             return ""
-        terminal_print(f"Voce (voz): {text}")
+        terminal_print_user_command("voz", text)
         append_ui_history("user", text, max_items=UI_HISTORY_MAX_ITEMS)
         refresh_ui_runtime_state({"last_heard": text})
         return text
@@ -2685,6 +2755,180 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
     return normalized_candidate or user_input
 
 
+def _unclear_response(raw_action: dict) -> bool:
+    if not isinstance(raw_action, dict) or raw_action.get("intent") != "respond":
+        return False
+
+    response = normalize_text(str(raw_action.get("response", "")))
+    unclear_fragments = (
+        "nao entendi",
+        "nao consegui entender",
+        "esse comando nao ficou claro",
+        "pode repetir",
+        "qual alvo",
+        "qual site",
+        "qual pesquisa",
+    )
+    return any(fragment in response for fragment in unclear_fragments)
+
+
+def _clean_probable_query(text: str) -> str:
+    cleaned = normalize_text(text).strip(" .,:;-")
+    replacements = {
+        "nutbook": "notebook",
+        "notbook": "notebook",
+        "notebooke": "notebook",
+    }
+    return replacements.get(cleaned, cleaned)
+
+
+def maybe_suggest_probable_command(user_input: str):
+    text = normalize_text(user_input).strip(" .")
+    if not text:
+        return None
+
+    if "mercado livre" in text or "mercadolivre" in text or "mercado de" in text:
+        query = re.sub(r"\b(?:mercado\s+livre|mercadolivre|mercado\s+de)\b", " ", text)
+        query = re.sub(
+            r"\b(?:comandos?|comando|de|para|pra|pode|poderia|consegue|conseguiria|"
+            r"pesquisa|pesquise|pesquisar|esquisa|esquise|esquisar|quisa|quise|quisar|"
+            r"procure|procurar|buscar|busque|no|na|em|dentro|do|da)\b",
+            " ",
+            query,
+        )
+        query = re.sub(r"\s+", " ", query).strip(" .")
+        query = _clean_probable_query(query)
+        if query:
+            return {
+                "question": f"Você quis pesquisar {query} no Mercado Livre?",
+                "action": {
+                    "intent": "browser_search_site",
+                    "target": {
+                        "query": query,
+                        "site": "https://www.mercadolivre.com.br",
+                    },
+                },
+            }
+
+    if "youtube" in text or "you tube" in text:
+        query = re.sub(r"\b(?:youtube|you\s+tube)\b", " ", text)
+        query = re.sub(
+            r"\b(?:comandos?|comando|de|para|pra|pode|poderia|consegue|conseguiria|"
+            r"pesquisa|pesquise|pesquisar|esquisa|esquise|esquisar|quisa|quise|quisar|"
+            r"procure|procurar|buscar|busque|procura|no|na|em|dentro|do|da)\b",
+            " ",
+            query,
+        )
+        query = re.sub(r"\s+", " ", query).strip(" .")
+        if query and query not in {"que", "o que", "isso"}:
+            return {
+                "question": f"Você quis pesquisar {query} no YouTube?",
+                "action": {
+                    "intent": "browser_search_site",
+                    "target": {
+                        "query": query,
+                        "site": "https://www.youtube.com",
+                    },
+                },
+            }
+
+    if "spotify" in text and "filho" in text and any(token in text for token in {"meu", "mil"}):
+        return {
+            "question": "Você quis tocar Filho Meu no Spotify?",
+            "action": {
+                "intent": "browser_search_music",
+                "target": {"service": "spotify", "query": "filho meu"},
+            },
+        }
+
+    music_vibes = {
+        "alegre": "alegre",
+        "agre": "alegre",
+        "calmo": "calmo",
+        "calma": "calmo",
+        "rock": "rock",
+        "roque": "rock",
+        "classico": "classico",
+        "classica": "classico",
+        "jazz": "jazz",
+        "gospel": "gospel",
+        "triste": "triste",
+        "foco": "foco",
+        "treino": "treino",
+    }
+    for token, vibe in music_vibes.items():
+        if token in text and any(word in text for word in {"musica", "musicas", "tocar", "toque", "toca", "spotify", "algo"}):
+            label = "clássica" if vibe == "classico" else vibe
+            return {
+                "question": f"Você quis iniciar uma sessão {label}?",
+                "action": {
+                    "intent": "browser_music_session",
+                    "target": {"service": "spotify", "vibe": vibe},
+                },
+            }
+
+    return None
+
+
+def command_correction_text(command) -> str:
+    action = getattr(command, "action", "")
+    params = getattr(command, "params", {}) or {}
+
+    if action == "browser_search_site":
+        query = str(params.get("query", "")).strip()
+        site = str(params.get("site", "")).strip().lower()
+        if not query:
+            return ""
+        if "mercadolivre.com.br" in site:
+            return f"pesquisar {query} no Mercado Livre"
+        if "magazineluiza.com.br" in site:
+            return f"pesquisar {query} no Magazine Luiza"
+        if "youtube.com" in site:
+            return f"pesquisar {query} no YouTube"
+        return f"pesquisar {query}"
+
+    if action == "browser_search_music":
+        query = str(params.get("query", "")).strip()
+        service = str(params.get("service", "Spotify")).strip() or "Spotify"
+        return f"tocar {query} no {service}" if query else ""
+
+    if action == "browser_music_session":
+        vibe = str(params.get("vibe", "")).strip()
+        if not vibe:
+            return ""
+        label = "clássica" if vibe == "classico" else vibe
+        return f"tocar música {label}"
+
+    if action == "browser_surprise_music":
+        return "me surpreenda"
+
+    if action == "open_app":
+        target = str(params.get("target", "")).strip()
+        return f"abrir {target}" if target else ""
+
+    return ""
+
+
+def maybe_remember_pending_voice_correction(command) -> None:
+    global pending_command_learning_text
+
+    heard = str(pending_command_learning_text or "").strip()
+    pending_command_learning_text = ""
+    if not heard:
+        return
+
+    means = command_correction_text(command)
+    if not means or normalize_text(heard) == normalize_text(means):
+        return
+
+    if remember_voice_correction(heard, means):
+        log_execution_event(
+            "voice_correction_auto_learned",
+            heard=heard,
+            means=means,
+        )
+
+
 def wait_for_hotword(
     voice_mode: bool,
     hotword_mode: bool,
@@ -2694,13 +2938,15 @@ def wait_for_hotword(
         return True, voice_paused, ""
 
     while True:
+        maybe_announce_due_reminders(voice_mode)
+
         if not voice_paused:
             set_voice_status("ATIVA" if HOTWORD_LISTENING_ENABLED else f"BOTAO {HOTKEY_NAME}")
 
         queued_command = poll_ui_text_command()
         if queued_command:
             set_voice_status("COMANDO")
-            terminal_print(f"Voce (painel): {queued_command}")
+            terminal_print_user_command("painel", queued_command)
             return True, voice_paused, queued_command
 
         if consume_toggle_listening_hotkey_press():
@@ -3018,6 +3264,7 @@ def execute_routine_steps(steps):
 def main():
     global last_voice_text
     global pending_command
+    global pending_command_learning_text
     global pending_smart_open_choice
     global pending_smart_open_invalid_attempts
     global creating_macro, macro_name, macro_steps
@@ -3098,11 +3345,13 @@ def main():
     refresh_ui_runtime_state()
 
     while True:
+        maybe_announce_due_reminders(voice_mode)
+
         try:
             inline_command = ""
             queued_user_input = poll_ui_text_command()
             if queued_user_input:
-                terminal_print(f"Voce (painel): {queued_user_input}")
+                terminal_print_user_command("painel", queued_user_input)
                 user_input = queued_user_input
             else:
                 user_input = ""
@@ -3175,7 +3424,7 @@ def main():
                     clear_status_line()
                     break
             if not direct_response_mode and not conversation_listen_mode and not dictation_listen_mode and voice_mode and hotword_mode and inline_command:
-                terminal_print(f"Voce (voz): {inline_command}")
+                terminal_print_user_command("voz", inline_command)
                 user_input = inline_command
             elif not queued_user_input and not direct_response_mode and not conversation_listen_mode and not dictation_listen_mode:
                 user_input = read_user_input(
@@ -3200,6 +3449,13 @@ def main():
 
         if is_transcription_artifact(user_input):
             continue
+
+        if queued_user_input:
+            terminal_print_user_command("painel", user_input)
+        elif voice_mode:
+            terminal_print_user_command("voz", user_input)
+        else:
+            terminal_print_user_command("texto", user_input)
 
         log_execution_event(
             "user_input",
@@ -3387,6 +3643,7 @@ def main():
 
         if pending_command is not None:
             if is_confirmation_yes(user_input):
+                maybe_remember_pending_voice_correction(pending_command)
                 result = execute_command(pending_command, voice_mode=voice_mode)
                 pending_command = None
                 direct_response_ready_announced = False
@@ -3395,6 +3652,7 @@ def main():
 
             if is_confirmation_no(user_input):
                 pending_command = None
+                pending_command_learning_text = ""
                 direct_response_ready_announced = False
                 output_response("Acao cancelada.", voice_mode)
                 continue
@@ -3500,6 +3758,7 @@ def main():
 
         if pending_command is not None:
             if is_confirmation_yes(user_input):
+                maybe_remember_pending_voice_correction(pending_command)
                 result = execute_command(pending_command, voice_mode=voice_mode)
                 pending_command = None
                 output_response(result, voice_mode)
@@ -3507,6 +3766,7 @@ def main():
 
             if is_confirmation_no(user_input):
                 pending_command = None
+                pending_command_learning_text = ""
                 output_response("Acao cancelada.", voice_mode)
                 continue
 
@@ -3557,6 +3817,17 @@ def main():
             target=raw_action.get("target"),
         )
 
+        if voice_mode and _unclear_response(raw_action):
+            suggestion = maybe_suggest_probable_command(user_input)
+            if suggestion:
+                processed = process_action(suggestion["action"])
+                if not isinstance(processed, str):
+                    pending_command = processed
+                    pending_command_learning_text = original_user_input
+                    direct_response_ready_announced = False
+                    output_response(suggestion["question"], voice_mode)
+                    continue
+
         if raw_action.get("intent") == "run_routine":
             result = execute_routine_steps(raw_action.get("target"))
             output_response(result, voice_mode)
@@ -3600,8 +3871,15 @@ def main():
             )
             continue
 
+        if processed.action == "ui_show_map":
+            result = show_map_in_ui(processed.params.get("target"))
+            runtime_state.update(processed, result)
+            output_response(result, voice_mode)
+            continue
+
         if processed.requires_confirmation:
             pending_command = processed
+            pending_command_learning_text = ""
             direct_response_ready_announced = False
             output_response(
                 f"Confirma a acao {processed.action} com {processed.params}?",

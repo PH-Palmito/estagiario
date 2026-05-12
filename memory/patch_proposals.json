@@ -1,26 +1,21 @@
 {
-  "generated_at": 1778291707.9992971,
+  "generated_at": 1778509722.4915595,
   "items": [
     {
-      "kind": "voice_understanding",
-      "priority": 1,
-      "title": "Fortalecer entendimento de voz e correcoes de fala",
-      "why": "O Axel esta falhando em comandos por transcricao imperfeita e precisa ficar mais tolerante a fala real.",
+      "kind": "general",
+      "priority": 0,
+      "title": "Lapidar robustez geral do Axel",
+      "why": "Ainda nao ha gargalos fortes suficientes para uma proposta mais especifica.",
       "files": [
         "main.py",
-        "core/voice_command_classifier.py",
-        "memory/voice_corrections.py",
-        "voice/windows_voice.py"
+        "ui/assistant_hud.py"
       ],
       "changes": [
-        "Adicionar aliases e rotas protegidas para comandos sensiveis.",
-        "Aprender correcoes com base em frases mal reconhecidas recorrentes.",
-        "Refinar o segundo passe de transcricao curta em portugues."
+        "Continuar instrumentando o historico para detectar melhor os proximos pontos fracos.",
+        "Manter a ponte com o Codex atualizada com dados do uso recente."
       ],
-      "risk": "Baixo a medio, porque pode ampliar demais a interpretacao se os gatilhos ficarem soltos.",
-      "examples": [
-        "quisa notebook no mercado livre?"
-      ]
+      "risk": "Baixo.",
+      "examples": []
     }
   ]
 }
