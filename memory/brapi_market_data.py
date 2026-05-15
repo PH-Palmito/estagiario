@@ -137,6 +137,7 @@ def fetch_brapi_asset_data(ticker: str) -> dict:
         "regular_market_previous_close": float(item.get("regularMarketPreviousClose")) if isinstance(item.get("regularMarketPreviousClose"), (int, float)) else None,
         "regular_market_day_high": float(item.get("regularMarketDayHigh")) if isinstance(item.get("regularMarketDayHigh"), (int, float)) else None,
         "regular_market_day_low": float(item.get("regularMarketDayLow")) if isinstance(item.get("regularMarketDayLow"), (int, float)) else None,
+        "regular_market_volume": float(item.get("regularMarketVolume")) if isinstance(item.get("regularMarketVolume"), (int, float)) else None,
         "next_dividend_events": _extract_next_dividend_events(item),
         "source_url": BRAPI_QUOTE_URL.format(ticker=normalized),
         "source": "brapi",

@@ -6,6 +6,7 @@ import difflib
 import json
 from pathlib import Path
 import re
+from datetime import datetime
 
 from core.context_resolver import resolve_params
 from core.executor import execute
@@ -23,7 +24,13 @@ from memory.action_candidates import (
     reject_first_action_candidate,
     save_action_candidates,
 )
-from memory.assistant_phrases import ACTION_PROGRESS_VARIANTS, STYLE_VARIANTS, next_phrase
+from memory.assistant_phrases import (
+    ACTION_PROGRESS_VARIANTS,
+    STARTUP_GREETING_VARIANTS,
+    STYLE_VARIANTS,
+    contextual_startup_phrase,
+    next_phrase,
+)
 from memory.auto_advances import load_auto_advances, save_auto_advances
 from memory.bottlenecks import load_bottlenecks, save_bottlenecks
 from memory.codex_bridge import load_codex_request, save_codex_request
@@ -53,6 +60,7 @@ from memory.handoff_applications import (
     mark_handoff_validated,
     sync_handoff_application,
 )
+from memory.long_memory import curate_recent_ui_history, format_long_memory, maybe_remember_from_user_text
 from memory.handoff_retry_plan import load_handoff_retry_plan, save_handoff_retry_plan
 from memory.handoff_validation import load_handoff_validation, save_handoff_validation
 from memory.macros import add_macro
@@ -73,6 +81,22 @@ from memory.piper_voice_manager import (
 from memory.reminders import consume_due_reminders
 from memory.session import clear
 from memory.self_evolution import load_self_evolution_plan, save_self_evolution_plan
+from memory.training import (
+    clear_training_injuries,
+    consume_due_training_reminder,
+    format_muscle_status_from_text,
+    format_today_workout,
+    format_training_status,
+    mark_injury_from_text,
+    mark_custom_training_from_text,
+    mark_named_workout_from_text,
+    mark_named_workouts_from_text,
+    mark_planned_training_from_text,
+    mark_training_completed,
+    set_training_reminder_from_text,
+    skip_today_training,
+    training_snapshot,
+)
 from memory.ui_commands import dequeue_ui_command_item
 from memory.ui_state import append_ui_history, load_ui_state, reset_ui_state, update_ui_state
 from memory.verification_runs import (
@@ -143,6 +167,7 @@ last_improvement_refresh = 0.0
 repeat_listen_until = 0.0
 UI_HISTORY_MAX_ITEMS = 40
 silent_ui_command_active = False
+STARTUP_BRIEFING_STATE_PATH = Path("memory") / "startup_briefing_state.json"
 
 creating_macro = False
 macro_name = None
@@ -187,11 +212,11 @@ def process_action(raw_action: dict):
 
 def action_progress_message(command) -> str | None:
     messages = {
-        "image_analyze_screen": "Análise de imagem pausada por enquanto.",
-        "image_analyze_screen_graph": "Análise de imagem pausada por enquanto.",
-        "image_analyze_browser": "Análise de imagem pausada por enquanto.",
-        "image_analyze_clipboard": "Análise de imagem pausada por enquanto.",
-        "image_analyze": "Análise de imagem pausada por enquanto.",
+        "image_analyze_screen": "Lendo a imagem da tela...",
+        "image_analyze_screen_graph": "Lendo o gráfico da tela...",
+        "image_analyze_browser": "Lendo o visual do navegador...",
+        "image_analyze_clipboard": "Lendo a imagem copiada...",
+        "image_analyze": "Analisando a imagem...",
         "vision_answer_question": next_phrase("progress_vision_answer_question", ACTION_PROGRESS_VARIANTS["vision_answer_question"]),
         "browser_describe_screen": next_phrase("progress_browser_describe_screen", ACTION_PROGRESS_VARIANTS["browser_describe_screen"]),
         "browser_explain_screen": next_phrase("progress_browser_explain_screen", ACTION_PROGRESS_VARIANTS["browser_explain_screen"]),
@@ -557,6 +582,21 @@ def maybe_announce_due_reminders(voice_mode: bool):
     last_reminder_check_at = now
 
     try:
+        training_due = consume_due_training_reminder()
+    except Exception:
+        training_due = {}
+    if training_due:
+        text = str(training_due.get("text", "")).strip()
+        if text:
+            output_response(
+                text,
+                voice_mode,
+                interrupt_current_tts=True,
+                wait_for_tts=True,
+            )
+            return
+
+    try:
         due = consume_due_reminders()
     except Exception:
         return
@@ -584,6 +624,27 @@ def maybe_send_startup_briefing(voice_mode: bool):
     if not bool(VOICE_PREFERENCES.get("startup_briefing_enabled", True)):
         return
 
+    today_key = datetime.now().date().isoformat()
+    try:
+        state = json.loads(STARTUP_BRIEFING_STATE_PATH.read_text(encoding="utf-8"))
+        state = state if isinstance(state, dict) else {}
+    except Exception:
+        state = {}
+
+    if state.get("last_briefing_date") == today_key:
+        already_delivered = next_phrase(
+            "startup_briefing_already_delivered",
+            STARTUP_GREETING_VARIANTS["briefing_already_delivered"],
+            "Briefing de hoje ja foi entregue. Estou em escuta e monitorando seus lembretes.",
+        )
+        output_response(
+            already_delivered,
+            voice_mode,
+            interrupt_current_tts=True,
+            wait_for_tts=True,
+        )
+        return
+
     try:
         briefing = daily_briefing()
     except Exception:
@@ -597,6 +658,83 @@ def maybe_send_startup_briefing(voice_mode: bool):
             interrupt_current_tts=True,
             wait_for_tts=True,
         )
+        try:
+            STARTUP_BRIEFING_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            STARTUP_BRIEFING_STATE_PATH.write_text(
+                json.dumps(
+                    {
+                        "last_briefing_date": today_key,
+                        "last_briefing_at": datetime.now().isoformat(timespec="seconds"),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+
+
+def schedule_startup_briefing_async(voice_mode: bool):
+    if "--no-startup-briefing" in sys.argv:
+        return
+
+    try:
+        from threading import Thread
+
+        def worker():
+            time.sleep(2.0)
+            maybe_send_startup_briefing(voice_mode)
+
+        Thread(
+            target=worker,
+            name="axel-startup-briefing",
+            daemon=True,
+        ).start()
+    except Exception:
+        maybe_send_startup_briefing(voice_mode)
+
+
+def startup_greeting_message() -> str:
+    configured = str(VOICE_PREFERENCES.get("startup_voice_greeting", "")).strip()
+    if configured and not bool(VOICE_PREFERENCES.get("startup_voice_greeting_variants_enabled", True)):
+        return configured
+
+    if "--startup" in sys.argv:
+        category = "computer_startup"
+    elif "--short-startup-greeting" in sys.argv:
+        category = "short_ready"
+    else:
+        category = str(VOICE_PREFERENCES.get("startup_voice_greeting_category", "study_code")).strip()
+
+    if category not in STARTUP_GREETING_VARIANTS:
+        category = "study_code"
+
+    autonomous = bool(VOICE_PREFERENCES.get("startup_voice_autonomous_variation_enabled", True))
+    address_user = str(VOICE_PREFERENCES.get("assistant_address_user", "chefe")).strip() or "chefe"
+    if autonomous:
+        hour = datetime.now().hour
+        if hour < 12:
+            greeting = "Bom dia"
+        elif hour < 18:
+            greeting = "Boa tarde"
+        else:
+            greeting = "Boa noite"
+
+        composed = contextual_startup_phrase(
+            category,
+            address_user=address_user,
+            greeting=greeting,
+        )
+        if composed:
+            return composed
+
+    return next_phrase(
+        f"startup_greeting_{category}",
+        STARTUP_GREETING_VARIANTS[category],
+        configured or "Sistemas online. Pronto para começar.",
+    )
 
 
 def common_tts_cache_phrases() -> list[str]:
@@ -757,7 +895,7 @@ def launch_ui_hud():
 
     try:
         subprocess.Popen(
-            [python_exec, "-m", "ui.assistant_hud"],
+            [python_exec, "-m", "ui.qt_axel_hud"],
             cwd=str(Path(__file__).resolve().parent),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -798,6 +936,21 @@ def show_map_in_ui(map_request: dict | None = None) -> str:
     )
     launch_ui_hud()
     return f"Mapa aberto na interface: {label}."
+
+
+def show_training_in_ui() -> str:
+    snapshot = training_snapshot()
+    workout = snapshot.get("workout") or {}
+    update_ui_state(
+        {
+            "visible": True,
+            "open_panels": ["treino"],
+            "last_command": "abrir treino",
+            "training_snapshot": snapshot,
+        }
+    )
+    launch_ui_hud()
+    return f"Painel de treino aberto: {workout.get('label', 'hoje')}, {workout.get('title', 'treino')}."
 
 
 def maybe_handle_ui_command(user_input: str) -> str | None:
@@ -842,6 +995,365 @@ def maybe_handle_ui_command(user_input: str) -> str | None:
         if not isinstance(processed, str):
             return show_map_in_ui(processed.params.get("target"))
 
+    return None
+
+
+def maybe_handle_training_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "treino",
+        "treino de hoje",
+        "qual o treino de hoje",
+        "qual meu treino de hoje",
+        "mostrar treino de hoje",
+        "ver treino de hoje",
+    }:
+        update_ui_state({"training_snapshot": training_snapshot()})
+        return format_today_workout()
+
+    if normalized in {
+        "status do treino",
+        "meu progresso de treino",
+        "progresso do treino",
+        "status da meta de treino",
+        "fadiga muscular",
+        "mapa de fadiga",
+    }:
+        update_ui_state({"training_snapshot": training_snapshot()})
+        return format_training_status()
+
+    if normalized.startswith("status do treino ") or normalized.startswith("fadiga "):
+        update_ui_state({"training_snapshot": training_snapshot()})
+        return format_muscle_status_from_text(user_input)
+
+    if normalized in {
+        "abrir treino",
+        "abrir painel de treino",
+        "mostrar painel de treino",
+        "mostrar treino no painel",
+        "painel treino",
+        "painel de treino",
+    }:
+        return show_training_in_ui()
+
+    if normalized in {
+        "marcar treino concluido",
+        "marcar treino como concluido",
+        "treino concluido",
+        "concluir treino",
+        "terminei o treino",
+        "finalizei o treino",
+    }:
+        result = mark_training_completed()
+        update_ui_state({"training_snapshot": training_snapshot()})
+        return result
+
+    if (
+        ("treino de segunda" in normalized)
+        or ("treino da segunda" in normalized)
+        or ("treino de terca" in normalized)
+        or ("treino da terca" in normalized)
+        or ("treino de terça" in normalized)
+        or ("treino da terça" in normalized)
+        or ("treino de quinta" in normalized)
+        or ("treino da quinta" in normalized)
+        or ("treino de sexta" in normalized)
+        or ("treino da sexta" in normalized)
+        or ("treino de sabado" in normalized)
+        or ("treino de sábado" in normalized)
+        or ("treino do sabado" in normalized)
+        or ("treino do sábado" in normalized)
+    ) and any(verb in normalized for verb in {"fiz", "treinei", "registrar", "adicionar", "marcar"}):
+        result = mark_named_workouts_from_text(user_input)
+        update_ui_state({"training_snapshot": training_snapshot()})
+        return result
+
+    if (
+        "treinei" in normalized
+        or "treino livre" in normalized
+        or "treino diferente" in normalized
+        or "marcar treino livre" in normalized
+        or "registrar treino livre" in normalized
+        or (
+            ("adicionar treino" in normalized or "registrar treino" in normalized)
+            and any(group in normalized for group in {"braco", "bracos", "costas", "peito", "ombro", "core", "abdomen", "perna", "pernas"})
+        )
+    ):
+        result = mark_custom_training_from_text(user_input)
+        update_ui_state({"training_snapshot": training_snapshot()})
+        return result
+
+    if (
+        "adicionar treino" in normalized
+        or "registrar treino" in normalized
+        or "marcar treino de" in normalized
+        or "marcar treino do dia" in normalized
+        or "esqueci de marcar treino" in normalized
+    ):
+        result = mark_planned_training_from_text(user_input)
+        update_ui_state({"training_snapshot": training_snapshot()})
+        return result
+
+    if normalized in {"pular treino", "pular treino hoje", "nao treinei hoje", "faltei treino hoje"}:
+        result = skip_today_training()
+        update_ui_state({"training_snapshot": training_snapshot()})
+        return result
+
+    if normalized in {"limpar lesoes", "limpar lesao", "estou recuperado", "liberar lesoes", "zerar lesoes"}:
+        result = clear_training_injuries()
+        update_ui_state({"training_snapshot": training_snapshot()})
+        return result
+
+    if any(term in normalized for term in {"lesionei", "machuquei", "me machuquei", "lesao", "lesionado"}):
+        result = mark_injury_from_text(user_input)
+        update_ui_state({"training_snapshot": training_snapshot()})
+        return result
+
+    if "lembrete" in normalized and "treino" in normalized and re.search(r"\b\d{1,2}(?::|h)?\d{0,2}\b", user_input):
+        return set_training_reminder_from_text(user_input)
+
+    return None
+
+
+def _pt_display_text(text: str) -> str:
+    content = str(text or "")
+    replacements = {
+        "programacao": "programação",
+        "avancado": "avançado",
+        "avancada": "avançada",
+        "estagiario": "estagiário",
+        "saudavel": "saudável",
+        "atencao": "atenção",
+        "compilacao": "compilação",
+        "modulos": "módulos",
+        "memorias": "memórias",
+        "alteracoes": "alterações",
+        "verificavel": "verificável",
+        "invalido": "inválido",
+        "proximos": "próximos",
+        "avancos": "avanços",
+        "util": "útil",
+        "pagina": "página",
+        "conteudo": "conteúdo",
+        "visao": "visão",
+        "graficos": "gráficos",
+        "precisao": "precisão",
+        "historico": "histórico",
+        "analises": "análises",
+        "ultimas": "últimas",
+        "pratica": "prática",
+        "nao": "não",
+    }
+
+    def replace(match):
+        original = match.group(0)
+        replacement = replacements.get(original.lower(), original)
+        if original[:1].isupper():
+            return replacement[:1].upper() + replacement[1:]
+        return replacement
+
+    pattern = r"\b(" + "|".join(re.escape(word) for word in sorted(replacements, key=len, reverse=True)) + r")\b"
+    return re.sub(pattern, replace, content, flags=re.IGNORECASE)
+
+
+def _compact_items(items, limit: int = 2) -> str:
+    clean = [_pt_display_text(str(item).strip().rstrip(".")) for item in items or [] if str(item).strip()]
+    if not clean:
+        return ""
+    return "; ".join(clean[: max(1, limit)])
+
+
+def _project_root() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def _validate_project_jsons() -> tuple[list[str], list[str]]:
+    root = _project_root()
+    files = [
+        "memory/routines.json",
+        "memory/ui_state.json",
+        "memory/operational_context.json",
+        "memory/operational_memory.json",
+        "memory/auto_advances.json",
+        "memory/bottlenecks.json",
+        "memory/self_evolution.json",
+    ]
+    ok = []
+    errors = []
+    for relative in files:
+        path = root / relative
+        if not path.exists():
+            continue
+        try:
+            json.loads(path.read_text(encoding="utf-8"))
+            ok.append(relative)
+        except Exception as exc:
+            errors.append(f"{relative}: {exc}")
+    return ok, errors
+
+
+def _compile_project_modules() -> tuple[list[str], str]:
+    root = _project_root()
+    modules = [
+        "main.py",
+        "core/router.py",
+        "core/normalizer.py",
+        "core/validator.py",
+        "memory/operational_context.py",
+        "memory/auto_advances.py",
+        "tools/briefing_tools.py",
+        "ui/qt_axel_hud.py",
+    ]
+    existing = [item for item in modules if (root / item).exists()]
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "py_compile", *existing],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=45,
+        )
+    except Exception as exc:
+        return [], str(exc)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        return [], detail[:500] or f"py_compile retornou codigo {result.returncode}"
+    return existing, ""
+
+
+def _project_change_summary(limit: int = 4) -> str:
+    root = _project_root()
+    if not (root / ".git").exists():
+        return "sem repositorio git local detectado"
+    try:
+        result = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=8,
+        )
+    except Exception:
+        return "status git indisponivel"
+    if result.returncode != 0:
+        return "status git indisponivel"
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not lines:
+        return "sem arquivos alterados no git"
+    shown = "; ".join(lines[:limit])
+    if len(lines) > limit:
+        shown += f"; +{len(lines) - limit} outros"
+    return shown
+
+
+def run_estagiario_preflight() -> dict:
+    compiled, compile_error = _compile_project_modules()
+    json_ok, json_errors = _validate_project_jsons()
+    return {
+        "compiled_modules": compiled,
+        "compile_error": compile_error,
+        "json_ok_count": len(json_ok),
+        "json_errors": json_errors,
+        "change_summary": _project_change_summary(),
+    }
+
+
+def start_programming_mode() -> str:
+    show_ui_hud()
+    update_ui_state(
+        {
+            "visible": True,
+            "open_panels": ["contexto", "comandos"],
+            "last_command": "modo programação",
+        }
+    )
+    advances = save_auto_advances(limit=3) or load_auto_advances() or []
+    context = save_operational_context() or {}
+    focus = _pt_display_text(str(context.get("current_focus", "")).strip())
+    next_advances = context.get("next_advances") or [
+        str(item.get("title", "")).strip()
+        for item in advances
+        if isinstance(item, dict) and str(item.get("title", "")).strip()
+    ]
+    open_tasks = context.get("open_tasks") or []
+    bottlenecks = context.get("active_bottlenecks") or []
+    preflight = run_estagiario_preflight()
+
+    first_step = ""
+    if preflight.get("compile_error"):
+        first_step = "corrigir a falha de compilação apontada no pré-flight"
+    elif preflight.get("json_errors"):
+        first_step = "corrigir o JSON inválido antes de evoluir recursos"
+    elif next_advances:
+        first_step = _pt_display_text(str(next_advances[0]).strip())
+    elif open_tasks:
+        first_step = _pt_display_text(str(open_tasks[0]).strip())
+    else:
+        first_step = "seguir pelo menor ajuste verificável do projeto"
+
+    health = "saudavel"
+    if preflight.get("compile_error") or preflight.get("json_errors"):
+        health = "precisa de atenção"
+
+    if health == "saudavel":
+        health = "saudável"
+
+    parts = [f"Modo programação do Estagiário ativado. Projeto {health}."]
+    if focus:
+        parts.append(f"Foco atual: {focus}.")
+    if preflight.get("compile_error"):
+        parts.append(f"Compilação falhou: {preflight['compile_error']}.")
+    else:
+        parts.append(f"Compilação ok em {len(preflight.get('compiled_modules') or [])} módulos-chave.")
+    json_errors = preflight.get("json_errors") or []
+    if json_errors:
+        parts.append("Memórias com erro: " + _compact_items(json_errors, limit=2) + ".")
+    else:
+        parts.append(f"Memórias JSON ok: {preflight.get('json_ok_count', 0)} arquivos.")
+    task_text = _compact_items(open_tasks, limit=2)
+    if task_text:
+        parts.append(f"Tarefas abertas: {task_text}.")
+    if bottlenecks:
+        parts.append("Gargalos: " + _compact_items(bottlenecks, limit=2) + ".")
+    else:
+        parts.append("Sem gargalos ativos.")
+    parts.append(f"Estado de alterações: {preflight.get('change_summary')}.")
+    parts.append("Painel de contexto e comandos abertos.")
+    parts.append(f"Primeiro passo recomendado: {first_step}.")
+    return " ".join(parts)
+
+
+def maybe_handle_work_mode_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+    programming_modes = {
+        "modo programacao",
+        "modo programação",
+        "ativar modo programacao",
+        "ativar modo programação",
+        "iniciar modo programacao",
+        "iniciar modo programação",
+        "começar modo programacao",
+        "comecar modo programacao",
+        "rotina programacao",
+        "rotina programação",
+        "modo dev",
+        "modo desenvolvimento",
+        "modo programacao avancado",
+        "modo programação avançado",
+        "modo programacao avançado",
+        "modo programação avancado",
+        "ativar modo programacao avancado",
+        "ativar modo programação avançado",
+        "iniciar modo programacao avancado",
+        "iniciar modo programação avançado",
+        "rotina programacao avancada",
+        "rotina programação avançada",
+        "modo dev avancado",
+        "modo desenvolvimento avancado",
+    }
+    if normalized in programming_modes:
+        return start_programming_mode()
     return None
 
 
@@ -1907,6 +2419,43 @@ def maybe_handle_operational_context_command(user_input: str) -> str | None:
         if topics:
             parts.append("Topicos: " + ", ".join(str(item) for item in topics[:5]) + ".")
         return " ".join(parts) if parts else "Ainda nao tenho atividade recente suficiente para resumir."
+
+    return None
+
+
+def maybe_handle_long_memory_command(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+
+    if normalized in {
+        "memoria longa",
+        "memoria longa do axel",
+        "mostrar memoria longa",
+        "listar memoria longa",
+        "o que tem na memoria longa",
+    }:
+        return format_long_memory()
+
+    if normalized in {
+        "curar memoria",
+        "curar memoria longa",
+        "atualizar memoria longa",
+        "crescer memoria longa",
+    }:
+        added = curate_recent_ui_history()
+        save_operational_context()
+        if added:
+            return f"Memoria longa curada. Adicionei {added} item(ns) duraveis."
+        return "Memoria longa revisada. Nao encontrei nada novo que merecesse virar memoria duravel."
+
+    remember_match = re.match(
+        r"^(?:lembre|lembra|memorize|salve)\s+(?:na\s+)?(?:memoria longa|memÃ³ria longa)\s+(?:que\s+)?(.+)$",
+        user_input.strip(),
+        flags=re.I,
+    )
+    if remember_match:
+        added = maybe_remember_from_user_text("lembre que " + remember_match.group(1), source="manual-long-memory")
+        save_operational_context()
+        return "Memoria longa atualizada." if added else "Isso ja estava na memoria longa, ou ficou curto demais para salvar."
 
     return None
 
@@ -3371,6 +3920,18 @@ def main():
     global repeat_listen_until
     global ui_hud_started
 
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(
+            "Uso: python main.py [--voice] [--hotword] [--ui]\n"
+            "\n"
+            "Opções principais:\n"
+            "  --voice      ativa modo voz\n"
+            "  --hotword    usa escuta por hotword/F8 junto do modo voz\n"
+            "  --ui         abre a interface Qt do Axel\n"
+            "  --audio-test [segundos]  roda diagnóstico de áudio\n"
+        )
+        return
+
     voice_mode = "--voice" in sys.argv
     hotword_mode = "--hotword" in sys.argv
     ui_mode = "--ui" in sys.argv
@@ -3396,7 +3957,7 @@ def main():
                         seconds = None
                 break
 
-        print("Gravando diagnostico de audio. Fale uma frase curta...")
+        print("Gravando diagnóstico de áudio. Fale uma frase curta...")
         print(run_audio_diagnostic(seconds))
         return
 
@@ -3428,17 +3989,15 @@ def main():
             )
 
         if bool(VOICE_PREFERENCES.get("startup_voice_greeting_enabled", True)):
-            startup_message = str(
-                VOICE_PREFERENCES.get(
-                    "startup_voice_greeting",
-                    "Sistemas online. Pronto para começar.",
-                )
-            ).strip()
+            startup_message = startup_greeting_message().strip()
             if startup_message:
                 output_response(startup_message, voice_mode=True)
 
         warm_common_tts_cache_async()
-        maybe_send_startup_briefing(voice_mode=True)
+        if "--startup" in sys.argv and "--no-defer-startup-briefing" not in sys.argv:
+            schedule_startup_briefing_async(voice_mode=True)
+        else:
+            maybe_send_startup_briefing(voice_mode=True)
 
     refresh_ui_runtime_state()
 
@@ -3561,6 +4120,11 @@ def main():
             voice_mode=voice_mode,
             mode=current_ui_mode_label(),
         )
+        try:
+            if maybe_remember_from_user_text(user_input, source="conversation"):
+                save_operational_context()
+        except Exception:
+            pass
 
         correction_response = maybe_learn_correction_for_last_voice(user_input)
         if correction_response:
@@ -3587,9 +4151,20 @@ def main():
             output_response(voice_profile_response, voice_mode)
             continue
 
+        work_mode_response = maybe_handle_work_mode_command(user_input)
+        if work_mode_response:
+            refresh_improvement_brain(force=True)
+            output_response(work_mode_response, voice_mode)
+            continue
+
         ui_response = maybe_handle_ui_command(user_input)
         if ui_response:
             output_response(ui_response, voice_mode)
+            continue
+
+        training_response = maybe_handle_training_command(user_input)
+        if training_response:
+            output_response(training_response, voice_mode)
             continue
 
         auto_advance_response = maybe_handle_auto_advance_command(user_input)
@@ -3693,6 +4268,11 @@ def main():
         directives_response = maybe_handle_directives_command(user_input)
         if directives_response:
             output_response(directives_response, voice_mode)
+            continue
+
+        long_memory_response = maybe_handle_long_memory_command(user_input)
+        if long_memory_response:
+            output_response(long_memory_response, voice_mode)
             continue
 
         operational_context_response = maybe_handle_operational_context_command(user_input)

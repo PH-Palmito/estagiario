@@ -12,7 +12,12 @@ from llm.gemini_client import ask_gemini_grounded_model
 from memory.investment_asset_fundamentals import fetch_asset_fundamentals
 from memory.obsidian_sync import sync_portfolio_snapshot_note
 from memory.news_api import summarize_asset_news
-from memory.investment_strategy import calculate_auto_price_ceiling, get_asset_strategy, get_auto_ceiling_settings
+from memory.investment_strategy import (
+    calculate_auto_price_ceiling,
+    get_asset_strategy,
+    get_auto_ceiling_settings,
+    load_investment_strategy,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -255,8 +260,14 @@ def _extract_ticker(snapshot: dict) -> str:
 
 
 def _extract_question_ticker(question: str) -> str:
-    match = re.search(r"\b([A-Za-z]{4}\d{1,2})\b", str(question or ""))
-    return match.group(1).upper() if match else ""
+    text = str(question or "")
+    match = re.search(r"\b([A-Za-z]{4,5}\d{1,2})\b", text)
+    if match:
+        return match.group(1).upper()
+    for symbol in ("BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE"):
+        if re.search(rf"\b{symbol}(?:[-/](?:BRL|USD|USDT))?\b", text, flags=re.I):
+            return symbol
+    return ""
 
 
 def _mentions_price_ceiling(normalized: str) -> bool:
@@ -506,6 +517,115 @@ def _portfolio_items_above_ceiling(snapshot: dict) -> list[dict]:
             }
         )
     return sorted(results, key=lambda item: item.get("premium_percent") or 0.0, reverse=True)
+
+
+def _is_price_ceiling_alert_material(item: dict, *, threshold_percent: float = 2.0) -> bool:
+    ticker = str(item.get("ticker") or "").upper()
+    if not ticker:
+        return False
+
+    current_price = item.get("current_price")
+    ceiling = item.get("ceiling")
+    premium_percent = item.get("premium_percent")
+    state = _signal_seen_state()
+    previous_by_ticker = state.get("price_ceiling_by_ticker")
+    if not isinstance(previous_by_ticker, dict):
+        previous_by_ticker = {}
+
+    previous = previous_by_ticker.get(ticker)
+    material = True
+    if isinstance(previous, dict):
+        previous_premium = previous.get("premium_percent")
+        previous_price = previous.get("current_price")
+        material = False
+        try:
+            if previous_premium is None or premium_percent is None:
+                material = previous_premium != premium_percent
+            elif abs(float(premium_percent) - float(previous_premium)) >= threshold_percent:
+                material = True
+        except Exception:
+            material = True
+        try:
+            if not material and previous_price and current_price:
+                price_change = abs((float(current_price) / float(previous_price)) - 1.0) * 100.0
+                material = price_change >= threshold_percent
+        except Exception:
+            pass
+
+    previous_by_ticker[ticker] = {
+        "current_price": current_price,
+        "ceiling": ceiling,
+        "premium_percent": premium_percent,
+        "source": item.get("source"),
+        "updated_at": time.time(),
+    }
+    state["price_ceiling_by_ticker"] = previous_by_ticker
+    state["updated_at"] = time.time()
+    _save_signal_seen_state(state)
+    return material
+
+
+def _material_price_ceiling_items(items: list[dict], *, threshold_percent: float = 2.0) -> list[dict]:
+    return [
+        item
+        for item in items
+        if _is_price_ceiling_alert_material(item, threshold_percent=threshold_percent)
+    ]
+
+
+def _watchlist_tickers_not_in_portfolio(snapshot: dict) -> list[str]:
+    strategy = load_investment_strategy()
+    watchlist = [str(item).upper() for item in strategy.get("watchlist", []) if str(item).strip()]
+    portfolio = set(_asset_positions(snapshot).keys())
+    return [ticker for ticker in dict.fromkeys(watchlist) if ticker and ticker not in portfolio]
+
+
+def _investment_news_candidates(snapshot: dict, limit_assets: int) -> list[tuple[str, str, dict]]:
+    candidates: list[tuple[str, str, dict]] = []
+    for ticker, position in _rank_portfolio_positions(snapshot):
+        candidates.append((ticker, "carteira", position))
+    for ticker in _watchlist_tickers_not_in_portfolio(snapshot):
+        candidates.append((ticker, "watchlist", {}))
+    return candidates[: max(1, limit_assets)]
+
+
+def _vacancy_alert_items(snapshot: dict) -> list[str]:
+    alerts: list[str] = []
+    for ticker, position in _rank_portfolio_positions(snapshot):
+        fundamentals = _ensure_asset_fundamentals(snapshot, ticker)
+        vacancy = fundamentals.get("vacancy_percent")
+        if vacancy is None:
+            continue
+        try:
+            vacancy_value = float(vacancy)
+        except Exception:
+            continue
+        if vacancy_value < 10:
+            continue
+        label = str(fundamentals.get("vacancy") or _format_percent(vacancy_value, digits=1)).strip()
+        weight = position.get("portfolio_percentage")
+        suffix = f", peso {weight}" if weight else ""
+        alerts.append(f"{ticker} com vacÃ¢ncia em {label}{suffix}")
+    return alerts
+
+
+def _volatility_alert_items(snapshot: dict) -> list[str]:
+    alerts: list[str] = []
+    for ticker, position in _rank_portfolio_positions(snapshot):
+        fundamentals = _ensure_asset_fundamentals(snapshot, ticker)
+        change = fundamentals.get("regular_market_change_percent")
+        if change is None:
+            change = _parse_percent_value(position.get("variation"))
+        try:
+            change_value = float(change)
+        except Exception:
+            continue
+        threshold = 4.0 if str(position.get("category") or "").lower().startswith("cript") else 3.0
+        if abs(change_value) < threshold:
+            continue
+        direction = "alta" if change_value > 0 else "queda"
+        alerts.append(f"{ticker} em {direction} de {_format_percent(abs(change_value), digits=1)}")
+    return alerts
 
 
 def _portfolio_fii_dy_answer(snapshot: dict) -> str:
@@ -944,7 +1064,7 @@ def _portfolio_news_digest(
     seen_hashes = set(str(item) for item in (seen_state.get("seen") or []))
     new_hashes: list[str] = []
 
-    for ticker, _position in _rank_portfolio_positions(snapshot)[: max(1, limit_assets)]:
+    for ticker, scope, _position in _investment_news_candidates(snapshot, limit_assets):
         fundamentals = _ensure_asset_fundamentals(snapshot, ticker)
         company_name = str(fundamentals.get("company_name") or "").strip()
         thesis = str(get_asset_strategy(ticker).get("thesis") or "").strip()
@@ -992,7 +1112,8 @@ def _portfolio_news_digest(
         fingerprint = _news_fingerprint(f"{ticker}: {cleaned}")
         if only_new and fingerprint and fingerprint in seen_hashes:
             continue
-        summaries.append(f"{ticker}: {_compact_report_news(cleaned, max_chars=150)}")
+        prefix = ticker if scope == "carteira" else f"{ticker} (watchlist)"
+        summaries.append(f"{prefix}: {_compact_report_news(cleaned, max_chars=150)}")
         if fingerprint:
             new_hashes.append(fingerprint)
         if len(summaries) >= limit_summaries:
@@ -1043,6 +1164,37 @@ def _portfolio_monitor_digest(snapshot: dict) -> str:
         attention_text = []
     if attention_text:
         parts.append("Pontos de atencao: " + "; ".join(attention_text) + ".")
+
+    ceiling_items = _material_price_ceiling_items(_portfolio_items_above_ceiling(snapshot), threshold_percent=2.0)[:2]
+    if ceiling_items:
+        ceiling_text = []
+        for item in ceiling_items:
+            premium = _format_percent(item.get("premium_percent"), digits=1)
+            ceiling_text.append(
+                f"{item['ticker']} acima do teto em {premium}"
+                if premium
+                else f"{item['ticker']} acima do teto"
+            )
+        if ceiling_text:
+            parts.append("Preco-teto com mudanca relevante: " + "; ".join(ceiling_text) + ".")
+
+    vacancy_items = _filter_new_signal_texts(
+        "vacancy",
+        _vacancy_alert_items(snapshot),
+        only_new=True,
+        mark_seen=True,
+    )[:2]
+    if vacancy_items:
+        parts.append("Vacancia no radar: " + "; ".join(vacancy_items) + ".")
+
+    volatility_items = _filter_new_signal_texts(
+        "volatility",
+        _volatility_alert_items(snapshot),
+        only_new=True,
+        mark_seen=True,
+    )[:2]
+    if volatility_items:
+        parts.append("Volatilidade no radar: " + "; ".join(volatility_items) + ".")
 
     dividend_events = _portfolio_dividend_schedule(snapshot, limit=2)
     if dividend_events:
@@ -1481,7 +1633,7 @@ def format_investment_financial_report() -> str:
     if attention_parts:
         report_parts.append("Atenção: " + "; ".join(attention_parts) + ".")
 
-    ceiling_items = _portfolio_items_above_ceiling(snapshot)[:2]
+    ceiling_items = _material_price_ceiling_items(_portfolio_items_above_ceiling(snapshot), threshold_percent=2.0)[:2]
     if ceiling_items:
         ceiling_parts = []
         for item in ceiling_items:
@@ -1491,12 +1643,28 @@ def format_investment_financial_report() -> str:
                 if premium
                 else f"{item['ticker']} acima do teto"
             )
-        ceiling_parts = _filter_new_signal_texts("price_ceiling", ceiling_parts, only_new=True, mark_seen=True)
-        ceiling_parts = ceiling_parts[:2]
     else:
         ceiling_parts = []
     if ceiling_parts:
         report_parts.append("Preço-teto: " + "; ".join(ceiling_parts) + ".")
+
+    vacancy_parts = _filter_new_signal_texts(
+        "vacancy",
+        _vacancy_alert_items(snapshot),
+        only_new=True,
+        mark_seen=True,
+    )[:2]
+    if vacancy_parts:
+        report_parts.append("VacÃ¢ncia: " + "; ".join(vacancy_parts) + ".")
+
+    volatility_parts = _filter_new_signal_texts(
+        "volatility",
+        _volatility_alert_items(snapshot),
+        only_new=True,
+        mark_seen=True,
+    )[:2]
+    if volatility_parts:
+        report_parts.append("Volatilidade: " + "; ".join(volatility_parts) + ".")
 
     dividend_events = _portfolio_dividend_schedule(snapshot, limit=1)
     if dividend_events:
@@ -1511,7 +1679,7 @@ def format_investment_financial_report() -> str:
         if compact_news:
             report_parts.append("Notícia nova relevante: " + compact_news)
 
-    if attention_parts or ceiling_parts:
+    if attention_parts or ceiling_parts or vacancy_parts or volatility_parts:
         report_parts.append(
             "Leitura geral: revisar antes de aumentar posição."
         )

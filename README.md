@@ -241,7 +241,8 @@ Desativar ou verificar:
 ```
 
 Quando ativado, o Axel inicia com `--voice --hotword --ui --startup`, entao lembretes vencidos podem ser anunciados por voz mesmo sem voce chamar primeiro.
-Ao ligar em modo voz, ele tambem manda o briefing do dia automaticamente. Para abrir sem briefing em algum teste, use `--no-startup-briefing`.
+Ao ligar em modo voz, ele tambem manda o briefing do dia automaticamente uma vez por dia. Nas outras aberturas do mesmo dia, ele so confirma prontidao. Para abrir sem briefing em algum teste, use `--no-startup-briefing`.
+As saudacoes de inicializacao variam entre frases de estudo, codigo e operacao. Para uma saudacao curta em testes, use `--short-startup-greeting`.
 
 Baixar uma voz Piper:
 

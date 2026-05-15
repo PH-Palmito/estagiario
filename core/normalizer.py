@@ -311,6 +311,7 @@ def normalize_action(old_action: dict) -> Command:
         "vision_download_light_model",
         "vision_active_model",
         "vision_last_analysis",
+        "vision_history",
     }:
         return Command(
             action=intent,

@@ -42,7 +42,7 @@ def _files_from_guidance(text: str, fallback: list[str]) -> list[str]:
             "voice/windows_voice.py",
         ]
     if any(word in normalized for word in {"interface", "hud", "painel", "visual"}):
-        return ["ui/assistant_hud.py", "memory/ui_state.py"]
+        return ["ui/qt_axel_hud.py", "ui/axel_web_hud.html", "memory/ui_state.py"]
     if any(word in normalized for word in {"codex", "ponte", "inbox", "outbox", "canal"}):
         return [
             "main.py",

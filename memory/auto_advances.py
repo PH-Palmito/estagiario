@@ -14,6 +14,7 @@ TODO_PATH = MEMORY_DIR / "todo.md"
 PROFILE_PATH = MEMORY_DIR / "profile.json"
 UI_STATE_PATH = MEMORY_DIR / "ui_state.json"
 AUTO_ADVANCES_PATH = MEMORY_DIR / "auto_advances.json"
+ROUTINES_PATH = MEMORY_DIR / "routines.json"
 
 
 def _load_json(path: Path):
@@ -30,6 +31,11 @@ def _load_profile() -> dict:
 
 def _load_ui_state() -> dict:
     data = _load_json(UI_STATE_PATH)
+    return data if isinstance(data, dict) else {}
+
+
+def _load_routines() -> dict:
+    data = _load_json(ROUTINES_PATH)
     return data if isinstance(data, dict) else {}
 
 
@@ -167,8 +173,35 @@ def generate_auto_advances(limit: int = 6) -> list[dict]:
             "lista-manual",
         )
 
+    pending_text = " ".join(pending).lower()
+    if "criar modo de leitura visual" in pending_text:
+        _push(
+            items,
+            "Criar modo de leitura visual por clipboard, tela, navegador e arquivo",
+            "A lista manual ainda aponta esse fluxo e ele amplia a utilidade prática da visão.",
+            "lista-manual",
+        )
+
+    if "whatsapp" in pending_text:
+        _push(
+            items,
+            "Integrar o Axel ao WhatsApp",
+            "A lista de futuros pede leitura, resumo e envio de mensagens com confirmacao para reduzir atrito de comunicacao.",
+            "lista-manual",
+        )
+
+    if "agenda/calendario" in pending_text or "calendario real" in pending_text:
+        _push(
+            items,
+            "Integrar o Axel a uma agenda/calendario real",
+            "A lista de futuros pede compromissos sincronizados alem da agenda local e dos lembretes internos.",
+            "lista-manual",
+        )
+
     foco = " ".join(str(item) for item in profile.get("foco_profissional", []))
-    if any(word in foco.lower() for word in {"mobile", "react native", "front-end"}):
+    routines = _load_routines()
+    has_advanced_programming_mode = "modo programacao" in routines
+    if any(word in foco.lower() for word in {"mobile", "react native", "front-end"}) and not has_advanced_programming_mode:
         _push(
             items,
             "Criar rotinas prontas para estudo e desenvolvimento mobile/front-end",

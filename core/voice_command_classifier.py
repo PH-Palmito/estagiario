@@ -16,8 +16,6 @@ APP_TARGETS = [
     "whats app",
     "watsap",
     "uatsap",
-    "estaga",
-    "estag",
     "bloco de notas",
     "notas",
     "powershell",

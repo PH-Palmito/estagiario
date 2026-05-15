@@ -1,17 +1,175 @@
 from __future__ import annotations
 
+import json
+import random
 from itertools import count
+from pathlib import Path
 
 
 _PHRASE_COUNTERS: dict[str, count] = {}
+PHRASE_STATE_PATH = Path("memory") / "assistant_phrase_state.json"
+MAX_RECENT_PHRASES = 5
+
+
+def _load_phrase_state() -> dict:
+    try:
+        data = json.loads(PHRASE_STATE_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_phrase_state(state: dict) -> None:
+    try:
+        PHRASE_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        PHRASE_STATE_PATH.write_text(
+            json.dumps(state, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
 
 
 def next_phrase(key: str, options: tuple[str, ...], default: str = "") -> str:
     if not options:
         return default
-    counter = _PHRASE_COUNTERS.setdefault(key, count())
-    index = next(counter) % len(options)
-    return options[index]
+    if len(options) == 1:
+        return options[0]
+
+    state = _load_phrase_state()
+    recent_by_key = state.get("recent") if isinstance(state.get("recent"), dict) else {}
+    recent = [str(item) for item in recent_by_key.get(key, []) if str(item)]
+
+    candidates = [option for option in options if option not in recent]
+    if not candidates:
+        counter = _PHRASE_COUNTERS.setdefault(key, count())
+        offset = next(counter) % len(options)
+        candidates = list(options[offset:] + options[:offset])
+
+    choice = random.choice(candidates)
+    recent.append(choice)
+    keep = min(MAX_RECENT_PHRASES, max(1, len(options) - 1))
+    recent_by_key[key] = recent[-keep:]
+    state["recent"] = recent_by_key
+    _save_phrase_state(state)
+    return choice
+
+
+STARTUP_GREETING_FRAGMENTS: dict[str, tuple[str, ...]] = {
+    "openers": (
+        "{greeting}, {address_user}.",
+        "Axel online, {address_user}.",
+        "Bem-vindo de volta, {address_user}.",
+        "Sistema iniciado, {address_user}.",
+        "Retomando operações, {address_user}.",
+    ),
+    "study_focus": (
+        "Ambiente pronto para estudo e desenvolvimento.",
+        "Seu espaço de código está pronto.",
+        "Modo desenvolvimento disponível.",
+        "Rotina de estudos carregada.",
+        "Sessão técnica iniciada.",
+    ),
+    "operations": (
+        "Escuta disponível pelo F8.",
+        "Rotinas operacionais carregadas.",
+        "Monitoramento de agenda, carteira e lembretes ativo.",
+        "Sistema estável e pronto para comandos.",
+        "Pronto para consultas rápidas, código e automações.",
+    ),
+    "nudges": (
+        "Podemos começar por uma tarefa pequena e fechar com progresso real.",
+        "O próximo avanço está a um comando de distância.",
+        "Me diga o alvo de hoje e eu acompanho a execução.",
+        "Podemos revisar, construir ou corrigir.",
+        "Vamos transformar pendências em progresso concreto.",
+    ),
+}
+
+
+def contextual_startup_phrase(category: str, address_user: str = "chefe", greeting: str = "Bom dia") -> str:
+    category = str(category or "").strip() or "study_code"
+    state_key = f"contextual_startup:{category}"
+    state = _load_phrase_state()
+    recent_by_key = state.get("recent") if isinstance(state.get("recent"), dict) else {}
+    recent = [str(item) for item in recent_by_key.get(state_key, []) if str(item)]
+
+    phrase = ""
+    for _attempt in range(8):
+        opener = next_phrase("startup_fragment_openers", STARTUP_GREETING_FRAGMENTS["openers"]).format(
+            greeting=greeting,
+            address_user=address_user,
+        )
+
+        if category == "short_ready":
+            operation = next_phrase("startup_fragment_operations_short", STARTUP_GREETING_FRAGMENTS["operations"])
+            phrase = f"{opener} {operation}"
+        else:
+            focus_key = "startup_fragment_operations" if category == "computer_startup" else "startup_fragment_study_focus"
+            focus_options = (
+                STARTUP_GREETING_FRAGMENTS["operations"]
+                if category == "computer_startup"
+                else STARTUP_GREETING_FRAGMENTS["study_focus"]
+            )
+            focus = next_phrase(focus_key, focus_options)
+            nudge = next_phrase("startup_fragment_nudges", STARTUP_GREETING_FRAGMENTS["nudges"])
+            phrase = f"{opener} {focus} {nudge}"
+
+        if phrase not in recent:
+            break
+
+    if phrase:
+        recent.append(phrase)
+        recent_by_key[state_key] = recent[-20:]
+        state["recent"] = recent_by_key
+        _save_phrase_state(state)
+
+    return phrase
+
+
+STARTUP_GREETING_VARIANTS: dict[str, tuple[str, ...]] = {
+    "study_code": (
+        "Bom dia, chefe. Ambiente pronto para estudo, desenvolvimento e execução de ideias.",
+        "Axel online. Hoje podemos avançar em mobile, front-end ou automação local.",
+        "Seu ambiente de código está pronto. Posso ajudar com estrutura, revisão ou próxima etapa.",
+        "Sessão iniciada. Recomendo começar por uma tarefa pequena e fechar com progresso real.",
+        "Modo desenvolvimento disponível. Vamos transformar pendências em commits.",
+        "Tudo pronto para programar. Só preciso do alvo de hoje.",
+        "Rotina de estudos carregada. Podemos revisar, construir ou corrigir.",
+        "Chefe, o ambiente está pronto. Quebre o problema em partes e eu acompanho.",
+    ),
+    "computer_startup": (
+        "Bom dia, chefe. Sistemas ativos. Estou verificando clima, agenda, carteira e próximas prioridades.",
+        "Inicialização concluída. Axel online. Pronto para apoiar seus estudos, projetos e automações.",
+        "Bem-vindo de volta, chefe. Ambiente carregado, escuta pronta no F8 e rotinas operacionais disponíveis.",
+        "Sistema iniciado com sucesso. Hoje é um bom dia para avançar um pouco mais do que ontem.",
+        "Axel online. Monitorando clima, agenda, carteira e tarefas importantes. Aguardando instruções.",
+        "Boa noite, chefe. Computador ativo, assistente pronto e modo operacional iniciado.",
+        "Retomando operações. Seu ambiente de desenvolvimento está pronto para mais uma sessão.",
+        "Inicialização finalizada. Já estou de prontidão para comandos, estudos, código e consultas rápidas.",
+        "Bom retorno, chefe. Nada como um sistema limpo e uma mente focada para começar.",
+        "Axel em execução. Escuta por F8 ativada. Podemos começar quando quiser.",
+    ),
+    "short_ready": (
+        "Axel online. À sua disposição, chefe.",
+        "Sistemas prontos. Pode chamar pelo F8.",
+        "Pronto para operar.",
+        "Ambiente carregado. Vamos avançar.",
+        "Tudo pronto, chefe.",
+        "Escuta ativa. Aguardando comando.",
+        "Modo assistente iniciado.",
+        "Rotinas carregadas. Sistema estável.",
+        "Bom retorno. Estou em prontidão.",
+        "Axel ativo. Vamos trabalhar.",
+    ),
+    "briefing_already_delivered": (
+        "Briefing de hoje já foi entregue. Estou em escuta e monitorando seus lembretes.",
+        "Resumo do dia já entregue, chefe. Escuta disponível pelo F8.",
+        "Briefing diário já concluído. Continuo monitorando agenda, carteira e lembretes.",
+        "Panorama de hoje já foi enviado. Estou pronto para comandos, estudos e código.",
+        "Briefing já registrado para hoje. Seguimos em modo operacional.",
+    ),
+}
 
 
 ACTION_PROGRESS_VARIANTS: dict[str, tuple[str, ...]] = {

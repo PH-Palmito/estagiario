@@ -145,6 +145,7 @@ from tools.vision_tools import (
     vision_install_hint,
     vision_status,
 )
+from memory.vision_history import format_vision_history
 
 
 def _image_feature_paused(*_args, **_kwargs):
@@ -308,16 +309,17 @@ ACTIONS = {
     "code_inspect_workspace": lambda p: inspect_workspace_code(),
     "code_inspect_target": lambda p: inspect_code_target(p.get("target")),
     "code_inspect_selection": lambda p: inspect_selected_code(),
-    "image_analyze": lambda p: _image_feature_paused(),
-    "image_analyze_screen": lambda p: _image_feature_paused(),
-    "image_analyze_screen_graph": lambda p: _image_feature_paused(),
-    "image_analyze_browser": lambda p: _image_feature_paused(),
-    "image_analyze_clipboard": lambda p: _image_feature_paused(),
+    "image_analyze": lambda p: analyze_image_target(p.get("target")),
+    "image_analyze_screen": lambda p: analyze_screen_image(),
+    "image_analyze_screen_graph": lambda p: analyze_screen_graph(),
+    "image_analyze_browser": lambda p: analyze_browser_image(),
+    "image_analyze_clipboard": lambda p: analyze_clipboard_image(),
     "vision_status": lambda p: vision_status(),
     "vision_install_hint": lambda p: vision_install_hint(),
     "vision_download_light_model": lambda p: start_light_vision_model_download(),
     "vision_active_model": lambda p: active_vision_model(),
     "vision_last_analysis": lambda p: last_visual_analysis(),
+    "vision_history": lambda p: format_vision_history(),
     "vision_answer_question": lambda p: answer_visual_question_with_context_memory(p["question"]),
     "run_macro": lambda p: execute_many(p["steps"]),
     "respond": lambda p: p["message"],

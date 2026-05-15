@@ -156,6 +156,7 @@ def fetch_asset_fundamentals(ticker: str) -> dict:
         quote = _first_value_after_contains(items, "cotação", r"R\$\s*[-+]?\d{1,3}(?:\.\d{3})*(?:,\d{2})")
     dy_current = _first_value_after(items, ("DY atual:", "Dividend Yield", "DY"), r"[-+]?\d+(?:,\d+)?%")
     dy_5y = _first_value_after(items, ("DY médio em 5 anos:",), r"[-+]?\d+(?:,\d+)?%")
+    vacancy = _first_value_after_contains(items, "vac", r"[-+]?\d+(?:,\d+)?%")
     p_l = _first_value_after(items, ("P/L",), r"-?\d+(?:,\d+)?")
     p_vp = _first_value_after(items, ("P/VP",), r"-?\d+(?:,\d+)?")
     company_name = _extract_company_name(items, normalized)
@@ -179,6 +180,8 @@ def fetch_asset_fundamentals(ticker: str) -> dict:
         "dividend_yield_current_percent": dy_current_percent,
         "dividend_yield_5y_average": dy_5y,
         "dividend_yield_5y_average_percent": _parse_percent(dy_5y),
+        "vacancy": vacancy,
+        "vacancy_percent": _parse_percent(vacancy),
         "p_l": p_l,
         "p_vp": p_vp,
         "annual_dividend_estimate_per_share": annual_dividend_estimate,

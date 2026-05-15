@@ -128,7 +128,7 @@ def _investment_brief() -> str:
     patrimonio = str(metrics.get("patrimonio") or "").strip()
     rentabilidade = str(metrics.get("rentabilidade") or "").strip()
 
-    parts = ["Carteira:"]
+    parts = ["Carteira monitorada:"]
     if patrimonio:
         parts.append(f"patrimônio {patrimonio}.")
     if rentabilidade:
@@ -213,10 +213,10 @@ def daily_briefing() -> str:
         _time_greeting(),
         _climate_brief(),
         _short_agenda_brief(),
-        _dividend_agenda_brief(),
-        _short_reminders_brief(),
-        todo_brief_summary(),
-        _portfolio_radar_brief(),
         _investment_brief(),
+        _dividend_agenda_brief(),
+        _portfolio_radar_brief(),
+        todo_brief_summary(),
+        _short_reminders_brief(),
     ]
     return _polish_pt_br(" ".join(part.strip() for part in sections if str(part or "").strip()))

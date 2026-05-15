@@ -34,8 +34,6 @@ KNOWN_APPS = {
     "whats app": "whatsapp",
     "watsap": "whatsapp",
     "uatsap": "whatsapp",
-    "estaga": "whatsapp",
-    "estag": "whatsapp",
     "chrome": "chrome",
     "google chrome": "chrome",
     "vs code": "code",
@@ -268,6 +266,14 @@ CHATTER_PATTERNS = {
     "oi": "Ola.",
     "ola": "Ola.",
     "olá": "Ola.",
+    "axel esta ai": "Estou aqui.",
+    "axel ta ai": "Estou aqui.",
+    "estagiario esta ai": "Estou aqui.",
+    "estagiario ta ai": "Estou aqui.",
+    "assistente esta ai": "Estou aqui.",
+    "assistente ta ai": "Estou aqui.",
+    "voce esta ai": "Estou aqui.",
+    "voce ta ai": "Estou aqui.",
     "posso falar": "Pode falar.",
     "ta ouvindo": "Estou ouvindo sim.",
     "esta ouvindo": "Estou ouvindo sim.",
@@ -1831,6 +1837,8 @@ def detect_image_analysis_command(user_input: str):
         "o que ha na imagem do navegador",
         "ler imagem no navegador",
         "ver imagem no navegador",
+        "ler visual do navegador",
+        "leitura visual do navegador",
     }:
         return {"intent": "image_analyze_browser", "target": None}
 
@@ -1844,6 +1852,10 @@ def detect_image_analysis_command(user_input: str):
         "interpretar imagem da area de transferencia",
         "analisar print copiado",
         "ler imagem copiada",
+        "ler clipboard",
+        "ler o clipboard",
+        "ler area de transferencia",
+        "ler área de transferência",
     }:
         return {"intent": "image_analyze_clipboard", "target": None}
 
@@ -1891,6 +1903,10 @@ def detect_image_analysis_command(user_input: str):
         "descreve imagem da tela",
         "descreva imagem da tela",
         "o que aparece na tela",
+        "ler tela",
+        "leia a tela",
+        "ler visual da tela",
+        "leitura visual da tela",
         "o que aparece nessa imagem",
         "o que aparece na imagem",
         "o que tem nessa imagem",
@@ -1927,6 +1943,9 @@ def detect_image_analysis_command(user_input: str):
         "extrair texto da imagem ",
         "extrai texto da imagem ",
         "ocr da imagem ",
+        "ler arquivo ",
+        "leia o arquivo ",
+        "leitura visual do arquivo ",
         "analisar print ",
         "analisa print ",
         "analisar screenshot ",
@@ -2527,6 +2546,22 @@ def detect_vision_model_command(user_input: str):
         "qual modelo de visão",
     }:
         return {"intent": "vision_active_model", "target": None}
+
+    if lower in {
+        "historico visual",
+        "histórico visual",
+        "ver historico visual",
+        "ver histórico visual",
+        "mostrar historico visual",
+        "mostrar histórico visual",
+        "ultimas analises visuais",
+        "últimas análises visuais",
+        "analises visuais recentes",
+        "análises visuais recentes",
+        "o que voce viu recentemente",
+        "o que você viu recentemente",
+    }:
+        return {"intent": "vision_history", "target": None}
 
     if lower in {
         "ultima analise visual",

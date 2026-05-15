@@ -74,6 +74,51 @@ IMPACT_TERMS = {
     "juros",
     "selic",
 }
+ACTIONABLE_TERMS = {
+    "resultado",
+    "lucro",
+    "prejuÃ­zo",
+    "prejuizo",
+    "dividendo",
+    "provento",
+    "jcp",
+    "guidance",
+    "aquisiÃ§Ã£o",
+    "aquisicao",
+    "fusÃ£o",
+    "fusao",
+    "oferta",
+    "captaÃ§Ã£o",
+    "captacao",
+    "fato relevante",
+    "comunicado",
+    "assembleia",
+    "governanÃ§a",
+    "governanca",
+    "regulaÃ§Ã£o",
+    "regulacao",
+    "processo",
+    "fraude",
+    "dÃ­vida",
+    "divida",
+    "vacÃ¢ncia",
+    "vacancia",
+    "volatilidade",
+    "etf",
+    "halving",
+    "fed",
+    "sec",
+    "juros",
+}
+CRYPTO_ALIASES = {
+    "BTC": ("bitcoin", "btc"),
+    "ETH": ("ethereum", "ether", "eth"),
+    "SOL": ("solana", "sol"),
+    "BNB": ("bnb", "binance coin"),
+    "XRP": ("xrp", "ripple"),
+    "ADA": ("cardano", "ada"),
+    "DOGE": ("dogecoin", "doge"),
+}
 GENERIC_ROUNDUP_TERMS = {
     "e mais ações",
     "e mais acoes",
@@ -83,6 +128,13 @@ GENERIC_ROUNDUP_TERMS = {
     "destaques do noticiario corporativo",
     "ações recomendadas para investir",
     "acoes recomendadas para investir",
+    "o que esperar do mercado",
+    "mercado hoje",
+    "bolsa hoje",
+    "criptomoedas hoje",
+    "mercado cripto",
+    "preco do bitcoin hoje",
+    "preÃ§o do bitcoin hoje",
 }
 
 
@@ -105,7 +157,12 @@ def _normalize(text: str) -> str:
 
 
 def _build_query(ticker: str, company_name: str = "") -> str:
-    ticker_term = f'"{ticker.upper()}"'
+    normalized_ticker = ticker.upper().strip()
+    crypto_aliases = CRYPTO_ALIASES.get(normalized_ticker, ())
+    if crypto_aliases:
+        terms = " OR ".join(f'"{term}"' for term in crypto_aliases)
+        return f"({terms})"
+    ticker_term = f'"{normalized_ticker}"'
     company_term = f'"{company_name.strip()}"' if company_name.strip() else ""
     if company_term:
         return f"({ticker_term} OR {company_term})"
@@ -222,6 +279,7 @@ def classify_news_articles(
     market_data = market_data or {}
     ticker_normalized = _normalize(ticker)
     company_normalized = _normalize(company_name)
+    crypto_aliases = tuple(_normalize(item) for item in CRYPTO_ALIASES.get(str(ticker or "").upper(), ()))
     theme_counts = Counter(
         _theme_signature(article.get("title", ""), article.get("description", ""))
         for article in articles
@@ -245,6 +303,8 @@ def classify_news_articles(
             direct_mention = True
         if company_normalized and company_normalized in normalized:
             direct_mention = True
+        if crypto_aliases and any(alias in normalized for alias in crypto_aliases):
+            direct_mention = True
         if direct_mention:
             score += 0.18
             reasons.append("ligação direta com o ativo")
@@ -253,7 +313,7 @@ def classify_news_articles(
             reasons.append("ligação fraca com o ativo")
 
         if any(term in normalized for term in GENERIC_ROUNDUP_TERMS):
-            score -= 0.18
+            score -= 0.26
             reasons.append("matéria ampla demais para o ativo")
 
         source_normalized = _normalize(source)
@@ -284,7 +344,11 @@ def classify_news_articles(
             factual_hits += 1
         if published_at:
             factual_hits += 1
-        if any(term in normalized for term in IMPACT_TERMS):
+        impact_hits = [term for term in IMPACT_TERMS if term in normalized]
+        actionable_hits = [term for term in ACTIONABLE_TERMS if term in normalized]
+        if impact_hits:
+            factual_hits += 1
+        if actionable_hits:
             factual_hits += 1
 
         if sensational_hits and factual_hits <= 1:
@@ -312,11 +376,29 @@ def classify_news_articles(
             score -= 0.18
             reasons.append("impacto não confirmado pelos dados de mercado")
 
+        is_crypto = bool(crypto_aliases)
+        is_generic_crypto = is_crypto and any(
+            term in normalized
+            for term in {
+                "criptomoedas",
+                "mercado cripto",
+                "mercado de cripto",
+                "preco do bitcoin hoje",
+                "preÃ§o do bitcoin hoje",
+            }
+        )
+        if is_crypto and not actionable_hits and not re.search(r"\b(etf|sec|fed|halving|regula\w+|juros|liquida\w+|fluxo|reserva|tesouro)\b", normalized):
+            score -= 0.22
+            reasons.append("cripto sem gatilho acionÃ¡vel")
+        if is_generic_crypto and not actionable_hits:
+            score -= 0.20
+            reasons.append("matÃ©ria ampla de cripto")
+
         score = max(0.0, min(1.0, round(score, 2)))
 
         if sensational_hits and factual_hits <= 1:
             classification = "SENSACIONALISTA"
-        elif score >= 0.64:
+        elif score >= 0.68 and (actionable_hits or not is_crypto):
             classification = "RELEVANTE"
         else:
             classification = "IRRELEVANTE"

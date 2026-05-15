@@ -969,6 +969,15 @@ def _semantic_image_analysis(
     return ""
 
 
+def _remember_visual_result(source: str, response: str, details: dict | None = None):
+    clean = " ".join(str(response or "").split()).strip()
+    if not clean:
+        return
+    if clean.startswith(("Não encontrei", "Nao encontrei", "Não consegui", "Nao consegui", "Me diga ")):
+        return
+    remember_vision_analysis(source, clean, details=details or {})
+
+
 def analyze_image_target(path: str | None = None) -> str:
     target = _resolve_target(path)
     if not str(path or "").strip():
@@ -984,7 +993,7 @@ def analyze_image_target(path: str | None = None) -> str:
         svg_summary = _infer_svg_column_chart(target)
         if svg_summary:
             response = "Análise visual: " + svg_summary
-            remember_vision_analysis("arquivo SVG", response)
+            _remember_visual_result("arquivo SVG", response, details={"kind": "file", "path": str(target)})
             return response
         return "Consegui abrir o SVG, mas ele não tem texto ou geometria simples suficiente para interpretar com segurança."
 
@@ -997,13 +1006,15 @@ def analyze_image_target(path: str | None = None) -> str:
     try:
         semantic = _semantic_image_analysis(target, ocr_result=result)
         if semantic:
-            remember_vision_analysis("arquivo", semantic)
+            _remember_visual_result("arquivo", semantic, details={"kind": "file", "path": str(target)})
             return semantic
     except Exception as exc:
         fallback = _format_image_analysis(result)
         return vision_unavailable_message(exc) + " " + fallback
 
-    return _format_image_analysis(result)
+    response = _format_image_analysis(result)
+    _remember_visual_result("arquivo", response, details={"kind": "file", "path": str(target)})
+    return response
 
 
 def analyze_screen_image(mode: str = "general") -> str:
@@ -1028,7 +1039,7 @@ def analyze_screen_image(mode: str = "general") -> str:
                 mode=mode,
             )
             if semantic:
-                remember_vision_analysis("tela", semantic)
+                _remember_visual_result("tela", semantic, details={"kind": "screen", "mode": mode})
                 return semantic
         except Exception as exc:
             return vision_unavailable_message(exc) + " " + _format_image_analysis(
@@ -1036,7 +1047,9 @@ def analyze_screen_image(mode: str = "general") -> str:
                 prefix="OCR da tela",
             )
 
-        return _format_image_analysis(result, prefix="OCR da tela")
+        response = _format_image_analysis(result, prefix="OCR da tela")
+        _remember_visual_result("tela", response, details={"kind": "screen", "mode": mode})
+        return response
     except Exception as exc:
         return f"Não consegui analisar a imagem da tela: {exc}"
     finally:
@@ -1060,7 +1073,7 @@ def analyze_clipboard_image() -> str:
         try:
             semantic = _semantic_image_analysis(clipboard_path, ocr_result=result, prefix="Análise visual da imagem copiada")
             if semantic:
-                remember_vision_analysis("clipboard", semantic)
+                _remember_visual_result("clipboard", semantic, details={"kind": "clipboard"})
                 return semantic
         except Exception as exc:
             return vision_unavailable_message(exc) + " " + _format_image_analysis(
@@ -1068,7 +1081,9 @@ def analyze_clipboard_image() -> str:
                 prefix="OCR da imagem copiada",
             )
 
-        return _format_image_analysis(result, prefix="OCR da imagem copiada")
+        response = _format_image_analysis(result, prefix="OCR da imagem copiada")
+        _remember_visual_result("clipboard", response, details={"kind": "clipboard"})
+        return response
     except Exception as exc:
         return f"Não encontrei imagem copiada para analisar: {exc}"
     finally:

@@ -1,0 +1,2170 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Axel HUD</title>
+    <style>
+      :root {
+        --bg: #050b14;
+        --panel: #0b1220;
+        --panel-2: #101827;
+        --line: #1b3557;
+        --line-strong: #2f65a8;
+        --text: #edf2ff;
+        --soft: #a9bad2;
+        --dim: #617087;
+        --blue: #60a5fa;
+        --blue-2: #2563eb;
+        --cyan: #38bdf8;
+        --yellow: #facc15;
+        --orange: #f97316;
+        --red: #ef4444;
+      }
+
+      * { box-sizing: border-box; }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        color: var(--text);
+        background: var(--bg);
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+
+      button,
+      input { font: inherit; }
+
+      .stage {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background:
+          linear-gradient(#0d1726 1px, transparent 1px),
+          linear-gradient(90deg, #0d1726 1px, transparent 1px),
+          radial-gradient(circle at 12% 10%, rgba(30, 64, 175, 0.2), transparent 25rem),
+          radial-gradient(circle at 98% 10%, rgba(14, 165, 233, 0.12), transparent 18rem),
+          #050b14;
+        background-size: 38px 38px, 38px 38px, auto, auto, auto;
+      }
+
+      .core-canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+      }
+
+      .settings-shell,
+      .settings,
+      .settings-menu,
+      .dock,
+      .panel-window {
+        z-index: 3;
+      }
+
+      .stage::before,
+      .stage::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        pointer-events: none;
+      }
+
+      .stage::before {
+        width: 598px;
+        height: 546px;
+        left: -286px;
+        top: -270px;
+        background: #09111f;
+      }
+
+      .stage::after {
+        width: 559px;
+        height: 580px;
+        right: -236px;
+        top: -194px;
+        background: #061522;
+      }
+
+      .fade-band {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 18px;
+        background: var(--bg);
+        pointer-events: none;
+        display: none;
+      }
+
+      .focus-oval {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 720px;
+        height: 560px;
+        transform: translate(-50%, -50%);
+        border: 1px solid #0d1828;
+        border-radius: 50%;
+        pointer-events: none;
+        transition: opacity 160ms ease;
+      }
+
+      .stage.focus-mode .focus-oval {
+        opacity: 0;
+      }
+
+      .settings-shell {
+        position: absolute;
+        right: 30px;
+        top: 24px;
+      }
+
+      .settings {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        display: grid;
+        place-items: center;
+        color: var(--soft);
+        background: rgba(9, 17, 31, 0.72);
+        border: 1px solid rgba(47, 101, 168, 0.18);
+        margin-left: auto;
+      }
+
+      .settings:hover,
+      .settings.active {
+        color: var(--text);
+        background: rgba(16, 24, 39, 0.95);
+        border-color: rgba(96, 165, 250, 0.38);
+      }
+
+      .settings-menu {
+        position: absolute;
+        top: 54px;
+        right: 0;
+        width: 188px;
+        display: none;
+        border: 1px solid rgba(96, 165, 250, 0.25);
+        background: rgba(9, 17, 31, 0.98);
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+      }
+
+      .settings-menu.open {
+        display: block;
+      }
+
+      .settings-menu button {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 11px 14px;
+        color: var(--soft);
+        background: transparent;
+        border: 0;
+        text-align: left;
+      }
+
+      .settings-menu button:hover {
+        color: var(--text);
+        background: rgba(37, 99, 235, 0.16);
+      }
+
+      .core {
+        position: absolute;
+        left: 50%;
+        top: calc(50% - 28px);
+        width: 720px;
+        height: 560px;
+        transform: translate(-50%, -50%);
+        display: grid;
+        place-items: center;
+      }
+
+      .core {
+        display: none;
+      }
+
+      .halo,
+      .halo::before,
+      .halo::after {
+        position: absolute;
+        border-radius: 50%;
+        border: 1px solid #0d1828;
+      }
+
+      .halo {
+        width: 720px;
+        height: 560px;
+        border-radius: 50%;
+      }
+
+      .halo::before,
+      .halo::after {
+        content: "";
+        inset: 90px 130px;
+      }
+
+      .halo::after {
+        inset: 170px 220px;
+        border-color: #0d1828;
+      }
+
+      .scanner {
+        position: absolute;
+        width: 316px;
+        height: 316px;
+        border-radius: 50%;
+        border: 2px solid rgba(96, 165, 250, 0.82);
+        animation: rotate 14s linear infinite;
+      }
+
+      .scanner::before {
+        content: "";
+        position: absolute;
+        inset: 28px;
+        border-radius: 50%;
+        border: 1px solid rgba(96, 165, 250, 0.55);
+      }
+
+      .scanner::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 2px;
+        height: 148px;
+        transform-origin: top;
+        background: linear-gradient(var(--blue), transparent);
+      }
+
+      .dots {
+        position: absolute;
+        width: 386px;
+        height: 386px;
+        border-radius: 50%;
+        animation: rotate 22s linear infinite reverse;
+      }
+
+      .dots span {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--blue);
+        box-shadow: 0 0 12px rgba(96, 165, 250, 0.74);
+      }
+
+      .node-map {
+        position: absolute;
+        width: 250px;
+        height: 250px;
+      }
+
+      .node-map svg {
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+
+      .node-map line,
+      .node-map polygon {
+        stroke: rgba(96, 165, 250, 0.5);
+        stroke-width: 1;
+        fill: rgba(37, 99, 235, 0.09);
+      }
+
+      .node-map circle {
+        fill: var(--blue-2);
+        stroke: var(--blue);
+        stroke-width: 1;
+        filter: drop-shadow(0 0 8px rgba(96, 165, 250, 0.65));
+      }
+
+      .side-lines {
+        position: absolute;
+        top: 50%;
+        width: 96px;
+        height: 170px;
+        transform: translateY(-50%);
+        opacity: 0.8;
+      }
+
+      .side-lines.left { left: calc(50% - 332px); }
+      .side-lines.right { right: calc(50% - 332px); transform: translateY(-50%) scaleX(-1); }
+
+      .side-lines i {
+        display: block;
+        height: 1px;
+        margin: 7px 0;
+        background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.72));
+      }
+
+      .brand-title {
+        position: absolute;
+        left: 50%;
+        top: calc(50% + 156px);
+        transform: translateX(-50%);
+        font-size: 38px;
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+
+      .signal-bar {
+        position: absolute;
+        left: 50%;
+        top: calc(50% + 224px);
+        width: 184px;
+        height: 12px;
+        transform: translateX(-50%);
+        border-top: 2px solid rgba(96, 165, 250, 0.18);
+      }
+
+      .signal-bar::before {
+        content: "";
+        display: block;
+        width: 44px;
+        height: 2px;
+        background: var(--blue);
+        box-shadow: 58px 0 rgba(96, 165, 250, 0.38), 108px 0 rgba(96, 165, 250, 0.22);
+      }
+
+      .dock {
+        position: absolute;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 0;
+        min-width: 684px;
+        justify-content: center;
+        border: 1px solid rgba(96, 165, 250, 0.22);
+        background: rgba(11, 18, 32, 0.94);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+      }
+
+      .dock button {
+        min-width: 112px;
+        padding: 18px 10px;
+        color: var(--soft);
+        background: transparent;
+        border: 0;
+        cursor: pointer;
+      }
+
+      .dock button.active {
+        color: var(--text);
+        background: rgba(37, 99, 235, 0.16);
+      }
+
+      .panel-window {
+        position: absolute;
+        top: 74px;
+        right: 64px;
+        width: 640px;
+        max-height: 620px;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(10px);
+        transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms;
+        border: 1px solid rgba(96, 165, 250, 0.25);
+        background: rgba(9, 17, 31, 0.98);
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
+        z-index: 4;
+        contain: layout paint;
+        content-visibility: hidden;
+      }
+
+      .panel-window[data-window="texto"] {
+        left: 34px;
+        right: auto;
+        top: 34px;
+        width: 460px;
+        max-height: 316px;
+      }
+
+      .panel-window[data-window="audio"],
+      .panel-window[data-window="sessao"],
+      .panel-window[data-window="contexto"],
+      .panel-window[data-window="comandos"] {
+        right: 34px;
+        top: 86px;
+        width: 520px;
+        max-height: 570px;
+      }
+
+      .panel-window[data-window="treino"] {
+        left: 50%;
+        right: auto;
+        top: 50%;
+        width: min(1080px, calc(100vw - 112px));
+        height: calc(100vh - 44px);
+        max-height: calc(100vh - 44px);
+        transform: translate(-50%, calc(-50% + 10px));
+      }
+
+      .panel-window[data-window="midia"] {
+        left: 410px;
+        right: auto;
+        top: 330px;
+        width: 420px;
+        max-height: 410px;
+      }
+
+      .panel-window[data-window="tempo"] {
+        left: 410px;
+        right: auto;
+        top: 34px;
+        width: 420px;
+        max-height: 300px;
+      }
+
+      .panel-window[data-window="carteira"],
+      .panel-window[data-window="noticias"],
+      .panel-window[data-window="mapas"] {
+        left: 50%;
+        right: auto;
+        top: 50%;
+        width: min(760px, calc(100vw - 96px));
+        max-height: calc(100vh - 150px);
+        transform: translate(-50%, calc(-50% + 10px));
+      }
+
+      .panel-window.open {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0);
+        transition-delay: 0s;
+        content-visibility: visible;
+      }
+
+      .panel-window[data-window="treino"].open,
+      .panel-window[data-window="carteira"].open,
+      .panel-window[data-window="noticias"].open,
+      .panel-window[data-window="mapas"].open {
+        transform: translate(-50%, -50%);
+      }
+
+      .panel-window.draggable .panel-head {
+        cursor: grab;
+        user-select: none;
+      }
+
+      .panel-window.dragging {
+        transition: none;
+      }
+
+      .panel-window.dragged.open {
+        transform: none;
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 15px 16px;
+        border-bottom: 1px solid rgba(96, 165, 250, 0.16);
+      }
+
+      .eyebrow {
+        margin: 0 0 4px;
+        color: var(--dim);
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      h2, h3, p { margin: 0; }
+      h2 { font-size: 16px; }
+
+      .panel-body {
+        min-height: 0;
+        overflow: auto;
+        padding: 14px;
+      }
+
+      .media-top {
+        display: grid;
+        grid-template-columns: 132px minmax(0, 1fr);
+        gap: 14px;
+        align-items: stretch;
+        margin-bottom: 12px;
+      }
+
+      .album-art {
+        position: relative;
+        overflow: hidden;
+        min-height: 132px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(96, 165, 250, 0.18);
+        background:
+          radial-gradient(circle at 50% 50%, rgba(96, 165, 250, 0.28), transparent 38%),
+          linear-gradient(#0d2f55 1px, transparent 1px),
+          linear-gradient(90deg, #0d2f55 1px, transparent 1px),
+          #06182d;
+        background-size: auto, 16px 16px, 16px 16px, auto;
+        color: var(--blue);
+        font-weight: 800;
+        letter-spacing: 1px;
+      }
+
+      .album-art::before,
+      .album-art::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        pointer-events: none;
+      }
+
+      .album-art::before {
+        width: 92px;
+        height: 92px;
+        border: 2px solid rgba(96, 165, 250, 0.32);
+        border-top-color: var(--blue);
+        animation: spin-slow 9s linear infinite;
+      }
+
+      .album-art::after {
+        width: 38px;
+        height: 38px;
+        border: 1px solid rgba(56, 189, 248, 0.45);
+      }
+
+      .album-art img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0;
+        transition: opacity 220ms ease;
+      }
+
+      .album-art.has-image img {
+        opacity: 0.94;
+      }
+
+      .album-art.has-image::before {
+        width: 118px;
+        height: 118px;
+        border-color: rgba(237, 242, 255, 0.16);
+        border-top-color: var(--cyan);
+        z-index: 1;
+      }
+
+      .album-art span {
+        position: relative;
+        z-index: 2;
+      }
+
+      .album-art.has-image span {
+        display: none;
+      }
+
+      .track-wave {
+        height: 26px;
+        display: flex;
+        align-items: end;
+        gap: 3px;
+        margin-top: 12px;
+      }
+
+      .track-wave i {
+        width: 4px;
+        min-height: 5px;
+        display: block;
+        background: var(--blue);
+        opacity: 0.55;
+        animation: wave 1.4s ease-in-out infinite;
+      }
+
+      .track-wave i:nth-child(2n) { animation-delay: 120ms; }
+      .track-wave i:nth-child(3n) { animation-delay: 240ms; background: var(--cyan); }
+      .track-wave.paused i { animation-play-state: paused; opacity: 0.25; }
+
+      .track-progress {
+        height: 3px;
+        margin-top: 10px;
+        background: rgba(96, 165, 250, 0.16);
+      }
+
+      .track-progress span {
+        display: block;
+        width: 0%;
+        height: 100%;
+        background: var(--cyan);
+        box-shadow: 0 0 12px rgba(56, 189, 248, 0.55);
+        transition: width 600ms linear;
+      }
+
+      .media-title {
+        color: var(--text);
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+      }
+
+      .media-subtitle,
+      .media-note {
+        margin-top: 8px;
+        color: var(--soft);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .media-note {
+        color: var(--dim);
+      }
+
+      .weather-hero {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 14px;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .weather-temp {
+        min-width: 118px;
+        color: var(--text);
+        font-size: 42px;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .weather-place {
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .weather-desc {
+        margin-top: 5px;
+        color: var(--soft);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .mini-list {
+        display: grid;
+        gap: 8px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .mini-list li {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 9px 10px;
+        color: var(--soft);
+        border: 1px solid rgba(96, 165, 250, 0.12);
+        background: rgba(5, 11, 20, 0.45);
+        font-size: 12px;
+      }
+
+      .command-overlay {
+        display: grid;
+        gap: 12px;
+        max-height: 390px;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .command-overlay-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 12px 0 10px;
+        padding: 10px 12px;
+        color: var(--dim);
+        border: 1px solid rgba(96, 165, 250, 0.12);
+        background: rgba(5, 11, 20, 0.52);
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+
+      .command-overlay-head b {
+        color: var(--cyan);
+      }
+
+      .command-group {
+        border: 1px solid rgba(96, 165, 250, 0.14);
+        background: rgba(5, 11, 20, 0.45);
+      }
+
+      .command-group h3 {
+        padding: 10px 12px;
+        color: var(--cyan);
+        font-size: 11px;
+        text-transform: uppercase;
+        border-bottom: 1px solid rgba(96, 165, 250, 0.11);
+      }
+
+      .command-row-item {
+        display: grid;
+        grid-template-columns: 34px minmax(90px, 0.8fr) minmax(0, 1.3fr) 84px;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 10px;
+        color: var(--soft);
+        font-size: 12px;
+      }
+
+      .command-row-item + .command-row-item {
+        border-top: 1px solid rgba(96, 165, 250, 0.08);
+      }
+
+      .command-row-item b {
+        color: var(--text);
+      }
+
+      .command-row-item code {
+        color: var(--dim);
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+
+      .command-row-item button {
+        padding: 6px 8px;
+        font-size: 11px;
+      }
+
+      .training-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 220px;
+        gap: 12px;
+      }
+
+      .body-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .chart-wrap {
+        position: relative;
+        height: min(70vh, 680px);
+        min-height: 560px;
+        padding: 32px 18px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(96, 165, 250, 0.15);
+        background: rgba(5, 11, 20, 0.55);
+        overflow: hidden;
+      }
+
+      .chart-wrap::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 10px;
+        top: 9px;
+        color: var(--dim);
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .chart {
+        width: 100%;
+        height: 100%;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+      }
+
+      .chart .body-chart-container {
+        width: 100% !important;
+        height: 100% !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        overflow: visible !important;
+      }
+
+      .chart svg {
+        width: auto !important;
+        height: 100% !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        object-fit: contain;
+        overflow: visible;
+        filter: drop-shadow(0 0 14px rgba(96, 165, 250, 0.16));
+        transform: translateY(-18%) scale(0.64);
+        transform-origin: center center;
+      }
+
+      .chart svg > g,
+      .chart svg g[data-side],
+      .chart svg g[data-view] {
+        transform-box: fill-box;
+        transform-origin: center;
+      }
+
+      .side-card,
+      .text-card {
+        padding: 12px;
+        border: 1px solid rgba(96, 165, 250, 0.15);
+        background: rgba(16, 24, 39, 0.72);
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .metric {
+        padding: 10px;
+        border: 1px solid rgba(96, 165, 250, 0.12);
+        background: rgba(5, 11, 20, 0.42);
+      }
+
+      .metric span {
+        display: block;
+        color: var(--dim);
+        font-size: 10px;
+        text-transform: uppercase;
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 5px;
+        font-size: 15px;
+        overflow-wrap: anywhere;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 5px 0;
+        color: var(--soft);
+        font-size: 12px;
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        display: inline-block;
+        margin-right: 7px;
+      }
+
+      .blue { background: var(--cyan); }
+      .yellow { background: var(--yellow); }
+      .orange { background: var(--orange); }
+      .red { background: var(--red); box-shadow: 0 0 12px rgba(239, 68, 68, 0.76); }
+      .dark { background: #1f2937; }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      button,
+      input {
+        color: var(--text);
+        background: #101827;
+        border: 1px solid rgba(96, 165, 250, 0.18);
+      }
+
+      button {
+        padding: 9px 12px;
+        cursor: pointer;
+      }
+
+      button.primary {
+        color: #06101d;
+        background: var(--blue);
+        border-color: var(--blue);
+        font-weight: 800;
+      }
+
+      .command-row {
+        display: flex;
+        gap: 8px;
+      }
+
+      input {
+        flex: 1;
+        min-width: 0;
+        padding: 11px 12px;
+        outline: none;
+      }
+
+      .history-list,
+      .workout-list {
+        display: grid;
+        gap: 8px;
+        padding: 0;
+        margin: 10px 0 0;
+        list-style: none;
+      }
+
+      .history-list li,
+      .workout-list li {
+        padding: 9px;
+        color: var(--soft);
+        border: 1px solid rgba(96, 165, 250, 0.12);
+        background: rgba(5, 11, 20, 0.45);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      @keyframes rotate {
+        to { transform: rotate(360deg); }
+      }
+
+      @keyframes spin-slow {
+        to { transform: rotate(360deg); }
+      }
+
+      @keyframes wave {
+        0%, 100% { height: 6px; }
+        45% { height: 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="stage">
+      <canvas id="coreCanvas" class="core-canvas"></canvas>
+      <div class="fade-band" style="top:58%"></div>
+      <div class="fade-band" style="top:calc(58% + 32px)"></div>
+      <div class="fade-band" style="top:calc(58% + 64px)"></div>
+      <div class="fade-band" style="top:calc(58% + 96px)"></div>
+      <div class="fade-band" style="top:calc(58% + 128px)"></div>
+      <div class="focus-oval"></div>
+      <div class="settings-shell">
+        <button class="settings" id="settingsButton" type="button">⚙</button>
+        <div class="settings-menu" id="settingsMenu">
+          <button type="button" data-panel="audio">⌁ Áudio</button>
+          <button type="button" data-panel="sessao">◷ Sessão</button>
+          <button type="button" data-panel="contexto">⌘ Contexto</button>
+          <button type="button" data-panel="comandos">⌨ Comandos</button>
+          <button type="button" id="resetLayoutButton">↻ Restaurar layout</button>
+        </div>
+      </div>
+
+      <section class="core" aria-label="Axel">
+        <div class="halo"></div>
+        <div class="scanner"></div>
+        <div class="dots" id="dots"></div>
+        <div class="side-lines left" id="leftLines"></div>
+        <div class="side-lines right" id="rightLines"></div>
+        <div class="node-map">
+          <svg viewBox="0 0 240 240" aria-hidden="true">
+            <polygon points="120,34 184,86 162,170 76,178 42,96"></polygon>
+            <polygon points="120,68 154,102 140,148 96,151 82,105"></polygon>
+            <line x1="120" y1="34" x2="120" y2="206"></line>
+            <line x1="42" y1="96" x2="196" y2="132"></line>
+            <line x1="76" y1="178" x2="184" y2="86"></line>
+            <circle cx="120" cy="120" r="18"></circle>
+            <circle cx="120" cy="34" r="5"></circle>
+            <circle cx="184" cy="86" r="5"></circle>
+            <circle cx="162" cy="170" r="6"></circle>
+            <circle cx="76" cy="178" r="6"></circle>
+            <circle cx="42" cy="96" r="6"></circle>
+            <circle cx="96" cy="151" r="5"></circle>
+            <circle cx="154" cy="102" r="5"></circle>
+          </svg>
+        </div>
+        <div class="brand-title" id="assistantName">Axel</div>
+        <div class="signal-bar"></div>
+      </section>
+
+      <nav class="dock">
+        <button type="button" data-panel="texto">⌁ Texto</button>
+        <button type="button" data-panel="midia">♪ Mídia</button>
+        <button type="button" data-panel="tempo">☁ Tempo</button>
+        <button type="button" data-panel="carteira">↗ Carteira</button>
+        <button type="button" data-panel="noticias">◫ Notícias</button>
+        <button type="button" data-panel="treino">⊙ Treino</button>
+      </nav>
+
+      <section class="panel-window" data-window="texto">
+        <div class="panel-head">
+          <div><p class="eyebrow">Texto</p><h2>Comando direto</h2></div>
+          <button type="button" data-close>Fechar</button>
+        </div>
+        <div class="panel-body">
+          <div class="text-card">
+            <div class="command-row">
+              <input id="commandInput" placeholder="Digite um comando para o Axel" />
+              <button id="sendCommand" class="primary" type="button">Enviar</button>
+            </div>
+          </div>
+          <div class="text-card" style="margin-top:12px">
+            <p class="eyebrow">Estado</p>
+            <div class="metric-grid">
+              <div class="metric"><span>Status</span><strong id="status">--</strong></div>
+              <div class="metric"><span>Modo</span><strong id="mode">--</strong></div>
+              <div class="metric"><span>Microfone</span><strong id="mic">--</strong></div>
+              <div class="metric"><span>Última ordem</span><strong id="lastCommand">--</strong></div>
+            </div>
+          </div>
+          <div class="text-card" style="margin-top:12px">
+            <p class="eyebrow">Histórico</p>
+            <ul class="history-list" id="historyList"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-window" data-window="audio">
+        <div class="panel-head">
+          <div><p class="eyebrow">Áudio</p><h2>Voz e escuta</h2></div>
+          <button type="button" data-close>Fechar</button>
+        </div>
+        <div class="panel-body">
+          <div class="text-card">
+            <div class="metric-grid">
+              <div class="metric"><span>Microfone</span><strong id="audioMic">--</strong></div>
+              <div class="metric"><span>Perfil</span><strong id="audioProfile">--</strong></div>
+              <div class="metric"><span>Hotword</span><strong id="audioHotword">--</strong></div>
+              <div class="metric"><span>Modo</span><strong id="audioMode">--</strong></div>
+            </div>
+            <div class="actions">
+              <button type="button" data-command="pausar escuta">Pausar</button>
+              <button type="button" data-command="retomar escuta" class="primary">Retomar</button>
+              <button type="button" data-command="diagnostico de audio">Diagnóstico</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-window" data-window="sessao">
+        <div class="panel-head">
+          <div><p class="eyebrow">Sessão</p><h2>Estado atual</h2></div>
+          <button type="button" data-close>Fechar</button>
+        </div>
+        <div class="panel-body">
+          <div class="text-card">
+            <div class="metric-grid">
+              <div class="metric"><span>Status</span><strong id="sessionStatus">--</strong></div>
+              <div class="metric"><span>Canal</span><strong id="sessionChannel">--</strong></div>
+              <div class="metric"><span>Sinal</span><strong id="sessionSignal">--</strong></div>
+              <div class="metric"><span>Hora</span><strong id="sessionTime">--</strong></div>
+            </div>
+            <ul class="mini-list">
+              <li><span>Última ordem</span><strong id="sessionCommand">--</strong></li>
+              <li><span>Última resposta</span><strong id="sessionResponse">--</strong></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-window" data-window="contexto">
+        <div class="panel-head">
+          <div><p class="eyebrow">Contexto</p><h2>Operacional</h2></div>
+          <button type="button" data-close>Fechar</button>
+        </div>
+        <div class="panel-body">
+          <div class="text-card">
+            <div class="metric-grid">
+              <div class="metric"><span>Assistente</span><strong id="contextName">Axel</strong></div>
+              <div class="metric"><span>Estilo</span><strong id="contextStyle">--</strong></div>
+              <div class="metric"><span>Perfil</span><strong id="contextProfile">--</strong></div>
+              <div class="metric"><span>Modo</span><strong id="contextMode">--</strong></div>
+            </div>
+            <p class="eyebrow">Histórico</p>
+            <ul class="history-list" id="contextHistory"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-window" data-window="comandos">
+        <div class="panel-head">
+          <div><p class="eyebrow">Comandos</p><h2>Atalhos</h2></div>
+          <button type="button" data-close>Fechar</button>
+        </div>
+        <div class="panel-body">
+          <div class="text-card">
+            <div class="metric-grid">
+              <div class="metric"><span>Voz</span><strong id="commandsVoice">--</strong></div>
+              <div class="metric"><span>Modo</span><strong id="commandsMode">--</strong></div>
+            </div>
+            <div class="command-overlay-head"><b>COMMAND OVERLAY</b><span id="commandsCount">0 ativos</span></div>
+            <div class="command-overlay" id="commandsList"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-window" data-window="treino">
+        <div class="panel-head">
+          <div><p class="eyebrow">Treino</p><h2 id="workoutTitle">Mapa corporal</h2></div>
+          <div class="actions">
+            <button type="button" data-command="treino de hoje">Hoje</button>
+            <button type="button" class="primary" data-command="marcar treino concluido">Concluir</button>
+            <button type="button" data-command="lesionei o braço por 3 dias">Lesão</button>
+            <button type="button" data-close>Fechar</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="training-grid">
+            <div class="body-grid">
+              <div class="chart-wrap" data-label="frente"><div id="frontChart" class="chart"></div></div>
+              <div class="chart-wrap" data-label="costas"><div id="backChart" class="chart"></div></div>
+            </div>
+            <aside class="side-card">
+              <div class="metric-grid">
+                <div class="metric"><span>Meta</span><strong id="goal">0/170</strong></div>
+                <div class="metric"><span>Sequência</span><strong id="streak">0</strong></div>
+                <div class="metric"><span>Restante</span><strong id="remaining">170</strong></div>
+                <div class="metric"><span>Status</span><strong id="trainingStatus">--</strong></div>
+              </div>
+              <div>
+                <div class="row"><span><i class="dot dark"></i>sem dados</span><b>0</b></div>
+                <div class="row"><span><i class="dot blue"></i>recuperado</span><b>2</b></div>
+                <div class="row"><span><i class="dot yellow"></i>fadiga leve</span><b>4</b></div>
+                <div class="row"><span><i class="dot orange"></i>fadiga média</span><b>7</b></div>
+                <div class="row"><span><i class="dot red"></i>lesionado</span><b>10</b></div>
+              </div>
+              <div id="muscleStatus" style="margin-top:10px"></div>
+            </aside>
+          </div>
+          <div class="side-card" style="margin-top:12px">
+            <p class="eyebrow">Treino de hoje</p>
+            <ul class="workout-list" id="workoutList"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-window" data-window="midia">
+        <div class="panel-head">
+          <div><p class="eyebrow">Mídia</p><h2>Controles</h2></div>
+          <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
+        </div>
+        <div class="panel-body">
+          <div class="text-card">
+            <div class="media-top">
+              <div class="album-art" id="albumArt"><img id="albumImage" alt="" /><span>AXEL</span></div>
+              <div>
+                <div class="media-title" id="mediaTitle">Nada tocando</div>
+                <div class="media-subtitle" id="mediaArtist">Spotify / sistema</div>
+                <div class="media-subtitle" id="mediaAlbum">--</div>
+                <div class="media-note" id="mediaState">Aguardando metadados</div>
+                <div class="track-wave paused" id="trackWave">
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                </div>
+                <div class="track-progress"><span id="trackProgress"></span></div>
+              </div>
+            </div>
+            <div class="actions">
+              <button data-command="musica anterior">⏮</button>
+              <button data-command="pausar ou continuar musica" class="primary">▶</button>
+              <button data-command="proxima musica">⏭</button>
+            </div>
+            <div class="actions" style="margin-top:8px">
+              <button data-command="diminuir volume">−</button>
+              <button data-command="mutar volume">◉</button>
+              <button data-command="aumentar volume">+</button>
+              <button data-command="abrir spotify">♪ Spotify</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="panel-window" data-window="tempo">
+        <div class="panel-head">
+          <div><p class="eyebrow">Tempo</p><h2>Clima</h2></div>
+          <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
+        </div>
+        <div class="panel-body">
+          <div class="text-card">
+            <div class="weather-hero">
+              <div class="weather-temp" id="weatherTemp">--</div>
+              <div>
+                <div class="weather-place" id="weatherPlace">Clima local</div>
+                <div class="weather-desc" id="weatherDesc">Aguardando consulta</div>
+              </div>
+            </div>
+            <div class="metric-grid">
+              <div class="metric"><span>Sensação</span><strong id="weatherFeels">--</strong></div>
+              <div class="metric"><span>Chuva</span><strong id="weatherRain">--</strong></div>
+              <div class="metric"><span>Vento</span><strong id="weatherWind">--</strong></div>
+              <div class="metric"><span>Fonte</span><strong>local</strong></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="panel-window" data-window="carteira">
+        <div class="panel-head">
+          <div><p class="eyebrow">Carteira</p><h2>Investimentos</h2></div>
+          <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
+        </div>
+        <div class="panel-body">
+          <div class="text-card">
+            <div class="metric-grid">
+              <div class="metric"><span>Patrimônio</span><strong id="investTotal">--</strong></div>
+              <div class="metric"><span>Rentabilidade</span><strong id="investReturn">--</strong></div>
+              <div class="metric"><span>Proventos 12M</span><strong id="investIncome">--</strong></div>
+              <div class="metric"><span>Atualização</span><strong id="investUpdated">--</strong></div>
+            </div>
+            <ul class="workout-list" id="investLines"></ul>
+          </div>
+        </div>
+      </section>
+      <section class="panel-window" data-window="noticias">
+        <div class="panel-head">
+          <div><p class="eyebrow">Notícias</p><h2>Sinais</h2></div>
+          <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
+        </div>
+        <div class="panel-body"><div class="text-card"><ul class="workout-list" id="newsList"></ul></div></div>
+      </section>
+      <section class="panel-window" data-window="mapas">
+        <div class="panel-head"><div><p class="eyebrow">Mapas</p><h2 id="mapTitle">Mapa</h2></div><button data-close>Fechar</button></div>
+        <div class="panel-body">
+          <div class="text-card">
+            <div class="metric-grid">
+              <div class="metric"><span>Tipo</span><strong id="mapKind">--</strong></div>
+              <div class="metric"><span>Destino</span><strong id="mapDestination">--</strong></div>
+            </div>
+            <p id="mapDetail" style="color:var(--soft);line-height:1.45">--</p>
+            <div class="actions" style="margin-top:12px">
+              <button id="mapOpenButton" type="button">Abrir no navegador</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="./training_web/vendor/body-muscles.umd.min.js"></script>
+    <script src="./training_web/body_muscle_groups.js"></script>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script>
+      const { BodyChart, ViewSide } = window.BodyMuscles || {};
+      const muscleGroups = window.AXEL_BODY_MUSCLE_GROUPS || {};
+      const muscleLabels = window.AXEL_BODY_MUSCLE_LABELS || {};
+      let bridge = null;
+      let currentUiState = {};
+      let appliedOpenPanelsKey = "";
+      let activePanelHydrated = false;
+      let lastBodyStateKey = "";
+      const lastRenderKeys = {};
+      let panelNotifyTimer = null;
+      let lastFrameAt = 0;
+      let focusProgress = 0;
+      let angle = 0;
+      let currentPanelName = "";
+      let pendingPanelRequest = null;
+      let panelSwitchFrame = 0;
+      let panelSwitchingUntil = 0;
+      const stage = document.querySelector(".stage");
+      const largePanels = new Set(["treino", "carteira", "noticias", "mapas"]);
+      const draggablePanels = new Set(["texto", "audio", "sessao", "contexto", "comandos", "midia", "tempo"]);
+      let panelPositions = {};
+      let dragState = null;
+
+      const commandGroups = [
+        ["Favoritos", [
+          ["▶", "Play/Pause", "pausar ou continuar musica"],
+          ["⌁", "Tela", "o que tem na tela"],
+          ["☁", "Clima", "como esta o clima"],
+          ["↗", "Carteira", "resumo da carteira"],
+          ["◫", "Notícias", "tem noticias da carteira"],
+          ["●", "Conversa", "quero conversar"],
+        ]],
+        ["Mídia", [
+          ["⏮", "Anterior", "musica anterior"],
+          ["▶", "Play/Pause", "pausar ou continuar musica"],
+          ["⏭", "Próxima", "proxima musica"],
+          ["−", "Volume -", "diminuir volume"],
+          ["◉", "Mutar", "mutar volume"],
+          ["+", "Volume +", "aumentar volume"],
+          ["♪", "Spotify", "abre o spotify"],
+        ]],
+        ["Interface", [
+          ["⌁", "Mostrar HUD", "mostrar hud"],
+          ["⌁", "Ocultar HUD", "fechar hud"],
+          ["⌘", "Contexto", "status da interface"],
+          ["↻", "Repetir", "repetir"],
+        ]],
+        ["Modos", [
+          ["●", "Conversa", "quero conversar"],
+          ["○", "Parar conversa", "parar conversa"],
+          ["✎", "Ditado", "modo ditado"],
+          ["×", "Parar ditado", "parar ditado"],
+        ]],
+        ["Dados", [
+          ["☁", "Clima", "como esta o clima"],
+          ["↗", "Carteira", "resumo da carteira"],
+          ["◫", "Notícias", "tem noticias da carteira"],
+          ["⊙", "Treino", "abrir treino"],
+        ]],
+      ];
+
+      const HUD = {
+        BG: "#050b14",
+        GRID: "#273244",
+        TEXT: "#edf2ff",
+        TEXT_SOFT: "#8ea0ba",
+        ACCENT: "#60a5fa",
+        ACCENT_2: "#2563eb",
+        ACCENT_3: "#93c5fd",
+        ACCENT_MAGENTA: "#d946ef",
+        GOOD: "#54e6c2",
+      };
+
+      const intensityByStatus = {
+        "sem dados": 0,
+        recuperado: 2,
+        "fadiga leve": 4,
+        recuperando: 4,
+        "fadiga media": 7,
+        "fadiga média": 7,
+        "treinado hoje": 7,
+        "fadiga alta": 9,
+        lesionado: 10,
+      };
+
+      function makeDots() {
+        const dots = document.getElementById("dots");
+        for (let index = 0; index < 42; index += 1) {
+          const dot = document.createElement("span");
+          const angle = (index / 42) * Math.PI * 2;
+          const radius = 193;
+          dot.style.transform = `translate(${Math.cos(angle) * radius}px, ${Math.sin(angle) * radius}px)`;
+          dot.style.opacity = String(0.28 + (index % 5) * 0.12);
+          dots.appendChild(dot);
+        }
+        for (const id of ["leftLines", "rightLines"]) {
+          const box = document.getElementById(id);
+          for (let i = 0; i < 14; i += 1) {
+            const line = document.createElement("i");
+            line.style.width = `${26 + ((i * 13) % 58)}px`;
+            box.appendChild(line);
+          }
+        }
+      }
+
+      const canvas = document.getElementById("coreCanvas");
+      const ctx = canvas.getContext("2d");
+
+      function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function oval(x1, y1, x2, y2, stroke, fill = null, width = 1) {
+        ctx.beginPath();
+        ctx.ellipse((x1 + x2) / 2, (y1 + y2) / 2, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2, 0, 0, Math.PI * 2);
+        if (fill) {
+          ctx.fillStyle = fill;
+          ctx.fill();
+        }
+        if (stroke) {
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = width;
+          ctx.stroke();
+        }
+      }
+
+      function line(points, stroke, width = 1) {
+        if (!points.length) return;
+        ctx.beginPath();
+        ctx.moveTo(points[0][0], points[0][1]);
+        for (let i = 1; i < points.length; i += 1) ctx.lineTo(points[i][0], points[i][1]);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = width;
+        ctx.stroke();
+      }
+
+      function polygon(points, stroke, fill = null, width = 1) {
+        ctx.beginPath();
+        ctx.moveTo(points[0][0], points[0][1]);
+        for (let i = 1; i < points.length; i += 1) ctx.lineTo(points[i][0], points[i][1]);
+        ctx.closePath();
+        if (fill) {
+          ctx.fillStyle = fill;
+          ctx.fill();
+        }
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = width;
+        ctx.stroke();
+      }
+
+      function arc(cx, cy, radius, startDeg, extentDeg, stroke, width = 1) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, (startDeg * Math.PI) / 180, ((startDeg + extentDeg) * Math.PI) / 180);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = width;
+        ctx.stroke();
+      }
+
+      function statusPalette(status) {
+        const value = String(status || "").toUpperCase();
+        if (["RESPOSTA", "CONVERSA"].includes(value)) return ["#a9e8ff", "#38bdf8"];
+        if (["COMANDO", "ATIVA"].includes(value)) return ["#60a5fa", "#93c5fd"];
+        if (value === "DITADO") return ["#54e6c2", "#60a5fa"];
+        if (value === "PAUSADA") return ["#35506d", "#617087"];
+        return ["#2563eb", "#60a5fa"];
+      }
+
+      function drawBackgroundGrid(width, height) {
+        ctx.fillStyle = HUD.BG;
+        ctx.fillRect(0, 0, width, height);
+        for (const [radius, color] of [[520, "#09111f"], [390, "#091221"], [270, "#08101d"]]) {
+          oval(-radius * 0.55, -radius * 0.52, radius * 1.15, radius * 1.05, null, color);
+        }
+        const rightRadius = 430;
+        oval(width - rightRadius * 0.55, -rightRadius * 0.45, width + rightRadius * 0.75, rightRadius * 0.9, null, "#061522");
+        const gridBottom = Math.floor(height * 0.9);
+        for (let x = 0; x < width; x += 38) line([[x, 0], [x, gridBottom]], x % 76 ? "#0d1726" : "#111d30");
+        for (let y = 0; y < gridBottom; y += 38) line([[0, y], [width, y]], y % 76 ? "#0d1726" : "#111d30");
+        const fadeStart = Math.floor(height * 0.58);
+        ctx.fillStyle = HUD.BG;
+        for (let index = 0; index < 10; index += 1) ctx.fillRect(0, fadeStart + index * 32, width, 18);
+        oval(width / 2 - 360, height / 2 - 280, width / 2 + 360, height / 2 + 280, "#0d1828");
+      }
+
+      function drawDottedRing(cx, cy, radius, color, activeColor, intensity) {
+        const count = 96;
+        const spin = angle * (0.22 + intensity * 0.16);
+        for (let index = 0; index < count; index += 2) {
+          const phase = (Math.PI * 2 * index) / count + spin;
+          const tick = 2 + (index % 6 === 0 ? 1.4 : 0);
+          const x = cx + Math.cos(phase) * radius;
+          const y = cy + Math.sin(phase) * radius;
+          const fill = Math.sin(angle * 1.4 + index * 0.31) > 0.65 - intensity * 0.22 ? activeColor : color;
+          oval(x - tick, y - tick, x + tick, y + tick, null, fill);
+        }
+      }
+
+      function drawTargetBrackets(cx, cy, radius, primary, secondary, intensity) {
+        const offset = radius + 76;
+        const corner = 58;
+        const hot = intensity > 0.6 ? secondary : primary;
+        for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+          const x = cx + sx * offset;
+          const y = cy + sy * offset * 0.62;
+          line([[x, y], [x - sx * corner, y]], "#123050");
+          line([[x, y], [x, y - sy * corner]], "#123050");
+          line([[x - sx * 12, y], [x - sx * 28, y]], hot, 2);
+          line([[x, y - sy * 12], [x, y - sy * 28]], hot, 2);
+        }
+        const scan = 42 * Math.sin(angle * (0.9 + intensity * 0.4));
+        line([[cx - offset + 112, cy + scan], [cx - radius - 26, cy + scan]], "#1d3d63");
+        line([[cx + radius + 26, cy - scan], [cx + offset - 112, cy - scan]], "#1d3d63");
+      }
+
+      function drawSideAimMarks(cx, cy, primary, secondary, intensity) {
+        for (const side of [-1, 1]) {
+          const anchorX = cx + side * 292;
+          const hot = intensity > 0.62 ? secondary : "#1d3d63";
+          for (let index = 0; index < 5; index += 1) {
+            const y = cy - 92 + index * 46;
+            const pulse = Math.max(0.18, Math.sin(angle * (1.05 + intensity) + index * 0.75 + side));
+            const longTick = 34 + 22 * pulse;
+            const shortTick = 10 + 9 * pulse;
+            line([[anchorX, y], [anchorX + side * longTick, y]], "#173553");
+            line([[anchorX + side * 6, y + 8], [anchorX + side * (6 + shortTick), y + 8]], hot);
+            if ([1, 3].includes(index)) {
+              const crossX = anchorX + side * (54 + 8 * pulse);
+              line([[crossX - 5, y - 5], [crossX + 5, y + 5]], primary);
+              line([[crossX - 5, y + 5], [crossX + 5, y - 5]], primary);
+            }
+          }
+          const bracketY = cy + 132;
+          line([[anchorX, bracketY], [anchorX + side * 42, bracketY]], "#123050");
+          line([[anchorX, bracketY], [anchorX, bracketY - 28]], "#123050");
+          oval(anchorX + side * 72 - 3, bracketY - 3, anchorX + side * 72 + 3, bracketY + 3, null, hot);
+        }
+      }
+
+      function drawBrainCore(cx, cy, primary, secondary, intensity, scale = 1.14) {
+        const rawNodes = [[-82, -44], [-54, -84], [-18, -58], [18, -86], [58, -48], [84, -6], [52, 36], [18, 72], [-24, 54], [-64, 22], [-96, -8], [-42, -8], [0, -22], [42, -8], [2, 28]];
+        const nodes = rawNodes.map(([x, y]) => [x * scale, y * scale]);
+        const links = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9], [9, 10], [10, 0], [0, 11], [11, 12], [12, 13], [13, 5], [11, 14], [14, 13], [9, 14], [2, 12], [4, 13], [8, 14]];
+        oval(cx - 132, cy - 118, cx + 12, cy + 110, "#222831");
+        oval(cx - 12, cy - 118, cx + 132, cy + 110, "#222831");
+        links.forEach(([start, end], index) => {
+          const [x1, y1] = nodes[start];
+          const [x2, y2] = nodes[end];
+          const phase = angle * (1.7 + intensity) + index * 0.72;
+          const color = Math.sin(phase) > 0.22 - intensity * 0.2 ? secondary : HUD.GRID;
+          const width = 1 + (Math.sin(phase) > 0.72 - intensity * 0.15 ? 1 : 0);
+          line([[cx + x1, cy + y1], [cx + (x1 + x2) / 2, cy + (y1 + y2) / 2 + 18 * Math.sin(phase * 0.7)], [cx + x2, cy + y2]], color, width);
+        });
+        nodes.forEach(([x, y], index) => {
+          const phase = angle * (2.1 + intensity) + index * 0.86;
+          const radius = 3.5 + intensity * 2.2 + Math.max(0, Math.sin(phase)) * 2.4;
+          const fill = Math.sin(phase) > -0.15 ? primary : secondary;
+          oval(cx + x - radius, cy + y - radius, cx + x + radius, cy + y + radius, null, fill);
+        });
+      }
+
+      function drawHexCluster(cx, cy, primary, secondary, intensity) {
+        const side = 16;
+        const spacingX = side * 1.55;
+        const spacingY = side * 1.36;
+        const cells = [[-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+        cells.forEach(([col, row], index) => {
+          const x = cx + col * spacingX + (row % 2) * spacingX * 0.5;
+          const y = cy + row * spacingY;
+          const phase = angle * (1.1 + intensity * 0.4) + index * 0.8;
+          const points = [];
+          for (let step = 0; step < 6; step += 1) {
+            const a = ((60 * step + 30) * Math.PI) / 180;
+            points.push([x + Math.cos(a) * side, y + Math.sin(a) * side]);
+          }
+          polygon(points, Math.sin(phase) > 0.1 ? secondary : "#263348", index === 4 ? "#17244a" : "#101827");
+          if (Math.sin(phase) > 0.65) oval(x - 3, y - 3, x + 3, y + 3, null, primary);
+        });
+      }
+
+      function drawAmbientParticles(cx, cy, primary, secondary, intensity) {
+        for (let index = 0; index < 14; index += 1) {
+          const phase = angle * (0.35 + intensity * 0.12) + index * 0.62;
+          const radius = 260 + (index % 4) * 34 + 8 * Math.sin(phase * 1.7);
+          const x = cx + Math.cos(phase) * radius;
+          const y = cy + Math.sin(phase * 0.83) * (radius * 0.52);
+          const size = 1.1 + (index % 3) * 0.35;
+          const color = index % 4 === 0 ? secondary : "#1d3d63";
+          oval(x - size, y - size, x + size, y + size, null, color);
+          if (index % 5 === 0) line([[x - (16 + intensity * 10), y], [x - (16 + intensity * 10) * 0.35, y]], "#123050");
+        }
+      }
+
+      function drawAxelSignature(cx, cy, primary, secondary, status, speed) {
+        const nameY = cy + 198;
+        const lineY = nameY - 34;
+        line([[cx, cy + 128], [cx, lineY]], "#102a47");
+        oval(cx - 2, lineY - 2, cx + 2, lineY + 2, null, secondary);
+        line([[cx - 70, lineY], [cx + 70, lineY]], "#173553");
+        line([[cx - 34, lineY], [cx + 34, lineY]], primary, 2);
+        ctx.fillStyle = HUD.TEXT;
+        ctx.font = "600 30px 'Segoe UI', Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Axel", cx, nameY);
+        const meterWidth = 184;
+        const meterX = cx - meterWidth / 2;
+        const meterY = nameY + 58;
+        let level = 0.25;
+        if (["ATIVA", "COMANDO"].includes(status)) level = 0.62 + 0.12 * Math.sin(angle * speed * 2.5);
+        else if (["RESPOSTA", "CONVERSA"].includes(status)) level = 0.84 + 0.08 * Math.sin(angle * speed * 3.0);
+        else if (status === "DITADO") level = 0.75 + 0.1 * Math.sin(angle * speed * 2.2);
+        else if (status === "PAUSADA") level = 0.16;
+        ctx.fillStyle = HUD.GRID;
+        ctx.fillRect(meterX, meterY, meterWidth, 3);
+        ctx.fillStyle = secondary;
+        ctx.fillRect(meterX, meterY, meterWidth * Math.max(0.08, Math.min(0.98, level)), 3);
+        for (let index = 0; index < 5; index += 1) {
+          const tickX = meterX + index * (meterWidth / 4);
+          line([[tickX, meterY + 10], [tickX + 16, meterY + 10]], index / 4 <= level ? primary : "#173553");
+        }
+      }
+
+      function drawOldHudCore() {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        const status = String(currentUiState.status || "INATIVO").toUpperCase();
+        const [primary, secondary] = statusPalette(status);
+        let speed = 1;
+        let intensity = 0.35;
+        if (["RESPOSTA", "CONVERSA"].includes(status)) {
+          speed = 1.6;
+          intensity = 1;
+        } else if (status === "DITADO") {
+          speed = 1.3;
+          intensity = 0.78;
+        } else if (["COMANDO", "ATIVA"].includes(status)) {
+          intensity = 0.66;
+        }
+        drawBackgroundGrid(width, height);
+        const targetFocus = stage?.classList.contains("focus-mode") ? 1 : 0;
+        focusProgress += (targetFocus - focusProgress) * 0.09;
+        if (Math.abs(targetFocus - focusProgress) < 0.002) focusProgress = targetFocus;
+        const smoothFocus = focusProgress * focusProgress * (3 - 2 * focusProgress);
+        const normalCx = width / 2;
+        const normalCy = height / 2 - 28;
+        const cornerCx = width - 210;
+        const cornerCy = height - 270;
+        const cx = normalCx + (cornerCx - normalCx) * smoothFocus;
+        const cy = normalCy + (cornerCy - normalCy) * smoothFocus;
+        const scale = 1 - 0.48 * smoothFocus;
+        const compactCore = smoothFocus > 0.55;
+        if (smoothFocus > 0.001) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.scale(scale, scale);
+          ctx.translate(-cx, -cy);
+        }
+        const pulse = (7 + intensity * 8) * Math.sin(angle * speed);
+        const outer = 158 + pulse;
+        const mid = 112 + pulse * 0.45;
+        const inner = 18 + pulse * 0.14;
+        if (!compactCore) {
+          drawAmbientParticles(cx, cy, primary, secondary, intensity);
+          drawTargetBrackets(cx, cy, outer, primary, secondary, intensity);
+          drawSideAimMarks(cx, cy, primary, secondary, intensity);
+        }
+        oval(cx - outer, cy - outer, cx + outer, cy + outer, "#171a20");
+        oval(cx - outer - 28, cy - outer - 28, cx + outer + 28, cy + outer + 28, "#08243f");
+        if (!compactCore) drawDottedRing(cx, cy, outer + 18, "#17405f", secondary, intensity);
+        oval(cx - mid, cy - mid, cx + mid, cy + mid, secondary, null, 2);
+        if (!compactCore) drawHexCluster(cx, cy, primary, secondary, intensity);
+        drawBrainCore(cx, cy, primary, secondary, compactCore ? intensity * 0.55 : intensity, compactCore ? 0.84 : 1.14);
+        oval(cx - inner, cy - inner, cx + inner, cy + inner, null, primary);
+        arc(cx, cy, 118, 26 + angle * 8, 92 + Math.floor((Math.sin(angle * speed * 1.2) + 1) * 34), primary, 3);
+        arc(cx, cy, 162, 220 - angle * 6, 48, secondary, 3);
+        const magentaPhase = Math.sin(angle * (1.1 + intensity));
+        if (!compactCore && magentaPhase > -0.2) arc(cx, cy, 176, 318 - angle * 10, 32 + Math.floor(Math.max(0, magentaPhase) * 28), HUD.ACCENT_MAGENTA, 2);
+        if (!compactCore) {
+          for (let index = 0; index < 8; index += 1) {
+            const phase = angle * (1.35 + intensity) + index * 0.78;
+            const radius = 194 + 12 * Math.sin(phase);
+            const dotX = cx + Math.cos(phase) * radius;
+            const dotY = cy + Math.sin(phase * 0.86) * (radius * 0.62);
+            const size = 1.5 + intensity * 1.5;
+            oval(dotX - size, dotY - size, dotX + size, dotY + size, null, secondary);
+            if (index % 2 === 0) line([[cx, cy], [dotX, dotY]], "#0e395f");
+          }
+          for (const side of [-1, 1]) {
+            const x = cx + side * 252;
+            for (let index = 0; index < 7; index += 1) {
+              const y = cy - 44 + index * 15;
+              const wave = Math.max(0.12, Math.sin(angle * (1.25 + intensity) + index * 0.65 + side));
+              const barWidth = 18 + 30 * wave;
+              line([[x, y], [x + side * barWidth, y]], "#1d3d63", 2);
+              if (index % 2 === 0) line([[x, y + 5], [x + side * (barWidth * 0.52), y + 5]], secondary);
+            }
+          }
+        }
+        drawAxelSignature(cx, cy, primary, secondary, status, speed);
+        if (smoothFocus > 0.001) ctx.restore();
+      }
+
+      function animateCore(timestamp = 0) {
+        const transitioning = timestamp < panelSwitchingUntil;
+        const hasPanelOpen = Boolean(document.querySelector(".panel-window.open"));
+        const frameDelay = transitioning ? 80 : hasPanelOpen ? 50 : 33;
+        if (!lastFrameAt || timestamp - lastFrameAt >= frameDelay) {
+          angle += hasPanelOpen ? 0.007 : 0.016;
+          drawOldHudCore();
+          lastFrameAt = timestamp;
+        }
+        requestAnimationFrame(animateCore);
+      }
+
+      const muscleIdToAxelGroup = {};
+      Object.entries(window.AXEL_BODY_MUSCLE_GROUPS || {}).forEach(([group, ids]) => {
+        (ids || []).forEach((id) => {
+          muscleIdToAxelGroup[id] = group;
+        });
+      });
+
+      function axelMuscleLabel(id, fallback) {
+        const group = muscleIdToAxelGroup[id];
+        return (window.AXEL_BODY_MUSCLE_LABELS || {})[group] || fallback || id;
+      }
+
+      const front = new BodyChart(document.getElementById("frontChart"), {
+        view: ViewSide.FRONT,
+        bodyState: {},
+        showViewLabel: false,
+        enableTransitions: true,
+        onMuscleClick: (id, name) => sendCommand(`status do treino ${axelMuscleLabel(id, name)}`),
+      });
+
+      const back = new BodyChart(document.getElementById("backChart"), {
+        view: ViewSide.BACK,
+        bodyState: {},
+        showViewLabel: false,
+        enableTransitions: true,
+        onMuscleClick: (id, name) => sendCommand(`status do treino ${axelMuscleLabel(id, name)}`),
+      });
+
+      function fixBodyChartViewBox() {
+        const frontSvg = document.querySelector("#frontChart svg");
+        const backSvg = document.querySelector("#backChart svg");
+        if (frontSvg) {
+          frontSvg.setAttribute("viewBox", "0 0 35 93");
+          frontSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+          frontSvg.style.setProperty("width", "auto", "important");
+          frontSvg.style.setProperty("height", "100%", "important");
+          frontSvg.style.setProperty("max-width", "100%", "important");
+          frontSvg.style.setProperty("max-height", "100%", "important");
+          frontSvg.style.setProperty("overflow", "visible", "important");
+          frontSvg.style.setProperty("transform", "translateY(-18%) scale(0.64)", "important");
+          frontSvg.style.setProperty("transform-origin", "center center", "important");
+        }
+        if (backSvg) {
+          backSvg.setAttribute("viewBox", "37 0 35 93");
+          backSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+          backSvg.style.setProperty("width", "auto", "important");
+          backSvg.style.setProperty("height", "100%", "important");
+          backSvg.style.setProperty("max-width", "100%", "important");
+          backSvg.style.setProperty("max-height", "100%", "important");
+          backSvg.style.setProperty("overflow", "visible", "important");
+          backSvg.style.setProperty("transform", "translateY(-18%) scale(0.64)", "important");
+          backSvg.style.setProperty("transform-origin", "center center", "important");
+        }
+      }
+      fixBodyChartViewBox();
+      requestAnimationFrame(fixBodyChartViewBox);
+      setTimeout(fixBodyChartViewBox, 250);
+
+      function sendCommand(text) {
+        const value = String(text || "").trim();
+        if (!value) return;
+        if (bridge) bridge.sendCommand(value);
+      }
+
+      function buildBodyState(fatigue) {
+        const bodyState = {};
+        for (const [group, ids] of Object.entries(muscleGroups)) {
+          const status = String(fatigue?.[group] || "sem dados").toLowerCase();
+          const intensity = intensityByStatus[status] ?? 0;
+          for (const id of ids) {
+            if (intensity <= 0 && status !== "lesionado") continue;
+            bodyState[id] = { intensity, selected: status === "lesionado" };
+          }
+        }
+        return bodyState;
+      }
+
+      function setText(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value || "--";
+      }
+
+      function hasChanged(key, value) {
+        const next = JSON.stringify(value ?? null);
+        if (lastRenderKeys[key] === next) return false;
+        lastRenderKeys[key] = next;
+        return true;
+      }
+
+      function renderMuscles(fatigue) {
+        document.getElementById("muscleStatus").innerHTML = Object.entries(muscleLabels)
+          .map(([key, label]) => `<div class="row"><span>${label}</span><b>${fatigue?.[key] || "sem dados"}</b></div>`)
+          .join("");
+      }
+
+      function renderHistory(history) {
+        const items = Array.isArray(history) ? history.slice(-8).reverse() : [];
+        const html = items.length
+          ? items.map((item) => `<li><b>${item.role || "system"}:</b> ${item.text || ""}</li>`).join("")
+          : `<li>Sem histórico recente.</li>`;
+        document.getElementById("historyList").innerHTML = html;
+        document.getElementById("contextHistory").innerHTML = html;
+      }
+
+      function renderWorkout(workout) {
+        const warmup = Array.isArray(workout?.warmup) ? workout.warmup.slice(0, 3) : [];
+        const exercises = Array.isArray(workout?.exercises) ? workout.exercises.slice(0, 7) : [];
+        const rows = [...warmup, ...exercises];
+        document.getElementById("workoutList").innerHTML = rows.length
+          ? rows.map(([name, detail]) => `<li><b>${name}</b><br><span>${detail}</span></li>`).join("")
+          : `<li>Descanso total.</li>`;
+      }
+
+      function renderMedia(media) {
+        setText("mediaTitle", media?.name || "Nada tocando");
+        setText("mediaArtist", media?.artists || "--");
+        setText("mediaAlbum", media?.album || "--");
+        setText("mediaState", media?.is_playing ? "tocando" : "pausado");
+        const albumArt = document.getElementById("albumArt");
+        const image = document.getElementById("albumImage");
+        const imageUrl = String(media?.image_url || "").trim();
+        if (imageUrl) {
+          if (image.src !== imageUrl) image.src = imageUrl;
+          albumArt.classList.add("has-image");
+        } else {
+          image.removeAttribute("src");
+          albumArt.classList.remove("has-image");
+        }
+        image.onerror = () => {
+          albumArt.classList.remove("has-image");
+          image.removeAttribute("src");
+        };
+        const progress = Number(media?.duration_ms) > 0 ? Math.min(100, Math.max(0, (Number(media?.progress_ms || 0) / Number(media.duration_ms)) * 100)) : 0;
+        const progressEl = document.getElementById("trackProgress");
+        if (progressEl) progressEl.style.width = `${progress}%`;
+        document.getElementById("trackWave")?.classList.toggle("paused", !media?.is_playing);
+      }
+
+      function renderWeather(weather) {
+        const temp = Number.isFinite(weather?.temperature_c) ? `${Math.round(weather.temperature_c)}°` : "--";
+        const feels = Number.isFinite(weather?.apparent_temperature_c) ? `${weather.apparent_temperature_c.toFixed(1)}°C` : "--";
+        const rain = Number.isFinite(weather?.rain_chance_percent) ? `${weather.rain_chance_percent}%` : "--";
+        const wind = Number.isFinite(weather?.wind_kmh) ? `${weather.wind_kmh.toFixed(1)} km/h` : "--";
+        setText("weatherTemp", temp);
+        setText("weatherFeels", feels);
+        setText("weatherRain", rain);
+        setText("weatherWind", wind);
+        setText("weatherPlace", weather?.location_label || "--");
+        setText("weatherDesc", weather?.weather_label || "--");
+      }
+
+      function metricValue(investment, names) {
+        const metricMap = investment?.metric_map || {};
+        for (const name of names) {
+          if (metricMap[name]) return metricMap[name];
+        }
+        const lines = Array.isArray(investment?.lines) ? investment.lines : [];
+        const hit = lines.find((line) => names.some((name) => String(line).toLowerCase().includes(name)));
+        return hit ? String(hit).split(":").slice(1).join(":").trim() || hit : "--";
+      }
+
+      function renderInvestment(investment) {
+        setText("investTotal", metricValue(investment, ["patrimonio", "patrimônio"]));
+        setText("investReturn", metricValue(investment, ["rentabilidade"]));
+        setText("investIncome", metricValue(investment, ["proventos 12m", "proventos recebidos"]));
+        const updated = investment?.updated_at ? new Date(investment.updated_at * 1000).toLocaleString("pt-BR") : "--";
+        setText("investUpdated", updated);
+        const lines = Array.isArray(investment?.lines) ? investment.lines.slice(0, 10) : [];
+        document.getElementById("investLines").innerHTML = lines.length
+          ? lines.map((line) => `<li>${line}</li>`).join("")
+          : "<li>Sem snapshot de carteira.</li>";
+      }
+
+      function renderNews(news) {
+        const rows = Array.isArray(news) ? news : [];
+        document.getElementById("newsList").innerHTML = rows.length
+          ? rows.map((item) => `<li><b>${item.ticker || ""}</b> ${item.title || ""}<br><span>${item.source || ""}</span></li>`).join("")
+          : "<li>Sem notícias carregadas agora.</li>";
+      }
+
+      function renderMap(map) {
+        setText("mapTitle", map?.label || "Mapa");
+        setText("mapKind", map?.kind === "route" ? "rota" : "local");
+        setText("mapDestination", map?.destination || map?.label || "--");
+        setText("mapDetail", map?.kind === "route" ? `Origem: ${map?.origin || "--"} / Destino: ${map?.destination || "--"}` : `Local: ${map?.label || "--"}`);
+        const button = document.getElementById("mapOpenButton");
+        button.onclick = () => {
+          if (map?.url) sendCommand(`abrir ${map.url}`);
+        };
+      }
+
+      function modeLabel(ui) {
+        if (ui.conversation_mode) return "conversa";
+        if (ui.dictation_mode) return "ditado";
+        return ui.mode || "comando";
+      }
+
+      function renderSystemPanels(ui) {
+        const hotword = ui.hotword_enabled ? "ativa" : "manual";
+        const channel = ui.visible ? "painel + voz" : "voz";
+        const now = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+        setText("audioMic", ui.microphone || "--");
+        setText("audioProfile", ui.voice_profile || "--");
+        setText("audioHotword", hotword);
+        setText("audioMode", modeLabel(ui));
+
+        setText("sessionStatus", ui.status || "--");
+        setText("sessionChannel", channel);
+        setText("sessionSignal", ui.status || "--");
+        setText("sessionTime", now);
+        setText("sessionCommand", ui.last_command || ui.last_heard || "--");
+        setText("sessionResponse", ui.last_response || "--");
+
+        setText("contextName", ui.assistant_name || "Axel");
+        setText("contextStyle", ui.assistant_style || "--");
+        setText("contextProfile", ui.voice_profile || "--");
+        setText("contextMode", modeLabel(ui));
+
+        setText("commandsVoice", hotword);
+        setText("commandsMode", modeLabel(ui));
+      }
+
+      function renderCommands() {
+        const shell = document.getElementById("commandsList");
+        const count = commandGroups.reduce((total, [, commands]) => total + commands.length, 0);
+        setText("commandsCount", `${count} ativos`);
+        shell.innerHTML = commandGroups.map(([group, commands]) => `
+          <section class="command-group">
+            <h3>${group}</h3>
+            ${commands.map(([icon, label, command]) => `
+              <div class="command-row-item">
+                <span>${icon}</span>
+                <b>${label}</b>
+                <code>${command}</code>
+                <button type="button" data-command="${command}">Executar</button>
+              </div>
+            `).join("")}
+          </section>
+        `).join("");
+      }
+
+      window.setAxelState = function setAxelState(payload) {
+        const ui = payload?.ui || {};
+        const training = payload?.training || {};
+        const workout = training?.workout || {};
+        const fatigue = training?.fatigue || {};
+        const bodyState = buildBodyState(fatigue);
+        currentUiState = ui;
+
+        const bodyStateKey = JSON.stringify(bodyState);
+        if (bodyStateKey !== lastBodyStateKey) {
+          front.update({ bodyState });
+          back.update({ bodyState });
+          fixBodyChartViewBox();
+          lastBodyStateKey = bodyStateKey;
+        }
+        setText("assistantName", ui.assistant_name || "Axel");
+        setText("status", ui.status || "--");
+        setText("mode", ui.mode || "--");
+        setText("mic", ui.microphone || "--");
+        setText("lastCommand", ui.last_command || "--");
+        setText("workoutTitle", `${workout.label || "Hoje"}: ${workout.title || "Treino"}`);
+        setText("goal", `${training.completed_this_year || 0}/${training.target_days || 170}`);
+        setText("streak", String(training.streak || 0));
+        setText("remaining", String(training.remaining ?? 170));
+        setText("trainingStatus", training.completed_today ? "concluído" : "ativo");
+        if (hasChanged("fatigue", fatigue)) renderMuscles(fatigue);
+        if (hasChanged("history", ui.history)) renderHistory(ui.history);
+        if (hasChanged("workout", workout)) renderWorkout(workout);
+        if (hasChanged("media", payload?.media || {})) renderMedia(payload?.media || {});
+        if (hasChanged("weather", payload?.weather || {})) renderWeather(payload?.weather || {});
+        if (hasChanged("investment", payload?.investment || {})) renderInvestment(payload?.investment || {});
+        if (hasChanged("news", payload?.news || [])) renderNews(payload?.news || []);
+        if (hasChanged("map", payload?.map || {})) renderMap(payload?.map || {});
+        renderSystemPanels(ui);
+
+        const requestedPanels = Array.isArray(ui.open_panels) ? ui.open_panels : [];
+        const requestKey = requestedPanels.join("|");
+        if (requestKey && requestKey !== appliedOpenPanelsKey) {
+          const mapped = requestedPanels
+            .map((name) => ({ text: "texto", treino: "treino", midia: "midia", tempo: "tempo", invest: "carteira", noticias: "noticias", mapas: "mapas" }[String(name).toLowerCase()] || String(name).toLowerCase()))
+            .find((name) => document.querySelector(`[data-window="${name}"]`));
+          if (mapped) {
+            requestPanelOpen(mapped, false, true);
+            activePanelHydrated = true;
+            if (bridge) bridge.setActivePanel(mapped);
+          }
+          appliedOpenPanelsKey = requestKey;
+          if (bridge) bridge.clearOpenPanels();
+        }
+        if (payload?.map?.open && document.querySelector('[data-window="mapas"]')) {
+          requestPanelOpen("mapas", false, true);
+          activePanelHydrated = true;
+        } else if (!activePanelHydrated && ui.active_panel && document.querySelector(`[data-window="${ui.active_panel}"]`)) {
+          requestPanelOpen(ui.active_panel, false, true);
+          activePanelHydrated = true;
+        }
+      };
+
+      function requestPanelOpen(name, notify = true, immediate = false) {
+        pendingPanelRequest = { name: String(name || ""), notify };
+        if (immediate) {
+          applyPendingPanelOpen();
+          return;
+        }
+        if (panelSwitchFrame) return;
+        panelSwitchFrame = requestAnimationFrame(() => {
+          panelSwitchFrame = 0;
+          applyPendingPanelOpen();
+        });
+      }
+
+      function applyPendingPanelOpen() {
+        if (!pendingPanelRequest) return;
+        const { name, notify } = pendingPanelRequest;
+        pendingPanelRequest = null;
+        if (name === currentPanelName) return;
+        currentPanelName = name;
+        panelSwitchingUntil = performance.now() + 260;
+        stage.classList.toggle("focus-mode", largePanels.has(name));
+        document.querySelectorAll(".panel-window").forEach((panel) => {
+          panel.classList.toggle("open", panel.dataset.window === name);
+        });
+        document.querySelectorAll(".dock button").forEach((button) => {
+          button.classList.toggle("active", button.dataset.panel === name);
+        });
+        document.getElementById("settingsMenu")?.classList.remove("open");
+        document.getElementById("settingsButton")?.classList.remove("active");
+        if (notify && bridge) {
+          clearTimeout(panelNotifyTimer);
+          panelNotifyTimer = setTimeout(() => {
+            bridge.setActivePanel(String(name || ""));
+          }, 180);
+        }
+      }
+
+      function loadPanelPositions() {
+        try {
+          panelPositions = JSON.parse(localStorage.getItem("axelPanelPositions") || "{}") || {};
+        } catch (_error) {
+          panelPositions = {};
+        }
+      }
+
+      function applyPanelPosition(panel) {
+        const key = panel.dataset.window;
+        const pos = panelPositions[key];
+        if (!pos || !draggablePanels.has(key)) return;
+        panel.classList.add("dragged");
+        panel.style.left = `${pos.left}px`;
+        panel.style.top = `${pos.top}px`;
+        panel.style.right = "auto";
+      }
+
+      function savePanelPosition(panel) {
+        const key = panel.dataset.window;
+        if (!draggablePanels.has(key)) return;
+        const rect = panel.getBoundingClientRect();
+        panelPositions[key] = {
+          left: Math.round(rect.left),
+          top: Math.round(rect.top),
+        };
+        localStorage.setItem("axelPanelPositions", JSON.stringify(panelPositions));
+      }
+
+      function clampPanelPosition(panel, left, top) {
+        const rect = panel.getBoundingClientRect();
+        const margin = 8;
+        return {
+          left: Math.max(margin, Math.min(window.innerWidth - rect.width - margin, left)),
+          top: Math.max(margin, Math.min(window.innerHeight - rect.height - margin, top)),
+        };
+      }
+
+      function setupPanelDragging() {
+        loadPanelPositions();
+        document.querySelectorAll(".panel-window").forEach((panel) => {
+          const key = panel.dataset.window;
+          if (!draggablePanels.has(key)) return;
+          panel.classList.add("draggable");
+          applyPanelPosition(panel);
+          const head = panel.querySelector(".panel-head");
+          head.addEventListener("pointerdown", (event) => {
+            if (event.button !== 0 || event.target.closest("button, input, textarea, select")) return;
+            const rect = panel.getBoundingClientRect();
+            dragState = {
+              panel,
+              offsetX: event.clientX - rect.left,
+              offsetY: event.clientY - rect.top,
+            };
+            panel.classList.add("dragging", "dragged");
+            panel.style.left = `${rect.left}px`;
+            panel.style.top = `${rect.top}px`;
+            panel.style.right = "auto";
+            panel.style.transform = "none";
+            head.setPointerCapture?.(event.pointerId);
+            event.preventDefault();
+          });
+        });
+
+        window.addEventListener("pointermove", (event) => {
+          if (!dragState) return;
+          const { panel, offsetX, offsetY } = dragState;
+          const next = clampPanelPosition(panel, event.clientX - offsetX, event.clientY - offsetY);
+          panel.style.left = `${next.left}px`;
+          panel.style.top = `${next.top}px`;
+        });
+
+        window.addEventListener("pointerup", () => {
+          if (!dragState) return;
+          dragState.panel.classList.remove("dragging");
+          savePanelPosition(dragState.panel);
+          dragState = null;
+        });
+
+        window.addEventListener("pointercancel", () => {
+          if (!dragState) return;
+          dragState.panel.classList.remove("dragging");
+          savePanelPosition(dragState.panel);
+          dragState = null;
+        });
+      }
+
+      function resetPanelLayout() {
+        panelPositions = {};
+        localStorage.removeItem("axelPanelPositions");
+        document.querySelectorAll(".panel-window.draggable").forEach((panel) => {
+          panel.classList.remove("dragged", "dragging");
+          panel.style.left = "";
+          panel.style.top = "";
+          panel.style.right = "";
+          panel.style.transform = "";
+        });
+      }
+
+      function keepDraggedPanelsInView() {
+        document.querySelectorAll(".panel-window.dragged").forEach((panel) => {
+          const rect = panel.getBoundingClientRect();
+          const next = clampPanelPosition(panel, rect.left, rect.top);
+          panel.style.left = `${next.left}px`;
+          panel.style.top = `${next.top}px`;
+          savePanelPosition(panel);
+        });
+      }
+
+      document.getElementById("settingsButton").addEventListener("click", () => {
+        document.getElementById("settingsMenu").classList.toggle("open");
+        document.getElementById("settingsButton").classList.toggle("active");
+      });
+      document.getElementById("resetLayoutButton").addEventListener("click", () => {
+        resetPanelLayout();
+        document.getElementById("settingsMenu").classList.remove("open");
+        document.getElementById("settingsButton").classList.remove("active");
+      });
+
+      renderCommands();
+      setupPanelDragging();
+
+      document.querySelectorAll("[data-panel]").forEach((button) => {
+        button.addEventListener("click", () => requestPanelOpen(button.dataset.panel));
+      });
+      document.querySelectorAll("[data-close]").forEach((button) => {
+        button.addEventListener("click", () => requestPanelOpen(""));
+      });
+      document.querySelectorAll("[data-refresh]").forEach((button) => {
+        button.addEventListener("click", () => {
+          if (bridge) bridge.refreshData();
+        });
+      });
+      document.querySelectorAll("[data-command]").forEach((button) => {
+        button.addEventListener("click", () => sendCommand(button.dataset.command));
+      });
+      document.getElementById("sendCommand").addEventListener("click", () => {
+        const input = document.getElementById("commandInput");
+        sendCommand(input.value);
+        input.value = "";
+      });
+      document.getElementById("commandInput").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") document.getElementById("sendCommand").click();
+      });
+
+      makeDots();
+      resizeCanvas();
+      window.addEventListener("resize", () => {
+        resizeCanvas();
+        keepDraggedPanelsInView();
+      });
+      animateCore();
+      new QWebChannel(qt.webChannelTransport, (channel) => {
+        bridge = channel.objects.axelBridge;
+        bridge.requestRefresh();
+      });
+    </script>
+  </body>
+</html>

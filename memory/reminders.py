@@ -47,6 +47,13 @@ def _compact(text: str) -> str:
     return re.sub(r"\s+", " ", str(text or "")).strip(" .,:;-")
 
 
+def _apply_reminder_text_corrections(text: str) -> str:
+    corrected = str(text or "")
+    corrected = re.sub(r"\bcomar(\s+banho\b)", r"tomar\1", corrected, flags=re.I)
+    corrected = re.sub(r"\bcomer(\s+banho\b)", r"tomar\1", corrected, flags=re.I)
+    return _compact(corrected)
+
+
 def _parse_time_fragment(text: str, base: datetime) -> tuple[int, int] | None:
     match = re.search(r"\b(?:as|às)\s*(\d{1,2})(?::|h)?(\d{2})?\b", text, flags=re.I)
     if not match:
@@ -147,6 +154,7 @@ def _resolve_deictic_text(text: str) -> str:
 
 def add_reminder(raw_text: str) -> str:
     due_at, text = parse_reminder_request(raw_text)
+    text = _apply_reminder_text_corrections(text)
     text = _resolve_deictic_text(text)
     if not text:
         return "O que devo lembrar?"

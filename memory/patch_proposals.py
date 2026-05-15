@@ -49,7 +49,8 @@ PATCH_LIBRARY = {
         "why": "A leitura de paginas ainda perde partes relevantes e as vezes traz ruido ou contexto incompleto.",
         "files": [
             "tools/browser_tools.py",
-            "ui/assistant_hud.py",
+            "ui/qt_axel_hud.py",
+            "ui/axel_web_hud.html",
             "main.py",
         ],
         "changes": [
@@ -143,7 +144,7 @@ def generate_patch_proposals(limit: int = 4) -> list[dict]:
                 "priority": 0,
                 "title": "Lapidar robustez geral do Axel",
                 "why": "Ainda nao ha gargalos fortes suficientes para uma proposta mais especifica.",
-                "files": ["main.py", "ui/assistant_hud.py"],
+                "files": ["main.py", "ui/qt_axel_hud.py", "ui/axel_web_hud.html"],
                 "changes": [
                     "Continuar instrumentando o historico para detectar melhor os proximos pontos fracos.",
                     "Manter a ponte com o Codex atualizada com dados do uso recente.",

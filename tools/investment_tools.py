@@ -34,8 +34,14 @@ _BACKGROUND_REFRESH_LOCK = threading.Lock()
 
 
 def _extract_ticker(question: str) -> str:
-    match = re.search(r"\b([A-Za-z]{3,5}\d{0,2})(?:[-/](?:BRL|USD|USDT))?\b", str(question or ""))
-    return match.group(1).upper() if match else ""
+    text = str(question or "")
+    match = re.search(r"\b([A-Za-z]{4,5}\d{1,2})\b", text)
+    if match:
+        return match.group(1).upper()
+    for symbol in ("BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE"):
+        if re.search(rf"\b{symbol}(?:[-/](?:BRL|USD|USDT))?\b", text, flags=re.I):
+            return symbol
+    return ""
 
 
 def _ensure_investment_snapshot_for_mode() -> dict:

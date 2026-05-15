@@ -195,6 +195,58 @@ def sync_profile_note(payload: dict) -> bool:
     return _write_note(path, "\n".join(content))
 
 
+def sync_long_memory_note(payload: dict) -> bool:
+    path = _note_path("Long Memory")
+    if path is None:
+        return False
+
+    data = dict(payload or {})
+    items = data.get("items") if isinstance(data.get("items"), list) else []
+    grouped: dict[str, list[dict]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        category = str(item.get("category", "context")).strip() or "context"
+        grouped.setdefault(category, []).append(item)
+
+    content = [
+        _frontmatter(
+            {
+                "type": "axel-long-memory",
+                "title": "Long Memory",
+                "updated_at": data.get("updated_at", time.time()),
+                "tags": ["axel", "memory", "curated"],
+            }
+        ),
+        "# Long Memory",
+        "",
+        "Memoria longa curada do Axel. Cresce devagar: preferencias, decisoes, projetos, prioridades e contexto duravel.",
+    ]
+
+    labels = {
+        "preference": "Preferencias",
+        "decision": "Decisoes",
+        "project": "Projetos",
+        "future": "Futuros",
+        "context": "Contexto duravel",
+    }
+    for category in ("preference", "decision", "project", "future", "context"):
+        category_items = grouped.get(category) or []
+        if not category_items:
+            continue
+        content.extend(["", f"## {labels.get(category, category.title())}"])
+        for item in category_items[:40]:
+            fact = str(item.get("fact", "")).strip()
+            if not fact:
+                continue
+            source = str(item.get("source", "")).strip()
+            suffix = f" _{source}_" if source else ""
+            content.append(f"- {fact}{suffix}")
+
+    content.extend(["", "## Estado bruto", _json_block(data)])
+    return _write_note(path, "\n".join(content))
+
+
 def _section_lines(title: str, items: list[str]) -> list[str]:
     cleaned = [str(item).strip() for item in items if str(item).strip()]
     if not cleaned:
@@ -371,7 +423,7 @@ def load_vault_context() -> dict:
     if root is None or not root.exists():
         return {}
 
-    note_names = ["Home", "Profile", "Current Topic", "Operational Context", "Projects", "Preferences", "Investments", "Learning", "Portfolio Snapshot"]
+    note_names = ["Home", "Profile", "Current Topic", "Operational Context", "Long Memory", "Projects", "Preferences", "Investments", "Learning", "Portfolio Snapshot"]
     result = {}
     for note_name in note_names:
         path = _note_path(note_name)

@@ -11,6 +11,7 @@ from memory.current_topic import load_current_topic, update_current_topic_from_c
 from memory.obsidian_sync import load_vault_context, search_vault_context
 from memory.operational_context import load_operational_context
 from memory.profile import load_profile
+from memory.research_sources import format_research_sources
 from memory.vault_bootstrap import bootstrap_obsidian_knowledge
 from memory.voice_preferences import load_voice_preferences
 
@@ -254,7 +255,7 @@ def _vault_context_text() -> str:
         return "Vault semantico indisponivel."
 
     snippets = []
-    for key in ("projects", "preferences", "investments", "learning"):
+    for key in ("long_memory", "projects", "preferences", "investments", "learning"):
         content = str(vault.get(key, "")).strip()
         if not content:
             continue
@@ -490,7 +491,8 @@ def _response_mode_prompt(user_input: str) -> str:
     base = (
         "Modo de resposta: opinativo e honesto. "
         "Responda como quem realmente ponderou o assunto. "
-        "Separe mentalmente fato, leitura e limite, mas sem transformar isso em lista. "
+        "Separe fato, leitura e limite: fato vem de fonte/memoria/log; leitura e sua interpretacao; limite e o que nao foi verificado. "
+        "Nao transforme isso em lista se a fala puder ser natural. "
         "Dê uma leitura própria curta e diga o principal motivo dela."
     )
     if live_hint:
@@ -562,6 +564,9 @@ Trechos mais relevantes do vault para esta pergunta:
 
 Trechos mais relevantes dos documentos de plano e arquitetura:
 {_targeted_docs_context_text(user_input)}
+
+Camada inicial de pesquisa com fontes:
+{format_research_sources(user_input)}
 
 Diretrizes:
 {_directives_text()}
