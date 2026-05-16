@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from llm.ollama_client import ask_model
-from llm.vision_client import ask_vision_model, vision_unavailable_message
+from llm.vision_client import ask_vision_model, installed_vision_models, vision_unavailable_message
 from memory.vision_history import remember_vision_analysis
 
 
@@ -14,9 +14,17 @@ ROOT = Path(__file__).resolve().parents[1]
 POWERSHELL_EXE = "powershell"
 SUPPORTED_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".svg"}
 SCREENSHOT_DIR = ROOT / ".tmp" / "screenshots"
-# Keep visual analysis inexpensive by default: prefer OCR and deterministic parsing,
-# and skip the heavier vision-model pass unless we intentionally re-enable it later.
+# Keep visual analysis inexpensive by default, but let chart mode use a visual
+# model when one is installed because graphs need semantic reading.
 LOW_COST_IMAGE_MODE = True
+
+
+def _should_use_vision_model(mode: str = "general") -> bool:
+    if not LOW_COST_IMAGE_MODE:
+        return True
+    if mode == "chart":
+        return bool(installed_vision_models())
+    return False
 
 
 def _rapidocr_image(path: Path) -> dict:
@@ -925,12 +933,23 @@ def _semantic_image_analysis(
     if deterministic_chart:
         return f"{prefix}: {deterministic_chart}"
 
-    if LOW_COST_IMAGE_MODE:
+    if not _should_use_vision_model(mode):
         if text:
             chart_from_ocr = _ocr_chart_summary(text)
             if chart_from_ocr:
                 return f"{prefix}: {chart_from_ocr}"
+            if mode == "chart":
+                return (
+                    f"{prefix}: Consegui ler texto no recorte do grafico, mas ainda nao confirmei valores "
+                    f"pela geometria ou por modelo visual. Texto legivel: {_compact_ocr_hint(text, limit=520)}"
+                )
             return f"{prefix}: Texto legível na imagem: {_compact_ocr_hint(text, limit=520)}"
+        if mode == "chart":
+            return (
+                f"{prefix}: Nao consegui ler o grafico com seguranca. "
+                "Se houver modelo visual instalado, eu tento interpretar tipo, tendencia e valores; "
+                "sem isso, amplie o grafico ou abra ele isolado."
+            )
         return ""
 
     base_prompt = (
@@ -944,7 +963,10 @@ def _semantic_image_analysis(
             "Tarefa: analisar grafico na imagem. Nao copie estas instrucoes. "
             "Procure sinais reais de grafico: barras, linhas, pizza, velas, eixos, legenda, escala, valores ou serie temporal. "
             "Se nao houver grafico claro, responda somente: Nao vejo um grafico claro na tela. "
-            "Se houver grafico, diga: tipo do grafico, tendencia, valores visiveis, comparacoes e conclusao pratica."
+            "Se houver grafico, responda em formato curto e estruturado: "
+            "Tipo: ... Titulo: ... Valores: categoria: aproximadamente numero; categoria: aproximadamente numero. "
+            "Tendencia: ... Conclusao pratica: ... "
+            "Use apenas valores visiveis ou estimaveis pela imagem; quando for estimativa, diga aproximadamente."
         )
     else:
         task_prompt = (
@@ -978,7 +1000,7 @@ def _remember_visual_result(source: str, response: str, details: dict | None = N
     remember_vision_analysis(source, clean, details=details or {})
 
 
-def analyze_image_target(path: str | None = None) -> str:
+def analyze_image_target(path: str | None = None, mode: str = "general") -> str:
     target = _resolve_target(path)
     if not str(path or "").strip():
         return "Me diga o caminho da imagem. Exemplo: analisar imagem C:\\pasta\\print.png"
@@ -993,7 +1015,7 @@ def analyze_image_target(path: str | None = None) -> str:
         svg_summary = _infer_svg_column_chart(target)
         if svg_summary:
             response = "Análise visual: " + svg_summary
-            _remember_visual_result("arquivo SVG", response, details={"kind": "file", "path": str(target)})
+            _remember_visual_result("arquivo SVG", response, details={"kind": "file", "path": str(target), "mode": mode})
             return response
         return "Consegui abrir o SVG, mas ele não tem texto ou geometria simples suficiente para interpretar com segurança."
 
@@ -1004,23 +1026,27 @@ def analyze_image_target(path: str | None = None) -> str:
         return f"Consegui localizar a imagem ({size_kb} KB), mas a análise falhou: {exc}"
 
     try:
-        semantic = _semantic_image_analysis(target, ocr_result=result)
+        semantic = _semantic_image_analysis(target, ocr_result=result, mode=mode)
         if semantic:
-            _remember_visual_result("arquivo", semantic, details={"kind": "file", "path": str(target)})
+            _remember_visual_result("arquivo", semantic, details={"kind": "file", "path": str(target), "mode": mode})
             return semantic
     except Exception as exc:
         fallback = _format_image_analysis(result)
         return vision_unavailable_message(exc) + " " + fallback
 
     response = _format_image_analysis(result)
-    _remember_visual_result("arquivo", response, details={"kind": "file", "path": str(target)})
+    _remember_visual_result("arquivo", response, details={"kind": "file", "path": str(target), "mode": mode})
     return response
+
+
+def analyze_graph_target(path: str | None = None) -> str:
+    return analyze_image_target(path, mode="chart")
 
 
 def analyze_screen_image(mode: str = "general") -> str:
     browser_image = _browser_local_image_from_foreground()
     if browser_image:
-        return analyze_image_target(str(browser_image))
+        return analyze_image_target(str(browser_image), mode=mode)
 
     screenshot_path = SCREENSHOT_DIR / f"axel_screen_{time.time_ns()}.png"
     analysis_path = screenshot_path

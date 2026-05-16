@@ -8,13 +8,15 @@ from pathlib import Path
 import re
 from datetime import datetime
 
-from core.context_resolver import resolve_params
+from core.app_bootstrap import HELP_TEXT, parse_app_flags
+from core.confirmation import confirmation_prompt, is_confirmation_rejected
+from core.confirmation_flow import handle_pending_confirmation
+from core.command_service import execute_processed_command, process_raw_action
 from core.executor import execute
-from core.normalizer import normalize_action
 from core.planner import looks_like_multi_step_request, plan_actions, split_local_steps
 from core.router import detect_create_macro_start, normalize_text, route
 from core.runtime_state import RuntimeState
-from core.validator import validate_command
+from core.ui_bridge import UIBridge
 from core.voice_command_classifier import normalize_voice_command
 from llm.chat import chat_response, clear_chat_history
 from memory.approval_gate import approve_current_proposal, load_approval_gate, reject_current_proposal, sync_approval_gate
@@ -89,8 +91,10 @@ from memory.training import (
     format_training_status,
     mark_injury_from_text,
     mark_custom_training_from_text,
+    mark_custom_training_for_dates_from_text,
     mark_named_workout_from_text,
     mark_named_workouts_from_text,
+    parse_muscles,
     mark_planned_training_from_text,
     mark_training_completed,
     set_training_reminder_from_text,
@@ -98,7 +102,7 @@ from memory.training import (
     training_snapshot,
 )
 from memory.ui_commands import dequeue_ui_command_item
-from memory.ui_state import append_ui_history, load_ui_state, reset_ui_state, update_ui_state
+from memory.ui_state import append_ui_history, reset_ui_state, update_ui_state
 from memory.verification_runs import (
     load_verification_runs,
     mark_verification_failed,
@@ -149,6 +153,7 @@ pending_command = None
 pending_command_learning_text = ""
 pending_smart_open_choice = None
 pending_smart_open_invalid_attempts = 0
+pending_training_request = ""
 voice_status = None
 hotword_ui_enabled = False
 rendered_status_line = ""
@@ -162,7 +167,7 @@ direct_response_ready_announced = False
 last_voice_text = ""
 last_terminal_user_command_printed = ""
 last_terminal_user_command_printed_at = 0.0
-ui_hud_started = False
+ui_bridge = None
 last_improvement_refresh = 0.0
 repeat_listen_until = 0.0
 UI_HISTORY_MAX_ITEMS = 40
@@ -183,37 +188,13 @@ def log_execution_event(event_type: str, **payload):
 
 
 def process_action(raw_action: dict):
-    if not isinstance(raw_action, dict):
-        log_execution_event("action_invalid", reason="raw_action_not_dict", raw_action=str(raw_action))
-        return "Acao invalida."
-
-    command = normalize_action(raw_action)
-    command = resolve_params(command, runtime_state)
-    log_execution_event(
-        "action_processed",
-        intent=raw_action.get("intent"),
-        action=getattr(command, "action", ""),
-        params=getattr(command, "params", {}),
-        source=getattr(command, "source", ""),
-    )
-
-    ok, error = validate_command(command)
-    if not ok:
-        log_execution_event(
-            "action_validation_failed",
-            action=getattr(command, "action", ""),
-            params=getattr(command, "params", {}),
-            error=error,
-        )
-        return error
-
-    return command
+    return process_raw_action(raw_action, runtime_state, log_execution_event)
 
 
 def action_progress_message(command) -> str | None:
     messages = {
         "image_analyze_screen": "Lendo a imagem da tela...",
-        "image_analyze_screen_graph": "Lendo o gráfico da tela...",
+        "image_analyze_screen_graph": "Lendo o grÃ¡fico da tela...",
         "image_analyze_browser": "Lendo o visual do navegador...",
         "image_analyze_clipboard": "Lendo a imagem copiada...",
         "image_analyze": "Analisando a imagem...",
@@ -261,25 +242,14 @@ def show_action_progress(command, voice_mode: bool = False):
 
 
 def execute_command(command, voice_mode: bool = False):
-    show_action_progress(command, voice_mode=voice_mode)
-    started_at = time.time()
-    log_execution_event(
-        "command_execute_start",
-        action=getattr(command, "action", ""),
-        params=getattr(command, "params", {}),
+    return execute_processed_command(
+        command,
+        runtime_state,
+        execute,
+        log_execution_event,
+        progress_callback=lambda processed: show_action_progress(processed, voice_mode=voice_mode),
         voice_mode=voice_mode,
     )
-    result = execute(command)
-    runtime_state.update(command, result)
-    log_execution_event(
-        "command_execute_end",
-        action=getattr(command, "action", ""),
-        params=getattr(command, "params", {}),
-        result=result,
-        voice_mode=voice_mode,
-        duration_ms=round((time.time() - started_at) * 1000, 2),
-    )
-    return result
 
 
 def is_confirmation_yes(text: str) -> bool:
@@ -420,10 +390,10 @@ def style_response(message: str) -> str:
             "Fechando code.": "Encerrando VS Code.",
             "Nao entendi.": next_phrase("style_assistente_unclear", STYLE_VARIANTS["unclear_command"]),
             "Pode repetir?": next_phrase("style_assistente_repeat", STYLE_VARIANTS["repeat_prompt"]),
-            "Nao identifiquei o comando.": "Não identifiquei o comando.",
+            "Nao identifiquei o comando.": "NÃ£o identifiquei o comando.",
             "Escuta pausada.": "Escuta em pausa.",
             "Escuta retomada.": "Escuta restabelecida.",
-            "Acao cancelada.": "Ação cancelada.",
+            "Acao cancelada.": "AÃ§Ã£o cancelada.",
         }
         if message in replacements:
             return replacements[message]
@@ -464,7 +434,7 @@ def style_response(message: str) -> str:
         "Nao identifiquei o comando.": next_phrase("style_jarvis_unclear_command", STYLE_VARIANTS["unclear_command"]),
         "Escuta pausada.": "Escuta em pausa.",
         "Escuta retomada.": "Escuta restabelecida.",
-        "Acao cancelada.": "Ação cancelada.",
+        "Acao cancelada.": "AÃ§Ã£o cancelada.",
         "Pode falar.": next_phrase(
             "style_ready_prompt",
             (
@@ -489,13 +459,13 @@ def style_response(message: str) -> str:
         ),
         "Encerrando.": "Encerrando por agora.",
         "Modo conversa encerrado. Voltei para comandos.": "Modo conversa encerrado. Voltei aos comandos.",
-        "Responda com sim ou nao.": "Preciso apenas de sim ou não.",
-        "Responda com 'sim' ou 'nao'.": "Preciso apenas de sim ou não.",
+        "Responda com sim ou nao.": "Preciso apenas de sim ou nÃ£o.",
+        "Responda com 'sim' ou 'nao'.": "Preciso apenas de sim ou nÃ£o.",
         "Responda com app, site ou cancelar.": "Responda com app, site ou cancelar.",
         "Responda com 'app' ou 'site'.": "Responda com app ou site.",
-        "Ok, nao abri.": "Certo. Não abri.",
-        "Nao consegui entender a resposta. Cancelei essa pergunta.": "Não consegui confirmar a resposta. Cancelei essa pergunta.",
-        "Nada para repetir.": "Não há nada recente para repetir.",
+        "Ok, nao abri.": "Certo. NÃ£o abri.",
+        "Nao consegui entender a resposta. Cancelei essa pergunta.": "NÃ£o consegui confirmar a resposta. Cancelei essa pergunta.",
+        "Nada para repetir.": "NÃ£o hÃ¡ nada recente para repetir.",
         "Passo adicionado.": "Passo registrado.",
     }
     if message in replacements:
@@ -551,8 +521,8 @@ def output_response(
     if voice_mode and any(
         phrase in styled_message
         for phrase in (
-            "Não captei com precisão",
-            "Não identifiquei o comando",
+            "NÃ£o captei com precisÃ£o",
+            "NÃ£o identifiquei o comando",
             "Pode repetir",
         )
     ):
@@ -701,9 +671,10 @@ def startup_greeting_message() -> str:
     if configured and not bool(VOICE_PREFERENCES.get("startup_voice_greeting_variants_enabled", True)):
         return configured
 
+    compact_interactive_startup = any(flag in sys.argv for flag in ("--voice", "--hotword", "--ui"))
     if "--startup" in sys.argv:
         category = "computer_startup"
-    elif "--short-startup-greeting" in sys.argv:
+    elif "--short-startup-greeting" in sys.argv or compact_interactive_startup:
         category = "short_ready"
     else:
         category = str(VOICE_PREFERENCES.get("startup_voice_greeting_category", "study_code")).strip()
@@ -733,7 +704,7 @@ def startup_greeting_message() -> str:
     return next_phrase(
         f"startup_greeting_{category}",
         STARTUP_GREETING_VARIANTS[category],
-        configured or "Sistemas online. Pronto para começar.",
+        configured or "Sistemas online. Pronto para comeÃ§ar.",
     )
 
 
@@ -742,7 +713,7 @@ def common_tts_cache_phrases() -> list[str]:
         str(
             VOICE_PREFERENCES.get(
                 "startup_voice_greeting",
-                "Modo voz ativado. Pronto para começar.",
+                "Modo voz ativado. Pronto para comeÃ§ar.",
             )
         ).strip(),
         "Pode falar.",
@@ -860,146 +831,74 @@ def command_preview(command) -> str:
     return str(command)
 
 
+def _ui_runtime_patch() -> dict:
+    active_device = get_active_input_device_info() or {}
+    return {
+        "assistant_name": "Axel",
+        "status": voice_status or "INATIVO",
+        "mode": current_ui_mode_label(),
+        "microphone": active_device.get("name", ""),
+        "assistant_style": current_assistant_style_label(),
+        "voice_profile": current_voice_profile_label(),
+        "hotword_enabled": bool(hotword_ui_enabled),
+        "conversation_mode": bool(conversation_mode),
+        "dictation_mode": bool(dictation_mode),
+        "last_command": command_preview(runtime_state.last_command),
+    }
+
+
+def get_ui_bridge() -> UIBridge:
+    global ui_bridge
+    if ui_bridge is None:
+        ui_bridge = UIBridge(
+            root_dir=Path(__file__).resolve().parent,
+            python_executable=sys.executable,
+            runtime_patch=_ui_runtime_patch,
+            normalize_text=normalize_text,
+            route=route,
+            process_action=process_action,
+            training_snapshot=training_snapshot,
+        )
+    return ui_bridge
+
+
 def refresh_ui_runtime_state(extra: dict | None = None):
-    try:
-        active_device = get_active_input_device_info() or {}
-        patch = {
-            "assistant_name": "Axel",
-            "status": voice_status or "INATIVO",
-            "mode": current_ui_mode_label(),
-            "microphone": active_device.get("name", ""),
-            "assistant_style": current_assistant_style_label(),
-            "voice_profile": current_voice_profile_label(),
-            "hotword_enabled": bool(hotword_ui_enabled),
-            "conversation_mode": bool(conversation_mode),
-            "dictation_mode": bool(dictation_mode),
-            "last_command": command_preview(runtime_state.last_command),
-        }
-        if extra:
-            patch.update(extra)
-        update_ui_state(patch)
-    except Exception:
-        pass
+    get_ui_bridge().refresh_runtime_state(extra)
 
 
 def launch_ui_hud():
-    global ui_hud_started
-
-    state = load_ui_state()
-    if ui_hud_started and state.get("visible", False):
-        refresh_ui_runtime_state({"visible": True})
-        return
-
-    pythonw = Path(sys.executable).with_name("pythonw.exe")
-    python_exec = str(pythonw if pythonw.exists() else Path(sys.executable))
-
-    try:
-        subprocess.Popen(
-            [python_exec, "-m", "ui.qt_axel_hud"],
-            cwd=str(Path(__file__).resolve().parent),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        ui_hud_started = True
-    except Exception:
-        return
-
-    refresh_ui_runtime_state({"visible": True})
+    get_ui_bridge().launch_hud()
 
 
 def show_ui_hud() -> str:
-    update_ui_state({"visible": True})
-    launch_ui_hud()
-    return "Interface ativada. Deixei o painel no ar."
+    return get_ui_bridge().show_hud()
 
 
 def hide_ui_hud() -> str:
-    global ui_hud_started
-
-    ui_hud_started = False
-    update_ui_state({"visible": False})
-    refresh_ui_runtime_state({"visible": False})
-    return "Interface oculta."
+    return get_ui_bridge().hide_hud()
 
 
 def show_map_in_ui(map_request: dict | None = None) -> str:
-    payload = map_request if isinstance(map_request, dict) else {}
-    label = str(payload.get("label") or payload.get("location") or payload.get("destination") or "mapa").strip()
-    update_ui_state(
-        {
-            "visible": True,
-            "map_panel_open": True,
-            "map_request": payload,
-            "last_command": f"mostrar mapa {label}".strip(),
-        }
-    )
-    launch_ui_hud()
-    return f"Mapa aberto na interface: {label}."
+    return get_ui_bridge().show_map(map_request)
 
 
 def show_training_in_ui() -> str:
-    snapshot = training_snapshot()
-    workout = snapshot.get("workout") or {}
-    update_ui_state(
-        {
-            "visible": True,
-            "open_panels": ["treino"],
-            "last_command": "abrir treino",
-            "training_snapshot": snapshot,
-        }
-    )
-    launch_ui_hud()
-    return f"Painel de treino aberto: {workout.get('label', 'hoje')}, {workout.get('title', 'treino')}."
+    return get_ui_bridge().show_training()
 
 
 def maybe_handle_ui_command(user_input: str) -> str | None:
-    normalized = normalize_text(user_input)
-
-    show_commands = {
-        "abrir interface",
-        "abrir painel",
-        "mostrar interface",
-        "mostrar painel",
-        "exibir interface",
-        "exibir painel",
-        "ativar interface",
-        "ativar painel",
-        "mostrar hud",
-    }
-    hide_commands = {
-        "fechar interface",
-        "fechar painel",
-        "ocultar interface",
-        "ocultar painel",
-        "esconder interface",
-        "esconder painel",
-        "desativar interface",
-        "desativar painel",
-        "fechar hud",
-    }
-
-    if normalized in show_commands:
-        return show_ui_hud()
-
-    if normalized in hide_commands:
-        return hide_ui_hud()
-
-    if normalized in {"interface atual", "status da interface", "painel atual"}:
-        state = "ativa" if load_ui_state().get("visible", False) else "oculta"
-        return f"Interface {state}."
-
-    raw_action = route(user_input)
-    if raw_action.get("intent") == "ui_show_map":
-        processed = process_action(raw_action)
-        if not isinstance(processed, str):
-            return show_map_in_ui(processed.params.get("target"))
-
-    return None
+    return get_ui_bridge().maybe_handle_command(user_input)
 
 
 def maybe_handle_training_command(user_input: str) -> str | None:
+    global pending_training_request
     normalized = normalize_text(user_input)
+
+    if pending_training_request and parse_muscles(user_input):
+        result = mark_custom_training_for_dates_from_text(user_input, pending_training_request)
+        pending_training_request = ""
+        update_ui_state({"training_snapshot": training_snapshot()})
+        return result
 
     if normalized in {
         "treino",
@@ -1054,18 +953,28 @@ def maybe_handle_training_command(user_input: str) -> str | None:
         or ("treino da segunda" in normalized)
         or ("treino de terca" in normalized)
         or ("treino da terca" in normalized)
-        or ("treino de terça" in normalized)
-        or ("treino da terça" in normalized)
+        or ("treino de terÃ§a" in normalized)
+        or ("treino da terÃ§a" in normalized)
         or ("treino de quinta" in normalized)
         or ("treino da quinta" in normalized)
         or ("treino de sexta" in normalized)
         or ("treino da sexta" in normalized)
         or ("treino de sabado" in normalized)
-        or ("treino de sábado" in normalized)
+        or ("treino de sÃ¡bado" in normalized)
         or ("treino do sabado" in normalized)
-        or ("treino do sábado" in normalized)
+        or ("treino do sÃ¡bado" in normalized)
     ) and any(verb in normalized for verb in {"fiz", "treinei", "registrar", "adicionar", "marcar"}):
         result = mark_named_workouts_from_text(user_input)
+        update_ui_state({"training_snapshot": training_snapshot()})
+        return result
+
+    if (
+        ("treinei" in normalized or "fiz treino" in normalized)
+        and re.search(r"\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b", normalized)
+        and not parse_muscles(user_input)
+    ):
+        result = mark_planned_training_from_text(user_input)
+        pending_training_request = ""
         update_ui_state({"training_snapshot": training_snapshot()})
         return result
 
@@ -1081,6 +990,8 @@ def maybe_handle_training_command(user_input: str) -> str | None:
         )
     ):
         result = mark_custom_training_from_text(user_input)
+        if result.startswith("Quais grupos voce treinou?"):
+            pending_training_request = user_input
         update_ui_state({"training_snapshot": training_snapshot()})
         return result
 
@@ -1119,31 +1030,31 @@ def maybe_handle_training_command(user_input: str) -> str | None:
 def _pt_display_text(text: str) -> str:
     content = str(text or "")
     replacements = {
-        "programacao": "programação",
-        "avancado": "avançado",
-        "avancada": "avançada",
-        "estagiario": "estagiário",
-        "saudavel": "saudável",
-        "atencao": "atenção",
-        "compilacao": "compilação",
-        "modulos": "módulos",
-        "memorias": "memórias",
-        "alteracoes": "alterações",
-        "verificavel": "verificável",
-        "invalido": "inválido",
-        "proximos": "próximos",
-        "avancos": "avanços",
-        "util": "útil",
-        "pagina": "página",
-        "conteudo": "conteúdo",
-        "visao": "visão",
-        "graficos": "gráficos",
-        "precisao": "precisão",
-        "historico": "histórico",
-        "analises": "análises",
-        "ultimas": "últimas",
-        "pratica": "prática",
-        "nao": "não",
+        "programacao": "programaÃ§Ã£o",
+        "avancado": "avanÃ§ado",
+        "avancada": "avanÃ§ada",
+        "estagiario": "estagiÃ¡rio",
+        "saudavel": "saudÃ¡vel",
+        "atencao": "atenÃ§Ã£o",
+        "compilacao": "compilaÃ§Ã£o",
+        "modulos": "mÃ³dulos",
+        "memorias": "memÃ³rias",
+        "alteracoes": "alteraÃ§Ãµes",
+        "verificavel": "verificÃ¡vel",
+        "invalido": "invÃ¡lido",
+        "proximos": "prÃ³ximos",
+        "avancos": "avanÃ§os",
+        "util": "Ãºtil",
+        "pagina": "pÃ¡gina",
+        "conteudo": "conteÃºdo",
+        "visao": "visÃ£o",
+        "graficos": "grÃ¡ficos",
+        "precisao": "precisÃ£o",
+        "historico": "histÃ³rico",
+        "analises": "anÃ¡lises",
+        "ultimas": "Ãºltimas",
+        "pratica": "prÃ¡tica",
+        "nao": "nÃ£o",
     }
 
     def replace(match):
@@ -1265,7 +1176,7 @@ def start_programming_mode() -> str:
         {
             "visible": True,
             "open_panels": ["contexto", "comandos"],
-            "last_command": "modo programação",
+            "last_command": "modo programaÃ§Ã£o",
         }
     )
     advances = save_auto_advances(limit=3) or load_auto_advances() or []
@@ -1282,35 +1193,35 @@ def start_programming_mode() -> str:
 
     first_step = ""
     if preflight.get("compile_error"):
-        first_step = "corrigir a falha de compilação apontada no pré-flight"
+        first_step = "corrigir a falha de compilaÃ§Ã£o apontada no prÃ©-flight"
     elif preflight.get("json_errors"):
-        first_step = "corrigir o JSON inválido antes de evoluir recursos"
+        first_step = "corrigir o JSON invÃ¡lido antes de evoluir recursos"
     elif next_advances:
         first_step = _pt_display_text(str(next_advances[0]).strip())
     elif open_tasks:
         first_step = _pt_display_text(str(open_tasks[0]).strip())
     else:
-        first_step = "seguir pelo menor ajuste verificável do projeto"
+        first_step = "seguir pelo menor ajuste verificÃ¡vel do projeto"
 
     health = "saudavel"
     if preflight.get("compile_error") or preflight.get("json_errors"):
-        health = "precisa de atenção"
+        health = "precisa de atenÃ§Ã£o"
 
     if health == "saudavel":
-        health = "saudável"
+        health = "saudÃ¡vel"
 
-    parts = [f"Modo programação do Estagiário ativado. Projeto {health}."]
+    parts = [f"Modo programaÃ§Ã£o do EstagiÃ¡rio ativado. Projeto {health}."]
     if focus:
         parts.append(f"Foco atual: {focus}.")
     if preflight.get("compile_error"):
-        parts.append(f"Compilação falhou: {preflight['compile_error']}.")
+        parts.append(f"CompilaÃ§Ã£o falhou: {preflight['compile_error']}.")
     else:
-        parts.append(f"Compilação ok em {len(preflight.get('compiled_modules') or [])} módulos-chave.")
+        parts.append(f"CompilaÃ§Ã£o ok em {len(preflight.get('compiled_modules') or [])} mÃ³dulos-chave.")
     json_errors = preflight.get("json_errors") or []
     if json_errors:
-        parts.append("Memórias com erro: " + _compact_items(json_errors, limit=2) + ".")
+        parts.append("MemÃ³rias com erro: " + _compact_items(json_errors, limit=2) + ".")
     else:
-        parts.append(f"Memórias JSON ok: {preflight.get('json_ok_count', 0)} arquivos.")
+        parts.append(f"MemÃ³rias JSON ok: {preflight.get('json_ok_count', 0)} arquivos.")
     task_text = _compact_items(open_tasks, limit=2)
     if task_text:
         parts.append(f"Tarefas abertas: {task_text}.")
@@ -1318,7 +1229,7 @@ def start_programming_mode() -> str:
         parts.append("Gargalos: " + _compact_items(bottlenecks, limit=2) + ".")
     else:
         parts.append("Sem gargalos ativos.")
-    parts.append(f"Estado de alterações: {preflight.get('change_summary')}.")
+    parts.append(f"Estado de alteraÃ§Ãµes: {preflight.get('change_summary')}.")
     parts.append("Painel de contexto e comandos abertos.")
     parts.append(f"Primeiro passo recomendado: {first_step}.")
     return " ".join(parts)
@@ -1328,27 +1239,27 @@ def maybe_handle_work_mode_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
     programming_modes = {
         "modo programacao",
-        "modo programação",
+        "modo programaÃ§Ã£o",
         "ativar modo programacao",
-        "ativar modo programação",
+        "ativar modo programaÃ§Ã£o",
         "iniciar modo programacao",
-        "iniciar modo programação",
-        "começar modo programacao",
+        "iniciar modo programaÃ§Ã£o",
+        "comeÃ§ar modo programacao",
         "comecar modo programacao",
         "rotina programacao",
-        "rotina programação",
+        "rotina programaÃ§Ã£o",
         "modo dev",
         "modo desenvolvimento",
         "modo programacao avancado",
-        "modo programação avançado",
-        "modo programacao avançado",
-        "modo programação avancado",
+        "modo programaÃ§Ã£o avanÃ§ado",
+        "modo programacao avanÃ§ado",
+        "modo programaÃ§Ã£o avancado",
         "ativar modo programacao avancado",
-        "ativar modo programação avançado",
+        "ativar modo programaÃ§Ã£o avanÃ§ado",
         "iniciar modo programacao avancado",
-        "iniciar modo programação avançado",
+        "iniciar modo programaÃ§Ã£o avanÃ§ado",
         "rotina programacao avancada",
-        "rotina programação avançada",
+        "rotina programaÃ§Ã£o avanÃ§ada",
         "modo dev avancado",
         "modo desenvolvimento avancado",
     }
@@ -1501,12 +1412,12 @@ def maybe_handle_action_candidate_command(user_input: str) -> str | None:
 
     if normalized in {
         "aprovar proximo avanco",
-        "aprovar proximo avanço",
+        "aprovar proximo avanÃ§o",
         "aprovar e preparar proximo avanco",
-        "aprovar e preparar proximo avanço",
+        "aprovar e preparar proximo avanÃ§o",
         "aprovar proximo passo",
         "preparar proximo avanco aprovado",
-        "preparar proximo avanço aprovado",
+        "preparar proximo avanÃ§o aprovado",
     }:
         proposal_state = approve_current_proposal("aprovado pelo operador para preparacao supervisionada")
         candidate = approve_first_action_candidate("aprovado pelo operador para preparacao supervisionada")
@@ -1659,7 +1570,7 @@ def maybe_handle_handoff_application_command(user_input: str) -> str | None:
         "iniciar aplicacao do handoff",
         "marcar handoff em andamento",
         "codex comecou handoff",
-        "codex começou handoff",
+        "codex comeÃ§ou handoff",
     }:
         state = mark_handoff_started()
         title = str((state.get("handoff") or {}).get("title", "")).strip()
@@ -1672,7 +1583,7 @@ def maybe_handle_handoff_application_command(user_input: str) -> str | None:
         "codex aplicou handoff",
         "marcar handoff aplicado",
         "implementacao aplicada",
-        "implementação aplicada",
+        "implementaÃ§Ã£o aplicada",
     }:
         state = mark_handoff_applied()
         title = str((state.get("handoff") or {}).get("title", "")).strip()
@@ -1688,7 +1599,7 @@ def maybe_handle_handoff_application_command(user_input: str) -> str | None:
         "codex falhou handoff",
         "marcar handoff falhou",
         "implementacao falhou",
-        "implementação falhou",
+        "implementaÃ§Ã£o falhou",
     }:
         state = mark_handoff_failed()
         title = str((state.get("handoff") or {}).get("title", "")).strip()
@@ -2151,12 +2062,12 @@ def maybe_handle_codex_bridge_command(user_input: str) -> str | None:
         add_codex_inbox_item("reply", codex_reply)
         return "Registrei a resposta do Codex na caixa de entrada do Axel."
 
-    codex_decision = extract_tail(("decisao do codex", "decisão do codex", "codex decidiu"))
+    codex_decision = extract_tail(("decisao do codex", "decisÃ£o do codex", "codex decidiu"))
     if codex_decision:
         add_codex_inbox_item("decision", codex_decision)
         return "Registrei a decisao do Codex para o Axel."
 
-    codex_next_step = extract_tail(("proximo passo do codex", "próximo passo do codex", "codex sugeriu o proximo passo", "codex sugeriu o próximo passo"))
+    codex_next_step = extract_tail(("proximo passo do codex", "prÃ³ximo passo do codex", "codex sugeriu o proximo passo", "codex sugeriu o prÃ³ximo passo"))
     if codex_next_step:
         add_codex_inbox_item("next_step", codex_next_step)
         return "Registrei o proximo passo sugerido pelo Codex."
@@ -2310,7 +2221,7 @@ def maybe_handle_operational_context_command(user_input: str) -> str | None:
     compact = re.sub(r"\s+", " ", normalized).strip()
 
     remember_match = re.match(
-        r"^(?:lembre|lembra|memorize|salve|guarde)\s+(?:na\s+)?(?:memoria operacional|memória operacional|contexto operacional|preferencia operacional|preferência operacional)\s+(?:que\s+)?(.+)$",
+        r"^(?:lembre|lembra|memorize|salve|guarde)\s+(?:na\s+)?(?:memoria operacional|memÃ³ria operacional|contexto operacional|preferencia operacional|preferÃªncia operacional)\s+(?:que\s+)?(.+)$",
         user_input.strip(),
         flags=re.I,
     )
@@ -2318,7 +2229,7 @@ def maybe_handle_operational_context_command(user_input: str) -> str | None:
         return remember_operational_preference(remember_match.group(1), kind="preference")
 
     note_match = re.match(
-        r"^(?:anote|registre)\s+(?:no\s+)?(?:contexto operacional|memoria operacional|memória operacional)\s+(?:que\s+)?(.+)$",
+        r"^(?:anote|registre)\s+(?:no\s+)?(?:contexto operacional|memoria operacional|memÃ³ria operacional)\s+(?:que\s+)?(.+)$",
         user_input.strip(),
         flags=re.I,
     )
@@ -2326,7 +2237,7 @@ def maybe_handle_operational_context_command(user_input: str) -> str | None:
         return remember_operational_preference(note_match.group(1), kind="note")
 
     forget_match = re.match(
-        r"^(?:esqueça|esqueca|remova|apague)\s+(?:da\s+)?(?:memoria operacional|memória operacional|contexto operacional|preferencia operacional|preferência operacional)\s+(.+)$",
+        r"^(?:esqueÃ§a|esqueca|remova|apague)\s+(?:da\s+)?(?:memoria operacional|memÃ³ria operacional|contexto operacional|preferencia operacional|preferÃªncia operacional)\s+(.+)$",
         user_input.strip(),
         flags=re.I,
     )
@@ -2335,13 +2246,13 @@ def maybe_handle_operational_context_command(user_input: str) -> str | None:
 
     if normalized in {
         "minhas preferencias operacionais",
-        "minhas preferências operacionais",
+        "minhas preferÃªncias operacionais",
         "preferencias operacionais",
-        "preferências operacionais",
+        "preferÃªncias operacionais",
         "memoria operacional salva",
-        "memória operacional salva",
+        "memÃ³ria operacional salva",
         "mostrar memoria operacional",
-        "mostrar memória operacional",
+        "mostrar memÃ³ria operacional",
     }:
         return format_operational_memory()
 
@@ -2386,7 +2297,7 @@ def maybe_handle_operational_context_command(user_input: str) -> str | None:
         "sites recentes",
         "quais sites recentes",
         "topicos recentes",
-        "tópicos recentes",
+        "tÃ³picos recentes",
     }:
         payload = save_operational_context()
         apps = payload.get("recent_apps") or []
@@ -2394,7 +2305,7 @@ def maybe_handle_operational_context_command(user_input: str) -> str | None:
         topics = payload.get("recent_topics") or []
         wants_apps = any(token in compact for token in {"app", "aplicativo"})
         wants_sites = "site" in compact
-        wants_topics = any(token in compact for token in {"topico", "topicos", "tópico", "tópicos"})
+        wants_topics = any(token in compact for token in {"topico", "topicos", "tÃ³pico", "tÃ³picos"})
 
         if wants_apps and apps:
             return "Apps recentes: " + ", ".join(str(item) for item in apps[:4]) + "."
@@ -2478,7 +2389,7 @@ def maybe_handle_directives_command(user_input: str) -> str | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        return "Ainda não consegui carregar minhas diretrizes."
+        return "Ainda nÃ£o consegui carregar minhas diretrizes."
 
     if normalized in {"modo investimentos", "modo investimento"}:
         return (
@@ -2491,13 +2402,13 @@ def maybe_handle_directives_command(user_input: str) -> str | None:
         goal = str(investment.get("goal", "")).strip()
         rules = [str(item) for item in (investment.get("rules") or [])[:3]]
         if not goal:
-            return "Modo investimentos ainda está sem diretrizes configuradas."
+            return "Modo investimentos ainda estÃ¡ sem diretrizes configuradas."
         suffix = " Regras: " + "; ".join(rules) + "." if rules else ""
         return f"Modo investimentos preparado. {goal}{suffix}"
 
     directives = [str(item) for item in (payload.get("core_directives") or [])[:4]]
     if not directives:
-        return "Minhas diretrizes ainda estão vazias."
+        return "Minhas diretrizes ainda estÃ£o vazias."
     return "Diretrizes do Axel: " + "; ".join(directives) + "."
 
 
@@ -2655,7 +2566,7 @@ def humor_test_response() -> str:
 def list_pronunciation_response() -> str:
     pronunciations = load_tts_pronunciations()
     if not pronunciations:
-        return "Não há pronúncias personalizadas salvas."
+        return "NÃ£o hÃ¡ pronÃºncias personalizadas salvas."
 
     items = []
     for term, pronunciation in sorted(pronunciations.items(), key=lambda item: item[0].lower()):
@@ -2663,7 +2574,7 @@ def list_pronunciation_response() -> str:
         if len(items) >= 12:
             break
 
-    return "Pronúncias salvas: " + "; ".join(items) + "."
+    return "PronÃºncias salvas: " + "; ".join(items) + "."
 
 
 def maybe_handle_pronunciation_command(user_input: str) -> str | None:
@@ -2685,9 +2596,9 @@ def maybe_handle_pronunciation_command(user_input: str) -> str | None:
             term = match.group(1).strip(" \t,.:;!?\"'")
             pronunciation = match.group(2).strip(" \t,.:;!?\"'")
             if not term or not pronunciation:
-                return "Preciso da palavra e da pronúncia."
+                return "Preciso da palavra e da pronÃºncia."
             set_tts_pronunciation(term, pronunciation)
-            return f"Pronúncia salva para {term}."
+            return f"PronÃºncia salva para {term}."
 
     remove_patterns = [
         r"^\s*remover\s+pronuncia(?:cao)?\s+de\s+(.+?)\s*$",
@@ -2703,8 +2614,8 @@ def maybe_handle_pronunciation_command(user_input: str) -> str | None:
                 return "Qual palavra devo remover?"
             removed = remove_tts_pronunciation(term)
             if removed:
-                return f"Pronúncia removida para {term}."
-            return f"Não encontrei pronúncia salva para {term}."
+                return f"PronÃºncia removida para {term}."
+            return f"NÃ£o encontrei pronÃºncia salva para {term}."
 
     if normalized in {
         "listar pronuncias",
@@ -2728,11 +2639,11 @@ def maybe_handle_pronunciation_command(user_input: str) -> str | None:
         if match:
             term = match.group(1).strip(" \t,.:;!?\"'")
             if not term:
-                return "Qual palavra você quer consultar?"
+                return "Qual palavra vocÃª quer consultar?"
             pronunciation = get_tts_pronunciation(term)
             if pronunciation:
-                return f"A pronúncia salva para {term} é {pronunciation}."
-            return f"Ainda não há pronúncia personalizada para {term}."
+                return f"A pronÃºncia salva para {term} Ã© {pronunciation}."
+            return f"Ainda nÃ£o hÃ¡ pronÃºncia personalizada para {term}."
 
     return None
 
@@ -3015,33 +2926,33 @@ def maybe_handle_input_device_command(user_input: str) -> str | None:
         "quais microfones",
         "quais microfones voce tem",
         "microfones disponiveis",
-        "microfones disponíveis",
+        "microfones disponÃ­veis",
         "entradas de audio",
-        "entradas de áudio",
+        "entradas de Ã¡udio",
         "listar entradas de audio",
-        "listar entradas de áudio",
+        "listar entradas de Ã¡udio",
     }:
         return format_input_devices()
 
     if normalized in {
         "qual microfone esta ativo",
-        "qual microfone está ativo",
+        "qual microfone estÃ¡ ativo",
         "qual microfone ativo",
         "microfone atual",
         "microfone em uso",
         "entrada de audio atual",
-        "entrada de áudio atual",
+        "entrada de Ã¡udio atual",
     }:
         active = get_active_input_device_info()
         if not active:
-            return "Não encontrei um microfone ativo no momento."
+            return "NÃ£o encontrei um microfone ativo no momento."
         return f"Microfone ativo: {active['name']}."
 
     if normalized in {
         "usar microfone padrao",
-        "usar microfone padrão",
+        "usar microfone padrÃ£o",
         "usar padrao do windows",
-        "usar padrão do windows",
+        "usar padrÃ£o do windows",
         "usar microfone do windows",
         "limpar microfone preferido",
         "remover microfone preferido",
@@ -3050,8 +2961,8 @@ def maybe_handle_input_device_command(user_input: str) -> str | None:
         refresh_voice_preferences()
         active = get_active_input_device_info()
         if active:
-            return f"Voltei para o microfone padrão do Windows: {active['name']}."
-        return "Voltei para o microfone padrão do Windows."
+            return f"Voltei para o microfone padrÃ£o do Windows: {active['name']}."
+        return "Voltei para o microfone padrÃ£o do Windows."
 
     patterns = [
         r"^\s*usar\s+microfone\s+(.+?)\s*$",
@@ -3072,14 +2983,14 @@ def maybe_handle_input_device_command(user_input: str) -> str | None:
 
     requested_normalized = _normalize_device_label(requested_name)
     if not requested_normalized:
-        return "Qual microfone você quer usar?"
+        return "Qual microfone vocÃª quer usar?"
 
     devices_text = format_input_devices()
     devices = list_input_devices()
     active = get_active_input_device_info()
 
     if not devices:
-        return "Não encontrei microfones disponíveis para selecionar."
+        return "NÃ£o encontrei microfones disponÃ­veis para selecionar."
 
     exact = next((device for device in devices if _normalize_device_label(device["name"]) == requested_normalized), None)
     contains = next(
@@ -3105,7 +3016,7 @@ def maybe_handle_input_device_command(user_input: str) -> str | None:
 
     chosen = exact or contains or (best if best_score >= 0.58 else None)
     if not chosen:
-        return f"Não encontrei um microfone parecido com {requested_name}. {devices_text}"
+        return f"NÃ£o encontrei um microfone parecido com {requested_name}. {devices_text}"
 
     update_voice_preferences({"audio_input_device": chosen["name"]})
     refresh_voice_preferences()
@@ -3312,9 +3223,9 @@ def maybe_normalize_voice_command(user_input: str, voice_mode: bool) -> str:
         "acoes candidatas",
         "mostrar acoes candidatas",
         "aprovar proximo avanco",
-        "aprovar proximo avanço",
+        "aprovar proximo avanÃ§o",
         "aprovar e preparar proximo avanco",
-        "aprovar e preparar proximo avanço",
+        "aprovar e preparar proximo avanÃ§o",
         "pacote de execucao",
         "mostrar pacote de execucao",
         "handoff",
@@ -3443,7 +3354,7 @@ def maybe_suggest_probable_command(user_input: str):
         query = _clean_probable_query(query)
         if query:
             return {
-                "question": f"Você quis pesquisar {query} no Mercado Livre?",
+                "question": f"VocÃª quis pesquisar {query} no Mercado Livre?",
                 "action": {
                     "intent": "browser_search_site",
                     "target": {
@@ -3465,7 +3376,7 @@ def maybe_suggest_probable_command(user_input: str):
         query = re.sub(r"\s+", " ", query).strip(" .")
         if query and query not in {"que", "o que", "isso"}:
             return {
-                "question": f"Você quis pesquisar {query} no YouTube?",
+                "question": f"VocÃª quis pesquisar {query} no YouTube?",
                 "action": {
                     "intent": "browser_search_site",
                     "target": {
@@ -3477,7 +3388,7 @@ def maybe_suggest_probable_command(user_input: str):
 
     if "spotify" in text and "filho" in text and any(token in text for token in {"meu", "mil"}):
         return {
-            "question": "Você quis tocar Filho Meu no Spotify?",
+            "question": "VocÃª quis tocar Filho Meu no Spotify?",
             "action": {
                 "intent": "browser_search_music",
                 "target": {"service": "spotify", "query": "filho meu"},
@@ -3501,9 +3412,9 @@ def maybe_suggest_probable_command(user_input: str):
     }
     for token, vibe in music_vibes.items():
         if token in text and any(word in text for word in {"musica", "musicas", "tocar", "toque", "toca", "spotify", "algo"}):
-            label = "clássica" if vibe == "classico" else vibe
+            label = "clÃ¡ssica" if vibe == "classico" else vibe
             return {
-                "question": f"Você quis iniciar uma sessão {label}?",
+                "question": f"VocÃª quis iniciar uma sessÃ£o {label}?",
                 "action": {
                     "intent": "browser_music_session",
                     "target": {"service": "spotify", "vibe": vibe},
@@ -3539,8 +3450,8 @@ def command_correction_text(command) -> str:
         vibe = str(params.get("vibe", "")).strip()
         if not vibe:
             return ""
-        label = "clássica" if vibe == "classico" else vibe
-        return f"tocar música {label}"
+        label = "clÃ¡ssica" if vibe == "classico" else vibe
+        return f"tocar mÃºsica {label}"
 
     if action == "browser_surprise_music":
         return "me surpreenda"
@@ -3688,9 +3599,9 @@ def format_dictation_text(text: str) -> str:
     special_tokens = {
         "nova linha": "\r\n",
         "novo paragrafo": "\r\n\r\n",
-        "novo parágrafo": "\r\n\r\n",
+        "novo parÃ¡grafo": "\r\n\r\n",
         "tabulacao": "\t",
-        "tabulação": "\t",
+        "tabulaÃ§Ã£o": "\t",
         "tab": "\t",
     }
     if normalized in special_tokens:
@@ -3918,26 +3829,17 @@ def main():
     global dictation_ready_announced
     global direct_response_ready_announced
     global repeat_listen_until
-    global ui_hud_started
 
-    if "--help" in sys.argv or "-h" in sys.argv:
-        print(
-            "Uso: python main.py [--voice] [--hotword] [--ui]\n"
-            "\n"
-            "Opções principais:\n"
-            "  --voice      ativa modo voz\n"
-            "  --hotword    usa escuta por hotword/F8 junto do modo voz\n"
-            "  --ui         abre a interface Qt do Axel\n"
-            "  --audio-test [segundos]  roda diagnóstico de áudio\n"
-        )
+    flags = parse_app_flags(sys.argv)
+
+    if flags.help_requested:
+        print(HELP_TEXT)
         return
-
-    voice_mode = "--voice" in sys.argv
-    hotword_mode = "--hotword" in sys.argv
-    ui_mode = "--ui" in sys.argv
+    voice_mode = flags.voice_mode
+    hotword_mode = flags.hotword_mode
+    ui_mode = flags.ui_mode
     voice_paused = False
     hotword_ui_enabled = voice_mode and hotword_mode
-    ui_hud_started = False
 
     if handle_windows_startup_cli():
         return
@@ -3945,22 +3847,10 @@ def main():
     if handle_voice_profile_cli():
         return
 
-    if "--audio-test" in sys.argv or "--audio-diagnostic" in sys.argv:
-        seconds = None
-        for flag in ("--audio-test", "--audio-diagnostic"):
-            if flag in sys.argv:
-                index = sys.argv.index(flag)
-                if index + 1 < len(sys.argv):
-                    try:
-                        seconds = float(sys.argv[index + 1])
-                    except ValueError:
-                        seconds = None
-                break
-
-        print("Gravando diagnóstico de áudio. Fale uma frase curta...")
-        print(run_audio_diagnostic(seconds))
+    if flags.audio_diagnostic_requested:
+        print("Gravando diagnostico de audio. Fale uma frase curta...")
+        print(run_audio_diagnostic(flags.audio_diagnostic_seconds))
         return
-
     clear()
     reset_ui_state()
     refresh_ui_runtime_state({"visible": False})
@@ -3994,7 +3884,7 @@ def main():
                 output_response(startup_message, voice_mode=True)
 
         warm_common_tts_cache_async()
-        if "--startup" in sys.argv and "--no-defer-startup-briefing" not in sys.argv:
+        if flags.defer_startup_briefing:
             schedule_startup_briefing_async(voice_mode=True)
         else:
             maybe_send_startup_briefing(voice_mode=True)
@@ -4320,22 +4210,18 @@ def main():
             continue
 
         if pending_command is not None:
-            if is_confirmation_yes(user_input):
-                maybe_remember_pending_voice_correction(pending_command)
-                result = execute_command(pending_command, voice_mode=voice_mode)
-                pending_command = None
+            confirmation_result = handle_pending_confirmation(
+                user_input,
+                pending_command,
+                pending_command_learning_text,
+                lambda command: execute_command(command, voice_mode=voice_mode),
+                maybe_remember_pending_voice_correction,
+            )
+            pending_command = confirmation_result.pending_command
+            pending_command_learning_text = confirmation_result.pending_learning_text
+            if confirmation_result.accepted or confirmation_result.cancelled:
                 direct_response_ready_announced = False
-                output_response(result, voice_mode)
-                continue
-
-            if is_confirmation_no(user_input):
-                pending_command = None
-                pending_command_learning_text = ""
-                direct_response_ready_announced = False
-                output_response("Acao cancelada.", voice_mode)
-                continue
-
-            output_response("Responda com sim ou nao.", voice_mode)
+            output_response(confirmation_result.message, voice_mode)
             continue
 
         if pending_smart_open_choice is not None:
@@ -4435,20 +4321,16 @@ def main():
             continue
 
         if pending_command is not None:
-            if is_confirmation_yes(user_input):
-                maybe_remember_pending_voice_correction(pending_command)
-                result = execute_command(pending_command, voice_mode=voice_mode)
-                pending_command = None
-                output_response(result, voice_mode)
-                continue
-
-            if is_confirmation_no(user_input):
-                pending_command = None
-                pending_command_learning_text = ""
-                output_response("Acao cancelada.", voice_mode)
-                continue
-
-            output_response("Responda com 'sim' ou 'nao'.", voice_mode)
+            confirmation_result = handle_pending_confirmation(
+                user_input,
+                pending_command,
+                pending_command_learning_text,
+                lambda command: execute_command(command, voice_mode=voice_mode),
+                maybe_remember_pending_voice_correction,
+            )
+            pending_command = confirmation_result.pending_command
+            pending_command_learning_text = confirmation_result.pending_learning_text
+            output_response(confirmation_result.message, voice_mode)
             continue
 
         if pending_smart_open_choice is not None:
@@ -4559,10 +4441,7 @@ def main():
             pending_command = processed
             pending_command_learning_text = ""
             direct_response_ready_announced = False
-            output_response(
-                f"Confirma a acao {processed.action} com {processed.params}?",
-                voice_mode,
-            )
+            output_response(confirmation_prompt(processed), voice_mode)
             continue
 
         result = execute_command(processed, voice_mode=voice_mode)

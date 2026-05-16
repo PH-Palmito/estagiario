@@ -1,4 +1,5 @@
 import difflib
+import json
 import re
 import time
 import unicodedata
@@ -17,6 +18,7 @@ from memory.voice_corrections import (
     remember_voice_correction,
 )
 from llm.chat import chat_response
+from llm.action_selector import select_read_action
 from tools.math_tools import calculate_basic_expression, calculate_percentage
 
 
@@ -762,11 +764,88 @@ def detect_bluetooth_command(user_input: str):
     return {"intent": "bluetooth_settings", "target": None}
 
 
+def _memory_key_from_text(text: str) -> str:
+    normalized = normalize_text(text)
+    normalized = re.sub(r"^(?:que\s+)?(?:eu\s+)?(?:prefiro|gosto|uso|quero|costumo|minha\s+preferencia\s+e|minha\s+preferencia\s+eh)\s+", "", normalized)
+    normalized = re.sub(r"^(?:o\s+)?(?:meu|minha)\s+", "", normalized)
+    words = [word for word in normalized.split() if word not in {"que", "de", "do", "da", "dos", "das", "um", "uma", "o", "a"}]
+    key = "_".join(words[:6]).strip("_")
+    return key or "nota"
+
+
+def _memory_namespace_from_text(text: str, default: str = "general") -> str:
+    normalized = normalize_text(text)
+    if any(term in normalized for term in {"prefiro", "preferencia", "gosto", "uso", "quero", "costumo"}):
+        return "preferences"
+    if any(term in normalized for term in {"briefing", "noticia", "noticias", "carteira", "investimento", "investimentos"}):
+        return "investments"
+    if any(term in normalized for term in {"treino", "academia", "musculo", "musculos"}):
+        return "training"
+    if any(term in normalized for term in {"codigo", "projeto", "programacao", "codex"}):
+        return "projects"
+    return default
+
+
 def detect_memory_command(user_input: str):
     lower = normalize_text(user_input)
+    if lower in {"o que voce sabe fazer", "o que voce consegue fazer"}:
+        return None
 
     if lower in {"listar memoria", "liste a memoria", "listar atalhos", "liste os atalhos", "o que voce lembra"}:
         return {"intent": "list_smart_memory", "target": None}
+
+    if lower in {
+        "listar memoria simples",
+        "liste memoria simples",
+        "listar memorias",
+        "liste memorias",
+        "memoria simples",
+    }:
+        return {"intent": "action_memory_list", "target": "general"}
+
+    list_match = re.match(r"^(?:listar|liste|mostrar|mostre|ver)\s+(?:a\s+)?memoria\s+(?:de\s+|sobre\s+)?(.+)$", lower)
+    if list_match and list_match.group(1).strip() not in {"atalhos", "apps", "sites"}:
+        namespace = _memory_namespace_from_text(list_match.group(1).strip(), default=list_match.group(1).strip().replace(" ", "_"))
+        return {"intent": "action_memory_list", "target": namespace}
+
+    recall_match = re.match(
+        r"^(?:o\s+que\s+voce\s+(?:sabe|lembra)|consulta|consulte|buscar|busque|lembra)\s+(?:sobre\s+|da\s+|do\s+)?(.+)$",
+        lower,
+    )
+    if recall_match:
+        key_text = recall_match.group(1).strip()
+        if key_text and key_text not in {"memoria", "atalhos"}:
+            return {
+                "intent": "action_memory_recall",
+                "target": {
+                    "namespace": _memory_namespace_from_text(key_text),
+                    "key": _memory_key_from_text(key_text),
+                },
+            }
+
+    explicit_memory_match = re.match(
+        r"^(?:lembre|lembra|memorize|salve|guarde|registre|anote)\s+(?:na\s+)?(?:memoria|memória|contexto)\s+(?:que\s+)?(.+)$",
+        user_input.strip(),
+        flags=re.I,
+    )
+    preference_match = re.match(
+        r"^(?:lembre|lembra|memorize|salve|guarde|registre|anote)\s+que\s+(?:eu\s+)?(?:prefiro|gosto|uso|quero|costumo)\s+(.+)$",
+        user_input.strip(),
+        flags=re.I,
+    )
+    memory_match = explicit_memory_match or preference_match
+    if memory_match:
+        fact = memory_match.group(1).strip(" .")
+        if fact:
+            namespace = _memory_namespace_from_text(fact, default="preferences" if preference_match else "general")
+            return {
+                "intent": "action_memory_remember",
+                "target": {
+                    "namespace": namespace,
+                    "key": _memory_key_from_text(fact),
+                    "value": fact,
+                },
+            }
 
     remember_match = re.match(
         r"^(?:lembre|lembra|memorize|salve)\s+que\s+(.+?)\s+e\s+(app|aplicativo|programa|site)$",
@@ -946,7 +1025,7 @@ def detect_navigation_command(user_input: str):
         "valor atual",
         "valor atual da carteira",
         "patrimonio",
-        "patrimÃ´nio",
+        "patrimônio",
         "rentabilidade",
         "rentabilidade da carteira",
         "proventos",
@@ -955,10 +1034,10 @@ def detect_navigation_command(user_input: str):
         "dividendos da carteira",
         "lucro",
         "prejuizo",
-        "prejuÃ­zo",
+        "prejuízo",
         "saldo da carteira",
         "posicoes",
-        "posiÃ§Ãµes",
+        "posições",
     }:
         return {"intent": "investment_memory_answer", "target": user_input.strip()}
 
@@ -1860,6 +1939,21 @@ def detect_image_analysis_command(user_input: str):
         return {"intent": "image_analyze_clipboard", "target": None}
 
     if lower in {
+        "analisar grafico",
+        "analisa grafico",
+        "analise grafico",
+        "interpretar grafico",
+        "interpreta grafico",
+        "interprete grafico",
+        "interpretar grafico da tela",
+        "interpretar gráfico",
+        "interpretar gráfico da tela",
+        "ler grafico",
+        "ler gráfico",
+    }:
+        return {"intent": "image_analyze_screen_graph", "target": None}
+
+    if lower in {
         "analisar imagem",
         "analisa imagem",
         "analise imagem",
@@ -1921,6 +2015,17 @@ def detect_image_analysis_command(user_input: str):
         "ver imagem da tela",
     }:
         return {"intent": "image_analyze_screen", "target": None}
+
+    for prefix in (
+        "analisar grafico ",
+        "analisar gráfico ",
+        "interpretar grafico ",
+        "interpretar gráfico ",
+    ):
+        if lower.startswith(prefix):
+            target = user_input[len(prefix):].strip()
+            if target:
+                return {"intent": "image_analyze_graph", "target": target}
 
     for prefix in (
         "analisar imagem ",
@@ -2389,10 +2494,13 @@ def detect_investment_question_command(user_input: str):
         "monitoramento",
         "monitorar ",
         "proximo ",
-        "prÃ³ximo ",
+        "próximo ",
         "houve ",
     )
     has_ticker = bool(re.search(r"\b[a-z]{4}\d{1,2}\b", lower))
+
+    if "carteira" in lower and any(term in lower for term in {"noticia", "noticias", "fato relevante", "fatos relevantes"}):
+        return {"intent": "investment_memory_answer", "target": user_input.strip()}
 
     if any(term in lower for term in investment_terms) and (
         lower.startswith(question_starters) or "?" in user_input
@@ -2422,7 +2530,7 @@ def detect_investment_strategy_command(user_input: str):
     if not value_match:
         value_match = re.search(r"\b(\d+(?:[.,]\d{1,2})?)\b", user_input)
     if (
-        any(term in lower for term in {"definir", "salvar", "colocar", "setar"})
+        any(term in lower for term in {"defina", "definir", "salve", "salvar", "colocar", "setar"})
         and "teto" in lower
         and ("preco" in lower.replace(" ", "") or "pre o" in lower or "preco teto" in lower)
         and price_match
@@ -2458,21 +2566,21 @@ def detect_investment_strategy_command(user_input: str):
         return {"intent": "investment_get_auto_ceiling_settings", "target": None}
 
     match = re.search(
-        r"(?:adicionar|colocar|incluir)\s+([a-z]{3,5}\d{0,2})(?:[-/](?:brl|usd|usdt))?\s+(?:na|a\s+na)?\s*watchlist",
+        r"(?:adicione|adicionar|coloque|colocar|inclua|incluir)\s+([a-z]{3,5}\d{0,2})(?:[-/](?:brl|usd|usdt))?\s+(?:na|a\s+na)?\s*watchlist",
         lower,
     )
     if match:
         return {"intent": "investment_add_watchlist", "ticker": match.group(1).upper()}
 
     match = re.search(
-        r"(?:remover|tirar|excluir)\s+([a-z]{3,5}\d{0,2})(?:[-/](?:brl|usd|usdt))?\s+(?:da|da\s+minha|da\s+watchlist)?",
+        r"(?:remova|remover|tire|tirar|exclua|excluir)\s+([a-z]{3,5}\d{0,2})(?:[-/](?:brl|usd|usdt))?\s+(?:da|da\s+minha|da\s+watchlist)?",
         lower,
     )
     if match and "watchlist" in lower:
         return {"intent": "investment_remove_watchlist", "ticker": match.group(1).upper()}
 
     match = re.search(
-        r"(?:definir|salvar|anotar)\s+tese\s+(?:de|da|para)?\s*([a-z]{4}\d{1,2})\s*(?:como|:)?\s*(.+)$",
+        r"(?:defina|definir|salve|salvar|anote|anotar)\s+tese\s+(?:de|da|para)?\s*([a-z]{4}\d{1,2})\s*(?:como|:)?\s*(.+)$",
         user_input.strip(),
         flags=re.I,
     )
@@ -2688,7 +2796,15 @@ def detect_rename_file(user_input: str):
 
 def detect_list_files(user_input: str):
     lower = normalize_text(user_input)
-    triggers = ["listar arquivos", "liste os arquivos", "mostrar arquivos", "mostre os arquivos", "ver arquivos"]
+    triggers = [
+        "listar arquivos",
+        "liste arquivos",
+        "liste os arquivos",
+        "mostrar arquivos",
+        "mostre arquivos",
+        "mostre os arquivos",
+        "ver arquivos",
+    ]
     if any(t in lower for t in triggers):
         return {"intent": "list_files", "target": ""}
     return None
@@ -2920,6 +3036,12 @@ def detect_map_command(user_input: str):
         "mostrar mapa de ",
         "mostrar mapa do ",
         "mostrar mapa da ",
+        "mostre o mapa de ",
+        "mostre o mapa do ",
+        "mostre o mapa da ",
+        "mostre mapa de ",
+        "mostre mapa do ",
+        "mostre mapa da ",
         "mostra mapa de ",
         "mostra mapa do ",
         "mostra mapa da ",
@@ -3476,6 +3598,71 @@ def detect_docs_context_command(user_input: str):
     return None
 
 
+def detect_action_core_command(user_input: str):
+    text = normalize_text(user_input).strip(" .")
+
+    if text in {"listar actions", "lista actions", "ver actions", "quais actions", "catalogo actions"}:
+        return {"intent": "action_tool_list", "target": None}
+
+    for category in {"training", "treino", "investments", "investimentos", "memory", "memoria", "files", "arquivos"}:
+        if text in {f"listar actions {category}", f"ver actions {category}", f"actions {category}"}:
+            category_map = {
+                "treino": "training",
+                "investimentos": "investments",
+                "memoria": "memory",
+                "arquivos": "files",
+            }
+            return {"intent": "action_tool_list", "target": category_map.get(category, category)}
+
+    if text in {"schema actions", "schemas actions", "tools schema", "schema tools"}:
+        return {"intent": "action_tool_schema", "target": None}
+
+    for prefix in ("processar arquivo ", "processa arquivo ", "analisar arquivo ", "analisa arquivo "):
+        if text.startswith(prefix):
+            return {"intent": "action_file_process", "target": user_input[len(prefix):].strip()}
+
+    action_exec = re.match(
+        r"^(?:executar|execute|rodar|rode)\s+action\s+([A-Za-z0-9_.-]+)(?:\s+(?:com\s+)?(?:argumentos?\s*)?)?(.*)$",
+        user_input.strip(),
+        flags=re.I,
+    )
+    if action_exec:
+        name = action_exec.group(1).strip()
+        raw_arguments = action_exec.group(2).strip()
+        arguments = {}
+        if raw_arguments:
+            json_start = min(
+                [idx for idx in (raw_arguments.find("{"), raw_arguments.find("[")) if idx >= 0],
+                default=-1,
+            )
+            if json_start >= 0:
+                try:
+                    arguments = json.loads(raw_arguments[json_start:])
+                except json.JSONDecodeError as exc:
+                    return {
+                        "intent": "respond",
+                        "target": None,
+                        "response": f"JSON de argumentos invalido: {exc.msg}.",
+                    }
+        if name:
+            return {"intent": "action_tool_execute", "target": {"name": name, "arguments": arguments}}
+
+    return None
+
+
+def detect_llm_action_command(user_input: str):
+    selected = select_read_action(user_input)
+    if not selected:
+        return None
+    return {
+        "intent": "action_tool_execute",
+        "target": {
+            "name": selected["name"],
+            "arguments": selected.get("arguments") or {},
+        },
+    }
+
+
 def detect_ollama_chat(user_input: str):
     text = normalize_text(user_input)
     if not text or len(text) <= 4:
@@ -3518,6 +3705,7 @@ def route(user_input: str):
         detect_write_file,
         detect_append_file,
         detect_read_file,
+        detect_investment_strategy_command,
         detect_delete_file,
         detect_copy_file,
         detect_move_file,
@@ -3540,13 +3728,13 @@ def route(user_input: str):
         detect_reminder_command,
         detect_agenda_command,
         detect_map_command,
-        detect_investment_strategy_command,
+        detect_investment_question_command,
         detect_browser_command,
         detect_image_analysis_command,
         detect_visual_question_command,
-        detect_investment_question_command,
         detect_vision_model_command,
         detect_docs_context_command,
+        detect_action_core_command,
         detect_open_chatgpt,
         detect_close_app,
         detect_window_command,
@@ -3555,6 +3743,7 @@ def route(user_input: str):
         detect_run_script,
         detect_profile_question,
         detect_short_unclear_text,
+        detect_llm_action_command,
         detect_ollama_chat,
         detect_light_conversation,
     ]

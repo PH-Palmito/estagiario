@@ -913,6 +913,23 @@
         outline: none;
       }
 
+      textarea {
+        width: 100%;
+        min-height: 108px;
+        padding: 11px 12px;
+        color: var(--text);
+        background: rgba(5, 11, 20, 0.72);
+        border: 1px solid rgba(96, 165, 250, 0.18);
+        outline: none;
+        resize: vertical;
+        font: 12px Consolas, "Cascadia Mono", monospace;
+        line-height: 1.45;
+      }
+
+      textarea:focus {
+        border-color: rgba(96, 165, 250, 0.48);
+      }
+
       .history-list,
       .workout-list {
         display: grid;
@@ -1099,52 +1116,28 @@
         </div>
         <div class="panel-body">
           <div class="text-card">
+            <p class="eyebrow">Action direta</p>
+            <div class="command-row">
+              <input id="actionNameInput" placeholder="Nome da action, ex: file.process" />
+              <button id="sendActionCommand" class="primary" type="button">Executar</button>
+            </div>
+            <textarea id="actionArgsInput" spellcheck="false" placeholder='{"path":"README.md","max_chars":1000}'></textarea>
+            <div class="media-note" id="actionBuilderStatus">Argumentos em JSON. Objetos aninhados são aceitos.</div>
+          </div>
+          <div class="text-card" style="margin-top:12px">
+            <p class="eyebrow">Schemas</p>
+            <div class="actions">
+              <button type="button" data-command="listar actions">Listar actions</button>
+              <button type="button" data-command="schema actions">Ver schemas</button>
+            </div>
+          </div>
+          <div class="text-card">
             <div class="metric-grid">
               <div class="metric"><span>Voz</span><strong id="commandsVoice">--</strong></div>
               <div class="metric"><span>Modo</span><strong id="commandsMode">--</strong></div>
             </div>
             <div class="command-overlay-head"><b>COMMAND OVERLAY</b><span id="commandsCount">0 ativos</span></div>
             <div class="command-overlay" id="commandsList"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel-window" data-window="treino">
-        <div class="panel-head">
-          <div><p class="eyebrow">Treino</p><h2 id="workoutTitle">Mapa corporal</h2></div>
-          <div class="actions">
-            <button type="button" data-command="treino de hoje">Hoje</button>
-            <button type="button" class="primary" data-command="marcar treino concluido">Concluir</button>
-            <button type="button" data-command="lesionei o braço por 3 dias">Lesão</button>
-            <button type="button" data-close>Fechar</button>
-          </div>
-        </div>
-        <div class="panel-body">
-          <div class="training-grid">
-            <div class="body-grid">
-              <div class="chart-wrap" data-label="frente"><div id="frontChart" class="chart"></div></div>
-              <div class="chart-wrap" data-label="costas"><div id="backChart" class="chart"></div></div>
-            </div>
-            <aside class="side-card">
-              <div class="metric-grid">
-                <div class="metric"><span>Meta</span><strong id="goal">0/170</strong></div>
-                <div class="metric"><span>Sequência</span><strong id="streak">0</strong></div>
-                <div class="metric"><span>Restante</span><strong id="remaining">170</strong></div>
-                <div class="metric"><span>Status</span><strong id="trainingStatus">--</strong></div>
-              </div>
-              <div>
-                <div class="row"><span><i class="dot dark"></i>sem dados</span><b>0</b></div>
-                <div class="row"><span><i class="dot blue"></i>recuperado</span><b>2</b></div>
-                <div class="row"><span><i class="dot yellow"></i>fadiga leve</span><b>4</b></div>
-                <div class="row"><span><i class="dot orange"></i>fadiga média</span><b>7</b></div>
-                <div class="row"><span><i class="dot red"></i>lesionado</span><b>10</b></div>
-              </div>
-              <div id="muscleStatus" style="margin-top:10px"></div>
-            </aside>
-          </div>
-          <div class="side-card" style="margin-top:12px">
-            <p class="eyebrow">Treino de hoje</p>
-            <ul class="workout-list" id="workoutList"></ul>
           </div>
         </div>
       </section>
@@ -1247,18 +1240,12 @@
       </section>
     </main>
 
-    <script src="./training_web/vendor/body-muscles.umd.min.js"></script>
-    <script src="./training_web/body_muscle_groups.js"></script>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script>
-      const { BodyChart, ViewSide } = window.BodyMuscles || {};
-      const muscleGroups = window.AXEL_BODY_MUSCLE_GROUPS || {};
-      const muscleLabels = window.AXEL_BODY_MUSCLE_LABELS || {};
       let bridge = null;
       let currentUiState = {};
       let appliedOpenPanelsKey = "";
       let activePanelHydrated = false;
-      let lastBodyStateKey = "";
       const lastRenderKeys = {};
       let panelNotifyTimer = null;
       let lastFrameAt = 0;
@@ -1322,18 +1309,6 @@
         ACCENT_3: "#93c5fd",
         ACCENT_MAGENTA: "#d946ef",
         GOOD: "#54e6c2",
-      };
-
-      const intensityByStatus = {
-        "sem dados": 0,
-        recuperado: 2,
-        "fadiga leve": 4,
-        recuperando: 4,
-        "fadiga media": 7,
-        "fadiga média": 7,
-        "treinado hoje": 7,
-        "fadiga alta": 9,
-        lesionado: 10,
       };
 
       function makeDots() {
@@ -1662,7 +1637,7 @@
 
       function animateCore(timestamp = 0) {
         const transitioning = timestamp < panelSwitchingUntil;
-        const hasPanelOpen = Boolean(document.querySelector(".panel-window.open"));
+        const hasPanelOpen = Boolean(document.querySelector(".panel-window.open")) || stage?.classList.contains("focus-mode");
         const frameDelay = transitioning ? 80 : hasPanelOpen ? 50 : 33;
         if (!lastFrameAt || timestamp - lastFrameAt >= frameDelay) {
           angle += hasPanelOpen ? 0.007 : 0.016;
@@ -1672,81 +1647,34 @@
         requestAnimationFrame(animateCore);
       }
 
-      const muscleIdToAxelGroup = {};
-      Object.entries(window.AXEL_BODY_MUSCLE_GROUPS || {}).forEach(([group, ids]) => {
-        (ids || []).forEach((id) => {
-          muscleIdToAxelGroup[id] = group;
-        });
-      });
-
-      function axelMuscleLabel(id, fallback) {
-        const group = muscleIdToAxelGroup[id];
-        return (window.AXEL_BODY_MUSCLE_LABELS || {})[group] || fallback || id;
-      }
-
-      const front = new BodyChart(document.getElementById("frontChart"), {
-        view: ViewSide.FRONT,
-        bodyState: {},
-        showViewLabel: false,
-        enableTransitions: true,
-        onMuscleClick: (id, name) => sendCommand(`status do treino ${axelMuscleLabel(id, name)}`),
-      });
-
-      const back = new BodyChart(document.getElementById("backChart"), {
-        view: ViewSide.BACK,
-        bodyState: {},
-        showViewLabel: false,
-        enableTransitions: true,
-        onMuscleClick: (id, name) => sendCommand(`status do treino ${axelMuscleLabel(id, name)}`),
-      });
-
-      function fixBodyChartViewBox() {
-        const frontSvg = document.querySelector("#frontChart svg");
-        const backSvg = document.querySelector("#backChart svg");
-        if (frontSvg) {
-          frontSvg.setAttribute("viewBox", "0 0 35 93");
-          frontSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-          frontSvg.style.setProperty("width", "auto", "important");
-          frontSvg.style.setProperty("height", "100%", "important");
-          frontSvg.style.setProperty("max-width", "100%", "important");
-          frontSvg.style.setProperty("max-height", "100%", "important");
-          frontSvg.style.setProperty("overflow", "visible", "important");
-          frontSvg.style.setProperty("transform", "translateY(-18%) scale(0.64)", "important");
-          frontSvg.style.setProperty("transform-origin", "center center", "important");
-        }
-        if (backSvg) {
-          backSvg.setAttribute("viewBox", "37 0 35 93");
-          backSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-          backSvg.style.setProperty("width", "auto", "important");
-          backSvg.style.setProperty("height", "100%", "important");
-          backSvg.style.setProperty("max-width", "100%", "important");
-          backSvg.style.setProperty("max-height", "100%", "important");
-          backSvg.style.setProperty("overflow", "visible", "important");
-          backSvg.style.setProperty("transform", "translateY(-18%) scale(0.64)", "important");
-          backSvg.style.setProperty("transform-origin", "center center", "important");
-        }
-      }
-      fixBodyChartViewBox();
-      requestAnimationFrame(fixBodyChartViewBox);
-      setTimeout(fixBodyChartViewBox, 250);
-
       function sendCommand(text) {
         const value = String(text || "").trim();
         if (!value) return;
         if (bridge) bridge.sendCommand(value);
       }
 
-      function buildBodyState(fatigue) {
-        const bodyState = {};
-        for (const [group, ids] of Object.entries(muscleGroups)) {
-          const status = String(fatigue?.[group] || "sem dados").toLowerCase();
-          const intensity = intensityByStatus[status] ?? 0;
-          for (const id of ids) {
-            if (intensity <= 0 && status !== "lesionado") continue;
-            bodyState[id] = { intensity, selected: status === "lesionado" };
+      function sendActionFromBuilder() {
+        const nameInput = document.getElementById("actionNameInput");
+        const argsInput = document.getElementById("actionArgsInput");
+        const status = document.getElementById("actionBuilderStatus");
+        const name = String(nameInput?.value || "").trim();
+        const rawArgs = String(argsInput?.value || "").trim();
+        if (!name) {
+          if (status) status.textContent = "Informe o nome da action.";
+          return;
+        }
+        let normalizedArgs = "{}";
+        if (rawArgs) {
+          try {
+            const parsed = JSON.parse(rawArgs);
+            normalizedArgs = JSON.stringify(parsed);
+          } catch (error) {
+            if (status) status.textContent = `JSON inválido: ${error.message}`;
+            return;
           }
         }
-        return bodyState;
+        sendCommand(`executar action ${name} ${normalizedArgs}`);
+        if (status) status.textContent = `Enviado: ${name}`;
       }
 
       function setText(id, value) {
@@ -1761,12 +1689,6 @@
         return true;
       }
 
-      function renderMuscles(fatigue) {
-        document.getElementById("muscleStatus").innerHTML = Object.entries(muscleLabels)
-          .map(([key, label]) => `<div class="row"><span>${label}</span><b>${fatigue?.[key] || "sem dados"}</b></div>`)
-          .join("");
-      }
-
       function renderHistory(history) {
         const items = Array.isArray(history) ? history.slice(-8).reverse() : [];
         const html = items.length
@@ -1774,15 +1696,6 @@
           : `<li>Sem histórico recente.</li>`;
         document.getElementById("historyList").innerHTML = html;
         document.getElementById("contextHistory").innerHTML = html;
-      }
-
-      function renderWorkout(workout) {
-        const warmup = Array.isArray(workout?.warmup) ? workout.warmup.slice(0, 3) : [];
-        const exercises = Array.isArray(workout?.exercises) ? workout.exercises.slice(0, 7) : [];
-        const rows = [...warmup, ...exercises];
-        document.getElementById("workoutList").innerHTML = rows.length
-          ? rows.map(([name, detail]) => `<li><b>${name}</b><br><span>${detail}</span></li>`).join("")
-          : `<li>Descanso total.</li>`;
       }
 
       function renderMedia(media) {
@@ -1869,6 +1782,10 @@
         return ui.mode || "comando";
       }
 
+      function panelTargetExists(name) {
+        return name === "treino" || Boolean(document.querySelector(`[data-window="${name}"]`));
+      }
+
       function renderSystemPanels(ui) {
         const hotword = ui.hotword_enabled ? "ativa" : "manual";
         const channel = ui.visible ? "painel + voz" : "voz";
@@ -1916,32 +1833,14 @@
 
       window.setAxelState = function setAxelState(payload) {
         const ui = payload?.ui || {};
-        const training = payload?.training || {};
-        const workout = training?.workout || {};
-        const fatigue = training?.fatigue || {};
-        const bodyState = buildBodyState(fatigue);
         currentUiState = ui;
 
-        const bodyStateKey = JSON.stringify(bodyState);
-        if (bodyStateKey !== lastBodyStateKey) {
-          front.update({ bodyState });
-          back.update({ bodyState });
-          fixBodyChartViewBox();
-          lastBodyStateKey = bodyStateKey;
-        }
         setText("assistantName", ui.assistant_name || "Axel");
         setText("status", ui.status || "--");
         setText("mode", ui.mode || "--");
         setText("mic", ui.microphone || "--");
         setText("lastCommand", ui.last_command || "--");
-        setText("workoutTitle", `${workout.label || "Hoje"}: ${workout.title || "Treino"}`);
-        setText("goal", `${training.completed_this_year || 0}/${training.target_days || 170}`);
-        setText("streak", String(training.streak || 0));
-        setText("remaining", String(training.remaining ?? 170));
-        setText("trainingStatus", training.completed_today ? "concluído" : "ativo");
-        if (hasChanged("fatigue", fatigue)) renderMuscles(fatigue);
         if (hasChanged("history", ui.history)) renderHistory(ui.history);
-        if (hasChanged("workout", workout)) renderWorkout(workout);
         if (hasChanged("media", payload?.media || {})) renderMedia(payload?.media || {});
         if (hasChanged("weather", payload?.weather || {})) renderWeather(payload?.weather || {});
         if (hasChanged("investment", payload?.investment || {})) renderInvestment(payload?.investment || {});
@@ -1954,7 +1853,7 @@
         if (requestKey && requestKey !== appliedOpenPanelsKey) {
           const mapped = requestedPanels
             .map((name) => ({ text: "texto", treino: "treino", midia: "midia", tempo: "tempo", invest: "carteira", noticias: "noticias", mapas: "mapas" }[String(name).toLowerCase()] || String(name).toLowerCase()))
-            .find((name) => document.querySelector(`[data-window="${name}"]`));
+            .find((name) => panelTargetExists(name));
           if (mapped) {
             requestPanelOpen(mapped, false, true);
             activePanelHydrated = true;
@@ -1966,9 +1865,11 @@
         if (payload?.map?.open && document.querySelector('[data-window="mapas"]')) {
           requestPanelOpen("mapas", false, true);
           activePanelHydrated = true;
-        } else if (!activePanelHydrated && ui.active_panel && document.querySelector(`[data-window="${ui.active_panel}"]`)) {
+        } else if (ui.active_panel && ui.active_panel !== currentPanelName && panelTargetExists(ui.active_panel)) {
           requestPanelOpen(ui.active_panel, false, true);
           activePanelHydrated = true;
+        } else if (!ui.active_panel && !payload?.map?.open && !requestKey && currentPanelName) {
+          requestPanelOpen("", false, true);
         }
       };
 
@@ -2152,6 +2053,10 @@
       });
       document.getElementById("commandInput").addEventListener("keydown", (event) => {
         if (event.key === "Enter") document.getElementById("sendCommand").click();
+      });
+      document.getElementById("sendActionCommand").addEventListener("click", sendActionFromBuilder);
+      document.getElementById("actionNameInput").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") sendActionFromBuilder();
       });
 
       makeDots();

@@ -346,6 +346,34 @@ def parse_training_datetime(text: str, now: datetime | None = None) -> datetime:
     return base
 
 
+def parse_training_datetimes(text: str, now: datetime | None = None) -> list[datetime]:
+    base = _today(now)
+    raw = _strip_accents(text).lower()
+    dates = []
+    seen = set()
+
+    for match in re.finditer(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b", raw):
+        day = int(match.group(1))
+        month = int(match.group(2))
+        year_raw = match.group(3)
+        year = int(year_raw) if year_raw else base.year
+        if year < 100:
+            year += 2000
+        try:
+            date = base.replace(year=year, month=month, day=day)
+        except ValueError:
+            continue
+        key = date.date().isoformat()
+        if key not in seen:
+            dates.append(date)
+            seen.add(key)
+
+    if dates:
+        return dates
+
+    return [parse_training_datetime(text, now)]
+
+
 def _active_injuries(state: dict, now: datetime | None = None) -> list[tuple[str, dict]]:
     today = _date_key(now)
     rows = []
@@ -499,8 +527,14 @@ def mark_training_completed(now: datetime | None = None, allow_rest_day: bool = 
 
 
 def mark_planned_training_from_text(text: str, now: datetime | None = None) -> str:
-    target = parse_training_datetime(text, now)
-    return mark_training_completed(target)
+    targets = parse_training_datetimes(text, now)
+    results = []
+    for target in targets:
+        results.append(mark_training_completed(target, allow_rest_day=True))
+    if len(results) == 1:
+        return results[0]
+    done = completed_this_year(now=now)
+    return " ".join(results) + f" Total atual: {done}/{TARGET_DAYS}."
 
 
 def mark_named_workout_from_text(text: str, now: datetime | None = None) -> str:
@@ -621,6 +655,19 @@ def mark_custom_training_from_text(text: str, now: datetime | None = None) -> st
     done = completed_this_year(state, now)
     names = ", ".join(MUSCLE_NAMES.get(m, m) for m in new_muscles)
     return f"Registrei treino livre de {names} em {datetime.fromisoformat(date_key).strftime('%d/%m')}. Progresso do ano: {done}/{TARGET_DAYS}."
+
+
+def mark_custom_training_for_dates_from_text(muscle_text: str, date_text: str, now: datetime | None = None) -> str:
+    muscles = parse_muscles(muscle_text)
+    if not muscles:
+        return "Quais grupos voce treinou? Pode dizer peito, costas, ombros, bíceps, tríceps, antebraço, core ou pernas."
+
+    dates = parse_training_datetimes(date_text, now)
+    results = []
+    for target in dates:
+        date_label = target.strftime("%d/%m/%Y")
+        results.append(mark_custom_training_from_text(f"{muscle_text} em {date_label}", now=target))
+    return " ".join(results)
 
 
 def skip_today_training(now: datetime | None = None) -> str:

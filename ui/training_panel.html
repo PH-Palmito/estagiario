@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Axel Treino</title>
+    <style>
+      :root {
+        --bg: #050b14;
+        --panel: #0b1220;
+        --panel-2: #101827;
+        --line: rgba(96, 165, 250, 0.2);
+        --line-soft: rgba(96, 165, 250, 0.12);
+        --text: #edf2ff;
+        --soft: #b8c7dd;
+        --dim: #73849d;
+        --blue: #60a5fa;
+        --cyan: #38bdf8;
+        --yellow: #facc15;
+        --orange: #f97316;
+        --red: #ff4d5d;
+      }
+
+      * { box-sizing: border-box; }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        color: var(--text);
+        background: transparent;
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+
+      .panel-window {
+        width: 100%;
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        border: 1px solid rgba(96, 165, 250, 0.25);
+        background: rgba(9, 17, 31, 0.99);
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 15px 16px;
+        border-bottom: 1px solid rgba(96, 165, 250, 0.16);
+      }
+
+      .eyebrow {
+        margin: 0 0 4px;
+        color: var(--dim);
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      h2,
+      p { margin: 0; }
+
+      h2 { font-size: 16px; }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        padding: 9px 12px;
+        color: var(--text);
+        background: #101827;
+        border: 1px solid rgba(96, 165, 250, 0.18);
+        cursor: pointer;
+      }
+
+      button.primary {
+        color: #06101d;
+        background: var(--blue);
+        border-color: var(--blue);
+        font-weight: 800;
+      }
+
+      .panel-body {
+        min-height: 0;
+        overflow: auto;
+        padding: 14px;
+      }
+
+      .training-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 220px;
+        gap: 12px;
+      }
+
+      .body-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .chart-wrap {
+        position: relative;
+        height: min(70vh, 680px);
+        min-height: 560px;
+        padding: 32px 18px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(96, 165, 250, 0.15);
+        background: rgba(5, 11, 20, 0.55);
+        overflow: hidden;
+      }
+
+      .chart-wrap::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 10px;
+        top: 9px;
+        color: var(--dim);
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .chart {
+        width: 100%;
+        height: 100%;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+      }
+
+      .chart .body-chart-container {
+        width: 100% !important;
+        height: 100% !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        overflow: visible !important;
+      }
+
+      .chart svg {
+        width: auto !important;
+        height: 100% !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        object-fit: contain;
+        overflow: visible;
+        filter: drop-shadow(0 0 14px rgba(96, 165, 250, 0.16));
+        transform: translateY(-18%) scale(0.64);
+        transform-origin: center center;
+      }
+
+      .side-card,
+      .text-card {
+        padding: 12px;
+        border: 1px solid rgba(96, 165, 250, 0.15);
+        background: rgba(16, 24, 39, 0.72);
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .metric {
+        padding: 10px;
+        border: 1px solid rgba(96, 165, 250, 0.12);
+        background: rgba(5, 11, 20, 0.42);
+      }
+
+      .metric span {
+        display: block;
+        color: var(--dim);
+        font-size: 10px;
+        text-transform: uppercase;
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 5px;
+        font-size: 15px;
+        overflow-wrap: anywhere;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 5px 0;
+        color: var(--soft);
+        font-size: 12px;
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        display: inline-block;
+        margin-right: 7px;
+      }
+
+      .blue { background: var(--cyan); }
+      .yellow { background: var(--yellow); }
+      .orange { background: var(--orange); }
+      .red { background: var(--red); box-shadow: 0 0 12px rgba(239, 68, 68, 0.76); }
+      .dark { background: #1f2937; }
+
+      .workout-list {
+        display: grid;
+        gap: 8px;
+        padding: 0;
+        margin: 10px 0 0;
+        list-style: none;
+      }
+
+      .workout-list li {
+        padding: 9px;
+        color: var(--soft);
+        border: 1px solid rgba(96, 165, 250, 0.12);
+        background: rgba(5, 11, 20, 0.45);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      @media (max-width: 900px) {
+        .training-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .body-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .chart-wrap {
+          min-height: 480px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <section class="panel-window">
+      <div class="panel-head">
+        <div><p class="eyebrow">Treino</p><h2 id="workoutTitle">Mapa corporal</h2></div>
+        <div class="actions">
+          <button type="button" data-command="treino de hoje">Hoje</button>
+          <button type="button" class="primary" data-command="marcar treino concluido">Concluir</button>
+          <button type="button" data-command="lesionei o braço por 3 dias">Lesão</button>
+          <button type="button" id="closeTraining">Fechar</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="training-grid">
+          <div class="body-grid">
+            <div class="chart-wrap" data-label="frente"><div id="frontChart" class="chart"></div></div>
+            <div class="chart-wrap" data-label="costas"><div id="backChart" class="chart"></div></div>
+          </div>
+          <aside class="side-card">
+            <div class="metric-grid">
+              <div class="metric"><span>Meta</span><strong id="goal">0/170</strong></div>
+              <div class="metric"><span>Sequência</span><strong id="streak">0</strong></div>
+              <div class="metric"><span>Restante</span><strong id="remaining">170</strong></div>
+              <div class="metric"><span>Status</span><strong id="trainingStatus">--</strong></div>
+            </div>
+            <div>
+              <div class="row"><span><i class="dot dark"></i>sem dados</span><b>0</b></div>
+              <div class="row"><span><i class="dot blue"></i>recuperado</span><b>2</b></div>
+              <div class="row"><span><i class="dot yellow"></i>fadiga leve</span><b>4</b></div>
+              <div class="row"><span><i class="dot orange"></i>fadiga média</span><b>7</b></div>
+              <div class="row"><span><i class="dot red"></i>lesionado</span><b>10</b></div>
+            </div>
+            <div id="muscleStatus" style="margin-top:10px"></div>
+          </aside>
+        </div>
+        <div class="side-card" style="margin-top:12px">
+          <p class="eyebrow">Treino de hoje</p>
+          <ul class="workout-list" id="workoutList"></ul>
+        </div>
+      </div>
+    </section>
+
+    <script src="./training_web/vendor/body-muscles.umd.min.js"></script>
+    <script src="./training_web/body_muscle_groups.js"></script>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script>
+      const { BodyChart, ViewSide } = window.BodyMuscles || {};
+      const muscleGroups = window.AXEL_BODY_MUSCLE_GROUPS || {};
+      const muscleLabels = window.AXEL_BODY_MUSCLE_LABELS || {};
+      const lastRenderKeys = {};
+      let bridge = null;
+      let lastBodyStateKey = "";
+
+      const intensityByStatus = {
+        "sem dados": 0,
+        recuperado: 2,
+        "fadiga leve": 4,
+        recuperando: 4,
+        "fadiga media": 7,
+        "fadiga média": 7,
+        "treinado hoje": 7,
+        "fadiga alta": 9,
+        lesionado: 10,
+      };
+
+      function sendCommand(text) {
+        const value = String(text || "").trim();
+        if (!value || !bridge) return;
+        bridge.sendCommand(value);
+      }
+
+      function setText(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value || "--";
+      }
+
+      function hasChanged(key, value) {
+        const next = JSON.stringify(value ?? null);
+        if (lastRenderKeys[key] === next) return false;
+        lastRenderKeys[key] = next;
+        return true;
+      }
+
+      function buildBodyState(fatigue) {
+        const bodyState = {};
+        for (const [group, ids] of Object.entries(muscleGroups)) {
+          const status = String(fatigue?.[group] || "sem dados").toLowerCase();
+          const intensity = intensityByStatus[status] ?? 0;
+          for (const id of ids) {
+            if (intensity <= 0 && status !== "lesionado") continue;
+            bodyState[id] = { intensity, selected: status === "lesionado" };
+          }
+        }
+        return bodyState;
+      }
+
+      function renderMuscles(fatigue) {
+        document.getElementById("muscleStatus").innerHTML = Object.entries(muscleLabels)
+          .map(([key, label]) => `<div class="row"><span>${label}</span><b>${fatigue?.[key] || "sem dados"}</b></div>`)
+          .join("");
+      }
+
+      function renderWorkout(workout) {
+        const warmup = Array.isArray(workout?.warmup) ? workout.warmup.slice(0, 3) : [];
+        const exercises = Array.isArray(workout?.exercises) ? workout.exercises.slice(0, 7) : [];
+        const rows = [...warmup, ...exercises];
+        document.getElementById("workoutList").innerHTML = rows.length
+          ? rows.map(([name, detail]) => `<li><b>${name}</b><br><span>${detail}</span></li>`).join("")
+          : `<li>Descanso total.</li>`;
+      }
+
+      const muscleIdToAxelGroup = {};
+      Object.entries(window.AXEL_BODY_MUSCLE_GROUPS || {}).forEach(([group, ids]) => {
+        (ids || []).forEach((id) => {
+          muscleIdToAxelGroup[id] = group;
+        });
+      });
+
+      function axelMuscleLabel(id, fallback) {
+        const group = muscleIdToAxelGroup[id];
+        return (window.AXEL_BODY_MUSCLE_LABELS || {})[group] || fallback || id;
+      }
+
+      const front = new BodyChart(document.getElementById("frontChart"), {
+        view: ViewSide.FRONT,
+        bodyState: {},
+        showViewLabel: false,
+        enableTransitions: true,
+        onMuscleClick: (id, name) => sendCommand(`status do treino ${axelMuscleLabel(id, name)}`),
+      });
+
+      const back = new BodyChart(document.getElementById("backChart"), {
+        view: ViewSide.BACK,
+        bodyState: {},
+        showViewLabel: false,
+        enableTransitions: true,
+        onMuscleClick: (id, name) => sendCommand(`status do treino ${axelMuscleLabel(id, name)}`),
+      });
+
+      function fixBodyChartViewBox() {
+        const frontSvg = document.querySelector("#frontChart svg");
+        const backSvg = document.querySelector("#backChart svg");
+        if (frontSvg) {
+          frontSvg.setAttribute("viewBox", "0 0 35 93");
+          frontSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+        }
+        if (backSvg) {
+          backSvg.setAttribute("viewBox", "37 0 35 93");
+          backSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+        }
+      }
+
+      window.setTrainingState = function setTrainingState(payload) {
+        const training = payload?.training || {};
+        const workout = training?.workout || {};
+        const fatigue = training?.fatigue || {};
+        const bodyState = buildBodyState(fatigue);
+        const bodyStateKey = JSON.stringify(bodyState);
+        if (bodyStateKey !== lastBodyStateKey) {
+          front.update({ bodyState });
+          back.update({ bodyState });
+          fixBodyChartViewBox();
+          lastBodyStateKey = bodyStateKey;
+        }
+        setText("workoutTitle", `${workout.label || "Hoje"}: ${workout.title || "Treino"}`);
+        setText("goal", `${training.completed_this_year || 0}/${training.target_days || 170}`);
+        setText("streak", String(training.streak || 0));
+        setText("remaining", String(training.remaining ?? 170));
+        setText("trainingStatus", training.completed_today ? "concluído" : "ativo");
+        if (hasChanged("fatigue", fatigue)) renderMuscles(fatigue);
+        if (hasChanged("workout", workout)) renderWorkout(workout);
+      };
+
+      document.querySelectorAll("[data-command]").forEach((button) => {
+        button.addEventListener("click", () => sendCommand(button.dataset.command));
+      });
+      document.getElementById("closeTraining").addEventListener("click", () => {
+        bridge?.setActivePanel("");
+      });
+
+      fixBodyChartViewBox();
+      requestAnimationFrame(fixBodyChartViewBox);
+      setTimeout(fixBodyChartViewBox, 250);
+
+      new QWebChannel(qt.webChannelTransport, (channel) => {
+        bridge = channel.objects.axelBridge;
+        bridge.requestRefresh();
+      });
+    </script>
+  </body>
+</html>

@@ -75,6 +75,7 @@ def normalize_action(old_action: dict) -> Command:
             action="close_app",
             params={"target": target},
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "smart_close_app":
@@ -82,6 +83,7 @@ def normalize_action(old_action: dict) -> Command:
             action="smart_close_app",
             params={"target": target},
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "context_close":
@@ -124,6 +126,7 @@ def normalize_action(old_action: dict) -> Command:
             action="run_script",
             params={"target": target},
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "type_text":
@@ -131,6 +134,7 @@ def normalize_action(old_action: dict) -> Command:
             action="type_text",
             params={"content": content or target},
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "open_url":
@@ -408,6 +412,7 @@ def normalize_action(old_action: dict) -> Command:
             action="investment_refresh_public_wallet",
             params={},
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "investment_set_price_ceiling":
@@ -418,6 +423,7 @@ def normalize_action(old_action: dict) -> Command:
                 "price": old_action.get("price"),
             },
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "investment_set_auto_ceiling_margin":
@@ -425,6 +431,7 @@ def normalize_action(old_action: dict) -> Command:
             action="investment_set_auto_ceiling_margin",
             params={"value": old_action.get("value")},
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "investment_get_auto_ceiling_settings":
@@ -439,6 +446,7 @@ def normalize_action(old_action: dict) -> Command:
             action="investment_add_watchlist",
             params={"ticker": old_action.get("ticker")},
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "investment_remove_watchlist":
@@ -446,6 +454,7 @@ def normalize_action(old_action: dict) -> Command:
             action="investment_remove_watchlist",
             params={"ticker": old_action.get("ticker")},
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "investment_list_watchlist":
@@ -462,6 +471,74 @@ def normalize_action(old_action: dict) -> Command:
                 "ticker": old_action.get("ticker"),
                 "thesis": old_action.get("thesis"),
             },
+            source="router",
+            requires_confirmation=True,
+        )
+
+    if intent in {"action_tool_list", "action_tool_schema"}:
+        return Command(
+            action=intent,
+            params={"category": target},
+            source="router",
+        )
+
+    if intent == "action_tool_execute":
+        payload = target if isinstance(target, dict) else {}
+        name = payload.get("name")
+        requires_confirmation = False
+        try:
+            from actions import ensure_default_actions, get_action
+
+            ensure_default_actions()
+            spec = get_action(name)
+            requires_confirmation = bool(getattr(spec, "requires_confirmation", False)) if spec else False
+        except Exception:
+            requires_confirmation = False
+        return Command(
+            action="action_tool_execute",
+            params={
+                "name": name,
+                "arguments": payload.get("arguments") or {},
+            },
+            source="router",
+            requires_confirmation=requires_confirmation,
+        )
+
+    if intent == "action_file_process":
+        return Command(
+            action="action_file_process",
+            params={"path": target},
+            source="router",
+        )
+
+    if intent == "action_memory_remember":
+        payload = target if isinstance(target, dict) else {}
+        return Command(
+            action="action_memory_remember",
+            params={
+                "namespace": payload.get("namespace", "general"),
+                "key": payload.get("key"),
+                "value": payload.get("value"),
+            },
+            source="router",
+            requires_confirmation=True,
+        )
+
+    if intent == "action_memory_recall":
+        payload = target if isinstance(target, dict) else {}
+        return Command(
+            action="action_memory_recall",
+            params={
+                "namespace": payload.get("namespace", "general"),
+                "key": payload.get("key"),
+            },
+            source="router",
+        )
+
+    if intent == "action_memory_list":
+        return Command(
+            action="action_memory_list",
+            params={"namespace": target or "general"},
             source="router",
         )
 
@@ -598,6 +675,13 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent == "image_analyze_graph":
+        return Command(
+            action="image_analyze_graph",
+            params={"target": target},
+            source="router",
+        )
+
     if intent == "vision_answer_question":
         return Command(
             action="vision_answer_question",
@@ -617,6 +701,7 @@ def normalize_action(old_action: dict) -> Command:
             action="file_create",
             params={"path": target},
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "write_file":
@@ -627,6 +712,7 @@ def normalize_action(old_action: dict) -> Command:
                 "content": content or "",
             },
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "append_file":
@@ -637,6 +723,7 @@ def normalize_action(old_action: dict) -> Command:
                 "content": content or "",
             },
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "replace_in_file":
@@ -648,7 +735,7 @@ def normalize_action(old_action: dict) -> Command:
                 "new_text": new_text or "",
             },
             source="router",
-            requires_confirmation=False,
+            requires_confirmation=True,
         )
 
     if intent == "read_file":
@@ -674,6 +761,7 @@ def normalize_action(old_action: dict) -> Command:
                 "dst": target.get("dst") if isinstance(target, dict) else None,
             },
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "move_file":
@@ -695,6 +783,7 @@ def normalize_action(old_action: dict) -> Command:
                 "new_name": target.get("new_name") if isinstance(target, dict) else None,
             },
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "create_folder":
@@ -702,6 +791,7 @@ def normalize_action(old_action: dict) -> Command:
             action="folder_create",
             params={"path": target},
             source="router",
+            requires_confirmation=True,
         )
 
     if intent == "run_macro":
@@ -709,6 +799,7 @@ def normalize_action(old_action: dict) -> Command:
             action="run_macro",
             params={"steps": target or []},
             source="router",
+            requires_confirmation=True,
         )
 
     return Command(

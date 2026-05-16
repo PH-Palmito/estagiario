@@ -39,6 +39,7 @@ except Exception:
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML_PATH = ROOT / "ui" / "axel_web_hud.html"
+TRAINING_HTML_PATH = ROOT / "ui" / "training_panel.html"
 
 
 class AxelBridge(QObject):
@@ -63,6 +64,7 @@ class AxelBridge(QObject):
         if panel != "mapas":
             patch["map_panel_open"] = False
         update_ui_state(patch)
+        self.window.push_state()
 
     @Slot()
     def clearOpenPanels(self):
@@ -105,6 +107,18 @@ class AxelWebHud(QMainWindow):
         self.view.loadFinished.connect(self._on_load_finished)
         self.view.setUrl(QUrl.fromLocalFile(str(HTML_PATH)))
 
+        self.training_view = QWebEngineView(self)
+        training_settings = self.training_view.settings()
+        training_settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
+        training_settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
+        training_settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+        self.training_channel = QWebChannel(self.training_view.page())
+        self.training_channel.registerObject("axelBridge", self.bridge)
+        self.training_view.page().setWebChannel(self.training_channel)
+        self.training_view.setUrl(QUrl.fromLocalFile(str(TRAINING_HTML_PATH)))
+        self.training_view.hide()
+        self.training_view.raise_()
+
         self.timer = QTimer(self)
         self.timer.setInterval(1500)
         self.timer.timeout.connect(self.push_state)
@@ -123,6 +137,20 @@ class AxelWebHud(QMainWindow):
         if not self._closing_from_state:
             update_ui_state({"visible": False})
         super().closeEvent(event)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._position_training_view()
+
+    def _position_training_view(self):
+        if not hasattr(self, "training_view"):
+            return
+        width = min(1120, max(760, self.width() - 112))
+        height = max(560, self.height() - 44)
+        x = max(24, (self.width() - width) // 2)
+        y = max(12, (self.height() - height) // 2)
+        self.training_view.setGeometry(x, y, min(width, self.width() - 48), min(height, self.height() - 24))
+        self.training_view.raise_()
 
     def _media_payload(self) -> dict:
         if time.time() - self._cache["media"]["at"] < 10:
@@ -265,6 +293,14 @@ class AxelWebHud(QMainWindow):
             self.close()
             return
         payload = json.dumps(payload_data, ensure_ascii=False)
+        training_open = str(payload_data.get("ui", {}).get("active_panel") or "").strip().lower() == "treino"
+        if training_open:
+            self._position_training_view()
+            self.training_view.show()
+            self.training_view.raise_()
+            self.training_view.page().runJavaScript(f"window.setTrainingState && window.setTrainingState({payload});")
+        else:
+            self.training_view.hide()
         self._send_payload(payload)
 
     def _send_payload(self, payload: str):

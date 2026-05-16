@@ -77,31 +77,31 @@ IMPACT_TERMS = {
 ACTIONABLE_TERMS = {
     "resultado",
     "lucro",
-    "prejuÃ­zo",
+    "prejuízo",
     "prejuizo",
     "dividendo",
     "provento",
     "jcp",
     "guidance",
-    "aquisiÃ§Ã£o",
+    "aquisição",
     "aquisicao",
-    "fusÃ£o",
+    "fusão",
     "fusao",
     "oferta",
-    "captaÃ§Ã£o",
+    "captação",
     "captacao",
     "fato relevante",
     "comunicado",
     "assembleia",
-    "governanÃ§a",
+    "governança",
     "governanca",
-    "regulaÃ§Ã£o",
+    "regulação",
     "regulacao",
     "processo",
     "fraude",
-    "dÃ­vida",
+    "dívida",
     "divida",
-    "vacÃ¢ncia",
+    "vacância",
     "vacancia",
     "volatilidade",
     "etf",
@@ -134,7 +134,7 @@ GENERIC_ROUNDUP_TERMS = {
     "criptomoedas hoje",
     "mercado cripto",
     "preco do bitcoin hoje",
-    "preÃ§o do bitcoin hoje",
+    "preço do bitcoin hoje",
 }
 
 
@@ -384,15 +384,15 @@ def classify_news_articles(
                 "mercado cripto",
                 "mercado de cripto",
                 "preco do bitcoin hoje",
-                "preÃ§o do bitcoin hoje",
+                "preço do bitcoin hoje",
             }
         )
         if is_crypto and not actionable_hits and not re.search(r"\b(etf|sec|fed|halving|regula\w+|juros|liquida\w+|fluxo|reserva|tesouro)\b", normalized):
             score -= 0.22
-            reasons.append("cripto sem gatilho acionÃ¡vel")
+            reasons.append("cripto sem gatilho acionável")
         if is_generic_crypto and not actionable_hits:
             score -= 0.20
-            reasons.append("matÃ©ria ampla de cripto")
+            reasons.append("matéria ampla de cripto")
 
         score = max(0.0, min(1.0, round(score, 2)))
 

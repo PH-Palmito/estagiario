@@ -819,7 +819,7 @@ def answer_last_visual_question(question: str) -> str:
 def answer_visual_question_with_memory(question: str) -> str:
     current_topic = load_current_topic() or {}
     visual_answer = answer_last_visual_question(question)
-    if "Ainda nÃ£o tenho uma pÃ¡gina ou imagem analisada" not in visual_answer:
+    if "Ainda não tenho uma página ou imagem analisada" not in visual_answer:
         topic_name = str(current_topic.get("topic", "")).strip() or str(current_topic.get("page_title", "")).strip() or "Assunto visual"
         summary = str(current_topic.get("summary", "")).strip()
         update_current_topic_from_conversation(
@@ -967,13 +967,13 @@ def answer_visual_question_with_context_memory(question: str) -> str:
     visual_answer = answer_last_visual_question(question)
     fallback_markers = (
         "Ainda n",
-        "NÃ£o consigo confirmar",
+        "Não consigo confirmar",
         "Nao consigo confirmar",
-        "NÃ£o encontrei",
+        "Não encontrei",
         "Nao encontrei",
         "consigo confirmar",
         "reler a tela",
-        "resumir a pÃ¡gina de novo",
+        "resumir a página de novo",
     )
     if not any(marker in visual_answer for marker in fallback_markers):
         topic_name = str(current_topic.get("topic", "")).strip() or str(current_topic.get("page_title", "")).strip() or "Assunto visual"
