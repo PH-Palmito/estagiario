@@ -5,10 +5,12 @@ from pathlib import Path
 from core.project_health import (
     build_project_health_snapshot,
     format_project_health_panel,
+    format_service_modes,
     memory_artifact_summary,
     project_change_summary,
     recent_execution_summary,
     run_estagiario_preflight,
+    service_mode_summary,
     validate_project_jsons,
 )
 
@@ -90,6 +92,17 @@ class ProjectHealthTests(unittest.TestCase):
             "execution": {"events_count": 3, "recent_errors": []},
             "actions": {"count": 10, "categories": {}, "error": ""},
             "artifacts": {"json": 4, "tmp": 1, "html": 2, "txt": 3},
+            "services": {
+                "always_on": {
+                    "investment_background_refresh": {"enabled": False, "started": False},
+                    "reminders_loop": {"enabled": True},
+                },
+                "on_demand": {
+                    "news": {"enabled": True, "configured": False},
+                    "training": {"enabled": True},
+                },
+                "integrations": {},
+            },
         }
 
         result = format_project_health_panel(snapshot)
@@ -97,6 +110,7 @@ class ProjectHealthTests(unittest.TestCase):
         self.assertIn("Saude do Axel: projeto saudavel.", result)
         self.assertIn("Compilacao ok em 1 modulos-chave.", result)
         self.assertIn("Actions registradas: 10.", result)
+        self.assertIn("carteira em background desligado", result)
 
     def test_build_project_health_snapshot_has_panel_keys(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -110,6 +124,35 @@ class ProjectHealthTests(unittest.TestCase):
             self.assertIn("execution", result)
             self.assertIn("artifacts", result)
             self.assertIn("actions", result)
+            self.assertIn("services", result)
+
+    def test_service_mode_summary_separates_background_and_on_demand(self):
+        result = service_mode_summary()
+
+        self.assertIn("always_on", result)
+        self.assertIn("on_demand", result)
+        self.assertIn("investment_background_refresh", result["always_on"])
+        self.assertIn("news", result["on_demand"])
+
+    def test_format_service_modes_mentions_background_and_training(self):
+        snapshot = {
+            "services": {
+                "always_on": {
+                    "investment_background_refresh": {"enabled": False, "started": False},
+                    "reminders_loop": {"enabled": True},
+                },
+                "on_demand": {
+                    "news": {"enabled": True, "configured": True},
+                    "training": {"enabled": True},
+                },
+                "integrations": {},
+            }
+        }
+
+        result = format_service_modes(snapshot)
+
+        self.assertIn("carteira em background desligado", result)
+        self.assertIn("treinos sob demanda", result)
 
 
 if __name__ == "__main__":

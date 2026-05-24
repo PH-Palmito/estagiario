@@ -194,6 +194,11 @@ NEWSAPI_ENABLED = env_str(
     default="1",
     aliases=("NEWSAPI_ENABLED",),
 ).strip().lower() not in {"0", "false", "no", "off"}
+INVESTMENT_BACKGROUND_REFRESH_ENABLED = env_str(
+    "AXEL_INVESTMENT_BACKGROUND_REFRESH_ENABLED",
+    default="0",
+    aliases=("INVESTMENT_BACKGROUND_REFRESH_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
 SPOTIFY_API_ENABLED = env_str(
     "AXEL_SPOTIFY_API_ENABLED",
     default="1",

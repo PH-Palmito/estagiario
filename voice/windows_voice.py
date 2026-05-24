@@ -15,9 +15,6 @@ import numpy as np
 from llm.gemini_tts_client import synthesize_gemini_tts_to_wav
 from memory.voice_preferences import load_voice_preferences
 from voice.audio_capture import (
-    AudioCaptureConfig,
-)
-from voice.audio_capture import (
     audio_has_signal as _audio_has_signal_core,
 )
 from voice.audio_capture import (
@@ -73,16 +70,7 @@ from voice.hotkeys import (
     consume_key_press as _consume_key_press_core,
 )
 from voice.hotkeys import (
-    hotkey_name as _hotkey_name_core,
-)
-from voice.hotkeys import (
-    hotkey_vk as _hotkey_vk_core,
-)
-from voice.hotkeys import (
     play_activation_sound as _play_activation_sound_core,
-)
-from voice.hotkeys import (
-    speech_interrupt_keys as _speech_interrupt_keys_core,
 )
 from voice.input_devices import (
     format_input_devices as _format_input_devices_core,
@@ -172,17 +160,26 @@ from voice.windows_tts import (
 from voice.windows_tts import (
     windows_tts_plan as _windows_tts_plan_core,
 )
+from voice.windows_voice_config import (
+    COMMAND_MODEL_SIZE,
+    COMMAND_PROMPT,
+    COMMAND_RESCUE_PROMPT,
+    HOTWORD_MODEL_SIZE,
+    SAMPLE_RATE,
+    TTS_PRONUNCIATIONS_PATH,
+    build_voice_runtime_config,
+)
+from voice.windows_voice_config import (
+    float_pref as _float_pref_core,
+)
+from voice.windows_voice_config import (
+    int_pref as _int_pref_core,
+)
 
 POWERSHELL_EXE = "powershell"
 kernel32 = ctypes.windll.kernel32
-SAMPLE_RATE = 16000
-COMMAND_MODEL_SIZE = "small"
-HOTWORD_MODEL_SIZE = "tiny"
-FRAME_SIZE = 1024
-DEFAULT_MAX_RECORD_SECONDS = 6.0
 VOICE_PREFERENCES = load_voice_preferences()
-CONVERSATION_MODEL_SIZE = str(VOICE_PREFERENCES.get("conversation_model_size", COMMAND_MODEL_SIZE))
-TTS_PRONUNCIATIONS_PATH = Path("memory") / "tts_pronunciations.json"
+VOICE_CONFIG = build_voice_runtime_config(VOICE_PREFERENCES)
 _PIPER_WORKER_LOCK = Lock()
 _PIPER_WORKER_PROCESS = None
 _PIPER_WORKER_SIGNATURE = None
@@ -192,101 +189,47 @@ _TTS_WAIT_FOR_PLAYBACK_OVERRIDE = None
 
 
 def _float_pref(name: str, default: float, minimum: float, maximum: float) -> float:
-    try:
-        value = float(VOICE_PREFERENCES.get(name, default))
-    except (TypeError, ValueError):
-        return default
-
-    return max(minimum, min(maximum, value))
+    return _float_pref_core(VOICE_PREFERENCES, name, default, minimum, maximum)
 
 
 def _int_pref(name: str, default: int, minimum: int, maximum: int) -> int:
-    try:
-        value = int(VOICE_PREFERENCES.get(name, default))
-    except (TypeError, ValueError):
-        return default
-
-    return max(minimum, min(maximum, value))
+    return _int_pref_core(VOICE_PREFERENCES, name, default, minimum, maximum)
 
 
-DEFAULT_MIN_SPEECH_SECONDS = _float_pref("audio_min_speech_seconds", 0.25, 0.05, 2.0)
-DEFAULT_MAX_SILENCE_SECONDS = _float_pref("audio_max_silence_seconds", 0.75, 0.2, 3.0)
-SILENCE_THRESHOLD = _float_pref("audio_silence_threshold", 0.01, 0.001, 0.2)
-AUDIO_DYNAMIC_THRESHOLD = bool(VOICE_PREFERENCES.get("audio_dynamic_threshold", True))
-AUDIO_NOISE_MULTIPLIER = _float_pref("audio_noise_multiplier", 3.0, 1.2, 10.0)
-AUDIO_MAX_DYNAMIC_THRESHOLD = _float_pref("audio_max_dynamic_threshold", 0.04, 0.005, 0.3)
-AUDIO_PREROLL_SECONDS = _float_pref("audio_preroll_seconds", 0.25, 0.0, 1.0)
-AUDIO_NORMALIZE_ENABLED = bool(VOICE_PREFERENCES.get("audio_normalize_enabled", True))
-AUDIO_DC_OFFSET_FILTER = bool(VOICE_PREFERENCES.get("audio_dc_offset_filter", True))
-AUDIO_TARGET_PEAK = _float_pref("audio_target_peak", 0.75, 0.1, 0.98)
-AUDIO_MAX_GAIN = _float_pref("audio_max_gain", 4.0, 1.0, 20.0)
-AUDIO_DIAGNOSTIC_SECONDS = _float_pref("audio_diagnostic_seconds", 4.0, 1.0, 15.0)
-WHISPER_COMMAND_VAD_FILTER = bool(VOICE_PREFERENCES.get("whisper_command_vad_filter", False))
-WHISPER_CONVERSATION_VAD_FILTER = bool(VOICE_PREFERENCES.get("whisper_conversation_vad_filter", False))
-WHISPER_HOTWORD_VAD_FILTER = bool(VOICE_PREFERENCES.get("whisper_hotword_vad_filter", True))
-WHISPER_COMMAND_BEAM_SIZE = _int_pref("whisper_command_beam_size", 5, 1, 10)
-WHISPER_COMMAND_BEST_OF = _int_pref("whisper_command_best_of", 5, 1, 10)
-WHISPER_CONVERSATION_BEAM_SIZE = _int_pref("whisper_conversation_beam_size", 3, 1, 10)
-WHISPER_CONVERSATION_BEST_OF = _int_pref("whisper_conversation_best_of", 3, 1, 10)
-WHISPER_HOTWORD_BEAM_SIZE = _int_pref("whisper_hotword_beam_size", 1, 1, 5)
-WHISPER_HOTWORD_BEST_OF = _int_pref("whisper_hotword_best_of", 1, 1, 5)
-HOTWORD = str(VOICE_PREFERENCES.get("hotword", "estagiario"))
-HOTWORD_LISTENING_ENABLED = bool(VOICE_PREFERENCES.get("hotword_listening_enabled", False))
-HOTWORD_TIMEOUT_SECONDS = _float_pref("hotword_timeout_seconds", 3.0, 0.8, 8.0)
-HOTWORD_MAX_SILENCE_SECONDS = _float_pref("hotword_max_silence_seconds", 0.5, 0.15, 2.0)
-HOTWORD_MIN_SPEECH_SECONDS = _float_pref("hotword_min_speech_seconds", 0.12, 0.05, 1.0)
-CONVERSATION_TIMEOUT_SECONDS = _float_pref("conversation_timeout_seconds", 7.0, 1.0, 12.0)
-CONVERSATION_MAX_SILENCE_SECONDS = _float_pref("conversation_max_silence_seconds", 1.0, 0.25, 3.0)
-CONVERSATION_MIN_SPEECH_SECONDS = _float_pref("conversation_min_speech_seconds", 0.35, 0.08, 2.0)
-COMMAND_PROMPT = (
-    "Comandos curtos em portugues do Brasil para controlar o computador. "
-    "Transcreva sempre em portugues do Brasil, nunca em ingles. "
-    "Verbos comuns: abrir, fechar, focar, trocar, minimizar, maximizar, restaurar, pesquisar, ler, selecionar. "
-    "Comandos de musica: tocar algo alegre, tocar algo calmo, tocar rock, tocar classico, me surpreenda, "
-    "adicionar na fila, tocar musicas curtidas, tocar filho meu, tocar blindado no Spotify. "
-    "Alvos comuns: chrome, youtube, google, vscode, code, spotify, whatsapp, zap, bloco de notas, "
-    "powershell, edge, github, android studio, steam, mercado livre, magalu."
-)
-COMMAND_RESCUE_PROMPT = (
-    "Transcreva apenas em portugues do Brasil. "
-    "Nao invente palavras em ingles. "
-    "Priorize comandos curtos e simples. "
-    "Exemplos provaveis: o que tem na tela, resuma a tela, detalha a tela, "
-    "abrir youtube, abrir chrome, abrir spotify, fechar spotify, "
-    "tocar algo alegre, tocar algo calmo, tocar rock, tocar filho meu, tocar blindado no Spotify, me surpreenda, adicionar na fila, "
-    "pesquisar notebook no mercado livre, abrir github, abrir whatsapp."
-)
-CONVERSATION_PROMPT = str(
-    VOICE_PREFERENCES.get(
-        "conversation_transcription_prompt",
-        "Conversa casual em portugues do Brasil.",
-    )
-).strip()
-HOTWORD_PROMPT = f"Palavra de ativacao: {HOTWORD}."
+CONVERSATION_MODEL_SIZE = VOICE_CONFIG.conversation_model_size
+DEFAULT_MIN_SPEECH_SECONDS = VOICE_CONFIG.default_min_speech_seconds
+DEFAULT_MAX_SILENCE_SECONDS = VOICE_CONFIG.default_max_silence_seconds
+AUDIO_DIAGNOSTIC_SECONDS = VOICE_CONFIG.audio_diagnostic_seconds
+WHISPER_COMMAND_VAD_FILTER = VOICE_CONFIG.whisper_command_vad_filter
+WHISPER_CONVERSATION_VAD_FILTER = VOICE_CONFIG.whisper_conversation_vad_filter
+WHISPER_HOTWORD_VAD_FILTER = VOICE_CONFIG.whisper_hotword_vad_filter
+WHISPER_COMMAND_BEAM_SIZE = VOICE_CONFIG.whisper_command_beam_size
+WHISPER_COMMAND_BEST_OF = VOICE_CONFIG.whisper_command_best_of
+WHISPER_CONVERSATION_BEAM_SIZE = VOICE_CONFIG.whisper_conversation_beam_size
+WHISPER_CONVERSATION_BEST_OF = VOICE_CONFIG.whisper_conversation_best_of
+WHISPER_HOTWORD_BEAM_SIZE = VOICE_CONFIG.whisper_hotword_beam_size
+WHISPER_HOTWORD_BEST_OF = VOICE_CONFIG.whisper_hotword_best_of
+HOTWORD = VOICE_CONFIG.hotword
+HOTWORD_LISTENING_ENABLED = VOICE_CONFIG.hotword_listening_enabled
+HOTWORD_TIMEOUT_SECONDS = VOICE_CONFIG.hotword_timeout_seconds
+HOTWORD_MAX_SILENCE_SECONDS = VOICE_CONFIG.hotword_max_silence_seconds
+HOTWORD_MIN_SPEECH_SECONDS = VOICE_CONFIG.hotword_min_speech_seconds
+CONVERSATION_TIMEOUT_SECONDS = VOICE_CONFIG.conversation_timeout_seconds
+CONVERSATION_MAX_SILENCE_SECONDS = VOICE_CONFIG.conversation_max_silence_seconds
+CONVERSATION_MIN_SPEECH_SECONDS = VOICE_CONFIG.conversation_min_speech_seconds
+CONVERSATION_PROMPT = VOICE_CONFIG.conversation_prompt
+HOTWORD_PROMPT = VOICE_CONFIG.hotword_prompt
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
-HOTKEY_NAME = _hotkey_name_core(VOICE_PREFERENCES, "trigger_hotkey", "F8")
-HOTKEY_VK = _hotkey_vk_core(HOTKEY_NAME, "F8")
-TOGGLE_LISTENING_HOTKEY_NAME = _hotkey_name_core(VOICE_PREFERENCES, "toggle_listening_hotkey", "F9")
-TOGGLE_LISTENING_HOTKEY_VK = _hotkey_vk_core(TOGGLE_LISTENING_HOTKEY_NAME, "F9")
-SPEECH_INTERRUPT_KEYS = _speech_interrupt_keys_core(HOTKEY_VK, TOGGLE_LISTENING_HOTKEY_VK)
+HOTKEY_NAME = VOICE_CONFIG.hotkey_name
+HOTKEY_VK = VOICE_CONFIG.hotkey_vk
+TOGGLE_LISTENING_HOTKEY_NAME = VOICE_CONFIG.toggle_listening_hotkey_name
+TOGGLE_LISTENING_HOTKEY_VK = VOICE_CONFIG.toggle_listening_hotkey_vk
+SPEECH_INTERRUPT_KEYS = VOICE_CONFIG.speech_interrupt_keys
 
 
-def _audio_capture_config() -> AudioCaptureConfig:
-    return AudioCaptureConfig(
-        sample_rate=SAMPLE_RATE,
-        frame_size=FRAME_SIZE,
-        default_max_record_seconds=DEFAULT_MAX_RECORD_SECONDS,
-        silence_threshold=SILENCE_THRESHOLD,
-        audio_dynamic_threshold=AUDIO_DYNAMIC_THRESHOLD,
-        audio_noise_multiplier=AUDIO_NOISE_MULTIPLIER,
-        audio_max_dynamic_threshold=AUDIO_MAX_DYNAMIC_THRESHOLD,
-        audio_preroll_seconds=AUDIO_PREROLL_SECONDS,
-        audio_normalize_enabled=AUDIO_NORMALIZE_ENABLED,
-        audio_dc_offset_filter=AUDIO_DC_OFFSET_FILTER,
-        audio_target_peak=AUDIO_TARGET_PEAK,
-        audio_max_gain=AUDIO_MAX_GAIN,
-    )
+def _audio_capture_config():
+    return VOICE_CONFIG.audio_capture_config()
 
 
 @dataclass

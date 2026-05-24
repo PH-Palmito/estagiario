@@ -120,6 +120,9 @@ Variáveis principais:
 - `AXEL_WALLET_PLAYWRIGHT_USER_DATA_DIR`
   Opcional. Perfil dedicado do navegador para o Axel ler a carteira privada com Playwright. Rode `.\venv\Scripts\python.exe .\scripts\open_wallet_playwright_profile.py`, faça login no Investidor10 uma vez e use o caminho mostrado nessa variável.
 
+- `AXEL_INVESTMENT_BACKGROUND_REFRESH_ENABLED`
+  Liga ou desliga a tentativa de atualizar a carteira em segundo plano ao iniciar. Padrao recomendado: `0`; assim a carteira atualiza sob demanda e nao compete com voz, UI e briefing.
+
 - `AXEL_BRAPI_TOKEN`
   Token opcional da BRAPI para ampliar a cobertura de cotações e fundamentos por ticker, especialmente fora do snapshot da carteira.
 
@@ -245,6 +248,12 @@ Desativar ou verificar:
 Quando ativado, o Axel inicia com `--voice --hotword --ui --startup`, entao lembretes vencidos podem ser anunciados por voz mesmo sem voce chamar primeiro.
 Ao ligar em modo voz, ele também manda o briefing do dia automaticamente uma vez por dia. Nas outras aberturas do mesmo dia, ele só confirma prontidão. Para abrir sem briefing em algum teste, use `--no-startup-briefing`.
 As saudacoes de inicializacao variam entre frases de estudo, codigo e operacao. Para uma saudacao curta em testes, use `--short-startup-greeting`.
+
+Comandos uteis para comecar o dia:
+
+- `rotina diaria`
+- `comecar meu dia`
+- `saude do Axel`
 
 Baixar uma voz Piper:
 

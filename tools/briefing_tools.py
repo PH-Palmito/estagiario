@@ -219,3 +219,13 @@ def daily_briefing() -> str:
         _short_reminders_brief(),
     ]
     return _polish_pt_br(" ".join(part.strip() for part in sections if str(part or "").strip()))
+
+
+def daily_routine() -> str:
+    sections = [
+        daily_briefing(),
+        "Rotina pronta: comandos, voz, navegador, lembretes e carteira local ficam no caminho curto.",
+        "Noticias, visao pesada e treinos entram sob demanda, para nao disputar atencao quando voce nao pediu.",
+        "Atalho pratico: diga 'modo programacao' para abrir o painel de trabalho, ou 'saude do Axel' para ver o painel operacional.",
+    ]
+    return _polish_pt_br(" ".join(part.strip() for part in sections if str(part or "").strip()))

@@ -6,6 +6,22 @@ import sys
 from pathlib import Path
 from time import time
 
+from config import (
+    BRAPI_ENABLED,
+    BRAPI_TOKEN,
+    GEMINI_API_KEY,
+    GEMINI_PRIMARY_TEXT_ENABLED,
+    NEWSAPI_ENABLED,
+    NEWSAPI_KEY,
+    OBSIDIAN_SYNC_ENABLED,
+    OBSIDIAN_VAULT_PATH,
+    OLLAMA_BASE_URL,
+    SPOTIFY_API_ENABLED,
+    SPOTIFY_CLIENT_ID,
+    SUPABASE_REST_URL,
+    SUPABASE_SYNC_ENABLED,
+)
+
 PROJECT_JSON_FILES = [
     "memory/routines.json",
     "memory/ui_state.json",
@@ -177,11 +193,42 @@ def action_catalog_summary() -> dict:
     return {"count": len(actions), "categories": categories, "error": ""}
 
 
+def service_mode_summary() -> dict:
+    try:
+        from tools.investment_tools import investment_background_refresh_status
+
+        investment_background = investment_background_refresh_status()
+    except Exception as exc:
+        investment_background = {"enabled": False, "started": False, "error": str(exc)}
+
+    return {
+        "always_on": {
+            "investment_background_refresh": investment_background,
+            "reminders_loop": {"enabled": True, "mode": "checked in main loop"},
+        },
+        "on_demand": {
+            "news": {"enabled": bool(NEWSAPI_ENABLED), "configured": bool(NEWSAPI_KEY)},
+            "training": {"enabled": True, "mode": "commands and due reminders"},
+            "vision": {"enabled": True, "mode": "screen/file/clipboard commands"},
+            "browser": {"enabled": True, "mode": "browser commands"},
+        },
+        "integrations": {
+            "ollama": {"configured": bool(OLLAMA_BASE_URL)},
+            "gemini_primary_text": {"enabled": bool(GEMINI_PRIMARY_TEXT_ENABLED), "configured": bool(GEMINI_API_KEY)},
+            "brapi": {"enabled": bool(BRAPI_ENABLED), "configured": bool(BRAPI_TOKEN)},
+            "spotify": {"enabled": bool(SPOTIFY_API_ENABLED), "configured": bool(SPOTIFY_CLIENT_ID)},
+            "supabase": {"enabled": bool(SUPABASE_SYNC_ENABLED), "configured": bool(SUPABASE_REST_URL)},
+            "obsidian": {"enabled": bool(OBSIDIAN_SYNC_ENABLED), "configured": bool(OBSIDIAN_VAULT_PATH)},
+        },
+    }
+
+
 def build_project_health_snapshot(root: Path | None = None) -> dict:
     preflight = run_estagiario_preflight(root)
     execution = recent_execution_summary(root)
     artifacts = memory_artifact_summary(root)
     actions = action_catalog_summary()
+    services = service_mode_summary()
     healthy = not preflight.get("compile_error") and not preflight.get("json_errors") and not actions.get("error")
     return {
         "generated_at": time(),
@@ -190,7 +237,42 @@ def build_project_health_snapshot(root: Path | None = None) -> dict:
         "execution": execution,
         "artifacts": artifacts,
         "actions": actions,
+        "services": services,
     }
+
+
+def _enabled_label(value: bool) -> str:
+    return "ligado" if value else "desligado"
+
+
+def format_service_modes(snapshot: dict | None = None) -> str:
+    data = snapshot or build_project_health_snapshot()
+    services = data.get("services") or {}
+    always_on = services.get("always_on") or {}
+    on_demand = services.get("on_demand") or {}
+    integrations = services.get("integrations") or {}
+
+    investment = always_on.get("investment_background_refresh") or {}
+    parts = [
+        "Modos ativos:",
+        "carteira em background "
+        + _enabled_label(bool(investment.get("enabled")))
+        + (" e rodando" if investment.get("started") else ""),
+        "lembretes checados no loop principal",
+    ]
+
+    news = on_demand.get("news") or {}
+    training = on_demand.get("training") or {}
+    parts.append("noticias sob demanda " + _enabled_label(bool(news.get("enabled"))))
+    parts.append("treinos sob demanda" if training.get("enabled") else "treinos desligados")
+
+    configured = []
+    for name, item in integrations.items():
+        if item.get("enabled") and item.get("configured"):
+            configured.append(name)
+    if configured:
+        parts.append("integracoes prontas: " + ", ".join(configured[:4]))
+    return "; ".join(parts) + "."
 
 
 def format_project_health_panel(snapshot: dict | None = None) -> str:
@@ -217,6 +299,7 @@ def format_project_health_panel(snapshot: dict | None = None) -> str:
         parts.append(f"Catalogo de actions com alerta: {action_error}.")
     else:
         parts.append(f"Actions registradas: {actions.get('count', 0)}.")
+    parts.append(format_service_modes(data))
 
     errors = execution.get("recent_errors") or []
     if errors:

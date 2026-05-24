@@ -2,7 +2,7 @@ import re
 import threading
 import time
 
-from config import INVESTIDOR10_PRIVATE_WALLET_URL, INVESTIDOR10_WALLET_URL
+from config import INVESTIDOR10_PRIVATE_WALLET_URL, INVESTIDOR10_WALLET_URL, INVESTMENT_BACKGROUND_REFRESH_ENABLED
 from memory.investment_snapshot import (
     answer_investment_snapshot_question,
     format_investment_financial_report,
@@ -116,6 +116,8 @@ def _background_refresh_worker():
 
 def start_background_investment_refresh_loop() -> bool:
     global _BACKGROUND_REFRESH_STARTED
+    if not INVESTMENT_BACKGROUND_REFRESH_ENABLED:
+        return False
     with _BACKGROUND_REFRESH_LOCK:
         if _BACKGROUND_REFRESH_STARTED:
             return False
@@ -126,6 +128,15 @@ def start_background_investment_refresh_loop() -> bool:
         ).start()
         _BACKGROUND_REFRESH_STARTED = True
         return True
+
+
+def investment_background_refresh_status() -> dict:
+    return {
+        "enabled": bool(INVESTMENT_BACKGROUND_REFRESH_ENABLED),
+        "started": bool(_BACKGROUND_REFRESH_STARTED),
+        "poll_seconds": BACKGROUND_REFRESH_POLL_SECONDS,
+        "stale_after_seconds": BACKGROUND_REFRESH_SECONDS,
+    }
 
 
 def investment_memory_summary():

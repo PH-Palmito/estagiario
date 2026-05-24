@@ -166,6 +166,13 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent == "daily_routine":
+        return Command(
+            action="daily_routine",
+            params={},
+            source="router",
+        )
+
     if intent in {
         "windows_startup_enable",
         "windows_startup_disable",

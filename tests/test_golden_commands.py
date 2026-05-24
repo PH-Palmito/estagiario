@@ -12,6 +12,7 @@ GOLDEN_COMMANDS = [
     ("briefing", "daily_briefing", {}),
     ("me da o briefing", "daily_briefing", {}),
     ("resumo do dia", "daily_briefing", {}),
+    ("comecar meu dia", "daily_routine", {}),
     (
         "tem noticias da carteira",
         "investment_memory_answer",
@@ -207,6 +208,7 @@ class GoldenCommandTests(unittest.TestCase):
         ensure_default_actions()
         legacy_names = {
             "daily_briefing",
+            "daily_routine",
             "weather_summary",
             "windows_startup_status",
             "reminder_list",

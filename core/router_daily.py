@@ -59,6 +59,19 @@ def detect_weather_command(user_input: str):
 def detect_briefing_command(user_input: str):
     lower = normalize_text(user_input)
     if lower in {
+        "rotina diaria",
+        "minha rotina diaria",
+        "comecar o dia",
+        "comecar meu dia",
+        "iniciar o dia",
+        "preparar meu dia",
+        "prepara meu dia",
+        "bom dia axel",
+        "bom dia estagiario",
+    }:
+        return {"intent": "daily_routine", "target": None}
+
+    if lower in {
         "briefing",
         "briefing do dia",
         "me de o briefing",

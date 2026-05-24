@@ -9,7 +9,7 @@ from memory.agenda import list_agenda_all, list_agenda_today, list_agenda_tomorr
 from memory.reminders import list_reminders
 from memory.vision_history import format_vision_history
 from tools.bluetooth_tools import bluetooth_status
-from tools.briefing_tools import daily_briefing
+from tools.briefing_tools import daily_briefing, daily_routine
 from tools.file_tools import list_files, read_file
 from tools.investment_tools import (
     investment_financial_report,
@@ -82,6 +82,7 @@ def _register(
 
 def register_legacy_read_actions() -> None:
     _register("daily_briefing", "Gera o briefing diario curto.", lambda _args: daily_briefing(), category="briefing")
+    _register("daily_routine", "Gera a rotina diaria acionavel.", lambda _args: daily_routine(), category="briefing")
     _register(
         "weather_summary",
         "Consulta resumo de clima para uma localidade.",

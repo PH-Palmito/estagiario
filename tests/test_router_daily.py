@@ -21,6 +21,11 @@ class RouterDailyTests(unittest.TestCase):
 
         self.assertEqual(result, {"intent": "daily_briefing", "target": None})
 
+    def test_detects_daily_routine(self):
+        result = detect_briefing_command("comecar meu dia")
+
+        self.assertEqual(result, {"intent": "daily_routine", "target": None})
+
     def test_detects_agenda_add(self):
         result = detect_agenda_command("adicionar na agenda revisar Axel hoje")
 
