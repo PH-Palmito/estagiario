@@ -16,7 +16,6 @@ if str(ROOT) not in sys.path:
 
 from config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI
 
-
 SCOPES = (
     "user-modify-playback-state",
     "user-read-playback-state",
@@ -123,7 +122,7 @@ def main() -> int:
         print("Estado OAuth inválido. Abortando por segurança.")
         return 1
 
-    basic = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode("utf-8")).decode("ascii")
+    basic = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()).decode("ascii")
     response = requests.post(
         TOKEN_URL,
         data={

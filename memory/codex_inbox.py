@@ -3,7 +3,6 @@ import os
 import time
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 CODEX_INBOX_PATH = MEMORY_DIR / "codex_inbox.json"

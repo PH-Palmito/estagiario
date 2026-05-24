@@ -9,7 +9,11 @@ from tools.image_tools import (
     analyze_screen_graph,
     analyze_screen_image,
 )
-from tools.vision_tools import answer_visual_question_with_context_memory, start_light_vision_model_download, vision_install_hint
+from tools.vision_tools import (
+    answer_visual_question_with_context_memory,
+    start_light_vision_model_download,
+    vision_install_hint,
+)
 
 
 def _execute_registered_action(args: dict):

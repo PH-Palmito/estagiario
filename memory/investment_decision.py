@@ -1,8 +1,7 @@
 import time
-from typing import Callable
+from collections.abc import Callable
 
-from memory.investment_formatting import format_brl, parse_currency_value, parse_percent_value
-
+from memory.investment_formatting import parse_currency_value, parse_percent_value
 
 GetStrategy = Callable[[str], dict]
 LoadStrategy = Callable[[], dict]

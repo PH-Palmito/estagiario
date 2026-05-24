@@ -1,9 +1,8 @@
 import difflib
 import re
 
+from core.router_utils import normalize_text
 from memory.aliases import load_app_aliases, load_site_aliases, load_smart_app_aliases
-from core.router import normalize_text
-
 
 APP_TARGETS = [
     "chrome",

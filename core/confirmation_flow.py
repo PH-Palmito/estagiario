@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from core.command_schema import Command
 from core.confirmation import confirmation_instruction, is_confirmation_accepted, is_confirmation_rejected

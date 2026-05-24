@@ -3,18 +3,17 @@ import os
 import time
 from pathlib import Path
 
-from memory.approval_gate import load_approval_gate
 from memory.action_candidates import load_action_candidates
+from memory.approval_gate import load_approval_gate
 from memory.auto_advances import load_auto_advances
 from memory.codex_bridge import load_codex_request
 from memory.codex_implementation_request import load_codex_implementation_request
+from memory.codex_inbox import latest_codex_inbox_item
 from memory.codex_outbox import load_codex_outbox
 from memory.handoff_applications import load_handoff_application
 from memory.handoff_retry_plan import load_handoff_retry_plan
 from memory.handoff_validation import load_handoff_validation
-from memory.codex_inbox import latest_codex_inbox_item
 from memory.verification_runs import load_verification_runs
-
 
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"

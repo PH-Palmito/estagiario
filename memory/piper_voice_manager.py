@@ -4,7 +4,6 @@ from pathlib import Path
 
 from huggingface_hub import hf_hub_download
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 VOICE_PREFERENCES_PATH = PROJECT_ROOT / "memory" / "voice_preferences.json"
 PIPER_MODELS_DIR = PROJECT_ROOT / "models" / "piper"

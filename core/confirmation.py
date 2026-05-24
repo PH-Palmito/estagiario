@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from core.command_schema import Command
 
-
 STRONG_CONFIRMATION_ACTIONS = {
     "close_app",
     "smart_close_app",
@@ -111,7 +110,6 @@ def is_confirmation_rejected(text: str) -> bool:
     cancel_words = {
         "nao",
         "não",
-        "nÃ£o",
         "n",
         "cancelar",
         "cancela",

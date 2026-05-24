@@ -6,7 +6,6 @@ import unicodedata
 from collections import Counter
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 UI_STATE_PATH = MEMORY_DIR / "ui_state.json"

@@ -1,14 +1,13 @@
 import json
 import re
-import time
 import subprocess
+import time
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from llm.ollama_client import ask_model
 from llm.vision_client import ask_vision_model, installed_vision_models, vision_unavailable_message
 from memory.vision_history import remember_vision_analysis
-
 
 ROOT = Path(__file__).resolve().parents[1]
 POWERSHELL_EXE = "powershell"
@@ -728,8 +727,6 @@ def _make_visual_response_useful(visual: str, ocr_text: str = "") -> str:
         return visual
 
     chart_ocr_summary = _ocr_chart_summary(ocr_text)
-    visual_mentions_chart = any(token in visual.lower() for token in ("grafico", "gráfico", "barra", "eixo"))
-
     if _looks_like_low_value_visual_response(visual):
         if chart_ocr_summary:
             return chart_ocr_summary

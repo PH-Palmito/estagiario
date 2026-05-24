@@ -1,13 +1,12 @@
 import unittest
 from unittest.mock import patch
 
+from actions import ActionSpec, ensure_default_actions, get_action, register_action
 from core.command_schema import Command
 from core.executor import ACTIONS, execute
 from core.normalizer import normalize_action
 from core.router import route
 from core.validator import validate_command
-from actions import ActionSpec, ensure_default_actions, get_action, register_action
-
 
 GOLDEN_COMMANDS = [
     ("briefing", "daily_briefing", {}),

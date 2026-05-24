@@ -1,12 +1,14 @@
+import ctypes
 import os
 import shutil
 import subprocess
 import sys
-import webbrowser
-import ctypes
 import time
+import webbrowser
 from pathlib import Path
 from urllib.parse import urlparse
+
+from core.startup_diagnostics import startup_log_path
 from tools.clipboard_tools import get_clipboard, set_clipboard
 
 user32 = ctypes.windll.user32
@@ -495,27 +497,39 @@ def _startup_command_args() -> list[str]:
     ]
 
 
+def _startup_log_path() -> Path:
+    return startup_log_path(Path(__file__).resolve().parents[1])
+
+
+def _startup_entry_content() -> str:
+    repo_dir = Path(__file__).resolve().parents[1]
+    log_path = _startup_log_path()
+    command = " ".join(_quote_cmd_arg(arg) for arg in _startup_command_args())
+    runner = f"{command} >> {_quote_cmd_arg(str(log_path))} 2>&1"
+    return (
+        "@echo off\n"
+        f"cd /d {_quote_cmd_arg(str(repo_dir))}\n"
+        f"if not exist {_quote_cmd_arg(str(log_path.parent))} mkdir {_quote_cmd_arg(str(log_path.parent))}\n"
+        f"echo [%date% %time%] Iniciando Axel pelo Windows Startup >> {_quote_cmd_arg(str(log_path))}\n"
+        f"start \"Axel\" /min cmd /d /c {_quote_cmd_arg(runner)}\n"
+    )
+
+
 def enable_windows_startup() -> str:
     entry_path = _startup_entry_path()
     if entry_path is None:
         return "Nao encontrei a pasta de inicializacao do Windows neste ambiente."
 
-    repo_dir = Path(__file__).resolve().parents[1]
-    args = _startup_command_args()
-    command = " ".join(_quote_cmd_arg(arg) for arg in args)
-    content = (
-        "@echo off\n"
-        f"cd /d {_quote_cmd_arg(str(repo_dir))}\n"
-        f"start \"Axel\" /min {command}\n"
-    )
-
     try:
         entry_path.parent.mkdir(parents=True, exist_ok=True)
-        entry_path.write_text(content, encoding="utf-8")
+        entry_path.write_text(_startup_entry_content(), encoding="utf-8")
     except Exception as e:
         return f"Nao consegui ativar a inicializacao com o Windows: {e}"
 
-    return "Inicializacao com o Windows ativada. Vou abrir em modo voz, hotword e painel."
+    return (
+        "Inicializacao com o Windows ativada. Vou abrir em modo voz, hotword e painel. "
+        f"Log: {_startup_log_path()}"
+    )
 
 
 def disable_windows_startup() -> str:
@@ -537,6 +551,18 @@ def windows_startup_status() -> str:
     entry_path = _startup_entry_path()
     if entry_path is None:
         return "Nao encontrei a pasta de inicializacao do Windows neste ambiente."
-    if entry_path.exists():
-        return "Inicializacao com o Windows esta ativada."
-    return "Inicializacao com o Windows esta desativada."
+    if not entry_path.exists():
+        return "Inicializacao com o Windows esta desativada."
+
+    try:
+        content = entry_path.read_text(encoding="utf-8")
+    except Exception as e:
+        return f"Inicializacao com o Windows esta ativada, mas nao consegui ler o atalho: {e}"
+
+    if content != _startup_entry_content():
+        return (
+            "Inicializacao com o Windows esta ativada, mas o atalho esta desatualizado. "
+            "Rode --install-startup para recriar com log de diagnostico."
+        )
+
+    return f"Inicializacao com o Windows esta ativada. Log: {_startup_log_path()}"

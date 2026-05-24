@@ -19,7 +19,6 @@ from memory.investment_asset_fundamentals import fetch_many_asset_fundamentals
 from memory.investment_snapshot import load_investment_snapshot, save_investment_snapshot
 from memory.profile import load_profile
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 PUBLIC_WALLET_DOM_PATH = MEMORY_DIR / "wallet_public_dom_full.html"

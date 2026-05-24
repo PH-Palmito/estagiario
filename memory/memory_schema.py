@@ -3,7 +3,6 @@ from __future__ import annotations
 import time
 from typing import Any
 
-
 MEMORY_SCHEMA_VERSION = "2026-05-12.1"
 
 MEMORY_BUCKETS = {

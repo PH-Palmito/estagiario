@@ -6,7 +6,6 @@ from pathlib import Path
 from memory.bottlenecks import load_bottlenecks
 from memory.verification_runs import load_verification_runs
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 PATCH_PROPOSALS_PATH = MEMORY_DIR / "patch_proposals.json"

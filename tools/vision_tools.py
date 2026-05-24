@@ -11,7 +11,6 @@ from memory.current_topic import load_current_topic, update_current_topic_from_c
 from memory.obsidian_sync import search_vault_context
 from memory.vision_history import last_vision_analysis, last_vision_item
 
-
 LIGHT_VISION_MODEL = "moondream"
 LOW_COST_VISUAL_QA_MODE = True
 
@@ -358,7 +357,6 @@ def _looks_like_live_research_question(question: str, page_title: str, summary: 
         "congresso",
         "senado",
         "camara",
-        "camara",
         "governo",
         "lula",
         "bolsonaro",
@@ -509,7 +507,7 @@ def _extract_directional_hint(text: str) -> str:
 
 def _finance_profile_hint(topic_name: str, summary: str, useful_lines: list[str]) -> str:
     blob = _normalize(" ".join([topic_name or "", summary or "", *list(useful_lines or [])]))
-    if any(token in blob for token in {"petr4", "petrobras", "petroleo", "petroleo", "combustiveis", "combustíveis"}):
+    if any(token in blob for token in {"petr4", "petrobras", "petroleo", "combustiveis", "combustíveis"}):
         return (
             "O perfil aqui costuma ser mais de geracao de caixa e dividendos, com risco forte de commodity, cambio e interferencia politica."
         )
@@ -539,7 +537,7 @@ def _build_finance_fallback_reading(question: str, page_title: str, summary: str
         chosen_highlight = highlights[0]
         for candidate in highlights:
             candidate_norm = _normalize(candidate)
-            if any(term in candidate_norm for term in {"dividend", "rentabilidade", "%", "lucro", "prejuizo", "prejuizo", "provento"}):
+            if any(term in candidate_norm for term in {"dividend", "rentabilidade", "%", "lucro", "prejuizo", "provento"}):
                 chosen_highlight = candidate
                 break
         visible_point = f" O que mais chama atencao agora e: {chosen_highlight}."

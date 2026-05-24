@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from collections import Counter
-from datetime import datetime, timedelta, timezone
 import re
+from collections import Counter
+from datetime import UTC, datetime, timedelta
 
 import requests
 
 from config import GEMINI_API_KEY, NEWSAPI_ENABLED, NEWSAPI_KEY
 from llm.gemini_client import ask_gemini_model
-
 
 NEWSAPI_EVERYTHING_URL = "https://newsapi.org/v2/everything"
 KNOWN_RELIABLE_SOURCES = {
@@ -145,7 +144,7 @@ def _http_session() -> requests.Session:
 
 
 def _iso_days_ago(days: int) -> str:
-    target = datetime.now(timezone.utc) - timedelta(days=days)
+    target = datetime.now(UTC) - timedelta(days=days)
     return target.strftime("%Y-%m-%d")
 
 

@@ -1,4 +1,5 @@
 import urllib.parse
+
 from tools.system_tools import open_url
 
 

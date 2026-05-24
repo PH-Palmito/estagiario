@@ -3,7 +3,6 @@ import os
 import time
 from pathlib import Path
 
-
 QUEUE_PATH = Path(__file__).with_name("ui_commands.json")
 
 

@@ -1,7 +1,6 @@
 import re
 import time
-from typing import Callable, Iterable
-
+from collections.abc import Callable, Iterable
 
 NewsCandidates = Callable[[dict, int], Iterable[tuple[str, str, dict]]]
 EnsureFundamentals = Callable[[dict, str], dict]

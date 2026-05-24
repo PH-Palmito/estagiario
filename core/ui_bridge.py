@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
+from core.project_health import build_project_health_snapshot, format_project_health_panel
 from memory.ui_state import load_ui_state, update_ui_state
 
 
@@ -98,6 +99,19 @@ class UIBridge:
         self.launch_hud()
         return f"Painel de treino aberto: {workout.get('label', 'hoje')}, {workout.get('title', 'treino')}."
 
+    def show_health(self) -> str:
+        snapshot = build_project_health_snapshot(self.root_dir)
+        update_ui_state(
+            {
+                "visible": True,
+                "open_panels": ["saude"],
+                "last_command": "saude do axel",
+                "health_snapshot": snapshot,
+            }
+        )
+        self.launch_hud()
+        return format_project_health_panel(snapshot)
+
     def maybe_handle_command(self, user_input: str) -> str | None:
         normalized = self.normalize_text(user_input)
 
@@ -133,6 +147,17 @@ class UIBridge:
         if normalized in {"interface atual", "status da interface", "painel atual"}:
             state = "ativa" if load_ui_state().get("visible", False) else "oculta"
             return f"Interface {state}."
+
+        if normalized in {
+            "saude do axel",
+            "status do axel",
+            "painel de saude",
+            "abrir painel de saude",
+            "mostrar painel de saude",
+            "diagnostico do axel",
+            "painel saude",
+        }:
+            return self.show_health()
 
         raw_action = self.route(user_input)
         if raw_action.get("intent") == "ui_show_map":

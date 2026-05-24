@@ -6,7 +6,6 @@ import requests
 
 from memory.brapi_market_data import fetch_brapi_asset_data
 
-
 INVESTIDOR10_ASSET_URL_TEMPLATES = (
     "https://investidor10.com.br/acoes/{ticker}/",
     "https://investidor10.com.br/fiis/{ticker}/",

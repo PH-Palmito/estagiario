@@ -6,7 +6,6 @@ import requests
 
 from config import GEMINI_API_KEY, GEMINI_TTS_MODEL
 
-
 GEMINI_TTS_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 

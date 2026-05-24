@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 
-
 VOICE_PREFERENCES_PATH = Path(__file__).resolve().parent / "voice_preferences.json"
 
 VOICE_PROFILES = {

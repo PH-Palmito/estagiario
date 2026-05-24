@@ -1,9 +1,8 @@
 import hashlib
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
-
 
 Normalize = Callable[[str], str]
 LoadJson = Callable[[Path], dict]

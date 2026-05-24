@@ -19,7 +19,6 @@ from config import (
     SPOTIFY_REFRESH_TOKEN,
 )
 
-
 SPOTIFY_ACCOUNTS_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_BASE_URL = "https://api.spotify.com/v1"
 _TOKEN_CACHE: dict[str, Any] = {"value": "", "expires_at": 0.0}
@@ -115,7 +114,7 @@ def _client_credentials_token() -> str:
     if cached_value and now < cached_expiration:
         return cached_value
 
-    basic = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode("utf-8")).decode("ascii")
+    basic = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()).decode("ascii")
     response = _session().post(
         SPOTIFY_ACCOUNTS_URL,
         data={"grant_type": "client_credentials"},
@@ -156,7 +155,7 @@ def _refresh_user_access_token() -> str:
     if cached_value and now < cached_expiration:
         return cached_value
 
-    basic = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode("utf-8")).decode("ascii")
+    basic = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()).decode("ascii")
     response = _session().post(
         SPOTIFY_ACCOUNTS_URL,
         data={"grant_type": "refresh_token", "refresh_token": SPOTIFY_REFRESH_TOKEN},

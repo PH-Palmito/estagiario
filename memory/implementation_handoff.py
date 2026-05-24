@@ -6,7 +6,6 @@ from pathlib import Path
 from memory.codex_inbox import latest_codex_inbox_item
 from memory.execution_packages import load_execution_package
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 IMPLEMENTATION_HANDOFF_PATH = MEMORY_DIR / "implementation_handoff.json"

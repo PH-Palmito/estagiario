@@ -3,7 +3,6 @@ import re
 import unicodedata
 from pathlib import Path
 
-
 FILE = Path("memory/aliases.json")
 
 

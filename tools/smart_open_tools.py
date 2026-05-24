@@ -1,5 +1,5 @@
-import difflib
 import base64
+import difflib
 import json
 import os
 import re
@@ -9,7 +9,6 @@ import unicodedata
 import webbrowser
 from pathlib import Path
 from urllib.parse import quote_plus
-
 
 APPDATA = os.environ.get("APPDATA", "")
 PROGRAMDATA = os.environ.get("PROGRAMDATA", r"C:\ProgramData")

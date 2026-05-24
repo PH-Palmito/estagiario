@@ -5,7 +5,6 @@ from pathlib import Path
 
 from memory.implementation_handoff import load_implementation_handoff
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 HANDOFF_APPLICATIONS_PATH = MEMORY_DIR / "handoff_applications.json"

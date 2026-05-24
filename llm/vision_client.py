@@ -2,8 +2,8 @@ import base64
 from pathlib import Path
 
 import requests
-from config import OLLAMA_BASE_URL, OLLAMA_VISION_MODEL, join_url
 
+from config import OLLAMA_BASE_URL, OLLAMA_VISION_MODEL, join_url
 
 OLLAMA_GENERATE_URL = join_url(OLLAMA_BASE_URL, "/api/generate")
 OLLAMA_TAGS_URL = join_url(OLLAMA_BASE_URL, "/api/tags")

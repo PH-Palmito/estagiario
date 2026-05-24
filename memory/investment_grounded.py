@@ -1,7 +1,6 @@
-from typing import Callable
+from collections.abc import Callable
 
 from memory.investment_formatting import format_brl
-
 
 AskGrounded = Callable[..., dict | None]
 GetStrategy = Callable[[str], dict]

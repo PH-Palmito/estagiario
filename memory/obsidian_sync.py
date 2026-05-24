@@ -7,7 +7,6 @@ from pathlib import Path
 
 from config import BASE_DIR, OBSIDIAN_SYNC_ENABLED, OBSIDIAN_VAULT_PATH
 
-
 DEFAULT_VAULT = BASE_DIR / "memory" / "obsidian_vault"
 
 
@@ -120,7 +119,7 @@ def sync_current_topic_note(payload: dict) -> bool:
     return _write_note(path, "\n".join(content))
 
 
-def sync_operational_context_note(payload: dict) -> bool:
+def _sync_operational_context_note_legacy(payload: dict) -> bool:
     path = _note_path("Operational Context")
     if path is None:
         return False

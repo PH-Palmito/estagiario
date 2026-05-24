@@ -3,7 +3,6 @@ import re
 
 from llm.ollama_client import ask_model
 
-
 PLANNER_PROMPT = """
 Voce e um planejador de acoes para um assistente local.
 

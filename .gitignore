@@ -11,9 +11,15 @@ __pycache__/
 .tmp/
 sandbox/
 
+# Local memory state, runtime queues, snapshots and generated artifacts.
 memory/*.json
 memory/*.jsonl
 memory/*.md
+memory/*.tmp
+memory/*.html
+memory/*.txt
+memory/*.playwright.txt
+memory/*.log
 memory/obsidian_vault/
 memory/audio_diagnostics/
 memory/chunks/

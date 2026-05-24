@@ -10,7 +10,7 @@ PROFILE_PATH = Path("memory/profile.json")
 def load_profile():
     if PROFILE_PATH.exists():
         try:
-            with open(PROFILE_PATH, "r", encoding="utf-8") as f:
+            with open(PROFILE_PATH, encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict):
                 return data

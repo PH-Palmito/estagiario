@@ -7,7 +7,6 @@ from memory.bottlenecks import load_bottlenecks
 from memory.codex_inbox import latest_codex_inbox_item
 from memory.verification_runs import load_verification_runs
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 TODO_PATH = MEMORY_DIR / "todo.md"

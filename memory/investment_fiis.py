@@ -1,7 +1,6 @@
-from typing import Callable
+from collections.abc import Callable
 
 from memory.investment_formatting import format_percent, parse_percent_value
-
 
 RankPositions = Callable[[dict], list[tuple[str, dict]]]
 EnsureFundamentals = Callable[[dict, str], dict]

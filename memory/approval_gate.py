@@ -5,7 +5,6 @@ from pathlib import Path
 
 from memory.patch_proposals import load_patch_proposals
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 APPROVAL_GATE_PATH = MEMORY_DIR / "approval_gate.json"

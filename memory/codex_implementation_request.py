@@ -7,7 +7,6 @@ from memory.handoff_applications import load_handoff_application
 from memory.handoff_retry_plan import load_handoff_retry_plan
 from memory.implementation_handoff import load_implementation_handoff
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 CODEX_IMPLEMENTATION_REQUEST_PATH = MEMORY_DIR / "codex_implementation_request.json"

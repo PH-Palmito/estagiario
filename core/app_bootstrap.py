@@ -1,8 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
-
 
 HELP_TEXT = (
     "Uso: python main.py [--voice] [--hotword] [--ui]\n"

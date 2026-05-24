@@ -6,14 +6,13 @@ from pathlib import Path
 from memory.current_topic import update_current_topic_from_vision
 from memory.supabase_sync import sync_memory_state_safely
 
-
 HISTORY_PATH = Path("memory/vision_history.json")
 MAX_ITEMS = 8
 
 
 def _fix_mojibake(text: str) -> str:
     content = str(text or "")
-    if not any(marker in content for marker in ("Ã", "Â", "�")):
+    if not any(marker in content for marker in (chr(0xC3), chr(0xC2), chr(0xFFFD))):
         return _pt_display_text(content)
     try:
         content = content.encode("latin1").decode("utf-8")

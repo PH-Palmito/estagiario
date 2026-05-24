@@ -64,6 +64,34 @@ class UIBridgeTests(unittest.TestCase):
         patch_payloads = [call.args[0] for call in update_mock.call_args_list]
         self.assertTrue(any(payload.get("map_panel_open") for payload in patch_payloads))
 
+    @patch("core.ui_bridge.subprocess.Popen")
+    @patch("core.ui_bridge.load_ui_state", return_value={"visible": False})
+    @patch("core.ui_bridge.update_ui_state")
+    @patch(
+        "core.ui_bridge.build_project_health_snapshot",
+        return_value={
+            "status": "saudavel",
+            "preflight": {
+                "compiled_modules": ["main.py"],
+                "compile_error": "",
+                "json_ok_count": 2,
+                "json_errors": [],
+                "change_summary": "limpo",
+            },
+            "execution": {"events_count": 1, "recent_errors": []},
+            "actions": {"count": 5, "categories": {}, "error": ""},
+            "artifacts": {"json": 1, "tmp": 0, "html": 0, "txt": 0},
+        },
+    )
+    def test_health_command_opens_health_panel(self, _snapshot, update_mock, _load_mock, _popen_mock):
+        bridge = make_bridge()
+
+        result = bridge.maybe_handle_command("saude do axel")
+
+        self.assertIn("Saude do Axel: projeto saudavel.", result)
+        patch_payloads = [call.args[0] for call in update_mock.call_args_list]
+        self.assertTrue(any(payload.get("open_panels") == ["saude"] for payload in patch_payloads))
+
 
 if __name__ == "__main__":
     unittest.main()

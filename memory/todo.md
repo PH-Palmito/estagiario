@@ -22,10 +22,48 @@
 - [x] Extrair command_service do main.py.
 - [x] Remover inventario manual de ACTIONS do executor.
 - [x] Separar ui_bridge do main.py.
-- [ ] Separar voice_loop do main.py.
+- [x] Extrair decisoes puras de modo de escuta para voice_loop.
+- [x] Extrair leitura do proximo input para voice_loop.
+- [x] Separar voice_loop do main.py.
 - [x] Separar app_bootstrap do main.py.
-- [ ] Separar detectores do router por dominio.
-- [ ] Corrigir residuos finais de encoding em memorias e docs.
+- [x] Extrair cadeia operacional de auto-evolucao, handoff, Codex e contexto do main.py.
+- [x] Extrair fluxo de ditado e conversa do main.py.
+- [x] Extrair fluxo de confirmacao e escolha app/site do main.py.
+- [x] Extrair fluxo de gravacao de macros do main.py.
+- [x] Extrair fluxo pos-roteamento do main.py.
+- [x] Extrair servico de briefing de inicializacao do main.py.
+- [x] Extrair IO de terminal, status de escuta e hotword do main.py.
+- [x] Extrair runtime da interface e consumo de comandos do painel do main.py.
+- [x] Extrair comandos de CLI/startup do main.py.
+- [x] Extrair saudacao de startup e cache de voz do main.py.
+- [x] Extrair anunciador de lembretes do main.py.
+- [x] Extrair cérebro de auto-evolucao operacional do main.py.
+- [x] Extrair pipeline de resposta, progresso e execucao do main.py.
+- [x] Extrair aprendizado e correcoes de voz do main.py.
+- [x] Agrupar servicos preguiçosos e estado compartilhado em AppRuntime.
+- [x] Separar detectores de arquivos/pastas do router.
+- [x] Separar detectores simples de visao do router.
+- [x] Separar detectores diarios do router.
+- [x] Separar detectores de midia do router.
+- [x] Separar detectores de apps, sites e janelas do router.
+- [x] Separar detectores de memoria, docs e actions do router.
+- [x] Separar detectores de correcoes de voz do router.
+- [x] Separar detectores basicos de navegador do router.
+- [x] Separar detectores de tela, selecao e traducao do router.
+- [x] Separar detectores de controles do navegador do router.
+- [x] Separar detectores de musica e Spotify do router.
+- [x] Separar detectores de investimentos do router.
+- [x] Separar detectores de busca em sites do router.
+- [x] Separar detectores de inspecao de codigo do router.
+- [x] Separar detectores de analise de imagem do router.
+- [x] Separar detector de perguntas sobre contexto visual do router.
+- [x] Separar detectores de macros e rotinas do router.
+- [x] Separar detectores de conversa e fallback LLM do router.
+- [x] Separar detectores de sistema, startup, script e digitacao do router.
+- [x] Separar detectores basicos de perfil, saudacao, matematica e bluetooth do router.
+- [x] Separar fast path de comandos frequentes do router.
+- [x] Separar detectores do router por dominio.
+- [x] Corrigir residuos finais de encoding em memorias e docs.
 
 - [x] Fazer o Axel iniciar junto com o Windows.
 - [x] Criar um modo de auto avanco para o Axel pedir melhorias ao Codex.
@@ -46,5 +84,33 @@
 - [x] Evoluir modo musica com comandos como gostei dessa, nao gostei, mais desse estilo e menos triste agora.
 - [ ] Criar cache e fast path para Mercado Livre e sites frequentes, nos mesmos moldes do Spotify.
 - [ ] Integrar o Axel ao WhatsApp para ler, resumir e enviar mensagens com confirmacao.
-- [ ] Integrar o Axel a uma agenda/calendario real para criar, consultar e sincronizar compromissos.
+- [ ] Integrar o Axel a uma agenda/calendario real para criar, consultar e sincronizar compromissos, usando isso no briefing e nos lembretes proativos.
+- [ ] Criar resumo diario do que mudou na carteira desde ontem: patrimonio, rentabilidade, ativos que mais variaram, dividendos novos, noticias relevantes e alertas de preco-teto.
 - [x] Tratar buscas provaveis no YouTube, como "aqueles caras no YouTube", com confirmacao inteligente.
+
+## Prioridades atuais
+
+- [x] Iniciar quebra de tools/browser_tools.py extraindo estado de snapshot do navegador.
+- [x] Extrair controles basicos do navegador de tools/browser_tools.py.
+- [x] Extrair dominio de musica/Spotify para tools/browser_music.py.
+- [x] Remover codigo morto de musica/Spotify de tools/browser_tools.py.
+- [x] Extrair leitura de selecao e pagina por clipboard para tools/browser_text_reader.py.
+- [x] Extrair analise pura de tela e metricas financeiras para tools/browser_screen_analysis.py.
+- [x] Extrair narrativa e resumo de tela para tools/browser_screen_narrative.py.
+- [x] Extrair ranqueamento e leitura pura de texto de pagina para tools/browser_page_text.py.
+- [x] Extrair montagem/parsing do leitor DOM de produtos para tools/browser_dom_reader.py.
+- [x] Extrair captura de URL, clipboard e conteudo de tela para tools/browser_screen_capture.py.
+- [x] Extrair comandos publicos de resumo/detalhe/investimentos/tela para tools/browser_screen_commands.py.
+- [x] Extrair fluxo de carteira/Investidor10 no navegador para tools/browser_wallet_commands.py.
+- [x] Extrair leitura, traducao e produtos selecionados para tools/browser_selection_commands.py.
+- [x] Extrair comandos de itens listados, preco e clique por texto para tools/browser_listed_items.py.
+- [x] Extrair automacao UI remanescente do Spotify para tools/spotify_ui_automation.py.
+- [x] Extrair PowerShell, clipboard e ativacao de janela para tools/windows_shell.py.
+- [x] Extrair lancador da carteira no navegador para tools/browser_launcher.py.
+- [x] Extrair teclado/mouse para tools/windows_input.py.
+- [x] Extrair titulo, retangulos e hash de janela para tools/windows_window.py.
+- [x] Extrair automacao UI do navegador para tools/browser_ui_automation.py.
+- [ ] Continuar quebra de tools/browser_tools.py por dominios: controles, leitura de tela, carteira e musica.
+- [x] Atualizar README.md e corrigir encoding da documentacao principal.
+- [x] Criar politica de caches/artefatos em memory/ e ajustar .gitignore.
+- [x] Criar painel de saude do Axel.

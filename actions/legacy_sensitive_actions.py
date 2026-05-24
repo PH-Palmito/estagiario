@@ -1,7 +1,16 @@
 from __future__ import annotations
 
 from actions.registry import ActionSpec, register_action
-from tools.file_tools import append_file, copy_file, create_file, delete_file, move_file, rename_file, replace_in_file, write_file
+from tools.file_tools import (
+    append_file,
+    copy_file,
+    create_file,
+    delete_file,
+    move_file,
+    rename_file,
+    replace_in_file,
+    write_file,
+)
 from tools.folder_tools import create_folder
 from tools.system_tools import close_app, run_script, type_text
 

@@ -9,7 +9,6 @@ if str(ROOT) not in sys.path:
 
 from config import INVESTIDOR10_PRIVATE_WALLET_URL, WALLET_PLAYWRIGHT_USER_DATA_DIR
 
-
 EDGE_CANDIDATES = (
     Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
     Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),

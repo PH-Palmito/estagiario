@@ -5,7 +5,6 @@ from pathlib import Path
 
 from memory.action_candidates import load_action_candidates
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 EXECUTION_PACKAGES_PATH = MEMORY_DIR / "execution_packages.json"

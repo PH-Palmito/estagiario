@@ -5,7 +5,6 @@ import random
 from itertools import count
 from pathlib import Path
 
-
 _PHRASE_COUNTERS: dict[str, count] = {}
 PHRASE_STATE_PATH = Path("memory") / "assistant_phrase_state.json"
 MAX_RECENT_PHRASES = 5

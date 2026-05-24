@@ -1,7 +1,8 @@
-import threading
 import re
+import threading
 import time
 
+from config import INVESTIDOR10_PRIVATE_WALLET_URL, INVESTIDOR10_WALLET_URL
 from memory.investment_snapshot import (
     answer_investment_snapshot_question,
     format_investment_financial_report,
@@ -10,11 +11,11 @@ from memory.investment_snapshot import (
 )
 from memory.investment_strategy import (
     add_to_watchlist,
-    format_watchlist,
     format_auto_ceiling_settings,
+    format_watchlist,
     remove_from_watchlist,
-    set_auto_ceiling_margin,
     set_asset_thesis,
+    set_auto_ceiling_margin,
     set_price_ceiling,
 )
 from memory.public_wallet_refresh import (
@@ -23,7 +24,6 @@ from memory.public_wallet_refresh import (
     refresh_wallet_snapshot_auto,
     refresh_wallet_snapshot_if_stale,
 )
-from config import INVESTIDOR10_PRIVATE_WALLET_URL, INVESTIDOR10_WALLET_URL
 
 INVESTMENT_MODE_REFRESH_SECONDS = 6 * 60 * 60
 ASSET_FOCUS_REFRESH_SECONDS = 2 * 60 * 60

@@ -19,7 +19,9 @@ Opcionalmente, o projeto também pode usar Gemini API como cérebro principal de
 ## Status atual
 
 - Foco principal: automação local e utilidade prática
-- Análise de imagem: pausada por enquanto para economizar recurso
+- Núcleo de actions, roteamento, voz, briefing, carteira, memória e UI modularizados
+- Análise de imagem disponível por tela, navegador, clipboard e arquivo quando houver modelo visual configurado
+- Suíte de testes `unittest` cobrindo comandos, actions, voz, carteira, UI runtime e fluxos principais
 - Plataforma principal: Windows
 
 ## Requisitos
@@ -116,7 +118,7 @@ Variáveis principais:
   Seu link direto da carteira no Investidor10. Pode ser um link privado/autenticado ou uma carteira pública.
 
 - `AXEL_WALLET_PLAYWRIGHT_USER_DATA_DIR`
-  Opcional. Perfil dedicado do navegador para o Axel ler a carteira privada com Playwright. Rode `.\venv\Scripts\python.exe .\scripts\open_wallet_playwright_profile.py`, faca login no Investidor10 uma vez e use o caminho mostrado nessa variavel.
+  Opcional. Perfil dedicado do navegador para o Axel ler a carteira privada com Playwright. Rode `.\venv\Scripts\python.exe .\scripts\open_wallet_playwright_profile.py`, faça login no Investidor10 uma vez e use o caminho mostrado nessa variável.
 
 - `AXEL_BRAPI_TOKEN`
   Token opcional da BRAPI para ampliar a cobertura de cotações e fundamentos por ticker, especialmente fora do snapshot da carteira.
@@ -125,7 +127,7 @@ Variáveis principais:
   Liga ou desliga a tentativa de usar BRAPI antes do fallback atual via Investidor10.
 
 - Clima
-  O Axel usa Open-Meteo para consultas de clima. Nessa integraçao, nao e preciso configurar chave.
+  O Axel usa Open-Meteo para consultas de clima. Nessa integração, não é preciso configurar chave.
 
 - `AXEL_NEWSAPI_KEY`
   Chave opcional da NewsAPI para buscar notícias recentes por ativo.
@@ -241,7 +243,7 @@ Desativar ou verificar:
 ```
 
 Quando ativado, o Axel inicia com `--voice --hotword --ui --startup`, entao lembretes vencidos podem ser anunciados por voz mesmo sem voce chamar primeiro.
-Ao ligar em modo voz, ele tambem manda o briefing do dia automaticamente uma vez por dia. Nas outras aberturas do mesmo dia, ele so confirma prontidao. Para abrir sem briefing em algum teste, use `--no-startup-briefing`.
+Ao ligar em modo voz, ele também manda o briefing do dia automaticamente uma vez por dia. Nas outras aberturas do mesmo dia, ele só confirma prontidão. Para abrir sem briefing em algum teste, use `--no-startup-briefing`.
 As saudacoes de inicializacao variam entre frases de estudo, codigo e operacao. Para uma saudacao curta em testes, use `--short-startup-greeting`.
 
 Baixar uma voz Piper:
@@ -254,6 +256,19 @@ Teste rápido das integrações de memória:
 
 ```powershell
 .\venv\Scripts\python.exe .\scripts\check_memory_integrations.py
+```
+
+Verificacao local de qualidade:
+
+```powershell
+.\venv\Scripts\python.exe .\scripts\quality_check.py
+```
+
+Para incluir lint com Ruff, instale as dependencias de desenvolvimento e rode:
+
+```powershell
+.\venv\Scripts\pip.exe install -r requirements-dev.txt
+.\venv\Scripts\python.exe .\scripts\quality_check.py --lint
 ```
 
 Bootstrap do vault semântico do Obsidian:
@@ -296,8 +311,9 @@ Antes de publicar:
 
 - revise seu `.env`
 - não suba `venv/`, `.tmp/`, `models/` e arquivos de cache
-- não suba `memory/*.json`, porque ali podem existir preferências, histórico, contexto e snapshots pessoais
+- não suba `memory/*.json`, `memory/*.jsonl`, `memory/*.tmp`, dumps `.html/.txt` e outros artefatos locais, porque ali podem existir preferências, histórico, contexto e snapshots pessoais
 - não suba `memory/obsidian_vault/`, porque o vault local pode guardar memória pessoal do Axel
+- veja a política completa em `docs/memory-artifacts-policy.md`
 
 Importante:
 Se esses arquivos já estiverem rastreados no Git, o `.gitignore` sozinho não remove do histórico. Nesse caso, limpe o stage antes do primeiro push público.
@@ -307,6 +323,9 @@ Exemplo:
 ```powershell
 git rm --cached -r venv .tmp models
 git rm --cached memory/*.json
+git rm --cached memory/*.tmp
+git rm --cached memory/*.html
+git rm --cached memory/*.txt
 git rm --cached -r memory/obsidian_vault
 ```
 

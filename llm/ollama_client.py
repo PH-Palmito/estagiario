@@ -12,7 +12,6 @@ from config import (
 )
 from llm.gemini_client import ask_gemini_model
 
-
 OLLAMA_URL = join_url(OLLAMA_BASE_URL, "/api/generate")
 
 

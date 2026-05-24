@@ -2,8 +2,8 @@ import json
 import os
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 
 def save_json(path: Path, payload: dict):

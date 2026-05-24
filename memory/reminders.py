@@ -10,7 +10,6 @@ from pathlib import Path
 from memory.current_topic import load_current_topic
 from memory.supabase_sync import sync_memory_state_safely
 
-
 REMINDERS_PATH = Path("memory/reminders.json")
 
 

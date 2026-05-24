@@ -11,7 +11,6 @@ from memory.obsidian_sync import sync_long_memory_note
 from memory.supabase_sync import sync_memory_state_safely
 from memory.ui_state import load_ui_state
 
-
 LONG_MEMORY_PATH = Path("memory/long_memory.json")
 MAX_ITEMS = 240
 MAX_ITEMS_PER_CATEGORY = 60

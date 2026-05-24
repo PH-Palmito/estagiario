@@ -7,7 +7,6 @@ import requests
 
 from memory.profile import get_value
 
-
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 DEFAULT_TIMEZONE = "America/Sao_Paulo"

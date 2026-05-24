@@ -3,7 +3,6 @@ from pathlib import Path
 
 from memory.supabase_sync import sync_memory_state_safely
 
-
 FILE = Path("memory/voice_preferences.json")
 
 DEFAULTS = {

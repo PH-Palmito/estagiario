@@ -1,5 +1,5 @@
-from core.command_schema import Command
 from actions import ensure_default_actions, get_action, list_actions
+from core.command_schema import Command
 
 
 class ActionInventory:

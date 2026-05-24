@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import requests
 
@@ -46,7 +46,7 @@ def upsert_memory_state(key: str, payload: dict, category: str = "state", timeou
         "key": str(key).strip(),
         "category": str(category or "state").strip() or "state",
         "payload": payload if isinstance(payload, dict) else {"value": payload},
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
 
     response = requests.post(

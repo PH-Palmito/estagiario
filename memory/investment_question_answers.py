@@ -1,7 +1,6 @@
-from typing import Callable
+from collections.abc import Callable
 
 from memory.investment_formatting import format_brl, format_percent, parse_currency_value, parse_percent_value
-
 
 ContainsPhrase = Callable[..., bool]
 

@@ -30,6 +30,11 @@ except Exception:
     load_investment_snapshot = None
 
 try:
+    from core.project_health import build_project_health_snapshot
+except Exception:
+    build_project_health_snapshot = None
+
+try:
     from config import NEWSAPI_ENABLED, NEWSAPI_KEY
     from memory.news_api import analyze_asset_news
 except Exception:
@@ -43,7 +48,7 @@ TRAINING_HTML_PATH = ROOT / "ui" / "training_panel.html"
 
 
 class AxelBridge(QObject):
-    def __init__(self, window: "AxelWebHud"):
+    def __init__(self, window: AxelWebHud):
         super().__init__()
         self.window = window
 
@@ -90,6 +95,7 @@ class AxelWebHud(QMainWindow):
             "weather": {"at": 0.0, "data": {}},
             "investment": {"at": 0.0, "data": {}},
             "news": {"at": 0.0, "data": []},
+            "health": {"at": 0.0, "data": {}},
         }
 
         self.view = QWebEngineView(self)
@@ -254,6 +260,21 @@ class AxelWebHud(QMainWindow):
             panels.add("mapas")
         return panels
 
+    def _health_payload(self, ui_state: dict) -> dict:
+        existing = ui_state.get("health_snapshot") if isinstance(ui_state.get("health_snapshot"), dict) else {}
+        if existing:
+            return existing
+        if time.time() - self._cache["health"]["at"] < 20:
+            return self._cache["health"]["data"]
+        data = {}
+        if build_project_health_snapshot:
+            try:
+                data = build_project_health_snapshot(ROOT) or {}
+            except Exception as exc:
+                data = {"status": "precisa de atencao", "error": str(exc)}
+        self._cache["health"] = {"at": time.time(), "data": data}
+        return data
+
     def _payload(self) -> dict:
         ui_state = load_ui_state()
         active_panels = self._active_panels(ui_state)
@@ -276,6 +297,7 @@ class AxelWebHud(QMainWindow):
         investment_needed = bool({"carteira", "noticias"} & active_panels)
         investment = self._investment_payload() if investment_needed else self._cached("investment")
         news = self._news_payload(investment) if "noticias" in active_panels else self._cached("news")
+        health = self._health_payload(ui_state) if "saude" in active_panels else self._cached("health")
         return {
             "ui": ui_state,
             "training": training,
@@ -283,6 +305,7 @@ class AxelWebHud(QMainWindow):
             "weather": weather,
             "investment": investment,
             "news": news,
+            "health": health,
             "map": self._map_payload(ui_state),
         }
 

@@ -1,7 +1,6 @@
-from typing import Callable
+from collections.abc import Callable
 
 from memory.investment_formatting import format_brl, parse_currency_value
-
 
 GetStrategy = Callable[[str], dict]
 AssetFundamentals = Callable[[dict], dict[str, dict]]

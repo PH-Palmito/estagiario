@@ -1,6 +1,5 @@
 import re
-from typing import Callable
-
+from collections.abc import Callable
 
 VALUE_RE = re.compile(
     r"[-+]?\d+(?:,\d+)?\s*%|(?:r\$\s*)?[-+]?\d{1,3}(?:\.\d{3})*(?:,\d{2})",

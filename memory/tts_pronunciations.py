@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 
-
 TTS_PRONUNCIATIONS_PATH = Path("memory") / "tts_pronunciations.json"
 
 

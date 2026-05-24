@@ -4,7 +4,6 @@ import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-
 AGENDA_PATH = Path("memory/agenda.json")
 
 

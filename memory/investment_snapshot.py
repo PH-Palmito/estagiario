@@ -7,88 +7,6 @@ from pathlib import Path
 from config import GEMINI_API_KEY
 from llm.gemini_client import ask_gemini_grounded_model
 from memory.investment_asset_fundamentals import fetch_asset_fundamentals
-from memory.investment_formatting import (
-    format_brl,
-    format_day_month,
-    format_percent,
-    parse_currency_value,
-    parse_iso_datetime,
-    parse_percent_value,
-)
-from memory.investment_dividends import (
-    format_dividend_event,
-    format_dividend_event_brief,
-    portfolio_dividend_schedule,
-    portfolio_dividend_schedule_answer,
-    ticker_dividend_events,
-    upcoming_dividend_brief,
-)
-from memory.investment_news import (
-    clean_news_lead,
-    compact_report_news,
-    portfolio_news_digest,
-)
-from memory.investment_fiis import portfolio_fii_dy_answer
-from memory.investment_decision import (
-    effective_price_ceiling,
-    external_effective_price_ceiling,
-    is_price_ceiling_alert_material,
-    material_price_ceiling_items,
-    portfolio_attention_items,
-    portfolio_items_above_ceiling,
-    position_action_stance,
-    position_quick_opinion,
-    resolve_reference_price,
-    watchlist_tickers_not_in_portfolio,
-)
-from memory.investment_external import (
-    external_asset_opinion,
-    format_external_asset_reading,
-)
-from memory.investment_report import (
-    investment_financial_report,
-    portfolio_monitor_digest,
-)
-from memory.investment_reading import (
-    build_local_investment_reading,
-    format_position_reading,
-)
-from memory.investment_parsing import (
-    extract_metric_map,
-    extract_question_ticker,
-    extract_snapshot_direction,
-    extract_ticker,
-    snapshot_blob,
-)
-from memory.investment_snapshot_store import (
-    load_investment_snapshot_payload,
-    load_json,
-    save_investment_snapshot_payload,
-    save_json,
-)
-from memory.investment_dedup import (
-    filter_new_signal_texts,
-    load_seen_state,
-    save_seen_state,
-    signal_fingerprint,
-    text_fingerprint,
-)
-from memory.investment_question_answers import (
-    answer_assets_above_ceiling,
-    answer_auto_price_ceiling,
-    answer_dividend_question,
-    answer_portfolio_news_question,
-    answer_ticker_average_price,
-    answer_ticker_day_variation,
-    answer_ticker_quote,
-    answer_ticker_trend,
-    answer_ticker_yield,
-)
-from memory.investment_grounded import (
-    ask_grounded_asset_news,
-    ask_grounded_investment_reading,
-    asset_news_answer,
-)
 from memory.investment_base_answers import (
     answer_attention_assets,
     answer_auto_ceiling_settings,
@@ -103,15 +21,96 @@ from memory.investment_base_answers import (
     answer_thesis_status,
     answer_watchlist_status,
 )
-from memory.obsidian_sync import sync_portfolio_snapshot_note
-from memory.news_api import summarize_asset_news
+from memory.investment_decision import (
+    effective_price_ceiling,
+    external_effective_price_ceiling,
+    is_price_ceiling_alert_material,
+    material_price_ceiling_items,
+    portfolio_attention_items,
+    portfolio_items_above_ceiling,
+    position_action_stance,
+    position_quick_opinion,
+    resolve_reference_price,
+    watchlist_tickers_not_in_portfolio,
+)
+from memory.investment_dedup import (
+    filter_new_signal_texts,
+    load_seen_state,
+    save_seen_state,
+    signal_fingerprint,
+    text_fingerprint,
+)
+from memory.investment_dividends import (
+    format_dividend_event,
+    format_dividend_event_brief,
+    portfolio_dividend_schedule,
+    portfolio_dividend_schedule_answer,
+    ticker_dividend_events,
+    upcoming_dividend_brief,
+)
+from memory.investment_external import (
+    external_asset_opinion,
+    format_external_asset_reading,
+)
+from memory.investment_fiis import portfolio_fii_dy_answer
+from memory.investment_formatting import (
+    format_brl,
+    format_day_month,
+    format_percent,
+    parse_currency_value,
+    parse_iso_datetime,
+    parse_percent_value,
+)
+from memory.investment_grounded import (
+    ask_grounded_asset_news,
+    ask_grounded_investment_reading,
+    asset_news_answer,
+)
+from memory.investment_news import (
+    clean_news_lead,
+    compact_report_news,
+    portfolio_news_digest,
+)
+from memory.investment_parsing import (
+    extract_metric_map,
+    extract_question_ticker,
+    extract_snapshot_direction,
+    extract_ticker,
+    snapshot_blob,
+)
+from memory.investment_question_answers import (
+    answer_assets_above_ceiling,
+    answer_auto_price_ceiling,
+    answer_dividend_question,
+    answer_portfolio_news_question,
+    answer_ticker_average_price,
+    answer_ticker_day_variation,
+    answer_ticker_quote,
+    answer_ticker_trend,
+    answer_ticker_yield,
+)
+from memory.investment_reading import (
+    build_local_investment_reading,
+    format_position_reading,
+)
+from memory.investment_report import (
+    investment_financial_report,
+    portfolio_monitor_digest,
+)
+from memory.investment_snapshot_store import (
+    load_investment_snapshot_payload,
+    load_json,
+    save_investment_snapshot_payload,
+    save_json,
+)
 from memory.investment_strategy import (
     calculate_auto_price_ceiling,
     get_asset_strategy,
     get_auto_ceiling_settings,
     load_investment_strategy,
 )
-
+from memory.news_api import summarize_asset_news
+from memory.obsidian_sync import sync_portfolio_snapshot_note
 
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"

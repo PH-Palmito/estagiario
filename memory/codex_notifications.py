@@ -5,7 +5,6 @@ from pathlib import Path
 
 from memory.codex_channel import load_codex_channel
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 CODEX_NOTIFICATIONS_PATH = MEMORY_DIR / "codex_notifications.json"

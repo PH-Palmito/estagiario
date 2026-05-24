@@ -4,7 +4,6 @@ import re
 import unicodedata
 from pathlib import Path
 
-
 DOCS_DIR = Path(__file__).resolve().parents[1] / "docs"
 DOC_HINTS = {
     "plano",

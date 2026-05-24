@@ -397,7 +397,8 @@
       .panel-window[data-window="audio"],
       .panel-window[data-window="sessao"],
       .panel-window[data-window="contexto"],
-      .panel-window[data-window="comandos"] {
+      .panel-window[data-window="comandos"],
+      .panel-window[data-window="saude"] {
         right: 34px;
         top: 86px;
         width: 520px;
@@ -1016,6 +1017,7 @@
         <button type="button" data-panel="tempo">☁ Tempo</button>
         <button type="button" data-panel="carteira">↗ Carteira</button>
         <button type="button" data-panel="noticias">◫ Notícias</button>
+        <button type="button" data-panel="saude">+ Saude</button>
         <button type="button" data-panel="treino">⊙ Treino</button>
       </nav>
 
@@ -1142,6 +1144,32 @@
         </div>
       </section>
 
+      <section class="panel-window" data-window="saude">
+        <div class="panel-head">
+          <div><p class="eyebrow">Saude</p><h2>Projeto Axel</h2></div>
+          <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
+        </div>
+        <div class="panel-body">
+          <div class="text-card">
+            <div class="metric-grid">
+              <div class="metric"><span>Projeto</span><strong id="healthStatus">--</strong></div>
+              <div class="metric"><span>Modulos</span><strong id="healthModules">--</strong></div>
+              <div class="metric"><span>JSON</span><strong id="healthJson">--</strong></div>
+              <div class="metric"><span>Actions</span><strong id="healthActions">--</strong></div>
+            </div>
+            <ul class="mini-list">
+              <li><span>Git</span><strong id="healthGit">--</strong></li>
+              <li><span>Log</span><strong id="healthLog">--</strong></li>
+              <li><span>Artefatos</span><strong id="healthArtifacts">--</strong></li>
+            </ul>
+          </div>
+          <div class="text-card" style="margin-top:12px">
+            <p class="eyebrow">Alertas</p>
+            <ul class="workout-list" id="healthAlerts"></ul>
+          </div>
+        </div>
+      </section>
+
       <section class="panel-window" data-window="midia">
         <div class="panel-head">
           <div><p class="eyebrow">Mídia</p><h2>Controles</h2></div>
@@ -1257,7 +1285,7 @@
       let panelSwitchingUntil = 0;
       const stage = document.querySelector(".stage");
       const largePanels = new Set(["treino", "carteira", "noticias", "mapas"]);
-      const draggablePanels = new Set(["texto", "audio", "sessao", "contexto", "comandos", "midia", "tempo"]);
+      const draggablePanels = new Set(["texto", "audio", "sessao", "contexto", "comandos", "saude", "midia", "tempo"]);
       let panelPositions = {};
       let dragState = null;
 
@@ -1268,6 +1296,7 @@
           ["☁", "Clima", "como esta o clima"],
           ["↗", "Carteira", "resumo da carteira"],
           ["◫", "Notícias", "tem noticias da carteira"],
+          ["+", "Saude", "saude do axel"],
           ["●", "Conversa", "quero conversar"],
         ]],
         ["Mídia", [
@@ -1295,6 +1324,7 @@
           ["☁", "Clima", "como esta o clima"],
           ["↗", "Carteira", "resumo da carteira"],
           ["◫", "Notícias", "tem noticias da carteira"],
+          ["+", "Saude", "saude do axel"],
           ["⊙", "Treino", "abrir treino"],
         ]],
       ];
@@ -1776,6 +1806,32 @@
         };
       }
 
+      function renderHealth(health) {
+        const preflight = health?.preflight || {};
+        const execution = health?.execution || {};
+        const actions = health?.actions || {};
+        const artifacts = health?.artifacts || {};
+        const compileError = preflight.compile_error || "";
+        const jsonErrors = Array.isArray(preflight.json_errors) ? preflight.json_errors : [];
+        const recentErrors = Array.isArray(execution.recent_errors) ? execution.recent_errors : [];
+        const alerts = [];
+        if (compileError) alerts.push(`Compilacao: ${compileError}`);
+        jsonErrors.forEach((item) => alerts.push(`JSON: ${item}`));
+        recentErrors.forEach((item) => alerts.push(`Log: ${item}`));
+        if (actions.error) alerts.push(`Actions: ${actions.error}`);
+
+        setText("healthStatus", health?.status || "--");
+        setText("healthModules", compileError ? "falha" : `${(preflight.compiled_modules || []).length || 0} ok`);
+        setText("healthJson", jsonErrors.length ? `${jsonErrors.length} erro(s)` : `${preflight.json_ok_count || 0} ok`);
+        setText("healthActions", actions.error ? "alerta" : `${actions.count || 0}`);
+        setText("healthGit", preflight.change_summary || "--");
+        setText("healthLog", `${execution.events_count || 0} eventos recentes`);
+        setText("healthArtifacts", `${artifacts.json || 0} json / ${artifacts.tmp || 0} tmp / ${(artifacts.html || 0) + (artifacts.txt || 0)} dumps`);
+        document.getElementById("healthAlerts").innerHTML = alerts.length
+          ? alerts.map((item) => `<li>${item}</li>`).join("")
+          : "<li>Nenhum alerta critico agora.</li>";
+      }
+
       function modeLabel(ui) {
         if (ui.conversation_mode) return "conversa";
         if (ui.dictation_mode) return "ditado";
@@ -1845,6 +1901,7 @@
         if (hasChanged("weather", payload?.weather || {})) renderWeather(payload?.weather || {});
         if (hasChanged("investment", payload?.investment || {})) renderInvestment(payload?.investment || {});
         if (hasChanged("news", payload?.news || [])) renderNews(payload?.news || []);
+        if (hasChanged("health", payload?.health || {})) renderHealth(payload?.health || {});
         if (hasChanged("map", payload?.map || {})) renderMap(payload?.map || {});
         renderSystemPanels(ui);
 
@@ -1852,7 +1909,7 @@
         const requestKey = requestedPanels.join("|");
         if (requestKey && requestKey !== appliedOpenPanelsKey) {
           const mapped = requestedPanels
-            .map((name) => ({ text: "texto", treino: "treino", midia: "midia", tempo: "tempo", invest: "carteira", noticias: "noticias", mapas: "mapas" }[String(name).toLowerCase()] || String(name).toLowerCase()))
+            .map((name) => ({ text: "texto", treino: "treino", midia: "midia", tempo: "tempo", invest: "carteira", noticias: "noticias", mapas: "mapas", health: "saude" }[String(name).toLowerCase()] || String(name).toLowerCase()))
             .find((name) => panelTargetExists(name));
           if (mapped) {
             requestPanelOpen(mapped, false, true);

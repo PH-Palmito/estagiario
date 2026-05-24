@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
-import re
 
 from memory.agenda import agenda_brief_summary
 from memory.auto_advances import load_auto_advances
@@ -13,7 +13,6 @@ from memory.investment_snapshot import (
 )
 from memory.reminders import list_reminders
 from tools.weather_tools import get_weather_snapshot
-
 
 TODO_PATH = Path("memory/todo.md")
 

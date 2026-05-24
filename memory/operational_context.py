@@ -9,12 +9,11 @@ from memory.bottlenecks import load_bottlenecks
 from memory.current_topic import load_current_topic
 from memory.obsidian_sync import sync_operational_context_note
 from memory.profile import load_profile
+from memory.reminders import load_reminders
 from memory.self_evolution import load_self_evolution_plan
 from memory.supabase_sync import sync_memory_state_safely
 from memory.ui_state import load_ui_state
 from memory.voice_preferences import load_voice_preferences
-from memory.reminders import load_reminders
-
 
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
@@ -47,7 +46,7 @@ SITE_HINTS = {
 STOPWORDS = {
     "para", "com", "sem", "que", "isso", "essa", "esse", "agora", "depois", "antes",
     "tela", "pagina", "página", "site", "app", "aplicativo", "abre", "abrir", "fechar",
-    "fecha", "detalha", "detalhar", "resuma", "resumir", "oque", "oque", "tem", "na",
+    "fecha", "detalha", "detalhar", "resuma", "resumir", "oque", "tem", "na",
     "no", "de", "do", "da", "em", "pra", "pro", "uma", "um", "mais", "como", "qual",
     "vou", "quero", "gostaria", "axel", "codex",
 }
@@ -379,9 +378,7 @@ def generate_operational_context() -> dict:
         if isinstance(item, dict) and str(item.get("title", "")).strip()
     ]
     current_focus = str(self_evolution.get("current_focus", "")).strip()
-    if next_advances and current_focus not in next_advances:
-        current_focus = next_advances[0]
-    elif not current_focus and next_advances:
+    if next_advances and current_focus not in next_advances or not current_focus and next_advances:
         current_focus = next_advances[0]
     active_bottlenecks = [
         str(item.get("title", "")).strip()

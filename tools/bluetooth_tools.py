@@ -2,7 +2,6 @@ import base64
 import os
 import subprocess
 
-
 POWERSHELL_EXE = "powershell"
 
 RADIO_STATES = {

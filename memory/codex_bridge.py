@@ -13,7 +13,6 @@ from memory.implementation_handoff import load_implementation_handoff
 from memory.patch_proposals import load_patch_proposals
 from memory.verification_runs import load_verification_runs
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 PROFILE_PATH = MEMORY_DIR / "profile.json"

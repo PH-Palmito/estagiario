@@ -1,0 +1,29 @@
+[project]
+name = "axel"
+version = "0.1.0"
+description = "Assistente local para Windows com voz, automacao, memoria e apoio operacional."
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = [
+    "venv",
+    ".tmp",
+    "sandbox",
+    "models",
+    "tools/piper",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "E402",  # scripts add the project root to sys.path before local imports
+    "E501",
+    "B904",
+    "B905",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

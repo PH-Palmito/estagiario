@@ -7,7 +7,6 @@ from memory.codex_inbox import latest_codex_inbox_item
 from memory.handoff_applications import load_handoff_application
 from memory.handoff_validation import load_handoff_validation
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 HANDOFF_RETRY_PLAN_PATH = MEMORY_DIR / "handoff_retry_plan.json"

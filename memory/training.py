@@ -4,12 +4,11 @@ import json
 import os
 import re
 import time
+import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
-import unicodedata
 
 from memory.supabase_sync import sync_memory_state_safely
-
 
 TRAINING_PATH = Path("memory/training.json")
 TARGET_DAYS = 170

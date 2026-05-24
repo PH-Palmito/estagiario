@@ -1,10 +1,9 @@
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import requests
 
 from config import BRAPI_ENABLED, BRAPI_TOKEN
-
 
 BRAPI_QUOTE_URL = "https://brapi.dev/api/quote/{ticker}"
 REQUEST_HEADERS = {
@@ -39,7 +38,7 @@ def _parse_brapi_datetime(value: str) -> datetime | None:
 def _extract_next_dividend_events(item: dict) -> list[dict]:
     dividends_data = item.get("dividendsData") or {}
     cash_dividends = dividends_data.get("cashDividends") or []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     events = []
 
     for raw in cash_dividends:

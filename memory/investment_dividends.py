@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable
 
 from memory.investment_formatting import (
     format_brl,
@@ -8,7 +8,6 @@ from memory.investment_formatting import (
     parse_iso_datetime,
     parse_percent_value,
 )
-
 
 EnsureFundamentals = Callable[[dict, str], dict]
 RankPositions = Callable[[dict], list[tuple[str, dict]]]

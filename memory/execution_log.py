@@ -3,7 +3,6 @@ import os
 import time
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 EXECUTION_LOG_PATH = MEMORY_DIR / "execution_log.jsonl"

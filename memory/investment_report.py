@@ -1,5 +1,4 @@
-from typing import Callable
-
+from collections.abc import Callable
 
 FilterSignals = Callable[[str, list[str]], list[str]]
 

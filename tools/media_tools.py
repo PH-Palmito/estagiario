@@ -5,7 +5,6 @@ import time
 
 from tools.system_tools import focus_app, open_app
 
-
 user32 = ctypes.windll.user32
 
 KEYEVENTF_EXTENDEDKEY = 0x0001

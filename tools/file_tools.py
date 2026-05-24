@@ -65,7 +65,7 @@ def replace_in_file(path_str: str, old_text: str, new_text: str):
         return "Arquivo não encontrado."
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
 
         if old_text not in content:
@@ -90,7 +90,7 @@ def read_file(path_str: str):
         return "Arquivo não encontrado."
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
 
         if len(content) > 500:

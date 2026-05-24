@@ -6,7 +6,6 @@ from pathlib import Path
 from memory.obsidian_sync import sync_current_topic_note
 from memory.supabase_sync import fetch_memory_payload_safely, sync_memory_state_safely
 
-
 TOPIC_PATH = Path("memory/current_topic.json")
 
 

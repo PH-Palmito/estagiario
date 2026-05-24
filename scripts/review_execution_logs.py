@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from collections import Counter
-from datetime import datetime
 import json
 import sys
+from collections import Counter
+from datetime import datetime
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 LOG_PATH = ROOT / "memory" / "execution_log.jsonl"

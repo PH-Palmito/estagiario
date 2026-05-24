@@ -5,7 +5,6 @@ from pathlib import Path
 
 from memory.supabase_sync import sync_memory_state_safely
 
-
 STATE_PATH = Path(__file__).with_name("ui_state.json")
 
 DEFAULT_UI_STATE = {

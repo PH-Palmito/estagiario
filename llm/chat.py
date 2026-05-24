@@ -1,20 +1,19 @@
-from collections import deque
 import json
-from pathlib import Path
 import re
+from collections import deque
+from pathlib import Path
 
 from config import GEMINI_API_KEY, GEMINI_COMPLEX_CHAT_ENABLED, GEMINI_MODEL
 from llm.gemini_client import ask_gemini_model
-from memory.docs_context import docs_context_relevant, search_docs_context
 from llm.ollama_client import ask_model
 from memory.current_topic import load_current_topic, update_current_topic_from_conversation
+from memory.docs_context import docs_context_relevant, search_docs_context
 from memory.obsidian_sync import load_vault_context, search_vault_context
 from memory.operational_context import load_operational_context
 from memory.profile import load_profile
 from memory.research_sources import format_research_sources
 from memory.vault_bootstrap import bootstrap_obsidian_knowledge
 from memory.voice_preferences import load_voice_preferences
-
 
 PREFERENCES = load_voice_preferences()
 CHAT_HISTORY = deque(maxlen=6)
@@ -109,7 +108,6 @@ COMPLEX_REASONING_HINTS = {
     "analisar",
     "compare",
     "comparar",
-    "cenario",
     "cenario",
     "cenário",
     "estrategia",

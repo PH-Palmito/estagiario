@@ -6,7 +6,6 @@ from pathlib import Path
 
 from tools.system_tools import focus_app
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".json", ".css", ".html"}
 SKIP_PARTS = {"venv", "__pycache__", ".git", ".tmp", "models", "sandbox"}

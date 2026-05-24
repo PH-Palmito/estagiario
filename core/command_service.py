@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from core.command_schema import Command
 from core.context_resolver import resolve_params
 from core.normalizer import normalize_action
 from core.validator import validate_command
-
 
 LogEvent = Callable[..., None]
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import mimetypes
 from pathlib import Path
 
-
 TEXT_EXTENSIONS = {
     ".txt",
     ".md",

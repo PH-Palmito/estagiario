@@ -89,7 +89,6 @@ def _deterministic_domain_match(user_input: str) -> dict | None:
         "investimentos",
         "acao",
         "ações",
-        "ações",
         "ativo",
         "ticker",
         "dividendo",

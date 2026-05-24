@@ -4,7 +4,6 @@ import unicodedata
 from difflib import SequenceMatcher
 from pathlib import Path
 
-
 VOICE_CORRECTIONS_PATH = Path("memory") / "voice_corrections.json"
 
 STARTER_VOICE_CORRECTIONS = [

@@ -6,7 +6,6 @@ from pathlib import Path
 from memory.codex_inbox import latest_codex_inbox_item
 from memory.patch_proposals import load_patch_proposals
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 ACTION_CANDIDATES_PATH = MEMORY_DIR / "action_candidates.json"

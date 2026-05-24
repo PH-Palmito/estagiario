@@ -6,7 +6,6 @@ from pathlib import Path
 from memory.codex_channel import load_codex_channel
 from memory.codex_implementation_request import save_codex_implementation_request
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 CODEX_OUTBOX_PATH = MEMORY_DIR / "codex_outbox.json"

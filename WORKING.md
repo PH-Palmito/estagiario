@@ -11,11 +11,12 @@ Transformar o Axel em um mordomo local realmente util:
 - com automacao segura
 - com carteira, agenda, clima, arquivos e navegador trabalhando juntos
 
-## Estado atual em 2026-05-16
+## Estado atual em 2026-05-17
 
 - comandos locais: funcionando e cobertos por golden tests
 - actions: catalogo central criado e conectado ao executor
-- validacao: migrando para ActionSpec, com contratos legados ainda em reducao
+- validacao: ActionSpec virou a fonte principal de contrato; executor e validator ja foram limpos das listas legadas principais
+- router: `core/router.py` virou orquestrador fino; detectores foram separados por dominio em modulos `core/router_*.py`
 - voz: utilizavel, com correcoes e variacoes melhores, mas ainda sensivel a transcricao ruim
 - investimentos: bem mais modular, com noticias, dividendos, preco-teto, watchlist, tese e relatorio
 - briefing: fechado em formato curto, com clima, agenda, dividendos proximos, radar e patrimonio/rentabilidade
@@ -28,18 +29,15 @@ Transformar o Axel em um mordomo local realmente util:
 
 ### 1. Consolidar o nucleo de actions
 
-- remover dependencias restantes de tabelas legadas no validator
 - manter ActionSpec como fonte unica de verdade
 - garantir que cada action tenha categoria, parametros, leitura/escrita e confirmacao
 - gerar mapa de capacidades a partir do catalogo
 
 ### 2. Reduzir acoplamento do main.py
 
-- extrair command_service
-- extrair confirmation_flow
-- extrair voice_loop
-- extrair ui_bridge
-- deixar main.py como bootstrap e orquestrador fino
+- `main.py` esta fechado como orquestrador principal: loop, wrappers de compatibilidade e bootstrap
+- manter `command_service`, `confirmation_flow`, `voice_loop`, `ui_runtime`, `app_bootstrap`, `response_pipeline`, `improvement_brain` e `AppRuntime` como pontos de entrada separados
+- proximas mudancas no `main.py` devem ser pequenas e motivadas por novo fluxo real, nao por refatoracao ampla
 
 ### 3. Melhorar robustez do uso real
 
@@ -57,12 +55,9 @@ Transformar o Axel em um mordomo local realmente util:
 
 ## Proximos passos imediatos
 
-- finalizar a remocao do contrato duplicado de actions no validator/executor
-- revisar encoding restante em arquivos de fala, docs e testes
-- transformar main.py em modulos menores
+- revisar imports antigos que ainda apontam para `core.router` por compatibilidade
 - criar dashboard de saude: testes, ultimos erros, APIs, memoria, carteira e modelo de voz
-- ampliar file_processor com exemplos reais de PDF, DOCX e XLSX
-- criar command deck para executar actions com argumentos complexos pelo painel
+- criar command deck mais denso para executar actions com argumentos complexos pelo painel
 - integrar agenda/calendario real quando a agenda local estiver estavel
 
 ## Backlog bom para depois

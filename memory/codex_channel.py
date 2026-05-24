@@ -9,7 +9,6 @@ from memory.codex_inbox import latest_codex_inbox_item
 from memory.patch_proposals import load_patch_proposals
 from memory.verification_runs import load_verification_runs
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
 CODEX_CHANNEL_PATH = MEMORY_DIR / "codex_channel.json"
