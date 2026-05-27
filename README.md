@@ -273,6 +273,39 @@ Comandos uteis para comecar o dia:
 - `comecar meu dia`
 - `saude do Axel`
 
+Observacao: `rotina diaria` e `comecar meu dia` chamam o briefing/resumo textual. O painel visual `Dia` foi removido temporariamente porque estava causando instabilidade no HUD.
+
+## Interface, HUD e performance
+
+O HUD roda em um processo PySide6 separado e renderiza `ui/axel_web_hud.html` via WebEngine.
+
+Paineis atuais:
+
+- `Texto`
+- `Midia`
+- `Tempo`
+- `Carteira`
+- `Noticias`
+- `Saude`
+- `Estudos`
+- `Treino`
+
+Para reduzir travamentos ao trocar rapido entre abas, o HUD usa um modo leve temporario durante a transicao: diminui o ritmo do canvas, oculta detalhes decorativos pesados e aplica somente a ultima aba clicada.
+
+Comandos uteis:
+
+- `mostrar hud`
+- `fechar hud`
+- `modo economia`
+- `modo equilibrado`
+- `saude do Axel`
+
+Logs uteis:
+
+- `memory/ui_hud.log`: erros do processo do HUD
+- `memory/execution_log.jsonl`: eventos de rota, actions, latencia e respostas
+- `memory/background_tasks.jsonl`: historico de tarefas em segundo plano
+
 Baixar uma voz Piper:
 
 ```powershell
