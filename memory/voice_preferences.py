@@ -1,6 +1,6 @@
-import json
 from pathlib import Path
 
+from memory.json_store import read_json_file, update_json_file, write_json_atomic
 from memory.supabase_sync import sync_memory_state_safely
 
 FILE = Path("memory/voice_preferences.json")
@@ -78,33 +78,34 @@ DEFAULTS = {
 
 
 def load_voice_preferences():
-    if not FILE.exists():
-        return dict(DEFAULTS)
-
-    try:
-        data = json.loads(FILE.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            return dict(DEFAULTS)
-    except Exception:
-        return dict(DEFAULTS)
-
+    data = read_json_file(FILE, {}, validator=lambda value: isinstance(value, dict))
     merged = dict(DEFAULTS)
-    merged.update(data)
+    if isinstance(data, dict):
+        merged.update(data)
     return merged
 
 
 def save_voice_preferences(preferences: dict):
-    FILE.parent.mkdir(parents=True, exist_ok=True)
     payload = dict(preferences or {})
-    FILE.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    write_json_atomic(FILE, payload, indent=2, trailing_newline=True)
     sync_memory_state_safely("voice_preferences", payload, category="preferences")
 
 
 def update_voice_preferences(changes: dict):
-    preferences = load_voice_preferences()
-    preferences.update(changes)
-    save_voice_preferences(preferences)
-    return preferences
+    def apply_changes(data: dict) -> dict:
+        preferences = dict(DEFAULTS)
+        if isinstance(data, dict):
+            preferences.update(data)
+        preferences.update(changes or {})
+        return preferences
+
+    payload = update_json_file(
+        FILE,
+        dict(DEFAULTS),
+        apply_changes,
+        validator=lambda value: isinstance(value, dict),
+        indent=2,
+        trailing_newline=True,
+    )
+    sync_memory_state_safely("voice_preferences", payload, category="preferences")
+    return payload

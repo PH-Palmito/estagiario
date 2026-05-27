@@ -14,6 +14,12 @@ class RouterInvestmentsTests(unittest.TestCase):
             {"intent": "investment_refresh_public_wallet", "target": None},
         )
 
+    def test_detects_background_refresh_wallet(self):
+        self.assertEqual(
+            detect_investment_browser_command("atualizar carteira em segundo plano"),
+            {"intent": "background_investment_refresh", "target": None},
+        )
+
     def test_detects_wallet_summary(self):
         self.assertEqual(
             detect_investment_browser_command("minha carteira"),
@@ -36,6 +42,18 @@ class RouterInvestmentsTests(unittest.TestCase):
         self.assertEqual(
             detect_investment_question_command("relatorio financeiro"),
             {"intent": "investment_financial_report", "target": None},
+        )
+
+    def test_detects_portfolio_monitor(self):
+        self.assertEqual(
+            detect_investment_question_command("monitor proativo da carteira"),
+            {"intent": "investment_portfolio_monitor", "target": None},
+        )
+
+    def test_detects_background_financial_report(self):
+        self.assertEqual(
+            detect_investment_question_command("relatorio financeiro em segundo plano"),
+            {"intent": "background_investment_report", "target": None},
         )
 
     def test_detects_price_ceiling(self):

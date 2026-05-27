@@ -87,6 +87,34 @@ class TerminalVoiceIOTests(unittest.TestCase):
         self.assertEqual(io.voice_status, "COMANDO")
         self.assertTrue(refreshes)
 
+    def test_wait_for_hotword_uses_configurable_idle_sleep(self):
+        sleeps = []
+        polls = iter(["", "briefing"])
+        io = TerminalVoiceIO(
+            print_fn=lambda *args, **kwargs: None,
+            sleep_fn=sleeps.append,
+        )
+
+        result = io.wait_for_hotword(
+            voice_mode=True,
+            hotword_mode=True,
+            voice_paused=True,
+            maybe_announce_due_reminders=lambda voice_mode: None,
+            hotword_listening_enabled=True,
+            hotkey_name="F8",
+            poll_ui_text_command=lambda: next(polls),
+            consume_toggle_listening_hotkey_press=lambda: False,
+            consume_hotkey_press=lambda: False,
+            play_activation_sound=lambda: None,
+            listen_for_hotword=lambda: SimpleNamespace(ok=False, command_text="", error=""),
+            output_response=lambda *args, **kwargs: None,
+            refresh_ui_runtime_state=lambda: None,
+            idle_sleep_seconds=lambda: 0.25,
+        )
+
+        self.assertEqual(result, (True, True, "briefing"))
+        self.assertEqual(sleeps, [0.25])
+
 
 if __name__ == "__main__":
     unittest.main()

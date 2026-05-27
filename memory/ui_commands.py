@@ -1,28 +1,18 @@
-import json
-import os
 import time
 from pathlib import Path
+
+from memory.json_store import read_json_file, update_json_file, write_json_atomic
 
 QUEUE_PATH = Path(__file__).with_name("ui_commands.json")
 
 
 def _load_queue() -> list[dict]:
-    if not QUEUE_PATH.exists():
-        return []
-
-    try:
-        data = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
-        if isinstance(data, list):
-            return [item for item in data if isinstance(item, dict)]
-    except Exception:
-        pass
-    return []
+    data = read_json_file(QUEUE_PATH, [], validator=lambda value: isinstance(value, list))
+    return [item for item in data if isinstance(item, dict)]
 
 
 def _save_queue(queue: list[dict]):
-    tmp_path = QUEUE_PATH.with_suffix(".json.tmp")
-    tmp_path.write_text(json.dumps(queue, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp_path, QUEUE_PATH)
+    write_json_atomic(QUEUE_PATH, queue, indent=2)
 
 
 def enqueue_ui_command(text: str, source: str = "hud", silent: bool = False):
@@ -30,24 +20,45 @@ def enqueue_ui_command(text: str, source: str = "hud", silent: bool = False):
     if not content:
         return
 
-    queue = _load_queue()
-    queue.append({
-        "text": content,
-        "source": source,
-        "silent": bool(silent),
-        "created_at": time.time(),
-    })
-    _save_queue(queue[-20:])
+    def append_item(queue: list[dict]) -> list[dict]:
+        clean_queue = [item for item in queue if isinstance(item, dict)]
+        clean_queue.append({
+            "text": content,
+            "source": source,
+            "silent": bool(silent),
+            "created_at": time.time(),
+        })
+        return clean_queue[-20:]
+
+    update_json_file(
+        QUEUE_PATH,
+        [],
+        append_item,
+        validator=lambda value: isinstance(value, list),
+        indent=2,
+    )
 
 
 def dequeue_ui_command_item() -> dict:
-    queue = _load_queue()
-    if not queue:
-        return {}
+    selected = {}
 
-    item = queue.pop(0)
-    _save_queue(queue)
-    return item
+    def pop_item(queue: list[dict]) -> list[dict]:
+        nonlocal selected
+        clean_queue = [item for item in queue if isinstance(item, dict)]
+        if not clean_queue:
+            selected = {}
+            return []
+        selected = clean_queue.pop(0)
+        return clean_queue
+
+    update_json_file(
+        QUEUE_PATH,
+        [],
+        pop_item,
+        validator=lambda value: isinstance(value, list),
+        indent=2,
+    )
+    return selected
 
 
 def dequeue_ui_command() -> str:

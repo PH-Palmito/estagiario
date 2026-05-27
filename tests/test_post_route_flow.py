@@ -1,5 +1,6 @@
 import unittest
 
+from actions import ActionSpec, register_action
 from core.command_schema import Command
 from core.post_route_flow import PostRouteState, handle_post_route_action
 
@@ -101,6 +102,26 @@ class PostRouteFlowTests(unittest.TestCase):
 
         self.assertEqual(result.state.pending_command.action, "file_delete")
         self.assertEqual(result.message, "confirmar file_delete?")
+
+    def test_registered_sensitive_command_is_pending_even_when_command_flag_is_false(self):
+        register_action(
+            ActionSpec(
+                name="unit.post_route_sensitive",
+                description="Action de teste.",
+                handler=lambda _args: "ok",
+                category="system",
+                read_only=False,
+                requires_confirmation=True,
+            )
+        )
+
+        result = self._handle(
+            {"intent": "unit"},
+            process_action=lambda raw: Command(action="unit.post_route_sensitive", params={}, requires_confirmation=False),
+        )
+
+        self.assertEqual(result.state.pending_command.action, "unit.post_route_sensitive")
+        self.assertEqual(result.message, "confirmar unit.post_route_sensitive?")
 
 
 if __name__ == "__main__":

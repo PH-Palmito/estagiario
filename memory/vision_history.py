@@ -1,9 +1,8 @@
-import json
-import os
 import time
 from pathlib import Path
 
 from memory.current_topic import update_current_topic_from_vision
+from memory.json_store import read_json_file, update_json_file, write_json_atomic
 from memory.supabase_sync import sync_memory_state_safely
 
 HISTORY_PATH = Path("memory/vision_history.json")
@@ -52,11 +51,7 @@ def _pt_display_text(text: str) -> str:
 
 
 def _load_history() -> list[dict]:
-    try:
-        data = json.loads(HISTORY_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return []
-    return data if isinstance(data, list) else []
+    return read_json_file(HISTORY_PATH, [], validator=lambda value: isinstance(value, list))
 
 
 def load_vision_history(limit: int = MAX_ITEMS) -> list[dict]:
@@ -73,12 +68,9 @@ def load_vision_history(limit: int = MAX_ITEMS) -> list[dict]:
 
 
 def _save_history(items: list[dict]):
-    HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(items[-MAX_ITEMS:], ensure_ascii=False, indent=2)
-    tmp_path = HISTORY_PATH.with_name(f"{HISTORY_PATH.stem}.{time.time_ns()}.tmp")
-    tmp_path.write_text(payload, encoding="utf-8")
-    os.replace(tmp_path, HISTORY_PATH)
-    sync_memory_state_safely("vision_history", {"items": items[-MAX_ITEMS:]}, category="vision")
+    payload = items[-MAX_ITEMS:]
+    write_json_atomic(HISTORY_PATH, payload, indent=2)
+    sync_memory_state_safely("vision_history", {"items": payload}, category="vision")
 
 
 def remember_vision_analysis(source: str, summary: str, details: dict | None = None):
@@ -86,16 +78,20 @@ def remember_vision_analysis(source: str, summary: str, details: dict | None = N
     if not summary:
         return
     details = details if isinstance(details, dict) else {}
-    items = _load_history()
-    items.append(
-        {
-            "created_at": time.time(),
-            "source": str(source or "imagem"),
-            "summary": summary,
-            "details": details,
-        }
+    entry = {
+        "created_at": time.time(),
+        "source": str(source or "imagem"),
+        "summary": summary,
+        "details": details,
+    }
+    items = update_json_file(
+        HISTORY_PATH,
+        [],
+        lambda loaded: [*[item for item in loaded if isinstance(item, dict)], entry][-MAX_ITEMS:],
+        validator=lambda value: isinstance(value, list),
+        indent=2,
     )
-    _save_history(items)
+    sync_memory_state_safely("vision_history", {"items": items}, category="vision")
     update_current_topic_from_vision(summary=summary, details=details, source=source)
 
 

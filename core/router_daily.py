@@ -59,6 +59,15 @@ def detect_weather_command(user_input: str):
 def detect_briefing_command(user_input: str):
     lower = normalize_text(user_input)
     if lower in {
+        "briefing em segundo plano",
+        "briefing no background",
+        "rode o briefing em segundo plano",
+        "gerar briefing em segundo plano",
+        "preparar briefing em segundo plano",
+    }:
+        return {"intent": "background_daily_briefing", "target": None}
+
+    if lower in {
         "rotina diaria",
         "minha rotina diaria",
         "comecar o dia",

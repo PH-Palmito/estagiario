@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 
 from core.command_schema import Command
+from core.permission_policy import command_requires_confirmation
 
 
 @dataclass(frozen=True)
@@ -128,7 +129,7 @@ def handle_post_route_action(
         update_runtime_state(processed, result)
         return PostRouteResult(True, state, result)
 
-    if processed.requires_confirmation:
+    if command_requires_confirmation(processed):
         return PostRouteResult(
             True,
             PostRouteState(

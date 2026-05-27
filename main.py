@@ -1,28 +1,33 @@
 ﻿import sys
-import time
 from pathlib import Path
+import time
 
 from core.app_bootstrap import HELP_TEXT, parse_app_flags
-from core.app_runtime import AppRuntime
+from core.app_runtime import AppRuntime, AssistantRunConfig, AssistantRuntimeRunner
 from core.command_feedback import (
     command_preview,
 )
 from core.command_service import process_raw_action
 from core.confirmation import confirmation_prompt
-from core.direct_response_flow import DirectResponseState, handle_direct_response_flow
+from core.direct_response_flow import handle_direct_response_flow
 from core.executor import execute
 from core.humor_commands import maybe_handle_humor_command as maybe_handle_humor_command_core
 from core.improvement_brain import ImprovementBrain
 from core.input_device_commands import maybe_handle_input_device_command as maybe_handle_input_device_command_core
-from core.interactive_modes import InteractiveModesState, handle_interactive_modes
-from core.macro_recording import MacroRecordingState, handle_macro_recording
+from core.interactive_modes import handle_interactive_modes
+from core.deferred_runtime import run_deferred
+from core.intent_complexity import classify_intent_complexity
+from core.latency_metrics import log_latency_stage
+from core.macro_recording import handle_macro_recording
+from core.main_loop import MainLoopHandlers, run_main_loop as run_main_loop_core
 from core.operational_command_chain import maybe_handle_operational_command
+from core.performance_mode import runtime_idle_sleep_seconds_from_state
 from core.planner import looks_like_multi_step_request, plan_actions, split_local_steps
-from core.post_route_flow import PostRouteState, handle_post_route_action
+from core.post_route_flow import handle_post_route_action
 from core.pronunciation_commands import maybe_handle_pronunciation_command as maybe_handle_pronunciation_command_core
 from core.reminder_announcer import ReminderAnnouncer
 from core.response_pipeline import ResponsePipeline
-from core.router import route
+from core.router import route, route_trace
 from core.router_utils import normalize_text
 from core.routine_execution import (
     execute_routine_steps as execute_routine_steps_core,
@@ -50,7 +55,10 @@ from core.startup_voice import (
 from core.startup_voice import (
     warm_common_tts_cache_async as warm_common_tts_cache_async_core,
 )
+from core.startup_flow import StartupFlowHandlers, run_startup_flow
+from core.study_commands import maybe_handle_study_command as maybe_handle_study_command_core
 from core.training_commands import maybe_handle_training_command as maybe_handle_training_command_core
+from core.turn_flow import TurnFlowHandlers, handle_user_turn as handle_user_turn_core
 from core.ui_runtime import UIRuntimeService
 from core.ui_runtime_labels import (
     assistant_style_label,
@@ -74,7 +82,7 @@ from core.voice_learning import (
 from core.voice_learning import (
     maybe_remember_pending_voice_correction as maybe_remember_pending_voice_correction_core,
 )
-from core.voice_loop import VoiceReadState, input_source_label, run_voice_input_cycle
+from core.voice_loop import input_source_label, run_voice_input_cycle
 from core.voice_modes import (
     is_transcription_artifact,
     is_unreliable_conversation_text,
@@ -100,14 +108,15 @@ from memory.piper_voice_manager import (
     download_piper_voice,
     list_piper_voices,
 )
+from memory.agenda import consume_due_agenda_items
 from memory.reminders import consume_due_reminders
-from memory.session import clear
+from memory.session import add_turn, clear
 from memory.training import (
     consume_due_training_reminder,
     training_snapshot,
 )
 from memory.ui_commands import dequeue_ui_command_item
-from memory.ui_state import append_ui_history, reset_ui_state
+from memory.ui_state import append_ui_history, append_ui_notification, load_ui_state, reset_ui_state
 from memory.voice_corrections import apply_voice_correction, remember_voice_correction
 from memory.voice_preferences import load_voice_preferences
 from memory.voice_profiles import apply_voice_profile, list_voice_profiles
@@ -138,23 +147,9 @@ from voice.windows_voice import (
 
 UI_HISTORY_MAX_ITEMS = 40
 app_runtime = AppRuntime(ui_history_max_items=UI_HISTORY_MAX_ITEMS)
-pending_command = None
-pending_command_learning_text = ""
-pending_smart_open_choice = None
-pending_smart_open_invalid_attempts = 0
-conversation_mode = False
-conversation_ready_announced = False
-dictation_mode = False
-dictation_ready_announced = False
-direct_response_ready_announced = False
-last_voice_text = ""
-repeat_listen_until = 0.0
-silent_ui_command_active = False
+assistant_state = app_runtime.assistant_state
 STARTUP_BRIEFING_STATE_PATH = Path("memory") / "startup_briefing_state.json"
 
-creating_macro = False
-macro_name = None
-macro_steps = []
 VOICE_PREFERENCES = load_voice_preferences()
 
 
@@ -165,8 +160,74 @@ def log_execution_event(event_type: str, **payload):
         pass
 
 
+def run_noncritical_task(name: str, task, *, defer: bool = False):
+    if defer:
+        return run_deferred(name, task, log_event=log_execution_event)
+    task()
+    return None
+
+
 def process_action(raw_action: dict):
     return process_raw_action(raw_action, app_runtime.runtime_state, log_execution_event)
+
+
+def route_user_input(user_input: str, *, source: str = "turn") -> dict:
+    started_at = time.perf_counter()
+    trace = route_trace(user_input)
+    raw_action = (
+        trace.match.result
+        if trace.match
+        else {"intent": "respond", "target": None, "response": "Nao entendi."}
+    )
+    intent_level = trace.match.intent_level if trace.match else "conversa"
+    complexity = classify_intent_complexity(user_input, intent_level=intent_level, raw_action=raw_action)
+    log_execution_event(
+        "route_result",
+        source=source,
+        input=user_input,
+        intent=raw_action.get("intent"),
+        target=raw_action.get("target"),
+        group=trace.match.group_name if trace.match else "",
+        detector=trace.match.detector_name if trace.match else "",
+        intent_level=intent_level,
+        complexity=complexity.kind,
+        complexity_reason=complexity.reason,
+        should_plan=complexity.should_plan,
+        should_use_llm=complexity.should_use_llm,
+        checked_detectors=trace.checked_detectors,
+        checked_groups=list(trace.checked_groups),
+    )
+    if source in {"turn", "ui_bridge"}:
+        run_noncritical_task(
+            "routine_learning",
+            lambda: observe_routine_command_for_learning(user_input, raw_action, source=source),
+            defer=source == "turn",
+        )
+    log_latency_stage(
+        log_execution_event,
+        "routing",
+        started_at,
+        source=source,
+        intent=raw_action.get("intent"),
+        group=trace.match.group_name if trace.match else "",
+        detector=trace.match.detector_name if trace.match else "",
+        intent_level=intent_level,
+        complexity=complexity.kind,
+    )
+    return raw_action
+
+
+def observe_routine_command_for_learning(user_input: str, raw_action: dict, *, source: str) -> None:
+    from memory.routine_learning import observe_routine_command
+
+    suggestion = observe_routine_command(user_input, raw_action, source=source)
+    if suggestion:
+        log_execution_event(
+            "routine_suggestion_created",
+            title=suggestion.get("title"),
+            pair_id=suggestion.get("pair_id"),
+        )
+        append_ui_notification("routine_learning", str(suggestion.get("title") or ""), level="info")
 
 
 
@@ -175,7 +236,7 @@ def show_action_progress(command, voice_mode: bool = False):
     get_response_pipeline().show_action_progress(
         command,
         voice_mode=voice_mode,
-        silent_ui_command_active=silent_ui_command_active,
+        silent_ui_command_active=assistant_state.silent_ui_command_active,
     )
 
 
@@ -183,7 +244,7 @@ def execute_command(command, voice_mode: bool = False):
     return get_response_pipeline().execute_command(
         command,
         voice_mode=voice_mode,
-        silent_ui_command_active=silent_ui_command_active,
+        silent_ui_command_active=assistant_state.silent_ui_command_active,
     )
 
 
@@ -209,20 +270,17 @@ def output_response(
     interrupt_current_tts: bool = False,
     wait_for_tts: bool | None = None,
 ):
-    global repeat_listen_until
-    global direct_response_ready_announced
-
     result = get_response_pipeline().output_response(
         message,
         voice_mode,
-        direct_response_ready_announced=direct_response_ready_announced,
-        silent_ui_command_active=silent_ui_command_active,
+        direct_response_ready_announced=assistant_state.direct_response_ready_announced,
+        silent_ui_command_active=assistant_state.silent_ui_command_active,
         interrupt_current_tts=interrupt_current_tts,
         wait_for_tts=wait_for_tts,
     )
     if result.repeat_listen_until is not None:
-        repeat_listen_until = result.repeat_listen_until
-    direct_response_ready_announced = result.direct_response_ready_announced
+        assistant_state.repeat_listen_until = result.repeat_listen_until
+    assistant_state.direct_response_ready_announced = result.direct_response_ready_announced
 
 
 def get_response_pipeline() -> ResponsePipeline:
@@ -248,13 +306,39 @@ def get_response_pipeline() -> ResponsePipeline:
 
 def maybe_announce_due_reminders(voice_mode: bool):
     get_reminder_announcer().maybe_announce_due_reminders(voice_mode)
+    maybe_speak_pending_voice_notification(voice_mode)
+
+
+def maybe_speak_pending_voice_notification(voice_mode: bool) -> bool:
+    from memory.ui_state import load_ui_state, pop_next_voice_notification
+    from services.voice_notification_service import speak_next_pending_voice_notification
+
+    return speak_next_pending_voice_notification(
+        voice_mode=voice_mode,
+        speak=speak,
+        load_ui_state=load_ui_state,
+        pop_next_voice_notification=pop_next_voice_notification,
+    )
+
+
+def consume_due_schedule_items() -> list[dict]:
+    due = []
+    try:
+        due.extend(consume_due_reminders())
+    except Exception:
+        pass
+    try:
+        due.extend(consume_due_agenda_items())
+    except Exception:
+        pass
+    return due
 
 
 def get_reminder_announcer() -> ReminderAnnouncer:
     if app_runtime.reminder_announcer is None:
         app_runtime.reminder_announcer = ReminderAnnouncer(
             consume_due_training_reminder=consume_due_training_reminder,
-            consume_due_reminders=consume_due_reminders,
+            consume_due_reminders=consume_due_schedule_items,
             output_response=output_response,
         )
     return app_runtime.reminder_announcer
@@ -336,8 +420,8 @@ def current_voice_profile_label() -> str:
 
 def current_ui_mode_label() -> str:
     return ui_mode_label(
-        dictation_mode=dictation_mode,
-        conversation_mode=conversation_mode,
+        dictation_mode=assistant_state.dictation_mode,
+        conversation_mode=assistant_state.conversation_mode,
         waiting_for_direct_response=is_waiting_for_direct_response(),
     )
 
@@ -345,17 +429,23 @@ def current_ui_mode_label() -> str:
 
 
 def _ui_runtime_patch() -> dict:
+    from core.performance_mode import performance_settings_from_state
+    from memory.ui_state import load_ui_state
+
     active_device = get_active_input_device_info() or {}
+    perf = performance_settings_from_state(load_ui_state())
     return {
         "assistant_name": "Axel",
         "status": app_runtime.terminal_io.voice_status or "INATIVO",
         "mode": current_ui_mode_label(),
         "microphone": active_device.get("name", ""),
         "assistant_style": current_assistant_style_label(),
+        "performance_mode": perf.mode,
+        "performance_settings": perf.as_dict(),
         "voice_profile": current_voice_profile_label(),
         "hotword_enabled": bool(app_runtime.terminal_io.hotword_ui_enabled),
-        "conversation_mode": bool(conversation_mode),
-        "dictation_mode": bool(dictation_mode),
+        "conversation_mode": bool(assistant_state.conversation_mode),
+        "dictation_mode": bool(assistant_state.dictation_mode),
         "last_command": command_preview(app_runtime.runtime_state.last_command),
     }
 
@@ -367,7 +457,7 @@ def get_ui_runtime() -> UIRuntimeService:
             python_executable=sys.executable,
             runtime_patch=_ui_runtime_patch,
             normalize_text=normalize_text,
-            route=route,
+            route=lambda text: route_user_input(text, source="ui_bridge"),
             process_action=process_action,
             training_snapshot=training_snapshot,
             dequeue_ui_command_item=dequeue_ui_command_item,
@@ -458,10 +548,8 @@ def get_improvement_brain() -> ImprovementBrain:
 
 
 def poll_ui_text_command() -> str:
-    global silent_ui_command_active
-
     queued = get_ui_runtime().poll_text_command(refresh_runtime_state=refresh_ui_runtime_state)
-    silent_ui_command_active = get_ui_runtime().silent_command_active
+    assistant_state.silent_ui_command_active = get_ui_runtime().silent_command_active
     return queued
 
 
@@ -570,17 +658,29 @@ def read_user_input(
     ignored_text_filter=None,
     listener=None,
 ) -> str:
-    return app_runtime.terminal_io.read_user_input(
-        voice_mode,
-        append_ui_history=append_ui_history,
-        refresh_ui_runtime_state=refresh_ui_runtime_state,
-        listen_once=listen_once,
-        announce_ready=announce_ready,
-        fallback_to_text=fallback_to_text,
-        ready_message=ready_message,
-        ignored_text_filter=ignored_text_filter,
-        listener=listener,
-    )
+    started_at = time.perf_counter()
+    try:
+        return app_runtime.terminal_io.read_user_input(
+            voice_mode,
+            append_ui_history=append_ui_history,
+            refresh_ui_runtime_state=refresh_ui_runtime_state,
+            listen_once=listen_once,
+            announce_ready=announce_ready,
+            fallback_to_text=fallback_to_text,
+            ready_message=ready_message,
+            ignored_text_filter=ignored_text_filter,
+            listener=listener,
+        )
+    finally:
+        if voice_mode:
+            log_latency_stage(
+                log_execution_event,
+                "stt",
+                started_at,
+                announce_ready=announce_ready,
+                fallback_to_text=fallback_to_text,
+                listener=bool(listener),
+            )
 
 
 
@@ -594,19 +694,17 @@ def read_user_input(
 
 
 def maybe_remember_pending_voice_correction(command) -> None:
-    global pending_command_learning_text
-
     result = maybe_remember_pending_voice_correction_core(
         command,
         VoiceLearningState(
-            pending_command_learning_text=pending_command_learning_text,
-            last_voice_text=last_voice_text,
+            pending_command_learning_text=assistant_state.pending_command_learning_text,
+            last_voice_text=assistant_state.last_voice_text,
         ),
         command_correction_text=command_correction_text,
         normalize_text=normalize_text,
         remember_voice_correction=remember_voice_correction,
     )
-    pending_command_learning_text = result.state.pending_command_learning_text
+    assistant_state.pending_command_learning_text = result.state.pending_command_learning_text
     if result.learned:
         log_execution_event(
             "voice_correction_auto_learned",
@@ -634,15 +732,19 @@ def wait_for_hotword(
         listen_for_hotword=listen_for_hotword,
         output_response=output_response,
         refresh_ui_runtime_state=refresh_ui_runtime_state,
+        idle_sleep_seconds=lambda: runtime_idle_sleep_seconds_from_state(current_ui_state_patch()),
     )
+
+
+def current_ui_state_patch() -> dict:
+    try:
+        return load_ui_state()
+    except Exception:
+        return {}
 
 
 def is_waiting_for_direct_response() -> bool:
-    return (
-        pending_command is not None
-        or pending_smart_open_choice is not None
-        or repeat_listen_until > time.time()
-    )
+    return assistant_state.is_waiting_for_direct_response()
 
 
 
@@ -660,18 +762,16 @@ def is_waiting_for_direct_response() -> bool:
 
 
 def maybe_learn_correction_for_last_voice(user_input: str) -> str | None:
-    global last_voice_text
-
     result = maybe_learn_correction_for_last_voice_core(
         user_input,
         VoiceLearningState(
-            pending_command_learning_text=pending_command_learning_text,
-            last_voice_text=last_voice_text,
+            pending_command_learning_text=assistant_state.pending_command_learning_text,
+            last_voice_text=assistant_state.last_voice_text,
         ),
         normalize_text=normalize_text,
         remember_voice_correction=remember_voice_correction,
     )
-    last_voice_text = result.state.last_voice_text
+    assistant_state.last_voice_text = result.state.last_voice_text
     return result.response
 
 
@@ -695,39 +795,46 @@ def execute_routine_steps(steps):
     )
 
 
-def main():
-    global last_voice_text
-    global pending_command
-    global pending_command_learning_text
-    global pending_smart_open_choice
-    global pending_smart_open_invalid_attempts
-    global creating_macro, macro_name, macro_steps
-    global conversation_mode
-    global conversation_ready_announced
-    global dictation_mode
-    global dictation_ready_announced
-    global direct_response_ready_announced
-    global repeat_listen_until
+def run_direct_response_flow(user_input: str, *, voice_mode: bool, retry_invalid_smart_open: bool):
+    result = handle_direct_response_flow(
+        user_input,
+        assistant_state.to_direct_response_state(),
+        execute_command=lambda command: execute_command(command, voice_mode=voice_mode),
+        process_action=process_action,
+        remember_correction=maybe_remember_pending_voice_correction,
+        retry_invalid_smart_open=retry_invalid_smart_open,
+    )
+    assistant_state.apply_direct_response_state(result.state)
+    return result
 
-    flags = parse_app_flags(sys.argv)
 
-    if flags.help_requested:
-        print(HELP_TEXT)
-        return
-    voice_mode = flags.voice_mode
-    hotword_mode = flags.hotword_mode
-    ui_mode = flags.ui_mode
-    voice_paused = False
-    app_runtime.terminal_io.hotword_ui_enabled = voice_mode and hotword_mode
+def handle_direct_response_command(
+    user_input: str,
+    *,
+    voice_mode: bool,
+    retry_invalid_smart_open: bool,
+) -> bool:
+    result = run_direct_response_flow(
+        user_input,
+        voice_mode=voice_mode,
+        retry_invalid_smart_open=retry_invalid_smart_open,
+    )
+    if not result.handled:
+        return False
 
-    if handle_windows_startup_cli():
-        return
+    output_response(result.message, voice_mode)
+    return True
 
-    if handle_voice_profile_cli():
-        return
 
-    if handle_audio_diagnostic_cli(flags):
-        return
+def handle_startup_cli(flags) -> bool:
+    return (
+        handle_windows_startup_cli()
+        or handle_voice_profile_cli()
+        or handle_audio_diagnostic_cli(flags)
+    )
+
+
+def initialize_runtime_services(ui_mode: bool) -> None:
     clear()
     reset_ui_state()
     refresh_ui_runtime_state({"visible": False})
@@ -737,310 +844,356 @@ def main():
     if ui_mode:
         show_ui_hud()
 
-    if voice_mode:
-        if hotword_mode:
-            mode_text = (
-                "Diga 'estagiario' ou fale tudo junto, como 'estagiario abre o chrome'."
-                if HOTWORD_LISTENING_ENABLED
-                else f"Aperte {HOTKEY_NAME} para falar."
-            )
-            output_response(
-                f"Modo voz ativado. {mode_text} Aperte {TOGGLE_LISTENING_HOTKEY_NAME} para pausar/retomar.",
-                voice_mode=False,
-            )
-            set_voice_status("ATIVA" if HOTWORD_LISTENING_ENABLED else f"BOTAO {HOTKEY_NAME}")
-        else:
-            output_response(
-                "Modo voz ativado. Fale um comando ou digite se o microfone falhar.",
-                voice_mode=False,
-            )
 
-        if bool(VOICE_PREFERENCES.get("startup_voice_greeting_enabled", True)):
-            startup_message = startup_greeting_message().strip()
-            if startup_message:
-                output_response(startup_message, voice_mode=True)
-
-        warm_common_tts_cache_async()
-        if flags.defer_startup_briefing:
-            schedule_startup_briefing_async(voice_mode=True)
-        else:
-            maybe_send_startup_briefing(voice_mode=True)
-
-    refresh_ui_runtime_state()
-
-    while True:
-        maybe_announce_due_reminders(voice_mode)
-
-        try:
-            voice_cycle = run_voice_input_cycle(
-                state=VoiceReadState(
-                    voice_mode=voice_mode,
-                    hotword_mode=hotword_mode,
-                    voice_paused=voice_paused,
-                    direct_response_ready_announced=direct_response_ready_announced,
-                    conversation_ready_announced=conversation_ready_announced,
-                    dictation_ready_announced=dictation_ready_announced,
-                    conversation_mode=conversation_mode,
-                    dictation_mode=dictation_mode,
-                    pending_command=pending_command,
-                    pending_smart_open_choice=pending_smart_open_choice,
-                ),
-                poll_ui_text_command=poll_ui_text_command,
-                waiting_for_direct_response=is_waiting_for_direct_response,
-                read_user_input=read_user_input,
-                wait_for_hotword=wait_for_hotword,
-                set_voice_status=set_voice_status,
-                terminal_print_user_command=terminal_print_user_command,
-                conversation_listener=listen_conversation_once,
-                unreliable_conversation_filter=is_unreliable_conversation_text,
-                transcription_artifact_filter=is_transcription_artifact,
-            )
-            user_input = voice_cycle.user_input
-            queued_user_input = voice_cycle.queued_user_input
-            voice_paused = voice_cycle.voice_paused
-            direct_response_ready_announced = voice_cycle.direct_response_ready_announced
-            conversation_ready_announced = voice_cycle.conversation_ready_announced
-            dictation_ready_announced = voice_cycle.dictation_ready_announced
-            if voice_cycle.repeat_listen_until is not None:
-                repeat_listen_until = voice_cycle.repeat_listen_until
-            if voice_cycle.hotword_ui_enabled is not None:
-                app_runtime.terminal_io.hotword_ui_enabled = voice_cycle.hotword_ui_enabled
-            if voice_cycle.should_break:
-                clear_status_line()
-                if voice_cycle.break_message:
-                    output_response(voice_cycle.break_message, voice_cycle.break_voice_mode)
-                break
-        except KeyboardInterrupt:
-            app_runtime.terminal_io.hotword_ui_enabled = False
-            clear_status_line()
-            output_response("Encerrando.", voice_mode=False)
-            break
-
-        if not user_input:
-            continue
-
-        if is_transcription_artifact(user_input):
-            continue
-
-        terminal_print_user_command(
-            input_source_label(queued_user_input=queued_user_input, voice_mode=voice_mode),
-            user_input,
+def announce_voice_startup(*, hotword_mode: bool, defer_startup_briefing: bool) -> None:
+    if hotword_mode:
+        mode_text = (
+            "Diga 'estagiario' ou fale tudo junto, como 'estagiario abre o chrome'."
+            if HOTWORD_LISTENING_ENABLED
+            else f"Aperte {HOTKEY_NAME} para falar."
+        )
+        output_response(
+            f"Modo voz ativado. {mode_text} Aperte {TOGGLE_LISTENING_HOTKEY_NAME} para pausar/retomar.",
+            voice_mode=False,
+        )
+        set_voice_status("ATIVA" if HOTWORD_LISTENING_ENABLED else f"BOTAO {HOTKEY_NAME}")
+    else:
+        output_response(
+            "Modo voz ativado. Fale um comando ou digite se o microfone falhar.",
+            voice_mode=False,
         )
 
-        log_execution_event(
-            "user_input",
-            text=user_input,
-            voice_mode=voice_mode,
-            mode=current_ui_mode_label(),
-        )
-        try:
-            if maybe_remember_from_user_text(user_input, source="conversation"):
-                save_operational_context()
-        except Exception:
-            pass
+    if bool(VOICE_PREFERENCES.get("startup_voice_greeting_enabled", True)):
+        startup_message = startup_greeting_message().strip()
+        if startup_message:
+            output_response(startup_message, voice_mode=True)
 
-        correction_response = maybe_learn_correction_for_last_voice(user_input)
-        if correction_response:
-            output_response(correction_response, voice_mode)
-            continue
+    warm_common_tts_cache_async()
+    if defer_startup_briefing:
+        schedule_startup_briefing_async(voice_mode=True)
+    else:
+        maybe_send_startup_briefing(voice_mode=True)
 
-        pronunciation_response = maybe_handle_pronunciation_command_core(user_input)
-        if pronunciation_response:
-            output_response(pronunciation_response, voice_mode)
-            continue
 
-        humor_response = maybe_handle_humor_command_core(user_input, VOICE_PREFERENCES, refresh_voice_preferences)
-        if humor_response:
-            output_response(humor_response, voice_mode)
-            continue
+def run_startup(*, flags, voice_mode: bool, hotword_mode: bool, ui_mode: bool) -> bool:
+    return run_startup_flow(
+        flags=flags,
+        voice_mode=voice_mode,
+        hotword_mode=hotword_mode,
+        ui_mode=ui_mode,
+        defer_startup_briefing=flags.defer_startup_briefing,
+        handlers=StartupFlowHandlers(
+            handle_startup_cli=handle_startup_cli,
+            initialize_runtime_services=initialize_runtime_services,
+            announce_voice_startup=announce_voice_startup,
+            refresh_ui_runtime_state=refresh_ui_runtime_state,
+        ),
+    )
 
-        input_device_response = maybe_handle_input_device_command_core(user_input, refresh_voice_preferences)
-        if input_device_response:
-            output_response(input_device_response, voice_mode)
-            continue
 
-        voice_profile_response = maybe_handle_voice_profile_command_core(user_input, VOICE_PREFERENCES, refresh_voice_preferences)
-        if voice_profile_response:
-            output_response(voice_profile_response, voice_mode)
-            continue
+def handle_pre_route_command(user_input: str, *, voice_mode: bool) -> bool:
+    correction_response = maybe_learn_correction_for_last_voice(user_input)
+    if correction_response:
+        output_response(correction_response, voice_mode)
+        return True
 
-        work_mode_response = maybe_handle_work_mode_command_core(user_input, show_ui_hud)
-        if work_mode_response:
+    pronunciation_response = maybe_handle_pronunciation_command_core(user_input)
+    if pronunciation_response:
+        output_response(pronunciation_response, voice_mode)
+        return True
+
+    humor_response = maybe_handle_humor_command_core(user_input, VOICE_PREFERENCES, refresh_voice_preferences)
+    if humor_response:
+        output_response(humor_response, voice_mode)
+        return True
+
+    input_device_response = maybe_handle_input_device_command_core(user_input, refresh_voice_preferences)
+    if input_device_response:
+        output_response(input_device_response, voice_mode)
+        return True
+
+    voice_profile_response = maybe_handle_voice_profile_command_core(
+        user_input,
+        VOICE_PREFERENCES,
+        refresh_voice_preferences,
+    )
+    if voice_profile_response:
+        output_response(voice_profile_response, voice_mode)
+        return True
+
+    work_mode_response = maybe_handle_work_mode_command_core(user_input, show_ui_hud)
+    if work_mode_response:
+        refresh_improvement_brain(force=True)
+        output_response(work_mode_response, voice_mode)
+        return True
+
+    ui_response = maybe_handle_ui_command(user_input)
+    if ui_response:
+        output_response(ui_response, voice_mode)
+        return True
+
+    training_response = maybe_handle_training_command_core(user_input, show_training_in_ui)
+    if training_response:
+        output_response(training_response, voice_mode)
+        return True
+
+    study_response = maybe_handle_study_command_core(user_input, show_ui_hud)
+    if study_response:
+        output_response(study_response, voice_mode)
+        return True
+
+    operational_result = maybe_handle_operational_command(user_input)
+    if operational_result:
+        if operational_result.refresh_improvement_brain:
             refresh_improvement_brain(force=True)
-            output_response(work_mode_response, voice_mode)
-            continue
+        output_response(operational_result.response, voice_mode)
+        if operational_result.announce_codex_suggestion:
+            maybe_announce_codex_suggestion(voice_mode)
+        return True
 
-        ui_response = maybe_handle_ui_command(user_input)
-        if ui_response:
-            output_response(ui_response, voice_mode)
-            continue
+    return False
 
-        training_response = maybe_handle_training_command_core(user_input, show_training_in_ui)
-        if training_response:
-            output_response(training_response, voice_mode)
-            continue
 
-        operational_result = maybe_handle_operational_command(user_input)
-        if operational_result:
-            if operational_result.refresh_improvement_brain:
-                refresh_improvement_brain(force=True)
-            output_response(operational_result.response, voice_mode)
-            if operational_result.announce_codex_suggestion:
-                maybe_announce_codex_suggestion(voice_mode)
-            continue
+def record_user_turn_start(user_input: str, *, queued_user_input: str, voice_mode: bool) -> None:
+    add_turn("user", user_input, source=input_source_label(queued_user_input=queued_user_input, voice_mode=voice_mode))
+    terminal_print_user_command(
+        input_source_label(queued_user_input=queued_user_input, voice_mode=voice_mode),
+        user_input,
+    )
 
-        interactive_result = handle_interactive_modes(
-            user_input,
-            InteractiveModesState(
-                dictation_mode=dictation_mode,
-                dictation_ready_announced=dictation_ready_announced,
-                conversation_mode=conversation_mode,
-                conversation_ready_announced=conversation_ready_announced,
-            ),
+    log_execution_event(
+        "user_input",
+        text=user_input,
+        voice_mode=voice_mode,
+        mode=current_ui_mode_label(),
+    )
+    run_noncritical_task(
+        "conversation_memory",
+        lambda: remember_user_context_from_turn(user_input),
+        defer=voice_mode,
+    )
+
+
+def remember_user_context_from_turn(user_input: str) -> None:
+    try:
+        if maybe_remember_from_user_text(user_input, source="conversation"):
+            save_operational_context()
+    except Exception:
+        pass
+
+
+def handle_interactive_command(user_input: str, *, voice_mode: bool, hotword_mode: bool) -> bool:
+    result = handle_interactive_modes(
+        user_input,
+        assistant_state.to_interactive_modes_state(),
+        voice_mode=voice_mode,
+        hotword_mode=hotword_mode,
+        hotkey_name=HOTKEY_NAME,
+        waiting_for_direct_response=is_waiting_for_direct_response,
+        set_voice_status=set_voice_status,
+        type_text=type_text,
+        chat_response=chat_response,
+    )
+    assistant_state.apply_interactive_modes_state(result.state)
+    if not result.handled:
+        return False
+
+    if result.message:
+        response_voice_mode = voice_mode if result.voice_mode is None else result.voice_mode
+        output_response(result.message, response_voice_mode)
+    return True
+
+
+def normalize_user_command(user_input: str, *, voice_mode: bool) -> tuple[str, str]:
+    original_user_input = user_input
+    normalized_user_input = maybe_normalize_voice_command_core(
+        user_input,
+        voice_mode,
+        apply_voice_correction,
+        route,
+    )
+    if original_user_input != normalized_user_input:
+        log_execution_event(
+            "voice_input_normalized",
+            original=original_user_input,
+            normalized=normalized_user_input,
+        )
+    if voice_mode and original_user_input == normalized_user_input:
+        assistant_state.last_voice_text = original_user_input
+    refresh_ui_runtime_state({"last_command": normalized_user_input})
+    return original_user_input, normalized_user_input
+
+
+def maybe_open_media_panel_for_action(raw_action: dict) -> None:
+    intent = str((raw_action or {}).get("intent") or "")
+    if intent not in {
+        "browser_search_music",
+        "browser_music_session",
+        "browser_surprise_music",
+        "media_play_pause",
+        "media_next",
+        "media_previous",
+        "media_play_pause_target",
+        "media_play_target",
+        "media_pause_target",
+        "media_next_target",
+        "media_previous_target",
+    }:
+        return
+    refresh_ui_runtime_state({"active_panel": "midia", "open_panels": ["midia"]})
+
+
+def handle_macro_command(user_input: str, *, voice_mode: bool) -> bool:
+    result = handle_macro_recording(
+        user_input,
+        assistant_state.to_macro_recording_state(),
+        route=lambda text: route_user_input(text, source="macro_recording"),
+        process_action=process_action,
+        add_macro=add_macro,
+    )
+    assistant_state.apply_macro_recording_state(result.state)
+    if not result.handled:
+        return False
+
+    output_response(result.message, voice_mode)
+    return True
+
+
+def handle_routed_command(user_input: str, *, original_user_input: str, voice_mode: bool) -> bool:
+    if looks_like_multi_step_request(user_input):
+        result = handle_multi_step_request(user_input)
+        if result:
+            output_response(result, voice_mode)
+            return True
+
+    raw_action = route_user_input(user_input, source="turn")
+    maybe_open_media_panel_for_action(raw_action)
+
+    result = handle_post_route_action(
+        raw_action,
+        user_input=user_input,
+        original_user_input=original_user_input,
+        voice_mode=voice_mode,
+        state=assistant_state.to_post_route_state(),
+        last_command=app_runtime.runtime_state.last_command,
+        process_action=process_action,
+        execute_command=lambda command: execute_command(command, voice_mode=voice_mode),
+        execute_routine_steps=execute_routine_steps,
+        clear_chat_history=clear_chat_history,
+        confirmation_prompt=confirmation_prompt,
+        smart_open_needs_choice=smart_open_needs_choice,
+        show_map_in_ui=show_map_in_ui,
+        update_runtime_state=app_runtime.runtime_state.update,
+        is_unclear_response=is_unclear_response,
+        maybe_suggest_probable_command=maybe_suggest_probable_command,
+    )
+    assistant_state.apply_post_route_state(result.state)
+    if not result.handled:
+        return False
+
+    output_response(result.message, voice_mode)
+    return True
+
+
+def handle_user_turn(
+    user_input: str,
+    *,
+    queued_user_input: str,
+    voice_mode: bool,
+    hotword_mode: bool,
+) -> bool:
+    return handle_user_turn_core(
+        user_input,
+        queued_user_input=queued_user_input,
+        voice_mode=voice_mode,
+        hotword_mode=hotword_mode,
+        handlers=TurnFlowHandlers(
+            record_user_turn_start=record_user_turn_start,
+            handle_pre_route_command=handle_pre_route_command,
+            handle_interactive_command=handle_interactive_command,
+            handle_direct_response_command=handle_direct_response_command,
+            normalize_user_command=normalize_user_command,
+            handle_macro_command=handle_macro_command,
+            handle_routed_command=handle_routed_command,
+        ),
+    )
+
+
+def read_next_turn_input(*, voice_mode: bool, hotword_mode: bool, voice_paused: bool):
+    result = run_voice_input_cycle(
+        state=assistant_state.to_voice_read_state(
             voice_mode=voice_mode,
             hotword_mode=hotword_mode,
-            hotkey_name=HOTKEY_NAME,
-            waiting_for_direct_response=is_waiting_for_direct_response,
-            set_voice_status=set_voice_status,
-            type_text=type_text,
-            chat_response=chat_response,
+            voice_paused=voice_paused,
+        ),
+        poll_ui_text_command=poll_ui_text_command,
+        waiting_for_direct_response=is_waiting_for_direct_response,
+        read_user_input=read_user_input,
+        wait_for_hotword=wait_for_hotword,
+        set_voice_status=set_voice_status,
+        terminal_print_user_command=terminal_print_user_command,
+        conversation_listener=listen_conversation_once,
+        unreliable_conversation_filter=is_unreliable_conversation_text,
+        transcription_artifact_filter=is_transcription_artifact,
+    )
+    assistant_state.apply_voice_cycle_result(result)
+    if result.hotword_ui_enabled is not None:
+        app_runtime.terminal_io.hotword_ui_enabled = result.hotword_ui_enabled
+    return result
+
+
+def handle_voice_cycle_break(voice_cycle) -> bool:
+    if not voice_cycle.should_break:
+        return False
+
+    clear_status_line()
+    if voice_cycle.break_message:
+        output_response(voice_cycle.break_message, voice_cycle.break_voice_mode)
+    return True
+
+
+def handle_main_loop_keyboard_interrupt() -> None:
+    app_runtime.terminal_io.hotword_ui_enabled = False
+    clear_status_line()
+    output_response("Encerrando.", voice_mode=False)
+
+
+def run_main_loop(*, voice_mode: bool, hotword_mode: bool, voice_paused: bool = False) -> None:
+    run_main_loop_core(
+        voice_mode=voice_mode,
+        hotword_mode=hotword_mode,
+        voice_paused=voice_paused,
+        handlers=MainLoopHandlers(
+            maybe_announce_due_reminders=maybe_announce_due_reminders,
+            read_next_turn_input=read_next_turn_input,
+            handle_voice_cycle_break=handle_voice_cycle_break,
+            handle_keyboard_interrupt=handle_main_loop_keyboard_interrupt,
+            is_transcription_artifact=is_transcription_artifact,
+            handle_user_turn=handle_user_turn,
+        ),
+    )
+
+
+def main():
+    flags = parse_app_flags(sys.argv)
+
+    if flags.help_requested:
+        print(HELP_TEXT)
+        return
+
+    runner = AssistantRuntimeRunner(
+        app_runtime=app_runtime,
+        run_startup=run_startup,
+        run_main_loop=run_main_loop,
+    )
+    runner.run(
+        AssistantRunConfig(
+            flags=flags,
+            voice_mode=flags.voice_mode,
+            hotword_mode=flags.hotword_mode,
+            ui_mode=flags.ui_mode,
         )
-        dictation_mode = interactive_result.state.dictation_mode
-        dictation_ready_announced = interactive_result.state.dictation_ready_announced
-        conversation_mode = interactive_result.state.conversation_mode
-        conversation_ready_announced = interactive_result.state.conversation_ready_announced
-        if interactive_result.handled:
-            if interactive_result.message:
-                response_voice_mode = voice_mode if interactive_result.voice_mode is None else interactive_result.voice_mode
-                output_response(interactive_result.message, response_voice_mode)
-            continue
-
-        direct_response_result = handle_direct_response_flow(
-            user_input,
-            DirectResponseState(
-                pending_command=pending_command,
-                pending_command_learning_text=pending_command_learning_text,
-                pending_smart_open_choice=pending_smart_open_choice,
-                pending_smart_open_invalid_attempts=pending_smart_open_invalid_attempts,
-                direct_response_ready_announced=direct_response_ready_announced,
-            ),
-            execute_command=lambda command: execute_command(command, voice_mode=voice_mode),
-            process_action=process_action,
-            remember_correction=maybe_remember_pending_voice_correction,
-            retry_invalid_smart_open=True,
-        )
-        pending_command = direct_response_result.state.pending_command
-        pending_command_learning_text = direct_response_result.state.pending_command_learning_text
-        pending_smart_open_choice = direct_response_result.state.pending_smart_open_choice
-        pending_smart_open_invalid_attempts = direct_response_result.state.pending_smart_open_invalid_attempts
-        direct_response_ready_announced = direct_response_result.state.direct_response_ready_announced
-        if direct_response_result.handled:
-            output_response(direct_response_result.message, voice_mode)
-            continue
-
-        original_user_input = user_input
-        user_input = maybe_normalize_voice_command_core(user_input, voice_mode, apply_voice_correction, route)
-        if original_user_input != user_input:
-            log_execution_event(
-                "voice_input_normalized",
-                original=original_user_input,
-                normalized=user_input,
-            )
-        if voice_mode and original_user_input == user_input:
-            last_voice_text = original_user_input
-        refresh_ui_runtime_state({"last_command": user_input})
-
-        macro_result = handle_macro_recording(
-            user_input,
-            MacroRecordingState(
-                creating_macro=creating_macro,
-                macro_name=macro_name,
-                macro_steps=macro_steps,
-            ),
-            route=route,
-            process_action=process_action,
-            add_macro=add_macro,
-        )
-        creating_macro = macro_result.state.creating_macro
-        macro_name = macro_result.state.macro_name
-        macro_steps = macro_result.state.macro_steps
-        if macro_result.handled:
-            output_response(macro_result.message, voice_mode)
-            continue
-
-        direct_response_result = handle_direct_response_flow(
-            user_input,
-            DirectResponseState(
-                pending_command=pending_command,
-                pending_command_learning_text=pending_command_learning_text,
-                pending_smart_open_choice=pending_smart_open_choice,
-                pending_smart_open_invalid_attempts=pending_smart_open_invalid_attempts,
-                direct_response_ready_announced=direct_response_ready_announced,
-            ),
-            execute_command=lambda command: execute_command(command, voice_mode=voice_mode),
-            process_action=process_action,
-            remember_correction=maybe_remember_pending_voice_correction,
-            retry_invalid_smart_open=False,
-        )
-        pending_command = direct_response_result.state.pending_command
-        pending_command_learning_text = direct_response_result.state.pending_command_learning_text
-        pending_smart_open_choice = direct_response_result.state.pending_smart_open_choice
-        pending_smart_open_invalid_attempts = direct_response_result.state.pending_smart_open_invalid_attempts
-        direct_response_ready_announced = direct_response_result.state.direct_response_ready_announced
-        if direct_response_result.handled:
-            output_response(direct_response_result.message, voice_mode)
-            continue
-
-        if looks_like_multi_step_request(user_input):
-            result = handle_multi_step_request(user_input)
-            if result:
-                output_response(result, voice_mode)
-                continue
-
-        raw_action = route(user_input)
-        log_execution_event(
-            "route_result",
-            input=user_input,
-            intent=raw_action.get("intent"),
-            target=raw_action.get("target"),
-        )
-
-        post_route_result = handle_post_route_action(
-            raw_action,
-            user_input=user_input,
-            original_user_input=original_user_input,
-            voice_mode=voice_mode,
-            state=PostRouteState(
-                pending_command=pending_command,
-                pending_command_learning_text=pending_command_learning_text,
-                pending_smart_open_choice=pending_smart_open_choice,
-                pending_smart_open_invalid_attempts=pending_smart_open_invalid_attempts,
-                direct_response_ready_announced=direct_response_ready_announced,
-                conversation_mode=conversation_mode,
-                conversation_ready_announced=conversation_ready_announced,
-            ),
-            last_command=app_runtime.runtime_state.last_command,
-            process_action=process_action,
-            execute_command=lambda command: execute_command(command, voice_mode=voice_mode),
-            execute_routine_steps=execute_routine_steps,
-            clear_chat_history=clear_chat_history,
-            confirmation_prompt=confirmation_prompt,
-            smart_open_needs_choice=smart_open_needs_choice,
-            show_map_in_ui=show_map_in_ui,
-            update_runtime_state=app_runtime.runtime_state.update,
-            is_unclear_response=is_unclear_response,
-            maybe_suggest_probable_command=maybe_suggest_probable_command,
-        )
-        pending_command = post_route_result.state.pending_command
-        pending_command_learning_text = post_route_result.state.pending_command_learning_text
-        pending_smart_open_choice = post_route_result.state.pending_smart_open_choice
-        pending_smart_open_invalid_attempts = post_route_result.state.pending_smart_open_invalid_attempts
-        direct_response_ready_announced = post_route_result.state.direct_response_ready_announced
-        conversation_mode = post_route_result.state.conversation_mode
-        conversation_ready_announced = post_route_result.state.conversation_ready_announced
-        if post_route_result.handled:
-            output_response(post_route_result.message, voice_mode)
-            continue
+    )
 
 
 if __name__ == "__main__":

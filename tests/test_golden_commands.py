@@ -3,13 +3,14 @@ from unittest.mock import patch
 
 from actions import ActionSpec, ensure_default_actions, get_action, register_action
 from core.command_schema import Command
-from core.executor import ACTIONS, execute
+from core.executor import ACTIONS, execute, execute_result
 from core.normalizer import normalize_action
 from core.router import route
 from core.validator import validate_command
 
 GOLDEN_COMMANDS = [
     ("briefing", "daily_briefing", {}),
+    ("briefing em segundo plano", "background_daily_briefing", {}),
     ("me da o briefing", "daily_briefing", {}),
     ("resumo do dia", "daily_briefing", {}),
     ("comecar meu dia", "daily_routine", {}),
@@ -49,6 +50,8 @@ GOLDEN_COMMANDS = [
         {"question": "qual a cotacao de BBAS3"},
     ),
     ("monitoramento da carteira", "investment_memory_answer", {"question": "monitoramento da carteira"}),
+    ("atualizar carteira em segundo plano", "background_investment_refresh", {}),
+    ("relatorio financeiro em segundo plano", "background_investment_report", {}),
     ("radar da carteira", "investment_memory_answer", {"question": "radar da carteira"}),
     ("rentabilidade da carteira", "investment_memory_answer", {"question": "rentabilidade da carteira"}),
     ("quais ativos merecem atencao", "investment_memory_answer", {"question": "quais ativos merecem atencao"}),
@@ -94,6 +97,8 @@ GOLDEN_COMMANDS = [
         {"namespace": "investments", "key": "briefing_deve_ser_curto"},
     ),
     ("listar memoria investimentos", "action_memory_list", {"namespace": "investments"}),
+    ("criar backup da memoria", "action_tool_execute", {"name": "memory.backup.create", "arguments": {}}),
+    ("listar backups da memoria", "action_tool_execute", {"name": "memory.backup.list", "arguments": {}}),
     (
         'executar action file.process {"path":"README.md","max_chars":1000}',
         "action_tool_execute",
@@ -130,9 +135,14 @@ GOLDEN_COMMANDS = [
     ("pausar musica", "media_play_pause", {}),
     ("ligar bluetooth", "bluetooth_on", {}),
     ("status do bluetooth", "bluetooth_status", {}),
+    ("status das tarefas em segundo plano", "background_status", {}),
+    ("resultado da ultima tarefa em segundo plano", "background_latest_result", {}),
+    ("notificacoes em segundo plano", "background_notifications", {}),
     ("status da visao", "vision_status", {}),
     ("ultima analise visual", "vision_last_analysis", {}),
     ("historico visual", "vision_history", {}),
+    ("analisar tela em segundo plano", "background_vision_screen", {}),
+    ("analisar grafico em segundo plano", "background_vision_screen_graph", {}),
     ("analisar grafico", "image_analyze_screen_graph", {}),
     ("interpretar grafico", "image_analyze_screen_graph", {}),
     ("analisar grafico C:\\prints\\grafico.png", "image_analyze_graph", {"target": "C:\\prints\\grafico.png"}),
@@ -208,9 +218,16 @@ class GoldenCommandTests(unittest.TestCase):
         ensure_default_actions()
         legacy_names = {
             "daily_briefing",
+            "background_daily_briefing",
+            "background_investment_report",
+            "background_vision_screen",
+            "background_vision_screen_graph",
             "daily_routine",
             "weather_summary",
             "windows_startup_status",
+            "background_status",
+            "background_latest_result",
+            "background_notifications",
             "reminder_list",
             "agenda_list_today",
             "agenda_list_tomorrow",
@@ -233,6 +250,8 @@ class GoldenCommandTests(unittest.TestCase):
             "action_file_process",
             "action_memory_recall",
             "action_memory_list",
+            "memory.backup.list",
+            "background.run_action",
         }
 
         for name in legacy_names:
@@ -267,6 +286,7 @@ class GoldenCommandTests(unittest.TestCase):
             "reminder_add",
             "reminder_remove",
             "action_memory_remember",
+            "memory.backup.restore_file",
         }
 
         for name in write_names:
@@ -320,6 +340,7 @@ class GoldenCommandTests(unittest.TestCase):
             "investment.set_auto_ceiling_margin",
             "investment.set_thesis",
             "investment_refresh_public_wallet",
+            "background_investment_refresh",
             "investment_add_watchlist",
             "investment_remove_watchlist",
             "investment_set_price_ceiling",
@@ -366,6 +387,7 @@ class GoldenCommandTests(unittest.TestCase):
             "adicione BBAS3 na watchlist",
             "remova BBAS3 da watchlist",
             "defina preco teto de BBAS3 em 25 reais",
+            "atualizar carteira em segundo plano",
             "salve tese de BBAS3 banco publico barato",
         ]:
             with self.subTest(phrase=phrase):
@@ -593,6 +615,13 @@ class GoldenCommandTests(unittest.TestCase):
             "smart_close_app",
             "windows_startup_enable",
             "windows_startup_disable",
+            "background_status",
+            "background_latest_result",
+            "background_notifications",
+            "background_daily_briefing",
+            "background_investment_report",
+            "background_vision_screen",
+            "background_vision_screen_graph",
         }
 
         for name in names:
@@ -687,9 +716,17 @@ class GoldenCommandTests(unittest.TestCase):
         result = execute(Command(action="unit.echo", params={"value": "ok"}))
         self.assertEqual(result, "echo:ok")
 
+        structured = execute_result(Command(action="unit.echo", params={"value": "ok"}))
+        self.assertTrue(structured.success)
+        self.assertEqual(structured.message, "echo:ok")
+
     def test_executor_rejects_unregistered_action(self):
         result = execute(Command(action="unit.missing", params={}))
-        self.assertIn("Ação desconhecida", result)
+        self.assertIn("desconhecida", result)
+
+        structured = execute_result(Command(action="unit.missing", params={}))
+        self.assertFalse(structured.success)
+        self.assertIn("desconhecida", structured.message)
 
     def test_action_tool_execute_does_not_call_itself_recursively(self):
         result = execute(Command(action="action_tool_execute", params={"name": "action_tool_execute", "arguments": {"name": "daily_briefing"}}))

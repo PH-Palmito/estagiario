@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import json
 import random
 from itertools import count
 from pathlib import Path
+
+from memory.json_store import read_json_file, write_json_atomic
 
 _PHRASE_COUNTERS: dict[str, count] = {}
 PHRASE_STATE_PATH = Path("memory") / "assistant_phrase_state.json"
@@ -11,20 +12,12 @@ MAX_RECENT_PHRASES = 5
 
 
 def _load_phrase_state() -> dict:
-    try:
-        data = json.loads(PHRASE_STATE_PATH.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
+    return read_json_file(PHRASE_STATE_PATH, {}, validator=lambda value: isinstance(value, dict))
 
 
 def _save_phrase_state(state: dict) -> None:
     try:
-        PHRASE_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        PHRASE_STATE_PATH.write_text(
-            json.dumps(state, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        write_json_atomic(PHRASE_STATE_PATH, state, indent=2, trailing_newline=True)
     except Exception:
         pass
 

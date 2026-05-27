@@ -4,6 +4,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.action_errors import format_action_failure_message
+from core.action_result import ActionResult, normalize_action_result
+
 ActionHandler = Callable[[dict[str, Any]], Any]
 
 
@@ -68,8 +71,19 @@ def list_actions(category: str | None = None) -> list[ActionSpec]:
 
 
 def execute_action(name: str, arguments: dict[str, Any] | None = None) -> Any:
+    return execute_action_result(name, arguments).message
+
+
+def execute_action_result(name: str, arguments: dict[str, Any] | None = None) -> ActionResult:
     spec = get_action(name)
     if not spec:
         available = ", ".join(action.name for action in list_actions())
-        return f"Action desconhecida: {name}. Disponiveis: {available}"
-    return spec.handler(arguments or {})
+        return ActionResult.failed(f"Action desconhecida: {name}. Disponiveis: {available}")
+    try:
+        return normalize_action_result(spec.handler(arguments or {}))
+    except Exception as exc:
+        return ActionResult.failed(
+            format_action_failure_message(name, spec.category, exc),
+            error=str(exc),
+            data={"action": name, "category": spec.category},
+        )

@@ -25,7 +25,7 @@ def load_tts_pronunciations(preferences: dict, pronunciations_path: str | Path) 
 
 
 def _repair_mojibake(text: str) -> str:
-    if not any(marker in text for marker in ("Ã", "Â", "â")):
+    if not any(marker in text for marker in ("\u00c3", "\u00c2", "\u00e2")):
         return text
     try:
         return text.encode("latin1").decode("utf-8")
@@ -37,7 +37,7 @@ _NUMBER_WORDS = {
     0: "zero",
     1: "um",
     2: "dois",
-    3: "trÃªs",
+    3: "três",
     4: "quatro",
     5: "cinco",
     6: "seis",
@@ -80,7 +80,7 @@ _HUNDRED_WORDS = {
 _MONTH_NAMES_PTBR = {
     1: "janeiro",
     2: "fevereiro",
-    3: "marÃ§o",
+    3: "março",
     4: "abril",
     5: "maio",
     6: "junho",
@@ -93,32 +93,32 @@ _MONTH_NAMES_PTBR = {
 }
 
 _SPELLED_LETTER_NAMES = {
-    "A": "Ã¡",
-    "B": "bÃª",
-    "C": "cÃª",
-    "D": "dÃª",
-    "E": "Ãª",
-    "F": "Ã©fe",
-    "G": "gÃª",
-    "H": "agÃ¡",
+    "A": "á",
+    "B": "bê",
+    "C": "cê",
+    "D": "dê",
+    "E": "ê",
+    "F": "éfe",
+    "G": "gê",
+    "H": "agá",
     "I": "i",
-    "J": "jÃ³ta",
-    "K": "cÃ¡",
-    "L": "Ã©le",
-    "M": "Ãªme",
-    "N": "Ãªne",
-    "O": "Ã³",
-    "P": "pÃª",
-    "Q": "quÃª",
-    "R": "Ã©rre",
-    "S": "Ã©sse",
-    "T": "tÃª",
+    "J": "jóta",
+    "K": "cá",
+    "L": "éle",
+    "M": "ême",
+    "N": "êne",
+    "O": "ó",
+    "P": "pê",
+    "Q": "quê",
+    "R": "érre",
+    "S": "ésse",
+    "T": "tê",
     "U": "u",
-    "V": "vÃª",
-    "W": "dÃ¡blio",
+    "V": "vê",
+    "W": "dáblio",
     "X": "xis",
-    "Y": "Ã­psilon",
-    "Z": "zÃª",
+    "Y": "ípsilon",
+    "Z": "zê",
 }
 
 _TTS_ABBREVIATION_RULES = {
@@ -127,7 +127,7 @@ _TTS_ABBREVIATION_RULES = {
     "mah": {"mode": "expand", "value": "miliampere hora"},
     "Wh": {"mode": "expand", "value": "watt hora"},
     "kWh": {"mode": "expand", "value": "quilo watt hora"},
-    "km": {"mode": "expand", "value": "quilÃ´metro"},
+    "km": {"mode": "expand", "value": "quilômetro"},
     "kg": {"mode": "expand", "value": "quilo"},
     "MB": {"mode": "expand", "value": "megabyte"},
     "mb": {"mode": "expand", "value": "megabyte"},
@@ -173,53 +173,53 @@ _PRONOUNCE_AS_WORD = {
 }
 
 _BUILTIN_TTS_PRONUNCIATIONS = {
-    "GitHub": "guÃ­ti rÃ£b",
-    "github": "guÃ­ti rÃ£b",
-    "YouTube": "iÃºtubi",
-    "youtube": "iÃºtubi",
+    "GitHub": "guíti rãb",
+    "github": "guíti rãb",
+    "YouTube": "iútubi",
+    "youtube": "iútubi",
     "Steam": "stim",
     "steam": "stim",
-    "Chrome": "crÃ´um",
-    "chrome": "crÃ´um",
+    "Chrome": "crôum",
+    "chrome": "crôum",
     "Python": "paithon",
     "python": "paithon",
-    "Google": "gÃºgou",
-    "google": "gÃºgou",
-    "Colab": "cÃ³lab",
-    "colab": "cÃ³lab",
-    "Android": "ÃªndrÃ³id",
-    "android": "ÃªndrÃ³id",
-    "Android Studio": "ÃªndrÃ³id stÃºdio",
-    "android studio": "ÃªndrÃ³id stÃºdio",
-    "PowerShell": "pÃ¡uer shel",
-    "powershell": "pÃ¡uer shel",
-    "OpenAI": "Ã´upen Ãªi Ã¡i",
-    "openai": "Ã´upen Ãªi Ã¡i",
-    "Wi-Fi": "uÃ¡i fai",
-    "wi-fi": "uÃ¡i fai",
-    "Wi Fi": "uÃ¡i fai",
-    "wi fi": "uÃ¡i fai",
-    "WiFi": "uÃ¡i fai",
-    "wifi": "uÃ¡i fai",
-    "Bluetooth": "blutÃºfi",
-    "bluetooth": "blutÃºfi",
-    "Mercado Livre": "mercÃ¡do lÃ­vre",
-    "mercado livre": "mercÃ¡do lÃ­vre",
-    "Magalu": "magalÃº",
-    "magalu": "magalÃº",
-    "Spotify": "ispÃ³tifai",
-    "spotify": "ispÃ³tifai",
-    "VS Code": "vÃª Ã©sse cÃ´de",
-    "VSCode": "vÃª Ã©sse cÃ´de",
-    "vscode": "vÃª Ã©sse cÃ´de",
-    "Whisper": "uÃ­sper",
-    "whisper": "uÃ­sper",
+    "Google": "gúgou",
+    "google": "gúgou",
+    "Colab": "cólab",
+    "colab": "cólab",
+    "Android": "êndróid",
+    "android": "êndróid",
+    "Android Studio": "êndróid stúdio",
+    "android studio": "êndróid stúdio",
+    "PowerShell": "páuer shel",
+    "powershell": "páuer shel",
+    "OpenAI": "ôupen êi ái",
+    "openai": "ôupen êi ái",
+    "Wi-Fi": "uái fai",
+    "wi-fi": "uái fai",
+    "Wi Fi": "uái fai",
+    "wi fi": "uái fai",
+    "WiFi": "uái fai",
+    "wifi": "uái fai",
+    "Bluetooth": "blutúfi",
+    "bluetooth": "blutúfi",
+    "Mercado Livre": "mercádo lívre",
+    "mercado livre": "mercádo lívre",
+    "Magalu": "magalú",
+    "magalu": "magalú",
+    "Spotify": "ispótifai",
+    "spotify": "ispótifai",
+    "VS Code": "vê ésse côde",
+    "VSCode": "vê ésse côde",
+    "vscode": "vê ésse côde",
+    "Whisper": "uísper",
+    "whisper": "uísper",
     "Piper": "paiper",
     "piper": "paiper",
-    "Ollama": "olÃ¢ma",
-    "ollama": "olÃ¢ma",
-    "Mobile": "mÃ´bail",
-    "mobile": "mÃ´bail",
+    "Ollama": "olâma",
+    "ollama": "olâma",
+    "Mobile": "môbail",
+    "mobile": "môbail",
     "screenpilot": "screen pilot",
     "ScreenPilot": "screen pilot",
 }
@@ -302,7 +302,7 @@ def _expand_date_expression(match: re.Match) -> str:
 def _expand_temperature_expression(match: re.Match) -> str:
     value = int(match.group(1))
     unit = "grau" if value == 1 else "graus"
-    return f"{_number_to_pt(value)} {unit} CÃ©lsius"
+    return f"{_number_to_pt(value)} {unit} Célsius"
 
 
 def _expand_degrees_expression(match: re.Match) -> str:
@@ -446,7 +446,7 @@ def _normalize_tts_punctuation(text: str) -> str:
 
     text = _normalize_tts_quotes_and_brackets(text)
     text = re.sub(r"\s*(?:\.{3,}|\u2026)\s*", ellipsis_token, text)
-    text = re.sub(r"\s*[â€“â€”-]\s*", ", ", text)
+    text = re.sub(r"\s*[��-]\s*", ", ", text)
     text = re.sub(r"\s*/\s*", ", ", text)
     text = re.sub(r"\s+", " ", text).strip()
     text = re.sub(r"\s+([,.!?;:])", r"\1", text)
@@ -477,7 +477,7 @@ def _expand_tts_reading_patterns(text: str) -> str:
     text = re.sub(r"\b([01]?\d|2[0-3])h([0-5]\d)\b", _expand_time_expression, text)
     text = re.sub(r"\b([01]?\d|2[0-3])h\b", _expand_time_expression, text)
     text = re.sub(
-        r"\b(\d{1,3})\s*(?:Â°\s*C|graus?\s+Celsius|graus?\s+celsius)\b",
+        r"\b(\d{1,3})\s*(?:°\s*C|graus?\s+Celsius|graus?\s+celsius)\b",
         _expand_temperature_expression,
         text,
     )
@@ -486,7 +486,7 @@ def _expand_tts_reading_patterns(text: str) -> str:
     text = re.sub(r"\b(\d{1,5})\s*Wh\b", lambda m: f"{_number_to_pt(int(m.group(1)))} watt hora", text, flags=re.IGNORECASE)
     text = re.sub(r"\b(\d{1,5})\s*kWh\b", lambda m: f"{_number_to_pt(int(m.group(1)))} quilo watt hora", text, flags=re.IGNORECASE)
     text = re.sub(r"\b(\d{1,5})\s*(MB|GB|TB)\b", _expand_storage_expression, text, flags=re.IGNORECASE)
-    text = re.sub(r"\b(\d{1,4})\s*km\b", lambda m: f"{_number_to_pt(int(m.group(1)))} quilÃ´metros", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b(\d{1,4})\s*km\b", lambda m: f"{_number_to_pt(int(m.group(1)))} quilômetros", text, flags=re.IGNORECASE)
     return text
 
 
@@ -498,7 +498,7 @@ def _expand_negative_tts_patterns(text: str) -> str:
         if "," in number:
             integer, decimal = number.split(",", 1)
             if decimal:
-                return f"menos {integer} vÃ­rgula {decimal} por cento"
+                return f"menos {integer} vírgula {decimal} por cento"
         if "." in number:
             integer, decimal = number.split(".", 1)
             if decimal:
@@ -516,7 +516,7 @@ def _normalize_numeric_token_for_tts(number: str) -> str:
     if "," in token:
         token = token.replace(".", "")
         integer, decimal = token.split(",", 1)
-        return f"{integer} vÃ­rgula {decimal}"
+        return f"{integer} vírgula {decimal}"
     if "." in token:
         integer, decimal = token.split(".", 1)
         return f"{integer} ponto {decimal}"
@@ -561,32 +561,32 @@ def _expand_general_decimal_tts_patterns(text: str) -> str:
 
 def _expand_ticker_for_tts(text: str) -> str:
     letter_map = {
-        "A": "Ã¡",
-        "B": "bÃª",
-        "C": "cÃª",
-        "D": "dÃª",
-        "E": "Ã©",
-        "F": "Ã©fe",
-        "G": "gÃª",
-        "H": "agÃ¡",
+        "A": "á",
+        "B": "bê",
+        "C": "cê",
+        "D": "dê",
+        "E": "é",
+        "F": "éfe",
+        "G": "gê",
+        "H": "agá",
         "I": "i",
-        "J": "jÃ³ta",
-        "K": "cÃ¡",
-        "L": "Ã©le",
-        "M": "Ãªme",
-        "N": "Ãªne",
-        "O": "Ã³",
-        "P": "pÃª",
-        "Q": "quÃª",
+        "J": "jóta",
+        "K": "cá",
+        "L": "éle",
+        "M": "ême",
+        "N": "êne",
+        "O": "ó",
+        "P": "pê",
+        "Q": "quê",
         "R": "erre",
-        "S": "Ã©sse",
-        "T": "tÃª",
+        "S": "ésse",
+        "T": "tê",
         "U": "u",
-        "V": "vÃª",
-        "W": "dÃ¡blio",
+        "V": "vê",
+        "W": "dáblio",
         "X": "xis",
-        "Y": "Ã­psilon",
-        "Z": "zÃª",
+        "Y": "ípsilon",
+        "Z": "zê",
     }
 
     def replacer(match: re.Match) -> str:
@@ -601,113 +601,113 @@ def _expand_ticker_for_tts(text: str) -> str:
 
 def _restore_common_ptbr_accents(text: str) -> str:
     replacements = {
-        "pagina": "pÃ¡gina",
-        "paginas": "pÃ¡ginas",
-        "visao": "visÃ£o",
-        "acoes": "aÃ§Ãµes",
-        "acao": "aÃ§Ã£o",
-        "rapida": "rÃ¡pida",
-        "rapido": "rÃ¡pido",
-        "repositorio": "repositÃ³rio",
-        "repositorios": "repositÃ³rios",
-        "conteudo": "conteÃºdo",
-        "conteudos": "conteÃºdos",
-        "inteligencia": "inteligÃªncia",
-        "computacao": "computaÃ§Ã£o",
-        "automacao": "automaÃ§Ã£o",
-        "camera": "cÃ¢mera",
-        "cameras": "cÃ¢meras",
-        "videoaula": "vÃ­deoaula",
-        "musica": "mÃºsica",
-        "musicas": "mÃºsicas",
-        "video": "vÃ­deo",
-        "videos": "vÃ­deos",
-        "audio": "Ã¡udio",
-        "audios": "Ã¡udios",
-        "traducao": "traduÃ§Ã£o",
-        "informacao": "informaÃ§Ã£o",
-        "informacoes": "informaÃ§Ãµes",
-        "selecao": "seleÃ§Ã£o",
-        "selecoes": "seleÃ§Ãµes",
-        "opcao": "opÃ§Ã£o",
-        "opcoes": "opÃ§Ãµes",
-        "proxima": "prÃ³xima",
-        "proximo": "prÃ³ximo",
-        "numero": "nÃºmero",
-        "numeros": "nÃºmeros",
-        "navegacao": "navegaÃ§Ã£o",
-        "sintese": "sÃ­ntese",
-        "configuracao": "configuraÃ§Ã£o",
-        "configuracoes": "configuraÃ§Ãµes",
-        "precisao": "precisÃ£o",
-        "ingles": "inglÃªs",
-        "classificacao": "classificaÃ§Ã£o",
-        "explicacao": "explicaÃ§Ã£o",
-        "nao": "nÃ£o",
-        "voce": "vocÃª",
-        "voces": "vocÃªs",
-        "util": "Ãºtil",
-        "uteis": "Ãºteis",
-        "alem": "alÃ©m",
-        "comecar": "comeÃ§ar",
-        "comeco": "comeÃ§o",
-        "comeca": "comeÃ§a",
-        "comecou": "comeÃ§ou",
-        "disposicao": "disposiÃ§Ã£o",
-        "instrucao": "instruÃ§Ã£o",
-        "instrucoes": "instruÃ§Ãµes",
-        "patrimonio": "patrimÃ´nio",
-        "politica": "polÃ­tica",
-        "politicas": "polÃ­ticas",
-        "cambio": "cÃ¢mbio",
-        "criterios": "critÃ©rios",
-        "preferencia": "preferÃªncia",
-        "preferencias": "preferÃªncias",
-        "cotacoes": "cotaÃ§Ãµes",
-        "relatorio": "relatÃ³rio",
-        "relatorios": "relatÃ³rios",
-        "especifico": "especÃ­fico",
-        "especifica": "especÃ­fica",
+        "pagina": "página",
+        "paginas": "páginas",
+        "visao": "visão",
+        "acoes": "ações",
+        "acao": "ação",
+        "rapida": "rápida",
+        "rapido": "rápido",
+        "repositorio": "repositório",
+        "repositorios": "repositórios",
+        "conteudo": "conteúdo",
+        "conteudos": "conteúdos",
+        "inteligencia": "inteligência",
+        "computacao": "computação",
+        "automacao": "automação",
+        "camera": "câmera",
+        "cameras": "câmeras",
+        "videoaula": "vídeoaula",
+        "musica": "música",
+        "musicas": "músicas",
+        "video": "vídeo",
+        "videos": "vídeos",
+        "audio": "áudio",
+        "audios": "áudios",
+        "traducao": "tradução",
+        "informacao": "informação",
+        "informacoes": "informações",
+        "selecao": "seleção",
+        "selecoes": "seleções",
+        "opcao": "opção",
+        "opcoes": "opções",
+        "proxima": "próxima",
+        "proximo": "próximo",
+        "numero": "número",
+        "numeros": "números",
+        "navegacao": "navegação",
+        "sintese": "síntese",
+        "configuracao": "configuração",
+        "configuracoes": "configurações",
+        "precisao": "precisão",
+        "ingles": "inglês",
+        "classificacao": "classificação",
+        "explicacao": "explicação",
+        "nao": "não",
+        "voce": "você",
+        "voces": "vocês",
+        "util": "útil",
+        "uteis": "úteis",
+        "alem": "além",
+        "comecar": "começar",
+        "comeco": "começo",
+        "comeca": "começa",
+        "comecou": "começou",
+        "disposicao": "disposição",
+        "instrucao": "instrução",
+        "instrucoes": "instruções",
+        "patrimonio": "patrimônio",
+        "politica": "política",
+        "politicas": "políticas",
+        "cambio": "câmbio",
+        "criterios": "critérios",
+        "preferencia": "preferência",
+        "preferencias": "preferências",
+        "cotacoes": "cotações",
+        "relatorio": "relatório",
+        "relatorios": "relatórios",
+        "especifico": "específico",
+        "especifica": "específica",
     }
 
     replacements.update(
         {
-            "avaliacao": "avaliaÃ§Ã£o",
-            "comparacao": "comparaÃ§Ã£o",
-            "comparacoes": "comparaÃ§Ãµes",
-            "variacao": "variaÃ§Ã£o",
-            "variacoes": "variaÃ§Ãµes",
-            "cotacao": "cotaÃ§Ã£o",
-            "cotacoes": "cotaÃ§Ãµes",
-            "geracao": "geraÃ§Ã£o",
-            "evolucao": "evoluÃ§Ã£o",
-            "operacao": "operaÃ§Ã£o",
-            "operacoes": "operaÃ§Ãµes",
-            "direcao": "direÃ§Ã£o",
-            "funcao": "funÃ§Ã£o",
-            "funcoes": "funÃ§Ãµes",
-            "atencao": "atenÃ§Ã£o",
-            "situacao": "situaÃ§Ã£o",
-            "condicao": "condiÃ§Ã£o",
-            "condicoes": "condiÃ§Ãµes",
-            "criterio": "critÃ©rio",
-            "memoria": "memÃ³ria",
-            "historico": "histÃ³rico",
-            "analise": "anÃ¡lise",
-            "tecnico": "tÃ©cnico",
-            "tecnica": "tÃ©cnica",
-            "tecnicas": "tÃ©cnicas",
-            "pratico": "prÃ¡tico",
-            "pratica": "prÃ¡tica",
-            "estrategia": "estratÃ©gia",
-            "estrategias": "estratÃ©gias",
-            "logica": "lÃ³gica",
-            "topico": "tÃ³pico",
-            "topicos": "tÃ³picos",
-            "critico": "crÃ­tico",
-            "critica": "crÃ­tica",
-            "projecao": "projeÃ§Ã£o",
-            "projecoes": "projeÃ§Ãµes",
+            "avaliacao": "avaliação",
+            "comparacao": "comparação",
+            "comparacoes": "comparações",
+            "variacao": "variação",
+            "variacoes": "variações",
+            "cotacao": "cotação",
+            "cotacoes": "cotações",
+            "geracao": "geração",
+            "evolucao": "evolução",
+            "operacao": "operação",
+            "operacoes": "operações",
+            "direcao": "direção",
+            "funcao": "função",
+            "funcoes": "funções",
+            "atencao": "atenção",
+            "situacao": "situação",
+            "condicao": "condição",
+            "condicoes": "condições",
+            "criterio": "critério",
+            "memoria": "memória",
+            "historico": "histórico",
+            "analise": "análise",
+            "tecnico": "técnico",
+            "tecnica": "técnica",
+            "tecnicas": "técnicas",
+            "pratico": "prático",
+            "pratica": "prática",
+            "estrategia": "estratégia",
+            "estrategias": "estratégias",
+            "logica": "lógica",
+            "topico": "tópico",
+            "topicos": "tópicos",
+            "critico": "crítico",
+            "critica": "crítica",
+            "projecao": "projeção",
+            "projecoes": "projeções",
         }
     )
 
@@ -726,8 +726,8 @@ def _apply_pronunciation_map(text: str, mapping: dict[str, str]) -> str:
 
 def _massage_ptbr_pronunciation(text: str) -> str:
     phrase_replacements = {
-        "Pronto para trabalhar.": "Pronto para comeÃ§ar.",
-        "pronto para trabalhar.": "pronto para comeÃ§ar.",
+        "Pronto para trabalhar.": "Pronto para começar.",
+        "pronto para trabalhar.": "pronto para começar.",
         "Vamos fazer esse computador trabalhar.": "Vamos colocar esse computador em movimento.",
         "vamos fazer esse computador trabalhar.": "vamos colocar esse computador em movimento.",
     }
@@ -738,7 +738,7 @@ def _massage_ptbr_pronunciation(text: str) -> str:
 
 
 def prepare_tts_text(text: str, custom_pronunciations: dict[str, str] | None = None) -> str:
-    prepared = _normalize_tts_tech_terms(text)
+    prepared = _repair_mojibake(_normalize_tts_tech_terms(text))
     prepared = _expand_negative_tts_patterns(prepared)
     prepared = _expand_currency_tts_patterns(prepared)
     prepared = _expand_percent_tts_patterns(prepared)
@@ -752,7 +752,7 @@ def prepare_tts_text(text: str, custom_pronunciations: dict[str, str] | None = N
     prepared = _apply_abbreviation_heuristics(prepared)
     prepared = _apply_pronunciation_map(prepared, _BUILTIN_TTS_PRONUNCIATIONS)
     prepared = _apply_pronunciation_map(prepared, custom_pronunciations or {})
-    prepared = re.sub(r"\bv[Ä™Ãª] Ã©sse cÃ´de\b", "vÃª Ã©sse cÃ´de", prepared, flags=re.IGNORECASE)
-    prepared = re.sub(r"\bvÃª Ã©sse code\b", "vÃª Ã©sse cÃ´de", prepared, flags=re.IGNORECASE)
+    prepared = re.sub(r"\bv[ęê] ésse côde\b", "vê ésse côde", prepared, flags=re.IGNORECASE)
+    prepared = re.sub(r"\bvê ésse code\b", "vê ésse côde", prepared, flags=re.IGNORECASE)
 
     return _repair_mojibake(prepared)

@@ -1,8 +1,9 @@
-import json
 import shutil
 from pathlib import Path
 
 from huggingface_hub import hf_hub_download
+
+from memory.json_store import read_json_file, update_json_file, write_json_atomic
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 VOICE_PREFERENCES_PATH = PROJECT_ROOT / "memory" / "voice_preferences.json"
@@ -38,17 +39,11 @@ AVAILABLE_PIPER_VOICES = {
 
 
 def load_preferences():
-    try:
-        return json.loads(VOICE_PREFERENCES_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    return read_json_file(VOICE_PREFERENCES_PATH, {}, validator=lambda value: isinstance(value, dict))
 
 
 def save_preferences(preferences):
-    VOICE_PREFERENCES_PATH.write_text(
-        json.dumps(preferences, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    write_json_atomic(VOICE_PREFERENCES_PATH, preferences, indent=2, trailing_newline=True)
 
 
 def piper_voice_dir(key: str) -> Path:
@@ -113,14 +108,22 @@ def apply_piper_voice(key: str):
         return False, f"Voz Piper ainda nao instalada: {key}."
 
     model_path, config_path = piper_voice_paths(key)
-    preferences = load_preferences()
-    preferences["tts_engine"] = "piper"
-    preferences["piper_model_path"] = str(model_path)
-    preferences["piper_config_path"] = str(config_path)
-    preferences["piper_speaker_id"] = ""
-    preferences["assistant_style"] = "natural"
-    preferences["assistant_brief_confirmations"] = False
-    preferences["assistant_voice_effect"] = "off"
-    preferences["assistant_voice_effect_strength"] = 0.0
-    save_preferences(preferences)
+    patch = {
+        "tts_engine": "piper",
+        "piper_model_path": str(model_path),
+        "piper_config_path": str(config_path),
+        "piper_speaker_id": "",
+        "assistant_style": "natural",
+        "assistant_brief_confirmations": False,
+        "assistant_voice_effect": "off",
+        "assistant_voice_effect_strength": 0.0,
+    }
+    update_json_file(
+        VOICE_PREFERENCES_PATH,
+        {},
+        lambda preferences: {**dict(preferences or {}), **patch},
+        validator=lambda value: isinstance(value, dict),
+        indent=2,
+        trailing_newline=True,
+    )
     return True, f"Voz Piper aplicada: {key}."

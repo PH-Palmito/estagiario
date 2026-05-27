@@ -126,7 +126,7 @@ class BrowserWalletCommands:
         return (
             "patrimonio total" in compact
             or "patrimônio total" in compact
-            or "patrimÃ´nio total" in compact
+            or "patrimônio total" in compact
         )
 
     def _close_wallet_tab(self, app_name: str):

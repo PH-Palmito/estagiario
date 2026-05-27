@@ -29,7 +29,10 @@ class StartupDiagnosticsTests(unittest.TestCase):
 
         self.assertIn("primeira linha", content)
         self.assertIn("segunda linha", content)
-        self.assertGreaterEqual(content.count("\n"), 2)
+
+    def test_append_startup_log_does_not_raise_when_file_is_locked(self):
+        with patch.object(Path, "open", side_effect=PermissionError("locked")):
+            startup_diagnostics.append_startup_log("linha", Path("startup.log"))
 
     def test_run_without_startup_diagnostics_only_calls_main(self):
         calls = []

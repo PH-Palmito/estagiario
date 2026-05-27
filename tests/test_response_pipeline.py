@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from core.command_schema import Command
 from core.response_pipeline import ResponsePipeline
@@ -52,16 +53,19 @@ class ResponsePipelineTests(unittest.TestCase):
         self.assertEqual(calls["history"][0][0], ("assistant", "Montando briefing..."))
         self.assertEqual(calls["runtime"], [{"status": "PROCESSANDO", "last_response": "Montando briefing..."}])
         self.assertEqual(calls["speak"][0][0], ("Montando briefing...",))
+        self.assertEqual(calls["events"][-1][0], "latency_stage")
+        self.assertEqual(calls["events"][-1][1]["stage"], "tts")
 
     def test_execute_command_runs_progress_and_updates_state(self):
         pipeline, calls, state = self._pipeline()
         command = Command(action="daily_briefing")
 
-        result = pipeline.execute_command(command, voice_mode=True)
+        with patch("core.background_tasks.submit_background_task", return_value="bg-7"):
+            result = pipeline.execute_command(command, voice_mode=True)
 
-        self.assertEqual(result, "result:daily_briefing")
-        self.assertEqual(state.updated, [(command, "result:daily_briefing")])
-        self.assertIn("command_execute_start", [event for event, _payload in calls["events"]])
+        self.assertEqual(result, "Deixei daily_briefing rodando em segundo plano. Tarefa: bg-7.")
+        self.assertEqual(state.updated, [(command, result)])
+        self.assertIn("command_auto_background", [event for event, _payload in calls["events"]])
 
     def test_output_response_logs_history_runtime_and_speaks(self):
         pipeline, calls, _state = self._pipeline()
@@ -79,6 +83,9 @@ class ResponsePipelineTests(unittest.TestCase):
         self.assertEqual(calls["runtime"], [{"last_response": "Tudo pronto."}])
         self.assertEqual(calls["improvements"], [True])
         self.assertEqual(calls["speak"][0], (("Tudo pronto.",), {"interrupt_current": False, "wait_for_playback": True}))
+        self.assertEqual([event for event, _payload in calls["events"]], ["assistant_output", "latency_stage", "latency_stage"])
+        self.assertEqual(calls["events"][-2][1]["stage"], "tts")
+        self.assertEqual(calls["events"][-1][1]["stage"], "output")
 
     def test_output_response_sets_repeat_window_for_unclear_voice_response(self):
         pipeline, _calls, _state = self._pipeline()

@@ -1,5 +1,6 @@
-import json
 from pathlib import Path
+
+from memory.json_store import read_json_file, update_json_file, write_json_atomic
 
 VOICE_PREFERENCES_PATH = Path(__file__).resolve().parent / "voice_preferences.json"
 
@@ -118,18 +119,11 @@ VOICE_PROFILES = {
 
 
 def load_preferences():
-    try:
-        return json.loads(VOICE_PREFERENCES_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    return read_json_file(VOICE_PREFERENCES_PATH, {}, validator=lambda value: isinstance(value, dict))
 
 
 def save_preferences(preferences):
-    VOICE_PREFERENCES_PATH.parent.mkdir(parents=True, exist_ok=True)
-    VOICE_PREFERENCES_PATH.write_text(
-        json.dumps(preferences, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    write_json_atomic(VOICE_PREFERENCES_PATH, preferences, indent=2, trailing_newline=True)
 
 
 def apply_voice_profile(name: str):
@@ -137,9 +131,14 @@ def apply_voice_profile(name: str):
     if profile_name not in VOICE_PROFILES:
         return False, f"Perfil de voz desconhecido: {name}."
 
-    preferences = load_preferences()
-    preferences.update(VOICE_PROFILES[profile_name])
-    save_preferences(preferences)
+    update_json_file(
+        VOICE_PREFERENCES_PATH,
+        {},
+        lambda preferences: {**dict(preferences or {}), **VOICE_PROFILES[profile_name]},
+        validator=lambda value: isinstance(value, dict),
+        indent=2,
+        trailing_newline=True,
+    )
     return True, f"Perfil de voz aplicado: {profile_name}."
 
 

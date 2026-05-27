@@ -501,18 +501,90 @@ def _startup_log_path() -> Path:
     return startup_log_path(Path(__file__).resolve().parents[1])
 
 
+def _startup_output_log_path() -> Path:
+    return _startup_log_path().with_name("axel-startup-output.log")
+
+
+def _read_startup_tail(path: Path, limit: int = 12) -> list[str]:
+    if not path.exists():
+        return []
+    try:
+        return path.read_text(encoding="utf-8", errors="replace").splitlines()[-max(1, int(limit)) :]
+    except Exception:
+        return []
+
+
+def _startup_recent_errors() -> list[str]:
+    markers = ("Falha fatal", "Traceback", "PermissionError", "Error:", "Exception")
+    lines = _read_startup_tail(_startup_log_path()) + _read_startup_tail(_startup_output_log_path())
+    return [line for line in lines if any(marker in line for marker in markers)][-3:]
+
+
 def _startup_entry_content() -> str:
     repo_dir = Path(__file__).resolve().parents[1]
     log_path = _startup_log_path()
+    output_log_path = _startup_output_log_path()
     command = " ".join(_quote_cmd_arg(arg) for arg in _startup_command_args())
-    runner = f"{command} >> {_quote_cmd_arg(str(log_path))} 2>&1"
+    runner = f"{command} >> {_quote_cmd_arg(str(output_log_path))} 2>&1"
     return (
         "@echo off\n"
         f"cd /d {_quote_cmd_arg(str(repo_dir))}\n"
         f"if not exist {_quote_cmd_arg(str(log_path.parent))} mkdir {_quote_cmd_arg(str(log_path.parent))}\n"
         f"echo [%date% %time%] Iniciando Axel pelo Windows Startup >> {_quote_cmd_arg(str(log_path))}\n"
+        f"echo [%date% %time%] Saida do processo Axel >> {_quote_cmd_arg(str(output_log_path))}\n"
         f"start \"Axel\" /min cmd /d /c {_quote_cmd_arg(runner)}\n"
     )
+
+
+def windows_startup_diagnostics() -> dict:
+    entry_path = _startup_entry_path()
+    expected_content = _startup_entry_content()
+    log_path = _startup_log_path()
+    output_log_path = _startup_output_log_path()
+    if entry_path is None:
+        return {
+            "available": False,
+            "enabled": False,
+            "current": False,
+            "outdated": False,
+            "entry_path": "",
+            "expected_command": " ".join(_quote_cmd_arg(arg) for arg in _startup_command_args()),
+            "log_path": str(log_path),
+            "output_log_path": str(output_log_path),
+            "diagnostic_log_exists": log_path.exists(),
+            "output_log_exists": output_log_path.exists(),
+            "recent_errors": _startup_recent_errors(),
+            "reason": "appdata_missing",
+        }
+
+    result = {
+        "available": True,
+        "enabled": entry_path.exists(),
+        "current": False,
+        "outdated": False,
+        "entry_path": str(entry_path),
+        "expected_command": " ".join(_quote_cmd_arg(arg) for arg in _startup_command_args()),
+        "log_path": str(log_path),
+        "output_log_path": str(output_log_path),
+        "diagnostic_log_exists": log_path.exists(),
+        "output_log_exists": output_log_path.exists(),
+        "recent_errors": _startup_recent_errors(),
+        "reason": "",
+    }
+    if not entry_path.exists():
+        return result
+
+    try:
+        content = entry_path.read_text(encoding="utf-8")
+    except Exception as exc:
+        result.update({"reason": f"read_failed:{exc}", "outdated": True})
+        return result
+
+    result["current"] = content == expected_content
+    result["outdated"] = not result["current"]
+    if result["outdated"]:
+        result["reason"] = "content_mismatch"
+    return result
 
 
 def enable_windows_startup() -> str:
@@ -548,21 +620,30 @@ def disable_windows_startup() -> str:
 
 
 def windows_startup_status() -> str:
-    entry_path = _startup_entry_path()
-    if entry_path is None:
+    diagnostics = windows_startup_diagnostics()
+    if not diagnostics.get("available"):
         return "Nao encontrei a pasta de inicializacao do Windows neste ambiente."
-    if not entry_path.exists():
+    if not diagnostics.get("enabled"):
         return "Inicializacao com o Windows esta desativada."
 
-    try:
-        content = entry_path.read_text(encoding="utf-8")
-    except Exception as e:
-        return f"Inicializacao com o Windows esta ativada, mas nao consegui ler o atalho: {e}"
-
-    if content != _startup_entry_content():
+    if diagnostics.get("outdated"):
         return (
-            "Inicializacao com o Windows esta ativada, mas o atalho esta desatualizado. "
-            "Rode --install-startup para recriar com log de diagnostico."
+            "Alerta: inicializacao com o Windows esta ativada, mas o atalho esta desatualizado. "
+            f"Atalho atual: {diagnostics.get('entry_path')}. "
+            "Recrie com: python main.py --install-startup. "
+            f"Comando esperado inclui: {diagnostics.get('expected_command')}. "
+            f"Motivo: {diagnostics.get('reason') or 'conteudo diferente'}."
         )
 
-    return f"Inicializacao com o Windows esta ativada. Log: {_startup_log_path()}"
+    log_status = "log encontrado" if diagnostics.get("diagnostic_log_exists") else "log ainda nao encontrado"
+    output_status = "saida encontrada" if diagnostics.get("output_log_exists") else "saida ainda nao encontrada"
+    errors = diagnostics.get("recent_errors") or []
+    if errors:
+        return (
+            "Inicializacao com o Windows esta ativada, mas ha alerta recente no startup. "
+            f"Ultimo erro: {errors[-1]}. Log: {diagnostics.get('log_path')}"
+        )
+    return (
+        "Inicializacao com o Windows esta ativada e o atalho esta atualizado. "
+        f"Diagnostico: {log_status}; {output_status}. Log: {diagnostics.get('log_path')}"
+    )

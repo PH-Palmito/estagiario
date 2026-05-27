@@ -135,6 +135,41 @@ def detect_docs_context_command(user_input: str):
 def detect_action_core_command(user_input: str):
     text = normalize_text(user_input).strip(" .")
 
+    if text in {
+        "criar backup da memoria",
+        "crie backup da memoria",
+        "fazer backup da memoria",
+        "faca backup da memoria",
+        "backup da memoria",
+        "backup das memorias",
+    }:
+        return {"intent": "action_tool_execute", "target": {"name": "memory.backup.create", "arguments": {}}}
+
+    if text in {
+        "listar backups da memoria",
+        "liste backups da memoria",
+        "ver backups da memoria",
+        "backups da memoria",
+        "listar backup da memoria",
+    }:
+        return {"intent": "action_tool_execute", "target": {"name": "memory.backup.list", "arguments": {}}}
+
+    restore_match = re.match(
+        r"^(?:restaurar|restaure|recuperar|recupere)\s+(?:arquivo\s+)?(?:da\s+)?memoria\s+([A-Za-z0-9_.-]+\.json)\s+(?:do|de|a\s+partir\s+do)\s+(memory-\d{8}-\d{6})$",
+        text,
+    )
+    if restore_match:
+        return {
+            "intent": "action_tool_execute",
+            "target": {
+                "name": "memory.backup.restore_file",
+                "arguments": {
+                    "filename": restore_match.group(1),
+                    "backup_name": restore_match.group(2),
+                },
+            },
+        }
+
     if text in {"listar actions", "lista actions", "ver actions", "quais actions", "catalogo actions"}:
         return {"intent": "action_tool_list", "target": None}
 

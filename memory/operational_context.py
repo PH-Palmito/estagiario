@@ -1,5 +1,3 @@
-import json
-import os
 import re
 import time
 from pathlib import Path
@@ -7,6 +5,7 @@ from pathlib import Path
 from memory.auto_advances import load_auto_advances
 from memory.bottlenecks import load_bottlenecks
 from memory.current_topic import load_current_topic
+from memory.json_store import read_json_file, write_json_atomic
 from memory.obsidian_sync import sync_operational_context_note
 from memory.profile import load_profile
 from memory.reminders import load_reminders
@@ -75,22 +74,18 @@ PREFERENCE_KEYS = (
 
 
 def _save_json(path: Path, payload: dict):
-    content = json.dumps(payload, ensure_ascii=False, indent=2)
-    tmp_path = path.with_name(f"{path.stem}.{time.time_ns()}.tmp")
-    tmp_path.write_text(content, encoding="utf-8")
-    os.replace(tmp_path, path)
+    write_json_atomic(path, payload, indent=2)
 
 
 def _load_json(path: Path):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    return read_json_file(path, {}, validator=lambda value: isinstance(value, dict))
 
 
 def _fingerprint(payload: dict) -> str:
     stable = dict(payload or {})
     stable.pop("generated_at", None)
+    import json
+
     return json.dumps(stable, ensure_ascii=False, sort_keys=True)
 
 

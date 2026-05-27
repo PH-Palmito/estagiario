@@ -1,6 +1,12 @@
 import unittest
 
-from core.router_system import detect_run_script, detect_type_text, detect_windows_startup_command
+from core.router_system import (
+    detect_background_status_command,
+    detect_run_script,
+    detect_type_text,
+    detect_whatsapp_bridge_command,
+    detect_windows_startup_command,
+)
 
 
 class RouterSystemTests(unittest.TestCase):
@@ -26,6 +32,42 @@ class RouterSystemTests(unittest.TestCase):
         self.assertEqual(
             detect_run_script("execute script scripts/teste.py"),
             {"intent": "run_script", "target": "scripts/teste.py"},
+        )
+
+    def test_background_status(self):
+        self.assertEqual(
+            detect_background_status_command("status das tarefas em segundo plano"),
+            {"intent": "background_status", "target": None},
+        )
+
+    def test_background_latest_result(self):
+        self.assertEqual(
+            detect_background_status_command("resultado da ultima tarefa em segundo plano"),
+            {"intent": "background_latest_result", "target": None},
+        )
+
+    def test_background_notifications(self):
+        self.assertEqual(
+            detect_background_status_command("notificacoes em segundo plano"),
+            {"intent": "background_notifications", "target": None},
+        )
+
+    def test_whatsapp_bridge_status(self):
+        self.assertEqual(
+            detect_whatsapp_bridge_command("status do whatsapp"),
+            {"intent": "whatsapp.status", "target": None},
+        )
+
+    def test_whatsapp_bridge_start(self):
+        self.assertEqual(
+            detect_whatsapp_bridge_command("iniciar ponte whatsapp"),
+            {"intent": "whatsapp.start_local_bridge", "target": None},
+        )
+
+    def test_whatsapp_simulate_message(self):
+        self.assertEqual(
+            detect_whatsapp_bridge_command("simular whatsapp briefing"),
+            {"intent": "whatsapp.simulate_message", "target": "briefing"},
         )
 
     def test_type_text(self):

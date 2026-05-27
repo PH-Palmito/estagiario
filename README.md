@@ -14,7 +14,9 @@ Opcionalmente, o projeto também pode usar Gemini API como cérebro principal de
 - Controle de mídia e volume
 - Memória local de atalhos, preferências e contexto operacional
 - Snapshot local da carteira para consultas rápidas de investimentos
-- Interface opcional com `--ui`
+- Interface opcional com `--ui`, HUD em PySide6/WebEngine e paineis internos
+- Modo de performance para reduzir polling, animacoes e custo em notebook medio/fraco
+- Logs locais para diagnosticar startup, HUD, voz, actions e tarefas em segundo plano
 
 ## Status atual
 
@@ -22,6 +24,9 @@ Opcionalmente, o projeto também pode usar Gemini API como cérebro principal de
 - Núcleo de actions, roteamento, voz, briefing, carteira, memória e UI modularizados
 - Análise de imagem disponível por tela, navegador, clipboard e arquivo quando houver modelo visual configurado
 - Suíte de testes `unittest` cobrindo comandos, actions, voz, carteira, UI runtime e fluxos principais
+- HUD otimizado para troca rapida entre paineis animados
+- Painel `Dia`/cockpit diario removido temporariamente do runtime por estabilidade
+- WhatsApp local em pausa: base de webhook/allowlist existe, mas integracao real depende de provedor/numero
 - Plataforma principal: Windows
 
 ## Requisitos
@@ -148,6 +153,19 @@ Variáveis principais:
   Opcional. Permite fixar em qual dispositivo Spotify a reprodução deve começar.
 
 Se essa variável da carteira não estiver preenchida, o Axel ainda abre a área geral do Investidor10, mas não pula direto para o seu link da carteira.
+
+## WhatsApp local em pausa
+
+A base local do WhatsApp existe para consulta via webhook local, com allowlist e token, mas a integracao real esta pausada ate haver um provedor/numero definido.
+
+Variaveis relacionadas:
+
+- `AXEL_WHATSAPP_ALLOWED_SENDERS`
+- `AXEL_WHATSAPP_WEBHOOK_TOKEN`
+- `AXEL_WHATSAPP_BRIDGE_HOST`
+- `AXEL_WHATSAPP_BRIDGE_PORT`
+
+Por seguranca, o modo atual deve permanecer read-only: responder perguntas e consultar o Axel. Envio de mensagens para terceiros precisa de confirmacao explicita e ainda nao deve ser ativado automaticamente.
 
 ## Gemini opcional como principal
 

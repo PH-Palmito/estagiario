@@ -2,7 +2,7 @@
 title: "Axel Evolution Roadmap"
 type: "axel-doc"
 topic: "roadmap"
-updated_at: "2026-05-02"
+updated_at: "2026-05-25"
 tags: ["axel", "roadmap", "architecture"]
 ---
 
@@ -333,6 +333,142 @@ Tornar o Axel mais modular e mais autônomo sem perder controle.
 Não usar nenhum dos dois no núcleo do Axel agora.
 
 Se forem entrar, entram como referência ou camada externa, não como substituto do loop local.
+
+## Prioridades operacionais atuais - revisao tecnica 2026-05-25
+
+Esta lista registra a fila pratica da revisao critica do projeto Axel/Jarvis.
+Progresso geral estimado nesta rodada: 100% dos blocos automatizaveis desta rodada.
+
+### Blocos concluidos nesta rodada
+
+- [x] Quebrar fluxo principal em modulos menores: estado, startup, loop principal e turn flow.
+- [x] Criar resultado estruturado para actions e executor.
+- [x] Criar politica de permissao e risco por action.
+- [x] Centralizar roteamento com registry, grupos e telemetria de rota.
+- [x] Migrar memorias locais para escrita atomica com locks por arquivo.
+- [x] Criar backup e restore de memoria com confirmacao forte.
+- [x] Corrigir inicializacao do Axel com Windows.
+- [x] Separar log de diagnostico de startup e log de saida do processo.
+- [x] Expor saude de startup no painel de diagnostico.
+- [x] Criar telemetria de latencia por action.
+- [x] Criar recomendacoes de performance para cache/background.
+- [x] Registrar conselho preventivo de performance antes de actions pesadas.
+- [x] Criar runtime de tarefas em segundo plano.
+- [x] Expor status de tarefas em segundo plano por action e comando natural.
+- [x] Adicionar background opt-in para briefing.
+- [x] Adicionar background opt-in para visao e carteira.
+- [x] Criar consulta do ultimo resultado de background.
+- [x] Persistir historico de background em JSONL.
+- [x] Limitar crescimento de `memory/background_tasks.jsonl`.
+- [x] Criar cache TTL para `daily_briefing`.
+- [x] Criar cache TTL para resumo e relatorio de carteira.
+- [x] Criar cache TTL para ultima analise visual com hash de tela.
+- [x] Separar tarefas bloqueantes seguras para background por padrao.
+- [x] Criar modo economia para notebook medio/fraco.
+- [x] Padronizar mensagens de erro para actions de navegador, rede, visao e arquivo.
+- [x] Criar diagnostico e alerta claro para atalho de startup desatualizado.
+- [x] Documentar contratos de action, router, memory e background.
+- [x] Criar camada inicial `services/` para briefing, visao e carteira.
+- [x] Criar interface unica de storage JSON local com backend plugavel.
+- [x] Separar politica de cache em modulo proprio com TTLs canonicos.
+- [x] Conectar background com notificacao visual automatica ao terminar tarefa.
+- [x] Melhorar painel de saude com tarefas recentes de background, duracao e erro/resumo.
+- [x] Preparar fila/politica de notificacao por voz opcional para tarefas importantes.
+- [x] Criar diagnostico de encoding/mojibake para docs e textos de fala antes de corrigir em lote.
+- [x] Criar sandbox logico para classificar arquivo, processo, navegador e dry-run recomendado.
+- [x] Documentar checklist de verificacao real de startup apos reiniciar o Windows.
+- [x] Validar em reboot real que o Axel inicia sozinho com o Windows.
+- [x] Corrigir bloco de encoding/mojibake no runtime de TTS.
+- [x] Consumir fila de notificacoes por voz no runtime, respeitando modo foco/silencioso.
+- [x] Medir tempo de STT, TTS, roteamento, action e output separadamente.
+- [x] Criar dry-run real para rotinas novas antes da execucao.
+- [x] Reduzir polling de UI/arquivos quando o Axel estiver em modo silencioso.
+- [x] Criar roteador de intencoes com niveis: comando direto, pergunta, tarefa composta, conversa.
+- [x] Criar selecao explicita de ferramenta para IA local/nuvem.
+- [x] Exigir confirmacao forte para deletar, sobrescrever, restaurar memoria, rodar script e mexer em carteira.
+- [x] Registrar trilha de auditoria para actions sensiveis.
+- [x] Criar allowlist de automacoes confiaveis.
+- [x] Separar comando simples de raciocinio complexo.
+- [x] Criar memoria curta da sessao e memoria longa consultavel com score.
+- [x] Criar aprendizado de rotinas por repeticao com sugestao antes de automatizar.
+- [x] Evitar chamadas bloqueantes no caminho quente da voz.
+- [x] Personalidade com respostas curtas, contextuais e menos repetitivas.
+- [x] Briefing ao ligar o PC com agenda, clima, carteira e foco do dia.
+- [x] Agenda real sincronizada com briefing e lembretes.
+- [x] Painel de estudos com revisoes, metas e progresso.
+- [x] Monitor proativo de carteira com fatos relevantes e preco-teto.
+- [x] Base local do WhatsApp como canal de consulta com allowlist e bloqueio de escrita.
+- [x] Ponte WhatsApp local com status, start e simulacao sem nuvem.
+- [x] Painel unificado de rotina diaria com agenda, lembretes, estudos, carteira, clima e saude.
+
+### Prioridade imediata
+
+1. Validar ponte local com POST real no endpoint `127.0.0.1`.
+2. Multiagente supervisionado para pesquisa, codigo e automacoes longas.
+3. Pesquisa com fontes atuais e citacao de origem.
+4. Sync remoto opcional para memorias, tarefas e snapshots.
+5. Integracao WhatsApp real quando houver provedor/numero definido.
+
+### Correcoes urgentes restantes
+
+- [x] Verificar fluxo real de startup apos reiniciar o Windows.
+- [x] Criar alerta claro quando o atalho de startup estiver desatualizado.
+- [x] Garantir que actions sensiveis nunca sejam chamadas por background generico.
+- [x] Padronizar mensagens de erro para actions que dependem de navegador, rede, visao ou arquivo.
+- [x] Revisar arquivos com encoding quebrado em docs e textos de fala.
+
+### Melhorias de performance
+
+- [x] Criar cache TTL para `daily_briefing`.
+- [x] Criar cache TTL para resumo de carteira.
+- [x] Criar cache TTL para ultima analise visual.
+- [x] Medir tempo de STT, TTS, roteamento, action e output separadamente.
+- [x] Evitar chamadas bloqueantes no caminho quente da voz.
+- [x] Mover actions pesadas seguras para background automaticamente.
+- [x] Reduzir polling de UI/arquivos quando o Axel estiver em modo silencioso.
+- [x] Adicionar modo leve para reduzir animacoes e tarefas recorrentes.
+
+### Melhorias de arquitetura
+
+- [x] Separar contrato de background entre fila, persistencia e notificacao.
+- [x] Criar camada `services/` para orquestradores de briefing, visao e carteira.
+- [x] Expandir camada `services/` para voz.
+- [x] Consumir fila falavel por runtime de voz sem interromper modo foco/silencioso.
+- [x] Criar interface unica de storage para JSON local e backend remoto futuro.
+- [x] Separar politicas: permissao, performance, cache e risco.
+- [x] Documentar contratos de action, router, memory e background.
+
+### Melhorias de agente
+
+- [x] Criar roteador de intencoes com niveis: comando direto, pergunta, tarefa composta, conversa.
+- [x] Criar selecao explicita de ferramenta para IA local/nuvem.
+- [x] Separar comando simples de raciocinio complexo.
+- [x] Criar memoria curta da sessao e memoria longa consultavel com score.
+- [x] Criar aprendizado de rotinas por repeticao com sugestao antes de automatizar.
+
+### Melhorias Jarvis/UX
+
+- [x] Briefing ao ligar o PC com agenda, clima, carteira e foco do dia.
+- [x] HUD com painel de tarefas, saude do sistema, voz, agenda e carteira.
+- [x] Modo escuta, modo silencioso e modo foco mais visiveis.
+- [x] Alertas inteligentes sem interromper trabalho importante.
+- [x] Personalidade com respostas curtas, contextuais e menos repetitivas.
+
+### Automacao e seguranca
+
+- [x] Criar sandbox logico para comandos de arquivo, processo e navegador.
+- [x] Exigir confirmacao forte para deletar, sobrescrever, restaurar memoria, rodar script e mexer em carteira.
+- [x] Registrar trilha de auditoria para actions sensiveis.
+- [x] Criar allowlist de automacoes confiaveis.
+- [x] Criar dry-run real para rotinas novas antes da execucao.
+
+### Ideias futuras avancadas
+
+- [x] Monitor proativo de carteira com fatos relevantes e preco-teto.
+- [x] Agenda real sincronizada com briefing e lembretes.
+- [x] Painel de estudos com revisoes, metas e progresso.
+- [ ] Integracao WhatsApp com leitura/resumo/envio mediante confirmacao.
+- [ ] Multiagente supervisionado para pesquisa, codigo e automacoes longas.
 
 ## Prioridade recomendada
 

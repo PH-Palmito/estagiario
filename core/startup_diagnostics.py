@@ -17,10 +17,14 @@ def startup_log_path(repo_root: Path | None = None) -> Path:
 
 def append_startup_log(message: str, log_path: Path | None = None) -> None:
     path = log_path or startup_log_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with path.open("a", encoding="utf-8") as file:
-        file.write(f"[{timestamp}] {message}\n")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with path.open("a", encoding="utf-8") as file:
+            file.write(f"[{timestamp}] {message}\n")
+    except OSError:
+        # Startup logging must never prevent the assistant from booting.
+        return
 
 
 def run_with_startup_diagnostics(argv: Sequence[str], main_func: Callable[[], None]) -> None:

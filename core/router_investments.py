@@ -9,6 +9,15 @@ def detect_investment_browser_command(user_input: str):
     lower = normalize_text(user_input)
 
     if lower in {
+        "atualizar carteira em segundo plano",
+        "atualizar investimentos em segundo plano",
+        "sincronizar carteira em segundo plano",
+        "sincronizar investimentos em segundo plano",
+        "atualizar carteira no background",
+    }:
+        return {"intent": "background_investment_refresh", "target": None}
+
+    if lower in {
         "atualizar investimentos",
         "atualizar meus investimentos",
         "atualizar carteira",
@@ -84,6 +93,15 @@ def detect_investment_question_command(user_input: str):
     if not lower:
         return None
 
+    if lower in {
+        "relatorio financeiro em segundo plano",
+        "relatorio da carteira em segundo plano",
+        "gerar relatorio financeiro em segundo plano",
+        "gerar relatorio da carteira em segundo plano",
+        "relatorio financeiro no background",
+    }:
+        return {"intent": "background_investment_report", "target": None}
+
     if any(
         phrase in lower
         for phrase in {
@@ -95,6 +113,15 @@ def detect_investment_question_command(user_input: str):
         }
     ):
         return {"intent": "investment_financial_report", "target": None}
+
+    if lower in {
+        "monitor da carteira",
+        "monitor proativo da carteira",
+        "radar proativo da carteira",
+        "rodar monitor da carteira",
+        "checar alertas da carteira",
+    }:
+        return {"intent": "investment_portfolio_monitor", "target": None}
 
     investment_terms = {
         "patrimonio",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping, MutableMapping
 
 NextPhrase = Callable[[str, tuple[str, ...]], str]
@@ -32,6 +33,129 @@ PREFIXES_TO_KEEP = (
     "Erro",
 )
 
+GENERIC_CONFIRMATION_MESSAGES = {
+    "Pronto.",
+    "Tudo pronto.",
+    "Feito.",
+    "Ok.",
+    "Certo.",
+}
+
+OPEN_APP_TARGETS = {
+    "Abrindo spotify.": "Spotify",
+    "Abrindo chrome.": "Chrome",
+    "Abrindo code.": "VS Code",
+}
+
+CLOSE_APP_TARGETS = {
+    "Fechando spotify.": "Spotify",
+    "Fechando code.": "VS Code",
+}
+
+ASSISTENTE_OPEN_TEMPLATES = (
+    "Perfeitamente. Abrindo {target}.",
+    "Abrindo {target}.",
+    "Certo. Abrindo {target}.",
+)
+
+JARVIS_OPEN_TEMPLATES = (
+    "Certamente. Abrindo {target}.",
+    "Abrindo {target}.",
+    "Entendido. Abrindo {target}.",
+)
+
+CLOSE_TEMPLATES = (
+    "Encerrando {target}.",
+    "Fechando {target}.",
+    "{target} sera encerrado.",
+)
+
+ASSISTENTE_STATUS_VARIANTS = {
+    "Escuta pausada.": (
+        "Escuta em pausa.",
+        "Modo escuta pausado.",
+        "Pausa de escuta ativada.",
+    ),
+    "Escuta retomada.": (
+        "Escuta restabelecida.",
+        "Voltei a ouvir.",
+        "Modo escuta retomado.",
+    ),
+    "Acao cancelada.": (
+        "Acao cancelada.",
+        "Cancelado.",
+        "Tudo bem. Cancelei.",
+    ),
+}
+
+JARVIS_STATUS_VARIANTS = {
+    **ASSISTENTE_STATUS_VARIANTS,
+    "Encerrando.": (
+        "Encerrando por agora.",
+        "Ficarei em espera.",
+        "Encerrando a sessao.",
+    ),
+    "Ok, nao abri.": (
+        "Certo. Não abri.",
+        "Entendido. Mantive fechado.",
+        "Sem abrir, entao.",
+    ),
+    "Nada para repetir.": (
+        "Nao ha nada recente para repetir.",
+        "Sem resposta recente para repetir.",
+        "Ainda nao tenho algo para repetir.",
+    ),
+    "Passo adicionado.": (
+        "Passo registrado.",
+        "Etapa adicionada.",
+        "Registrei esse passo.",
+    ),
+}
+
+
+def _compact(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "").strip())
+
+
+def _variant_key(*parts: str) -> str:
+    raw = "_".join(str(part or "") for part in parts)
+    return re.sub(r"[^a-z0-9]+", "_", raw.lower()).strip("_")
+
+
+def _format_templates(templates: tuple[str, ...], **fields: str) -> tuple[str, ...]:
+    return tuple(template.format(**fields) for template in templates)
+
+
+def _target_action_response(
+    message: str,
+    *,
+    style: str,
+    action: str,
+    targets: Mapping[str, str],
+    templates: tuple[str, ...],
+    next_phrase: NextPhrase,
+) -> str | None:
+    target = targets.get(message)
+    if not target:
+        return None
+    return next_phrase(
+        _variant_key("style", style, action, target),
+        _format_templates(templates, target=target),
+    )
+
+
+def _status_response(
+    message: str,
+    *,
+    style: str,
+    variants: Mapping[str, tuple[str, ...]],
+    next_phrase: NextPhrase,
+) -> str | None:
+    options = variants.get(message)
+    if not options:
+        return None
+    return next_phrase(_variant_key("style", style, "status", message), options)
+
 
 def should_style_response(message: str) -> bool:
     if not message or "\n" in message or len(message) > 120:
@@ -48,12 +172,33 @@ def next_style_variant(options: tuple[str, ...], state: MutableMapping[str, int]
     return choice
 
 
+def avoid_repeating_response(message: str, *, state: MutableMapping[str, object] | None = None) -> str:
+    if state is None:
+        return message
+    compact = _compact(message)
+    last = str(state.get("last_styled_response") or "")
+    if compact and compact == last:
+        alternatives = (
+            "Feito.",
+            "Concluido.",
+            "Pronto.",
+            "Tudo certo.",
+        )
+        for alternative in alternatives:
+            if alternative != last:
+                compact = alternative
+                break
+    state["last_styled_response"] = compact
+    return compact
+
+
 def style_response(
     message: str,
     *,
     preferences: Mapping[str, object],
     variants: Mapping[str, tuple[str, ...]],
     next_phrase: NextPhrase,
+    state: MutableMapping[str, object] | None = None,
 ) -> str:
     assistant_style = str(preferences.get("assistant_style", "")).strip().lower()
     address_user = str(preferences.get("assistant_address_user", "senhor")).strip() or "senhor"
@@ -62,15 +207,46 @@ def style_response(
         if bool(preferences.get("assistant_humor_enabled", True)) and humor_style == "jarvis":
             assistant_style = "jarvis"
     if assistant_style not in {"jarvis", "assistente", "elegante"}:
-        return message
+        return avoid_repeating_response(message, state=state)
 
     if not bool(preferences.get("assistant_brief_confirmations", True)):
-        return message
+        return avoid_repeating_response(message, state=state)
 
     if not should_style_response(message):
-        return message
+        return avoid_repeating_response(message, state=state)
 
     if assistant_style in {"assistente", "elegante"}:
+        target_response = _target_action_response(
+            message,
+            style="assistente",
+            action="open_app",
+            targets=OPEN_APP_TARGETS,
+            templates=ASSISTENTE_OPEN_TEMPLATES,
+            next_phrase=next_phrase,
+        )
+        if target_response:
+            return avoid_repeating_response(target_response, state=state)
+
+        target_response = _target_action_response(
+            message,
+            style="assistente",
+            action="close_app",
+            targets=CLOSE_APP_TARGETS,
+            templates=CLOSE_TEMPLATES,
+            next_phrase=next_phrase,
+        )
+        if target_response:
+            return avoid_repeating_response(target_response, state=state)
+
+        status_response = _status_response(
+            message,
+            style="assistente",
+            variants=ASSISTENTE_STATUS_VARIANTS,
+            next_phrase=next_phrase,
+        )
+        if status_response:
+            return avoid_repeating_response(status_response, state=state)
+
         replacements = {
             "Abrindo spotify.": "Perfeitamente. Abrindo Spotify.",
             "Abrindo chrome.": "Perfeitamente. Abrindo Chrome.",
@@ -85,19 +261,66 @@ def style_response(
             "Acao cancelada.": "Ação cancelada.",
         }
         if message in replacements:
-            return replacements[message]
+            return avoid_repeating_response(replacements[message], state=state)
 
-        if message.startswith(ACTION_PREFIXES):
-            return next_phrase(
-                "style_assistente_action_prefix",
-                (
-                    f"Perfeitamente. {message}",
-                    f"Com certeza. {message}",
-                    f"Entendido. {message}",
+        if message in GENERIC_CONFIRMATION_MESSAGES:
+            return avoid_repeating_response(
+                next_phrase(
+                    "style_assistente_generic_confirmation",
+                    (
+                        "Pronto.",
+                        "Tudo certo.",
+                        "Feito.",
+                    ),
                 ),
+                state=state,
             )
 
-        return message
+        if message.startswith(ACTION_PREFIXES):
+            return avoid_repeating_response(
+                next_phrase(
+                    "style_assistente_action_prefix",
+                    (
+                        f"Perfeitamente. {message}",
+                        f"Com certeza. {message}",
+                        f"Entendido. {message}",
+                    ),
+                ),
+                state=state,
+            )
+
+        return avoid_repeating_response(message, state=state)
+
+    target_response = _target_action_response(
+        message,
+        style="jarvis",
+        action="open_app",
+        targets=OPEN_APP_TARGETS,
+        templates=JARVIS_OPEN_TEMPLATES,
+        next_phrase=next_phrase,
+    )
+    if target_response:
+        return avoid_repeating_response(target_response, state=state)
+
+    target_response = _target_action_response(
+        message,
+        style="jarvis",
+        action="close_app",
+        targets=CLOSE_APP_TARGETS,
+        templates=CLOSE_TEMPLATES,
+        next_phrase=next_phrase,
+    )
+    if target_response:
+        return avoid_repeating_response(target_response, state=state)
+
+    status_response = _status_response(
+        message,
+        style="jarvis",
+        variants=JARVIS_STATUS_VARIANTS,
+        next_phrase=next_phrase,
+    )
+    if status_response:
+        return avoid_repeating_response(status_response, state=state)
 
     replacements = {
         "Abrindo spotify.": "Certamente. Abrindo Spotify.",
@@ -145,12 +368,31 @@ def style_response(
         "Passo adicionado.": "Passo registrado.",
     }
     if message in replacements:
-        return replacements[message]
+        return avoid_repeating_response(replacements[message], state=state)
 
-    if message.startswith(ACTION_PREFIXES):
-        return next_phrase(
-            "style_jarvis_action_prefix",
-            tuple(phrase.format(message=message, address_user=address_user) for phrase in variants["action_prefix"]),
+    if message in GENERIC_CONFIRMATION_MESSAGES:
+        return avoid_repeating_response(
+            next_phrase(
+                "style_jarvis_generic_confirmation",
+                variants.get(
+                    "generic_confirmation",
+                    (
+                        "Pronto.",
+                        "Concluido.",
+                        "Tudo certo.",
+                    ),
+                ),
+            ),
+            state=state,
         )
 
-    return message
+    if message.startswith(ACTION_PREFIXES):
+        return avoid_repeating_response(
+            next_phrase(
+                "style_jarvis_action_prefix",
+                tuple(phrase.format(message=message, address_user=address_user) for phrase in variants["action_prefix"]),
+            ),
+            state=state,
+        )
+
+    return avoid_repeating_response(message, state=state)

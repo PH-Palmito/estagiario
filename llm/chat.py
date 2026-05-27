@@ -5,9 +5,11 @@ from pathlib import Path
 
 from config import GEMINI_API_KEY, GEMINI_COMPLEX_CHAT_ENABLED, GEMINI_MODEL
 from llm.gemini_client import ask_gemini_model
+from llm.model_selection import select_chat_model_route
 from llm.ollama_client import ask_model
 from memory.current_topic import load_current_topic, update_current_topic_from_conversation
 from memory.docs_context import docs_context_relevant, search_docs_context
+from memory.long_memory import format_relevant_long_memory
 from memory.obsidian_sync import load_vault_context, search_vault_context
 from memory.operational_context import load_operational_context
 from memory.profile import load_profile
@@ -531,7 +533,16 @@ def chat_response(user_input: str):
         return None
 
     model = str(PREFERENCES.get("chat_model", "qwen2.5:0.5b")).strip() or "qwen2.5:0.5b"
-    use_gemini = _should_use_gemini(user_input)
+    complex_request = _looks_like_complex_request(user_input)
+    route = select_chat_model_route(
+        user_input,
+        preferences=PREFERENCES,
+        local_model=model,
+        cloud_model=GEMINI_MODEL,
+        cloud_available=bool(GEMINI_COMPLEX_CHAT_ENABLED and GEMINI_API_KEY),
+        complex_request=complex_request,
+    )
+    use_gemini = route.uses_cloud
     try:
         timeout = int(PREFERENCES.get("chat_timeout_seconds", 8))
     except (TypeError, ValueError):
@@ -560,6 +571,9 @@ Memoria semantica do vault:
 Trechos mais relevantes do vault para esta pergunta:
 {_targeted_vault_context_text(user_input)}
 
+Memoria longa relevante:
+{format_relevant_long_memory(user_input)}
+
 Trechos mais relevantes dos documentos de plano e arquitetura:
 {_targeted_docs_context_text(user_input)}
 
@@ -581,7 +595,7 @@ Resposta curta do Estagiario:"""
         if use_gemini:
             response = ask_gemini_model(
                 prompt,
-                model=GEMINI_MODEL,
+                model=route.model,
                 timeout_seconds=max(4, min(timeout + 8, 40)),
                 max_output_tokens=280 if docs_mode else (220 if opinion_mode else 180),
                 temperature=min(0.8, _chat_temperature() + 0.05),
@@ -589,10 +603,11 @@ Resposta curta do Estagiario:"""
         else:
             response = ask_model(
                 prompt,
-                model=model,
+                model=route.model,
                 timeout_seconds=max(2, min(timeout, 30)),
                 num_predict=160 if docs_mode else (120 if opinion_mode else 90),
                 temperature=min(0.85, _chat_temperature() + (0.08 if opinion_mode else 0.0)),
+                provider="local",
             )
     except Exception:
         if use_gemini:
@@ -603,6 +618,7 @@ Resposta curta do Estagiario:"""
                     timeout_seconds=max(2, min(timeout, 30)),
                     num_predict=160 if docs_mode else (120 if opinion_mode else 90),
                     temperature=min(0.85, _chat_temperature() + (0.08 if opinion_mode else 0.0)),
+                    provider="local",
                 )
             except Exception:
                 return None

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime
 from pathlib import Path
+from time import time
 
+from core.cache_policy import BRIEFING_CACHE_POLICY, is_cache_fresh
 from memory.agenda import agenda_brief_summary
 from memory.auto_advances import load_auto_advances
 from memory.investment_snapshot import (
@@ -15,6 +18,8 @@ from memory.reminders import list_reminders
 from tools.weather_tools import get_weather_snapshot
 
 TODO_PATH = Path("memory/todo.md")
+BRIEFING_CACHE_PATH = BRIEFING_CACHE_POLICY.path
+DEFAULT_BRIEFING_CACHE_TTL_SECONDS = BRIEFING_CACHE_POLICY.ttl_seconds
 
 
 def _polish_pt_br(text: str) -> str:
@@ -86,6 +91,13 @@ def todo_brief_summary(limit: int = 1) -> str:
     if len(items) == 1:
         return "Próximo avanço sugerido: " + items[0] + "."
     return "Próximos avanços sugeridos: " + " ; ".join(items) + "."
+
+
+def focus_brief_summary() -> str:
+    summary = todo_brief_summary(limit=1).strip()
+    if not summary or summary == "Sem tarefas em aberto de destaque.":
+        return "Foco do dia: escolha uma prioridade curta e finalize antes de abrir novas frentes."
+    return "Foco do dia: " + summary[0].lower() + summary[1:]
 
 
 def _compact_text(text: str, max_chars: int = 300) -> str:
@@ -207,7 +219,40 @@ def _short_reminders_brief() -> str:
     return _compact_text(_polish_pt_br(summary), max_chars=220)
 
 
-def daily_briefing() -> str:
+def _read_briefing_cache(path: Path, ttl_seconds: int) -> str:
+    if ttl_seconds <= 0 or not path.exists():
+        return ""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    try:
+        created_at = float(data.get("created_at") or 0)
+    except Exception:
+        return ""
+    if not is_cache_fresh(created_at, ttl_seconds, now=time()):
+        return ""
+    text = str(data.get("text") or "").strip()
+    return text
+
+
+def _write_briefing_cache(path: Path, text: str) -> None:
+    content = str(text or "").strip()
+    if not content:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"created_at": time(), "text": content}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        return
+
+
+def _build_daily_briefing() -> str:
     sections = [
         _time_greeting(),
         _climate_brief(),
@@ -215,10 +260,21 @@ def daily_briefing() -> str:
         _investment_brief(),
         _dividend_agenda_brief(),
         _portfolio_radar_brief(),
-        todo_brief_summary(),
+        focus_brief_summary(),
         _short_reminders_brief(),
     ]
     return _polish_pt_br(" ".join(part.strip() for part in sections if str(part or "").strip()))
+
+
+def daily_briefing(*, use_cache: bool = True, ttl_seconds: int = DEFAULT_BRIEFING_CACHE_TTL_SECONDS) -> str:
+    if use_cache:
+        cached = _read_briefing_cache(BRIEFING_CACHE_PATH, ttl_seconds)
+        if cached:
+            return cached
+    briefing = _build_daily_briefing()
+    if use_cache:
+        _write_briefing_cache(BRIEFING_CACHE_PATH, briefing)
+    return briefing
 
 
 def daily_routine() -> str:

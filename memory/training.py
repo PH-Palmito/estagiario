@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import json
-import os
 import re
 import time
 import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from memory.json_store import read_json_file, update_json_file, write_json_atomic
 from memory.supabase_sync import sync_memory_state_safely
 
 TRAINING_PATH = Path("memory/training.json")
@@ -205,18 +204,11 @@ DEFAULT_STATE = {
 
 
 def _load_json(path: Path) -> dict:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
+    return read_json_file(path, {}, validator=lambda value: isinstance(value, dict))
 
 
 def _save_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_name(f"{path.stem}.{time.time_ns()}.tmp")
-    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp_path, path)
+    write_json_atomic(path, payload, indent=2, trailing_newline=True)
 
 
 def load_training_state() -> dict:
@@ -236,11 +228,32 @@ def load_training_state() -> dict:
 
 
 def save_training_state(state: dict) -> dict:
-    payload = load_training_state()
-    payload.update(state or {})
-    _save_json(TRAINING_PATH, payload)
+    payload = update_json_file(
+        TRAINING_PATH,
+        dict(DEFAULT_STATE),
+        lambda current: _normalize_training_state({**_normalize_training_state(current), **dict(state or {})}),
+        validator=lambda value: isinstance(value, dict),
+        indent=2,
+        trailing_newline=True,
+    )
+    payload = _normalize_training_state(payload)
     sync_memory_state_safely("training", payload, category="health")
     return payload
+
+
+def _normalize_training_state(data: dict) -> dict:
+    state = dict(DEFAULT_STATE)
+    state.update(data or {})
+    for key in ("completed", "skipped"):
+        if not isinstance(state.get(key), list):
+            state[key] = []
+    for key in ("injuries", "levels", "reminder"):
+        if not isinstance(state.get(key), dict):
+            state[key] = dict(DEFAULT_STATE[key])
+    reminder = dict(DEFAULT_STATE["reminder"])
+    reminder.update(state.get("reminder") or {})
+    state["reminder"] = reminder
+    return state
 
 
 def _today(now: datetime | None = None) -> datetime:

@@ -24,7 +24,8 @@ class ConfirmationPolicyTests(unittest.TestCase):
 
         self.assertTrue(command_requires_strong_confirmation(command))
         self.assertFalse(is_confirmation_accepted("pode sim", command))
-        self.assertTrue(is_confirmation_accepted("confirmo", command))
+        self.assertFalse(is_confirmation_accepted("confirmo", command))
+        self.assertTrue(is_confirmation_accepted("confirmar", command))
 
     def test_action_tool_execute_inherits_strong_policy_for_sensitive_tool(self):
         command = Command(
@@ -37,12 +38,19 @@ class ConfirmationPolicyTests(unittest.TestCase):
         self.assertFalse(is_confirmation_accepted("sim", command))
         self.assertTrue(is_confirmation_accepted("confirmar", command))
 
-    def test_light_confirmation_still_accepts_sim(self):
+    def test_investment_mutation_requires_literal_confirmation(self):
         command = Command(action="investment_add_watchlist", params={"ticker": "BBAS3"}, requires_confirmation=True)
+
+        self.assertTrue(command_requires_strong_confirmation(command))
+        self.assertFalse(is_confirmation_accepted("sim", command))
+        self.assertTrue(is_confirmation_accepted("confirmar", command))
+
+    def test_light_confirmation_still_accepts_sim(self):
+        command = Command(action="unit.light_confirmation", params={}, requires_confirmation=True)
 
         self.assertFalse(command_requires_strong_confirmation(command))
         self.assertTrue(is_confirmation_accepted("sim", command))
-        self.assertTrue(is_confirmation_accepted("confirmar", command))
+        self.assertTrue(is_confirmation_accepted("confirmo", command))
 
     def test_confirmation_rejection_accepts_cancel_variants(self):
         self.assertTrue(is_confirmation_rejected("deixa quieto"))
@@ -53,7 +61,7 @@ class ConfirmationPolicyTests(unittest.TestCase):
         remembered = []
 
         result = handle_pending_confirmation(
-            "sim",
+            "confirmar",
             command,
             "adicione BBAS3",
             lambda executed: f"executed:{executed.action}",

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
+
+from core.permission_policy import command_requires_confirmation
+from core.sandbox_policy import command_sandbox_decision
 
 RouteStep = Callable[[str], dict]
 PlanActions = Callable[[str], list | None]
@@ -15,10 +19,67 @@ REPEATED_NOISE = {
 }
 
 
+@dataclass(frozen=True)
+class RoutineDryRunStep:
+    command: object | None
+    message: str
+    executable: bool
+
+
 def append_multi_step_result(results: list[str], result: str) -> None:
     if result in REPEATED_NOISE and result in results:
         return
     results.append(result)
+
+
+def routine_dry_run_block_message(command, *, prefix: str) -> str | None:
+    if command_requires_confirmation(command):
+        return f"{prefix}: {command.action} {getattr(command, 'params', {})}"
+
+    sandbox = command_sandbox_decision(command)
+    if sandbox.requires_confirmation or sandbox.dry_run_recommended:
+        return f"{prefix}: {command.action} {getattr(command, 'params', {})}"
+
+    return None
+
+
+def dry_run_routine_plan(
+    steps,
+    *,
+    route_step: RouteStep,
+    process_action: ProcessAction,
+    invalid_message: str,
+    sensitive_prefix: str,
+) -> list[RoutineDryRunStep] | str:
+    if not isinstance(steps, list):
+        return "Rotina invalida."
+
+    dry_run: list[RoutineDryRunStep] = []
+    for step in steps:
+        if isinstance(step, str):
+            if not step.strip():
+                dry_run.append(RoutineDryRunStep(None, invalid_message, False))
+                continue
+            raw_action = route_step(step)
+        elif isinstance(step, dict):
+            raw_action = step
+        else:
+            dry_run.append(RoutineDryRunStep(None, invalid_message, False))
+            continue
+
+        processed = process_action(raw_action)
+        if isinstance(processed, str):
+            dry_run.append(RoutineDryRunStep(None, processed, False))
+            continue
+
+        block_message = routine_dry_run_block_message(processed, prefix=sensitive_prefix)
+        if block_message:
+            dry_run.append(RoutineDryRunStep(processed, block_message, False))
+            continue
+
+        dry_run.append(RoutineDryRunStep(processed, "", True))
+
+    return dry_run
 
 
 def handle_multi_step_request(
@@ -43,22 +104,23 @@ def handle_multi_step_request(
     if not plan or not isinstance(plan, list):
         return None
 
+    dry_run = dry_run_routine_plan(
+        plan,
+        route_step=route_step,
+        process_action=process_action,
+        invalid_message="Etapa invalida no plano.",
+        sensitive_prefix="Acao sensivel no plano bloqueada",
+    )
+    if isinstance(dry_run, str):
+        return dry_run
+
     results: list[str] = []
-    for step in plan:
-        processed = process_action(step)
-
-        if isinstance(processed, str):
-            append_multi_step_result(results, processed)
+    for item in dry_run:
+        if not item.executable:
+            append_multi_step_result(results, item.message)
             continue
 
-        if getattr(processed, "requires_confirmation", False):
-            append_multi_step_result(
-                results,
-                f"Acao sensivel no plano bloqueada: {processed.action} {processed.params}",
-            )
-            continue
-
-        append_multi_step_result(results, execute_command(processed))
+        append_multi_step_result(results, execute_command(item.command))
 
     return "\n".join(results)
 
@@ -70,26 +132,22 @@ def execute_routine_steps(
     process_action: ProcessAction,
     execute_command: ExecuteCommand,
 ) -> str:
-    if not isinstance(steps, list):
-        return "Rotina invalida."
+    dry_run = dry_run_routine_plan(
+        steps,
+        route_step=route_step,
+        process_action=process_action,
+        invalid_message="Etapa invalida na rotina.",
+        sensitive_prefix="Etapa sensivel bloqueada",
+    )
+    if isinstance(dry_run, str):
+        return dry_run
 
     results: list[str] = []
-    for step in steps:
-        if not isinstance(step, str) or not step.strip():
-            results.append("Etapa invalida na rotina.")
+    for item in dry_run:
+        if not item.executable:
+            results.append(item.message)
             continue
 
-        raw_action = route_step(step)
-        processed = process_action(raw_action)
-
-        if isinstance(processed, str):
-            results.append(processed)
-            continue
-
-        if getattr(processed, "requires_confirmation", False):
-            results.append(f"Etapa sensivel bloqueada: {processed.action}")
-            continue
-
-        results.append(execute_command(processed))
+        results.append(execute_command(item.command))
 
     return "\n".join(results)

@@ -1,19 +1,7 @@
 from __future__ import annotations
 
 from actions.registry import ActionSpec, register_action
-from tools.image_tools import (
-    analyze_browser_image,
-    analyze_clipboard_image,
-    analyze_graph_target,
-    analyze_image_target,
-    analyze_screen_graph,
-    analyze_screen_image,
-)
-from tools.vision_tools import (
-    answer_visual_question_with_context_memory,
-    start_light_vision_model_download,
-    vision_install_hint,
-)
+from services import vision_service
 
 
 def _execute_registered_action(args: dict):
@@ -47,23 +35,23 @@ def _register(
 
 
 def register_legacy_vision_actions() -> None:
-    _register("image_analyze", "Analisa imagem por caminho.", lambda args: analyze_image_target(args.get("target")), {"target": {"type": "string", "description": "Caminho da imagem."}})
-    _register("image_analyze_graph", "Analisa grafico por caminho.", lambda args: analyze_graph_target(args.get("target")), {"target": {"type": "string", "description": "Caminho da imagem."}})
-    _register("image_analyze_screen", "Analisa imagem da tela.", lambda _args: analyze_screen_image())
-    _register("image_analyze_screen_graph", "Analisa grafico na tela.", lambda _args: analyze_screen_graph())
-    _register("image_analyze_browser", "Analisa imagem do navegador.", lambda _args: analyze_browser_image())
-    _register("image_analyze_clipboard", "Analisa imagem copiada.", lambda _args: analyze_clipboard_image())
+    _register("image_analyze", "Analisa imagem por caminho.", lambda args: vision_service.analyze_image(args.get("target")), {"target": {"type": "string", "description": "Caminho da imagem."}})
+    _register("image_analyze_graph", "Analisa grafico por caminho.", lambda args: vision_service.analyze_graph(args.get("target")), {"target": {"type": "string", "description": "Caminho da imagem."}})
+    _register("image_analyze_screen", "Analisa imagem da tela.", lambda _args: vision_service.analyze_screen())
+    _register("image_analyze_screen_graph", "Analisa grafico na tela.", lambda _args: vision_service.analyze_screen_chart())
+    _register("image_analyze_browser", "Analisa imagem do navegador.", lambda _args: vision_service.analyze_browser())
+    _register("image_analyze_clipboard", "Analisa imagem copiada.", lambda _args: vision_service.analyze_clipboard())
     _register(
         "vision_answer_question",
         "Responde pergunta visual usando memoria/contexto.",
-        lambda args: answer_visual_question_with_context_memory(args.get("question", "")),
+        lambda args: vision_service.answer_question(args.get("question", "")),
         {"question": {"type": "string", "description": "Pergunta visual.", "required": True}},
     )
-    _register("vision_install_hint", "Mostra instrucoes para instalar visao.", lambda _args: vision_install_hint())
+    _register("vision_install_hint", "Mostra instrucoes para instalar visao.", lambda _args: vision_service.vision_install_hint())
     _register(
         "vision_download_light_model",
         "Baixa modelo visual leve.",
-        lambda _args: start_light_vision_model_download(),
+        lambda _args: vision_service.start_light_vision_model_download(),
         read_only=False,
         requires_confirmation=True,
     )

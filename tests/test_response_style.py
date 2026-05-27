@@ -15,6 +15,17 @@ def first_phrase(_key, options):
     return options[0]
 
 
+def rotating_phrase():
+    indexes = {}
+
+    def next_phrase(key, options):
+        index = indexes.get(key, 0)
+        indexes[key] = index + 1
+        return options[index % len(options)]
+
+    return next_phrase
+
+
 class ResponseStyleTests(unittest.TestCase):
     def test_should_style_response_filters_structured_and_long_messages(self):
         self.assertFalse(should_style_response(""))
@@ -69,6 +80,44 @@ class ResponseStyleTests(unittest.TestCase):
         )
 
         self.assertEqual(result, "Certo. Não abri.")
+
+    def test_contextual_app_response_rotates_without_verbose_text(self):
+        next_phrase = rotating_phrase()
+
+        first = style_response(
+            "Abrindo chrome.",
+            preferences={"assistant_style": "jarvis"},
+            variants=VARIANTS,
+            next_phrase=next_phrase,
+        )
+        second = style_response(
+            "Abrindo chrome.",
+            preferences={"assistant_style": "jarvis"},
+            variants=VARIANTS,
+            next_phrase=next_phrase,
+        )
+
+        self.assertEqual(first, "Certamente. Abrindo Chrome.")
+        self.assertEqual(second, "Abrindo Chrome.")
+
+    def test_contextual_status_response_rotates(self):
+        next_phrase = rotating_phrase()
+
+        first = style_response(
+            "Escuta pausada.",
+            preferences={"assistant_style": "assistente"},
+            variants=VARIANTS,
+            next_phrase=next_phrase,
+        )
+        second = style_response(
+            "Escuta pausada.",
+            preferences={"assistant_style": "assistente"},
+            variants=VARIANTS,
+            next_phrase=next_phrase,
+        )
+
+        self.assertEqual(first, "Escuta em pausa.")
+        self.assertEqual(second, "Modo escuta pausado.")
 
     def test_brief_confirmations_can_disable_styling(self):
         result = style_response(

@@ -5,6 +5,24 @@ def detect_image_analysis_command(user_input: str):
     lower = normalize_text(user_input)
 
     if lower in {
+        "analisar grafico em segundo plano",
+        "interpretar grafico em segundo plano",
+        "ler grafico em segundo plano",
+        "analisar grafico no background",
+    }:
+        return {"intent": "background_vision_screen_graph", "target": None}
+
+    if lower in {
+        "analisar imagem em segundo plano",
+        "analisar tela em segundo plano",
+        "ler tela em segundo plano",
+        "ler visual da tela em segundo plano",
+        "analisar imagem no background",
+        "analisar tela no background",
+    }:
+        return {"intent": "background_vision_screen", "target": None}
+
+    if lower in {
         "analisar imagem no navegador",
         "analisar a imagem no navegador",
         "interpretar imagem no navegador",

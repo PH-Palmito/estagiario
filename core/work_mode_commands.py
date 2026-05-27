@@ -4,6 +4,12 @@ import re
 from collections.abc import Callable
 
 from core.project_health import run_estagiario_preflight
+from core.performance_mode import (
+    PERFORMANCE_MODE_BALANCED,
+    PERFORMANCE_MODE_ECONOMY,
+    PERFORMANCE_MODE_PERFORMANCE,
+    performance_settings,
+)
 from core.router_utils import normalize_text
 from memory.auto_advances import load_auto_advances, save_auto_advances
 from memory.operational_context import save_operational_context
@@ -119,6 +125,28 @@ def start_programming_mode(show_ui_hud: Callable[[], object]) -> str:
     return " ".join(parts)
 
 
+def set_performance_mode(mode: str, show_ui_hud: Callable[[], object] | None = None) -> str:
+    settings = performance_settings(mode)
+    update_ui_state(
+        {
+            "performance_mode": settings.mode,
+            "performance_settings": settings.as_dict(),
+            "last_command": f"modo {settings.mode}",
+        }
+    )
+    if show_ui_hud is not None:
+        show_ui_hud()
+
+    if settings.mode == PERFORMANCE_MODE_ECONOMY:
+        return (
+            "Modo economia ativado. Vou reduzir animacoes do HUD, aumentar intervalo de polling "
+            "e manter tarefas pesadas seguras em segundo plano."
+        )
+    if settings.mode == PERFORMANCE_MODE_PERFORMANCE:
+        return "Modo performance ativado. HUD mais fluido e polling mais frequente."
+    return "Modo equilibrado ativado. Voltei para o consumo normal do Axel."
+
+
 def maybe_handle_work_mode_command(user_input: str, show_ui_hud: Callable[[], object]) -> str | None:
     normalized = normalize_text(user_input)
     programming_modes = {
@@ -138,4 +166,28 @@ def maybe_handle_work_mode_command(user_input: str, show_ui_hud: Callable[[], ob
     }
     if normalized in programming_modes:
         return start_programming_mode(show_ui_hud)
+    if normalized in {
+        "modo economia",
+        "ativar modo economia",
+        "modo leve",
+        "ativar modo leve",
+        "modo notebook fraco",
+        "economizar recursos",
+        "economizar bateria",
+    }:
+        return set_performance_mode(PERFORMANCE_MODE_ECONOMY, show_ui_hud)
+    if normalized in {
+        "modo equilibrado",
+        "modo normal",
+        "desativar modo economia",
+        "sair do modo economia",
+    }:
+        return set_performance_mode(PERFORMANCE_MODE_BALANCED, show_ui_hud)
+    if normalized in {
+        "modo performance",
+        "modo rapido",
+        "ativar modo performance",
+        "ativar modo rapido",
+    }:
+        return set_performance_mode(PERFORMANCE_MODE_PERFORMANCE, show_ui_hud)
     return None

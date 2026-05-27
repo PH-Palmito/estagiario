@@ -1,30 +1,26 @@
-import json
 from pathlib import Path
+
+from memory.json_store import read_json_file, update_json_file, write_json_atomic
 
 FILE = Path("memory/macros.json")
 
 
 def load_macros():
-    if not FILE.exists():
-        return {}
-
-    try:
-        return json.loads(FILE.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    return read_json_file(FILE, {}, validator=lambda value: isinstance(value, dict))
 
 
 def save_macros(macros):
-    FILE.write_text(
-        json.dumps(macros, indent=2, ensure_ascii=False),
-        encoding="utf-8"
-    )
+    write_json_atomic(FILE, macros, indent=2)
 
 
 def add_macro(name, steps):
-    macros = load_macros()
-    macros[name.lower()] = steps
-    save_macros(macros)
+    update_json_file(
+        FILE,
+        {},
+        lambda macros: {**dict(macros or {}), name.lower(): steps},
+        validator=lambda value: isinstance(value, dict),
+        indent=2,
+    )
 
 
 def get_macro(name):
@@ -37,12 +33,15 @@ def list_macros():
 
 
 def delete_macro(name):
-    macros = load_macros()
     key = name.lower()
-
-    if key not in macros:
+    if key not in load_macros():
         return False
 
-    del macros[key]
-    save_macros(macros)
+    update_json_file(
+        FILE,
+        {},
+        lambda macros: {item_key: value for item_key, value in dict(macros or {}).items() if item_key != key},
+        validator=lambda value: isinstance(value, dict),
+        indent=2,
+    )
     return True

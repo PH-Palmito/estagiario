@@ -8,6 +8,25 @@ class WorkModeCommandTests(unittest.TestCase):
     def test_unrelated_command_returns_none(self):
         self.assertIsNone(maybe_handle_work_mode_command("abrir spotify", Mock()))
 
+    def test_economy_mode_updates_ui_state(self):
+        show_ui = Mock()
+        with patch("core.work_mode_commands.update_ui_state") as update_ui:
+            result = maybe_handle_work_mode_command("modo economia", show_ui)
+
+        show_ui.assert_called_once_with()
+        update_ui.assert_called_once()
+        patch_payload = update_ui.call_args.args[0]
+        self.assertEqual(patch_payload["performance_mode"], "economy")
+        self.assertTrue(patch_payload["performance_settings"]["reduce_motion"])
+        self.assertIn("Modo economia ativado", result)
+
+    def test_balanced_mode_disables_economy_mode(self):
+        with patch("core.work_mode_commands.update_ui_state") as update_ui:
+            result = maybe_handle_work_mode_command("desativar modo economia", Mock())
+
+        self.assertEqual(update_ui.call_args.args[0]["performance_mode"], "balanced")
+        self.assertIn("Modo equilibrado ativado", result)
+
     def test_programming_mode_summarizes_healthy_project(self):
         show_ui = Mock()
         with (

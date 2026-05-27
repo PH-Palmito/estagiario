@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import time
+import traceback
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, QUrl, Slot
@@ -11,6 +12,7 @@ from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QApplication, QMainWindow
 
+from core.performance_mode import performance_settings_from_state
 from memory.ui_commands import enqueue_ui_command
 from memory.ui_state import load_ui_state, update_ui_state
 
@@ -54,32 +56,47 @@ class AxelBridge(QObject):
 
     @Slot(str)
     def sendCommand(self, text: str):
-        enqueue_ui_command(text, source="qt_hud")
-        update_ui_state({"last_command": str(text or "").strip()})
-        self.window.push_state()
+        try:
+            enqueue_ui_command(text, source="qt_hud")
+            update_ui_state({"last_command": str(text or "").strip()})
+            self.window.push_state()
+        except Exception:
+            self.window.log_exception("sendCommand")
 
     @Slot()
     def requestRefresh(self):
-        self.window.push_state()
+        try:
+            self.window.push_state()
+        except Exception:
+            self.window.log_exception("requestRefresh")
 
     @Slot(str)
     def setActivePanel(self, name: str):
-        panel = str(name or "").strip().lower()
-        patch = {"active_panel": panel}
-        if panel != "mapas":
-            patch["map_panel_open"] = False
-        update_ui_state(patch)
-        self.window.push_state()
+        try:
+            panel = str(name or "").strip().lower()
+            patch = {"active_panel": panel}
+            if panel != "mapas":
+                patch["map_panel_open"] = False
+            update_ui_state(patch)
+            self.window.push_state()
+        except Exception:
+            self.window.log_exception("setActivePanel")
 
     @Slot()
     def clearOpenPanels(self):
-        update_ui_state({"open_panels": []})
-        self.window.push_state()
+        try:
+            update_ui_state({"open_panels": []})
+            self.window.push_state()
+        except Exception:
+            self.window.log_exception("clearOpenPanels")
 
     @Slot()
     def refreshData(self):
-        self.window.clear_cache()
-        self.window.push_state()
+        try:
+            self.window.clear_cache()
+            self.window.push_state()
+        except Exception:
+            self.window.log_exception("refreshData")
 
 
 class AxelWebHud(QMainWindow):
@@ -126,12 +143,21 @@ class AxelWebHud(QMainWindow):
         self.training_view.raise_()
 
         self.timer = QTimer(self)
-        self.timer.setInterval(1500)
+        self.timer.setInterval(performance_settings_from_state(load_ui_state()).qt_poll_ms)
         self.timer.timeout.connect(self.push_state)
 
     def clear_cache(self):
         for entry in self._cache.values():
             entry["at"] = 0.0
+
+    def log_exception(self, source: str) -> None:
+        print(f"[HUD] {source} failed", file=sys.stderr)
+        traceback.print_exc()
+
+    def _apply_performance_mode(self, ui_state: dict):
+        settings = performance_settings_from_state(ui_state)
+        if self.timer.interval() != settings.qt_poll_ms:
+            self.timer.setInterval(settings.qt_poll_ms)
 
     def _on_load_finished(self, ok: bool):
         if ok:
@@ -277,6 +303,7 @@ class AxelWebHud(QMainWindow):
 
     def _payload(self) -> dict:
         ui_state = load_ui_state()
+        self._apply_performance_mode(ui_state)
         active_panels = self._active_panels(ui_state)
         try:
             from memory.training import training_snapshot
@@ -291,6 +318,12 @@ class AxelWebHud(QMainWindow):
                 "fatigue": {},
                 "workout": {"label": "Hoje", "title": "Treino", "focus": str(exc), "exercises": []},
             }
+        try:
+            from memory.study import study_snapshot
+
+            study = study_snapshot() if "estudos" in active_panels else ui_state.get("study_snapshot", {})
+        except Exception as exc:
+            study = {"error": str(exc), "minutes_today": 0, "daily_minutes": 60, "goals": [], "pending_reviews": []}
 
         media = self._media_payload() if "midia" in active_panels else self._cached("media")
         weather = self._weather_payload() if "tempo" in active_panels else self._cached("weather")
@@ -301,6 +334,7 @@ class AxelWebHud(QMainWindow):
         return {
             "ui": ui_state,
             "training": training,
+            "study": study,
             "media": media,
             "weather": weather,
             "investment": investment,

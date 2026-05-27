@@ -1,8 +1,9 @@
-import json
 import re
 import unicodedata
 from difflib import SequenceMatcher
 from pathlib import Path
+
+from memory.json_store import read_json_file, update_json_file, write_json_atomic
 
 VOICE_CORRECTIONS_PATH = Path("memory") / "voice_corrections.json"
 
@@ -52,17 +53,11 @@ def normalize_text(text: str) -> str:
 
 
 def load_voice_corrections():
-    if not VOICE_CORRECTIONS_PATH.exists():
-        return []
+    data = read_json_file(VOICE_CORRECTIONS_PATH, [], validator=lambda value: isinstance(value, list))
+    return load_voice_corrections_from_data(data)
 
-    try:
-        data = json.loads(VOICE_CORRECTIONS_PATH.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
 
-    if not isinstance(data, list):
-        return []
-
+def load_voice_corrections_from_data(data):
     corrections = []
     for item in data:
         if not isinstance(item, dict):
@@ -100,7 +95,6 @@ def load_starter_voice_corrections():
 
 
 def save_voice_corrections(corrections):
-    VOICE_CORRECTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
     data = [
         {
             "heard": item["heard"],
@@ -110,9 +104,24 @@ def save_voice_corrections(corrections):
         for item in corrections
         if item.get("heard") and item.get("means")
     ]
-    VOICE_CORRECTIONS_PATH.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        encoding="utf-8",
+    write_json_atomic(VOICE_CORRECTIONS_PATH, data, indent=2)
+
+
+def _update_voice_corrections(updater) -> list[dict]:
+    return update_json_file(
+        VOICE_CORRECTIONS_PATH,
+        [],
+        lambda data: [
+            {
+                "heard": item["heard"],
+                "means": item["means"],
+                "uses": int(item.get("uses", 0) or 0),
+            }
+            for item in updater(load_voice_corrections_from_data(data))
+            if item.get("heard") and item.get("means")
+        ],
+        validator=lambda value: isinstance(value, list),
+        indent=2,
     )
 
 
@@ -124,29 +133,26 @@ def remember_voice_correction(heard: str, means: str):
         return False
 
     heard_normalized = normalize_text(heard)
-    corrections = load_voice_corrections()
+    def remember(corrections):
+        for item in corrections:
+            if item["heard_normalized"] == heard_normalized:
+                item["heard"] = heard
+                item["means"] = means
+                return corrections
+        corrections.append({"heard": heard, "heard_normalized": heard_normalized, "means": means, "uses": 0})
+        return corrections
 
-    for item in corrections:
-        if item["heard_normalized"] == heard_normalized:
-            item["heard"] = heard
-            item["means"] = means
-            save_voice_corrections(corrections)
-            return True
-
-    corrections.append({"heard": heard, "heard_normalized": heard_normalized, "means": means, "uses": 0})
-    save_voice_corrections(corrections)
+    _update_voice_corrections(remember)
     return True
 
 
 def forget_voice_correction(heard: str):
     heard_normalized = normalize_text(heard)
     corrections = load_voice_corrections()
-    kept = [item for item in corrections if item["heard_normalized"] != heard_normalized]
-
-    if len(kept) == len(corrections):
+    if not any(item["heard_normalized"] == heard_normalized for item in corrections):
         return False
 
-    save_voice_corrections(kept)
+    _update_voice_corrections(lambda items: [item for item in items if item["heard_normalized"] != heard_normalized])
     return True
 
 

@@ -58,6 +58,71 @@ def detect_run_script(user_input: str):
     return None
 
 
+def detect_background_status_command(user_input: str):
+    lower = normalize_text(user_input)
+    notification_terms = (
+        "notificacoes do background",
+        "notificacoes de background",
+        "notificacoes em segundo plano",
+        "avisos do background",
+        "avisos em segundo plano",
+    )
+    if any(term in lower for term in notification_terms):
+        return {"intent": "background_notifications", "target": None}
+
+    latest_terms = (
+        "resultado da ultima tarefa",
+        "resultado do ultimo background",
+        "ultima tarefa em segundo plano",
+        "ultimo resultado em segundo plano",
+        "ultimo resultado do background",
+        "o que terminou em segundo plano",
+    )
+    if any(term in lower for term in latest_terms):
+        return {"intent": "background_latest_result", "target": None}
+
+    background_terms = (
+        "segundo plano",
+        "background",
+        "tarefas em andamento",
+        "tarefas rodando",
+        "processos do axel",
+    )
+    status_terms = ("status", "como estao", "listar", "mostre", "ver")
+    if any(term in lower for term in background_terms) and any(term in lower for term in status_terms):
+        return {"intent": "background_status", "target": None}
+    return None
+
+
+def detect_whatsapp_bridge_command(user_input: str):
+    lower = normalize_text(user_input)
+    if lower in {
+        "status do whatsapp",
+        "status da ponte whatsapp",
+        "status whatsapp local",
+        "ponte whatsapp",
+    }:
+        return {"intent": "whatsapp.status", "target": None}
+    if lower in {
+        "iniciar whatsapp local",
+        "iniciar ponte whatsapp",
+        "ligar ponte whatsapp",
+        "ativar ponte whatsapp",
+        "iniciar ponte local do whatsapp",
+    }:
+        return {"intent": "whatsapp.start_local_bridge", "target": None}
+    for prefix in (
+        "simular whatsapp ",
+        "testar whatsapp ",
+        "simular mensagem whatsapp ",
+    ):
+        if lower.startswith(prefix):
+            text = user_input[len(prefix):].strip()
+            if text:
+                return {"intent": "whatsapp.simulate_message", "target": text}
+    return None
+
+
 def detect_type_text(user_input: str):
     lower = normalize_text(user_input)
     compact_lower = re.sub(r"[:\-]+", " ", lower)
@@ -82,5 +147,7 @@ SYSTEM_INPUT_DETECTORS = (
 
 SYSTEM_DETECTORS = (
     detect_windows_startup_command,
+    detect_background_status_command,
+    detect_whatsapp_bridge_command,
     detect_run_script,
 )

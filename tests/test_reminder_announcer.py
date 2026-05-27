@@ -7,6 +7,9 @@ class ReminderAnnouncerTests(unittest.TestCase):
     def test_formats_single_due_reminder(self):
         self.assertEqual(reminder_message([{"text": "beber agua"}]), "Lembrete: beber agua.")
 
+    def test_formats_single_due_agenda_item(self):
+        self.assertEqual(reminder_message([{"text": "reuniao", "source": "agenda"}]), "Agenda: reuniao.")
+
     def test_formats_empty_single_reminder(self):
         self.assertEqual(reminder_message([{"text": ""}]), "Voce tem um lembrete vencido.")
 
@@ -21,6 +24,16 @@ class ReminderAnnouncerTests(unittest.TestCase):
         )
 
         self.assertEqual(message, "Lembretes: um; dois; tres.")
+
+    def test_formats_mixed_agenda_and_reminders(self):
+        message = reminder_message(
+            [
+                {"text": "reuniao", "source": "agenda"},
+                {"text": "beber agua"},
+            ]
+        )
+
+        self.assertEqual(message, "Agenda e lembretes: reuniao; beber agua.")
 
     def test_training_reminder_has_priority(self):
         calls = []

@@ -199,6 +199,36 @@ INVESTMENT_BACKGROUND_REFRESH_ENABLED = env_str(
     default="0",
     aliases=("INVESTMENT_BACKGROUND_REFRESH_ENABLED",),
 ).strip().lower() not in {"0", "false", "no", "off"}
+WHATSAPP_BRIDGE_ENABLED = env_str(
+    "AXEL_WHATSAPP_BRIDGE_ENABLED",
+    default="0",
+    aliases=("WHATSAPP_BRIDGE_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
+WHATSAPP_ALLOWED_SENDERS = env_str(
+    "AXEL_WHATSAPP_ALLOWED_SENDERS",
+    default="",
+    aliases=("WHATSAPP_ALLOWED_SENDERS",),
+)
+WHATSAPP_WEBHOOK_TOKEN = env_str(
+    "AXEL_WHATSAPP_WEBHOOK_TOKEN",
+    default="",
+    aliases=("WHATSAPP_WEBHOOK_TOKEN",),
+)
+WHATSAPP_BRIDGE_HOST = env_str(
+    "AXEL_WHATSAPP_BRIDGE_HOST",
+    default="127.0.0.1",
+    aliases=("WHATSAPP_BRIDGE_HOST",),
+)
+WHATSAPP_BRIDGE_PORT = env_str(
+    "AXEL_WHATSAPP_BRIDGE_PORT",
+    default="8765",
+    aliases=("WHATSAPP_BRIDGE_PORT",),
+)
+AXEL_PERFORMANCE_MODE = env_str(
+    "AXEL_PERFORMANCE_MODE",
+    default="balanced",
+    aliases=("PERFORMANCE_MODE",),
+).strip().lower()
 SPOTIFY_API_ENABLED = env_str(
     "AXEL_SPOTIFY_API_ENABLED",
     default="1",

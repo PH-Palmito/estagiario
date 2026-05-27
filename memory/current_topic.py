@@ -1,8 +1,8 @@
 import json
-import os
 import time
 from pathlib import Path
 
+from memory.json_store import read_json_file, write_json_atomic
 from memory.obsidian_sync import sync_current_topic_note
 from memory.supabase_sync import fetch_memory_payload_safely, sync_memory_state_safely
 
@@ -16,20 +16,13 @@ def _fingerprint(payload: dict) -> str:
 
 
 def _save(payload: dict):
-    TOPIC_PATH.parent.mkdir(parents=True, exist_ok=True)
-    content = json.dumps(payload, ensure_ascii=False, indent=2)
-    tmp_path = TOPIC_PATH.with_name(f"{TOPIC_PATH.stem}.{time.time_ns()}.tmp")
-    tmp_path.write_text(content, encoding="utf-8")
-    os.replace(tmp_path, TOPIC_PATH)
+    write_json_atomic(TOPIC_PATH, payload, indent=2)
 
 
 def load_current_topic() -> dict:
-    try:
-        data = json.loads(TOPIC_PATH.read_text(encoding="utf-8"))
-        if isinstance(data, dict):
-            return data
-    except Exception:
-        pass
+    data = read_json_file(TOPIC_PATH, {}, validator=lambda value: isinstance(value, dict))
+    if data:
+        return data
 
     remote = fetch_memory_payload_safely("current_topic")
     if isinstance(remote, dict):

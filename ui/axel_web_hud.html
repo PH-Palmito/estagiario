@@ -6,11 +6,11 @@
     <title>Axel HUD</title>
     <style>
       :root {
-        --bg: #050b14;
-        --panel: #0b1220;
-        --panel-2: #101827;
-        --line: #1b3557;
-        --line-strong: #2f65a8;
+        --bg: #03070f;
+        --panel: rgba(12, 24, 36, 0.62);
+        --panel-2: rgba(17, 31, 45, 0.58);
+        --line: rgba(79, 133, 170, 0.16);
+        --line-strong: rgba(109, 211, 255, 0.36);
         --text: #edf2ff;
         --soft: #a9bad2;
         --dim: #617087;
@@ -44,12 +44,57 @@
         height: 100vh;
         overflow: hidden;
         background:
-          linear-gradient(#0d1726 1px, transparent 1px),
-          linear-gradient(90deg, #0d1726 1px, transparent 1px),
-          radial-gradient(circle at 12% 10%, rgba(30, 64, 175, 0.2), transparent 25rem),
-          radial-gradient(circle at 98% 10%, rgba(14, 165, 233, 0.12), transparent 18rem),
-          #050b14;
-        background-size: 38px 38px, 38px 38px, auto, auto, auto;
+          radial-gradient(circle at 18% 14%, rgba(56, 189, 248, 0.18), transparent 22rem),
+          radial-gradient(circle at 82% 12%, rgba(37, 99, 235, 0.16), transparent 24rem),
+          radial-gradient(circle at 50% 115%, rgba(20, 184, 166, 0.08), transparent 30rem),
+          linear-gradient(rgba(93, 142, 183, 0.045) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(93, 142, 183, 0.04) 1px, transparent 1px),
+          #03070f;
+        background-size: auto, auto, auto, 96px 96px, 96px 96px, auto;
+      }
+
+      .stage.economy-mode *,
+      .stage.economy-mode *::before,
+      .stage.economy-mode *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 80ms !important;
+      }
+
+      .stage.economy-mode {
+        background:
+          radial-gradient(circle at 18% 14%, rgba(56, 189, 248, 0.12), transparent 22rem),
+          linear-gradient(rgba(93, 142, 183, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(93, 142, 183, 0.032) 1px, transparent 1px),
+          #03070f;
+        background-size: auto, 128px 128px, 128px 128px, auto;
+      }
+
+      .stage.switching-panels .halo,
+      .stage.switching-panels .scanner,
+      .stage.switching-panels .dots,
+      .stage.switching-panels .side-lines,
+      .stage.switching-panels .node-map {
+        display: none;
+      }
+
+      .stage.switching-panels .panel-window {
+        transition-duration: 70ms;
+      }
+
+      .stage.switching-panels .core-canvas {
+        opacity: 0.72;
+      }
+
+      .stage.page-mode .core-canvas,
+      .stage.page-mode .core,
+      .stage.page-mode .focus-oval {
+        display: none;
+      }
+
+      .stage.page-mode::before,
+      .stage.page-mode::after {
+        opacity: 0.52;
       }
 
       .core-canvas {
@@ -81,7 +126,7 @@
         height: 546px;
         left: -286px;
         top: -270px;
-        background: #09111f;
+        background: radial-gradient(circle, rgba(16, 36, 54, 0.72), transparent 68%);
       }
 
       .stage::after {
@@ -89,7 +134,21 @@
         height: 580px;
         right: -236px;
         top: -194px;
-        background: #061522;
+        background: radial-gradient(circle, rgba(10, 34, 48, 0.58), transparent 68%);
+      }
+
+      .stage .starfield {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          radial-gradient(circle at 14% 22%, rgba(237, 242, 255, 0.42) 0 1px, transparent 1.8px),
+          radial-gradient(circle at 31% 72%, rgba(56, 189, 248, 0.3) 0 1px, transparent 1.9px),
+          radial-gradient(circle at 48% 18%, rgba(237, 242, 255, 0.25) 0 1px, transparent 1.8px),
+          radial-gradient(circle at 73% 46%, rgba(125, 211, 252, 0.28) 0 1px, transparent 1.9px),
+          radial-gradient(circle at 88% 76%, rgba(237, 242, 255, 0.32) 0 1px, transparent 1.8px);
+        opacity: 0.7;
+        z-index: 1;
       }
 
       .fade-band {
@@ -132,16 +191,19 @@
         display: grid;
         place-items: center;
         color: var(--soft);
-        background: rgba(9, 17, 31, 0.72);
-        border: 1px solid rgba(47, 101, 168, 0.18);
+        background: rgba(14, 30, 43, 0.54);
+        border: 1px solid rgba(148, 204, 231, 0.14);
+        border-radius: 8px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 44px rgba(0, 0, 0, 0.24);
+        backdrop-filter: blur(18px) saturate(128%);
         margin-left: auto;
       }
 
       .settings:hover,
       .settings.active {
         color: var(--text);
-        background: rgba(16, 24, 39, 0.95);
-        border-color: rgba(96, 165, 250, 0.38);
+        background: rgba(20, 45, 62, 0.68);
+        border-color: rgba(125, 211, 252, 0.34);
       }
 
       .settings-menu {
@@ -150,9 +212,11 @@
         right: 0;
         width: 188px;
         display: none;
-        border: 1px solid rgba(96, 165, 250, 0.25);
-        background: rgba(9, 17, 31, 0.98);
-        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(148, 204, 231, 0.16);
+        border-radius: 8px;
+        background: rgba(10, 20, 31, 0.72);
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(22px) saturate(132%);
       }
 
       .settings-menu.open {
@@ -188,6 +252,10 @@
       }
 
       .core {
+        display: none;
+      }
+
+      .stage:not(.page-mode) .core {
         display: none;
       }
 
@@ -337,61 +405,151 @@
         box-shadow: 58px 0 rgba(96, 165, 250, 0.38), 108px 0 rgba(96, 165, 250, 0.22);
       }
 
-      .dock {
+      .quick-command {
         position: absolute;
         left: 50%;
-        bottom: 18px;
+        bottom: 22px;
+        width: min(560px, calc(100vw - 48px));
         transform: translateX(-50%);
         display: flex;
-        gap: 0;
-        min-width: 684px;
+        gap: 8px;
+        padding: 8px;
+        border: 1px solid rgba(148, 204, 231, 0.14);
+        border-radius: 8px;
+        background: rgba(9, 19, 30, 0.58);
+        box-shadow: 0 18px 52px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(16px) saturate(124%);
+        z-index: 3;
+      }
+
+      .stage.page-mode .quick-command {
+        display: flex;
+        backdrop-filter: none;
+      }
+
+      .dock {
+        position: absolute;
+        left: 16px;
+        top: 50%;
+        bottom: auto;
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        width: 42px;
+        min-width: 0;
+        align-items: center;
         justify-content: center;
-        border: 1px solid rgba(96, 165, 250, 0.22);
-        background: rgba(11, 18, 32, 0.94);
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
       }
 
       .dock button {
-        min-width: 112px;
-        padding: 18px 10px;
+        position: relative;
+        width: 34px;
+        height: 34px;
+        min-width: 0;
+        display: grid;
+        place-items: center;
+        padding: 0;
         color: var(--soft);
         background: transparent;
         border: 0;
+        border-radius: 8px;
         cursor: pointer;
+      }
+
+      .dock button span {
+        display: none;
+      }
+
+      .dock button::before {
+        content: "";
+        position: absolute;
+        left: -15px;
+        width: 2px;
+        height: 18px;
+        opacity: 0;
+        background: var(--nav-accent, var(--cyan));
+        box-shadow: 0 0 10px var(--nav-accent, rgba(56, 189, 248, 0.65));
       }
 
       .dock button.active {
         color: var(--text);
-        background: rgba(37, 99, 235, 0.16);
+        background: transparent;
+      }
+
+      .dock button[data-panel="midia"] { --nav-accent: #a78bfa; }
+      .dock button[data-panel="tempo"] { --nav-accent: #38bdf8; }
+      .dock button[data-panel="carteira"] { --nav-accent: #2dd4bf; }
+      .dock button[data-panel="noticias"] { --nav-accent: #fbbf24; }
+      .dock button[data-panel="saude"] { --nav-accent: #fb7185; }
+      .dock button[data-panel="estudos"] { --nav-accent: #60a5fa; }
+      .dock button[data-panel="treino"] { --nav-accent: #34d399; }
+
+      .dock button.active::before {
+        opacity: 1;
       }
 
       .panel-window {
+        --panel-accent: var(--cyan);
+        --panel-accent-soft: rgba(56, 189, 248, 0.12);
         position: absolute;
-        top: 74px;
-        right: 64px;
-        width: 640px;
-        max-height: 620px;
+        left: clamp(92px, 21vw, 400px);
+        right: auto;
+        top: 72px;
+        bottom: 92px;
+        width: min(640px, calc(100vw - 132px));
+        max-height: none;
         display: grid;
         grid-template-rows: auto minmax(0, 1fr);
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
-        transform: translateY(10px);
-        transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms;
-        border: 1px solid rgba(96, 165, 250, 0.25);
-        background: rgba(9, 17, 31, 0.98);
-        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
+        transform: translateY(8px);
+        transition: opacity 90ms ease, transform 90ms ease, visibility 0s linear 90ms;
+        border: 1px solid rgba(148, 204, 231, 0.16);
+        border-radius: 8px;
+        background:
+          linear-gradient(145deg, rgba(23, 53, 70, 0.52), rgba(9, 17, 27, 0.68)),
+          rgba(8, 16, 25, 0.68);
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(22px) saturate(128%);
         z-index: 4;
         contain: layout paint;
         content-visibility: hidden;
       }
 
-      .panel-window[data-window="texto"] {
-        left: 34px;
-        right: auto;
-        top: 34px;
-        width: 460px;
-        max-height: 316px;
+      .panel-window::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--panel-accent);
+        box-shadow: 0 0 18px var(--panel-accent);
+        opacity: 0.74;
+        pointer-events: none;
+      }
+
+      .panel-window::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(circle at 0% 10%, var(--panel-accent-soft), transparent 18rem),
+          linear-gradient(90deg, var(--panel-accent-soft), transparent 34%);
+        opacity: 0.9;
+        pointer-events: none;
+      }
+
+      .panel-window > * {
+        position: relative;
+        z-index: 1;
       }
 
       .panel-window[data-window="audio"],
@@ -399,34 +557,33 @@
       .panel-window[data-window="contexto"],
       .panel-window[data-window="comandos"],
       .panel-window[data-window="saude"] {
-        right: 34px;
-        top: 86px;
-        width: 520px;
-        max-height: 570px;
       }
 
       .panel-window[data-window="treino"] {
-        left: 50%;
-        right: auto;
-        top: 50%;
-        width: min(1080px, calc(100vw - 112px));
-        height: calc(100vh - 44px);
-        max-height: calc(100vh - 44px);
-        transform: translate(-50%, calc(-50% + 10px));
+        --panel-accent: #34d399;
+        --panel-accent-soft: rgba(52, 211, 153, 0.12);
+        left: clamp(84px, 12vw, 210px);
+        width: min(960px, calc(100vw - 140px));
       }
 
       .panel-window[data-window="midia"] {
-        left: 410px;
-        right: auto;
-        top: 330px;
+        --panel-accent: #a78bfa;
+        --panel-accent-soft: rgba(167, 139, 250, 0.14);
+        left: auto;
+        right: 34px;
+        top: auto;
+        bottom: 104px;
         width: 420px;
         max-height: 410px;
       }
 
       .panel-window[data-window="tempo"] {
-        left: 410px;
+        --panel-accent: #38bdf8;
+        --panel-accent-soft: rgba(56, 189, 248, 0.14);
+        left: 34px;
         right: auto;
-        top: 34px;
+        top: 78px;
+        bottom: auto;
         width: 420px;
         max-height: 300px;
       }
@@ -434,12 +591,52 @@
       .panel-window[data-window="carteira"],
       .panel-window[data-window="noticias"],
       .panel-window[data-window="mapas"] {
-        left: 50%;
-        right: auto;
-        top: 50%;
-        width: min(760px, calc(100vw - 96px));
-        max-height: calc(100vh - 150px);
-        transform: translate(-50%, calc(-50% + 10px));
+        width: min(720px, calc(100vw - 132px));
+      }
+
+      .panel-window[data-window="carteira"] {
+        --panel-accent: #2dd4bf;
+        --panel-accent-soft: rgba(45, 212, 191, 0.12);
+      }
+
+      .panel-window[data-window="noticias"] {
+        --panel-accent: #fbbf24;
+        --panel-accent-soft: rgba(251, 191, 36, 0.1);
+      }
+
+      .panel-window[data-window="saude"] {
+        --panel-accent: #fb7185;
+        --panel-accent-soft: rgba(251, 113, 133, 0.11);
+      }
+
+      .panel-window[data-window="estudos"] {
+        --panel-accent: #60a5fa;
+        --panel-accent-soft: rgba(96, 165, 250, 0.12);
+      }
+
+      .panel-window[data-window="mapas"] {
+        --panel-accent: #f97316;
+        --panel-accent-soft: rgba(249, 115, 22, 0.1);
+      }
+
+      .panel-window[data-window="audio"] {
+        --panel-accent: #22d3ee;
+        --panel-accent-soft: rgba(34, 211, 238, 0.11);
+      }
+
+      .panel-window[data-window="sessao"] {
+        --panel-accent: #818cf8;
+        --panel-accent-soft: rgba(129, 140, 248, 0.11);
+      }
+
+      .panel-window[data-window="contexto"] {
+        --panel-accent: #c084fc;
+        --panel-accent-soft: rgba(192, 132, 252, 0.1);
+      }
+
+      .panel-window[data-window="comandos"] {
+        --panel-accent: #f472b6;
+        --panel-accent-soft: rgba(244, 114, 182, 0.1);
       }
 
       .panel-window.open {
@@ -455,12 +652,25 @@
       .panel-window[data-window="carteira"].open,
       .panel-window[data-window="noticias"].open,
       .panel-window[data-window="mapas"].open {
-        transform: translate(-50%, -50%);
+        transform: translateY(0);
+      }
+
+      .panel-window[data-window="midia"].open,
+      .panel-window[data-window="tempo"].open {
+        transform: translateY(0);
       }
 
       .panel-window.draggable .panel-head {
-        cursor: grab;
+        cursor: default;
         user-select: none;
+      }
+
+      .stage.page-mode .panel-window,
+      .stage.page-mode .text-card,
+      .stage.page-mode .side-card,
+      .stage.page-mode .settings,
+      .stage.page-mode .dock {
+        backdrop-filter: none;
       }
 
       .panel-window.dragging {
@@ -477,7 +687,7 @@
         justify-content: space-between;
         gap: 12px;
         padding: 15px 16px;
-        border-bottom: 1px solid rgba(96, 165, 250, 0.16);
+        border-bottom: 1px solid rgba(148, 204, 231, 0.1);
       }
 
       .eyebrow {
@@ -511,13 +721,14 @@
         min-height: 132px;
         display: grid;
         place-items: center;
-        border: 1px solid rgba(96, 165, 250, 0.18);
+        border: 1px solid rgba(148, 204, 231, 0.14);
+        border-radius: 8px;
         background:
           radial-gradient(circle at 50% 50%, rgba(96, 165, 250, 0.28), transparent 38%),
-          linear-gradient(#0d2f55 1px, transparent 1px),
-          linear-gradient(90deg, #0d2f55 1px, transparent 1px),
+          linear-gradient(rgba(58, 122, 169, 0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(58, 122, 169, 0.08) 1px, transparent 1px),
           #06182d;
-        background-size: auto, 16px 16px, 16px 16px, auto;
+        background-size: auto, 34px 34px, 34px 34px, auto;
         color: var(--blue);
         font-weight: 800;
         letter-spacing: 1px;
@@ -675,8 +886,9 @@
         gap: 12px;
         padding: 9px 10px;
         color: var(--soft);
-        border: 1px solid rgba(96, 165, 250, 0.12);
-        background: rgba(5, 11, 20, 0.45);
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.32);
         font-size: 12px;
       }
 
@@ -696,8 +908,9 @@
         margin: 12px 0 10px;
         padding: 10px 12px;
         color: var(--dim);
-        border: 1px solid rgba(96, 165, 250, 0.12);
-        background: rgba(5, 11, 20, 0.52);
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.36);
         font-size: 11px;
         text-transform: uppercase;
       }
@@ -707,8 +920,9 @@
       }
 
       .command-group {
-        border: 1px solid rgba(96, 165, 250, 0.14);
-        background: rgba(5, 11, 20, 0.45);
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.32);
       }
 
       .command-group h3 {
@@ -716,7 +930,7 @@
         color: var(--cyan);
         font-size: 11px;
         text-transform: uppercase;
-        border-bottom: 1px solid rgba(96, 165, 250, 0.11);
+        border-bottom: 1px solid rgba(148, 204, 231, 0.09);
       }
 
       .command-row-item {
@@ -730,7 +944,7 @@
       }
 
       .command-row-item + .command-row-item {
-        border-top: 1px solid rgba(96, 165, 250, 0.08);
+        border-top: 1px solid rgba(148, 204, 231, 0.07);
       }
 
       .command-row-item b {
@@ -822,9 +1036,33 @@
 
       .side-card,
       .text-card {
+        position: relative;
+        overflow: hidden;
         padding: 12px;
-        border: 1px solid rgba(96, 165, 250, 0.15);
-        background: rgba(16, 24, 39, 0.72);
+        border: 1px solid rgba(148, 204, 231, 0.13);
+        border-radius: 8px;
+        background:
+          linear-gradient(145deg, rgba(34, 77, 94, 0.44), rgba(9, 18, 27, 0.6)),
+          rgba(9, 18, 29, 0.54);
+        box-shadow: 0 18px 52px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(18px) saturate(128%);
+      }
+
+      .side-card::before,
+      .text-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(90deg, rgba(125, 211, 252, 0.08), transparent 34%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 42%);
+      }
+
+      .side-card > *,
+      .text-card > * {
+        position: relative;
+        z-index: 1;
       }
 
       .metric-grid {
@@ -836,8 +1074,9 @@
 
       .metric {
         padding: 10px;
-        border: 1px solid rgba(96, 165, 250, 0.12);
-        background: rgba(5, 11, 20, 0.42);
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.34);
       }
 
       .metric span {
@@ -886,8 +1125,9 @@
       button,
       input {
         color: var(--text);
-        background: #101827;
-        border: 1px solid rgba(96, 165, 250, 0.18);
+        background: rgba(15, 31, 45, 0.58);
+        border: 1px solid rgba(148, 204, 231, 0.15);
+        border-radius: 8px;
       }
 
       button {
@@ -919,8 +1159,9 @@
         min-height: 108px;
         padding: 11px 12px;
         color: var(--text);
-        background: rgba(5, 11, 20, 0.72);
-        border: 1px solid rgba(96, 165, 250, 0.18);
+        background: rgba(4, 10, 17, 0.44);
+        border: 1px solid rgba(148, 204, 231, 0.15);
+        border-radius: 8px;
         outline: none;
         resize: vertical;
         font: 12px Consolas, "Cascadia Mono", monospace;
@@ -944,8 +1185,9 @@
       .workout-list li {
         padding: 9px;
         color: var(--soft);
-        border: 1px solid rgba(96, 165, 250, 0.12);
-        background: rgba(5, 11, 20, 0.45);
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.32);
         font-size: 12px;
         line-height: 1.35;
       }
@@ -967,6 +1209,7 @@
   <body>
     <main class="stage">
       <canvas id="coreCanvas" class="core-canvas"></canvas>
+      <div class="starfield" aria-hidden="true"></div>
       <div class="fade-band" style="top:58%"></div>
       <div class="fade-band" style="top:calc(58% + 32px)"></div>
       <div class="fade-band" style="top:calc(58% + 64px)"></div>
@@ -1011,43 +1254,20 @@
         <div class="signal-bar"></div>
       </section>
 
-      <nav class="dock">
-        <button type="button" data-panel="texto">⌁ Texto</button>
-        <button type="button" data-panel="midia">♪ Mídia</button>
-        <button type="button" data-panel="tempo">☁ Tempo</button>
-        <button type="button" data-panel="carteira">↗ Carteira</button>
-        <button type="button" data-panel="noticias">◫ Notícias</button>
-        <button type="button" data-panel="saude">+ Saude</button>
-        <button type="button" data-panel="treino">⊙ Treino</button>
-      </nav>
+      <form class="quick-command" id="quickCommand" autocomplete="off">
+        <input id="commandInput" placeholder="Pergunte ou peça algo ao Axel" />
+        <button id="sendCommand" class="primary" type="button">Enviar</button>
+      </form>
 
-      <section class="panel-window" data-window="texto">
-        <div class="panel-head">
-          <div><p class="eyebrow">Texto</p><h2>Comando direto</h2></div>
-          <button type="button" data-close>Fechar</button>
-        </div>
-        <div class="panel-body">
-          <div class="text-card">
-            <div class="command-row">
-              <input id="commandInput" placeholder="Digite um comando para o Axel" />
-              <button id="sendCommand" class="primary" type="button">Enviar</button>
-            </div>
-          </div>
-          <div class="text-card" style="margin-top:12px">
-            <p class="eyebrow">Estado</p>
-            <div class="metric-grid">
-              <div class="metric"><span>Status</span><strong id="status">--</strong></div>
-              <div class="metric"><span>Modo</span><strong id="mode">--</strong></div>
-              <div class="metric"><span>Microfone</span><strong id="mic">--</strong></div>
-              <div class="metric"><span>Última ordem</span><strong id="lastCommand">--</strong></div>
-            </div>
-          </div>
-          <div class="text-card" style="margin-top:12px">
-            <p class="eyebrow">Histórico</p>
-            <ul class="history-list" id="historyList"></ul>
-          </div>
-        </div>
-      </section>
+      <nav class="dock">
+        <button type="button" data-panel="midia" title="Mídia" aria-label="Mídia">♪<span>Mídia</span></button>
+        <button type="button" data-panel="tempo" title="Tempo" aria-label="Tempo">☁<span>Tempo</span></button>
+        <button type="button" data-panel="carteira" title="Carteira" aria-label="Carteira">↗<span>Carteira</span></button>
+        <button type="button" data-panel="noticias" title="Notícias" aria-label="Notícias">◫<span>Notícias</span></button>
+        <button type="button" data-panel="saude" title="Saúde" aria-label="Saúde">+<span>Saúde</span></button>
+        <button type="button" data-panel="estudos" title="Estudos" aria-label="Estudos">◇<span>Estudos</span></button>
+        <button type="button" data-panel="treino" title="Treino" aria-label="Treino">⊙<span>Treino</span></button>
+      </nav>
 
       <section class="panel-window" data-window="audio">
         <div class="panel-head">
@@ -1088,6 +1308,8 @@
               <li><span>Última ordem</span><strong id="sessionCommand">--</strong></li>
               <li><span>Última resposta</span><strong id="sessionResponse">--</strong></li>
             </ul>
+            <p class="eyebrow">Notificações</p>
+            <ul class="mini-list" id="sessionNotifications"></ul>
           </div>
         </div>
       </section>
@@ -1166,6 +1388,31 @@
           <div class="text-card" style="margin-top:12px">
             <p class="eyebrow">Alertas</p>
             <ul class="workout-list" id="healthAlerts"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-window" data-window="estudos">
+        <div class="panel-head">
+          <div><p class="eyebrow">Estudos</p><h2>Revisoes e metas</h2></div>
+          <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
+        </div>
+        <div class="panel-body">
+          <div class="text-card">
+            <div class="metric-grid">
+              <div class="metric"><span>Hoje</span><strong id="studyToday">0/60 min</strong></div>
+              <div class="metric"><span>Progresso</span><strong id="studyPercent">0%</strong></div>
+              <div class="metric"><span>Faltam</span><strong id="studyRemaining">60 min</strong></div>
+              <div class="metric"><span>Revisoes</span><strong id="studyReviewCount">0</strong></div>
+            </div>
+          </div>
+          <div class="text-card" style="margin-top:12px">
+            <p class="eyebrow">Metas</p>
+            <ul class="workout-list" id="studyGoals"></ul>
+          </div>
+          <div class="text-card" style="margin-top:12px">
+            <p class="eyebrow">Revisoes pendentes</p>
+            <ul class="workout-list" id="studyReviews"></ul>
           </div>
         </div>
       </section>
@@ -1282,10 +1529,13 @@
       let currentPanelName = "";
       let pendingPanelRequest = null;
       let panelSwitchFrame = 0;
+      let coreAnimationFrame = 0;
       let panelSwitchingUntil = 0;
+      let panelSwitchTimeout = 0;
+      let panelSwitchClassTimer = 0;
       const stage = document.querySelector(".stage");
-      const largePanels = new Set(["treino", "carteira", "noticias", "mapas"]);
-      const draggablePanels = new Set(["texto", "audio", "sessao", "contexto", "comandos", "saude", "midia", "tempo"]);
+      const compactPanels = new Set(["midia", "tempo"]);
+      const draggablePanels = new Set();
       let panelPositions = {};
       let dragState = null;
 
@@ -1330,8 +1580,8 @@
       ];
 
       const HUD = {
-        BG: "#050b14",
-        GRID: "#273244",
+        BG: "#03070f",
+        GRID: "rgba(93, 142, 183, 0.08)",
         TEXT: "#edf2ff",
         TEXT_SOFT: "#8ea0ba",
         ACCENT: "#60a5fa",
@@ -1430,21 +1680,50 @@
         return ["#2563eb", "#60a5fa"];
       }
 
+      function performanceSettings() {
+        const settings = currentUiState.performance_settings || {};
+        const mode = String(currentUiState.performance_mode || settings.mode || "balanced").toLowerCase();
+        const economy = mode === "economy";
+        return {
+          mode,
+          reduceMotion: Boolean(settings.reduce_motion) || economy,
+          animationScale: Number(settings.animation_scale || (economy ? 0.38 : 1)),
+          frameDelay: Number(settings.web_frame_delay_ms || (economy ? 90 : 33)),
+          panelFrameDelay: Number(settings.web_panel_frame_delay_ms || (economy ? 120 : 50)),
+          transitionFrameDelay: Number(settings.web_transition_frame_delay_ms || (economy ? 120 : 80)),
+        };
+      }
+
       function drawBackgroundGrid(width, height) {
         ctx.fillStyle = HUD.BG;
         ctx.fillRect(0, 0, width, height);
-        for (const [radius, color] of [[520, "#09111f"], [390, "#091221"], [270, "#08101d"]]) {
+        const nebula = ctx.createRadialGradient(width * 0.2, height * 0.12, 0, width * 0.2, height * 0.12, Math.max(width, height) * 0.48);
+        nebula.addColorStop(0, "rgba(56, 189, 248, 0.16)");
+        nebula.addColorStop(0.44, "rgba(37, 99, 235, 0.07)");
+        nebula.addColorStop(1, "rgba(3, 7, 15, 0)");
+        ctx.fillStyle = nebula;
+        ctx.fillRect(0, 0, width, height);
+        const rightNebula = ctx.createRadialGradient(width * 0.86, height * 0.18, 0, width * 0.86, height * 0.18, Math.max(width, height) * 0.42);
+        rightNebula.addColorStop(0, "rgba(14, 165, 233, 0.11)");
+        rightNebula.addColorStop(1, "rgba(3, 7, 15, 0)");
+        ctx.fillStyle = rightNebula;
+        ctx.fillRect(0, 0, width, height);
+        for (const [radius, color] of [[520, "rgba(9, 17, 31, 0.42)"], [390, "rgba(9, 18, 33, 0.3)"], [270, "rgba(8, 16, 29, 0.22)"]]) {
           oval(-radius * 0.55, -radius * 0.52, radius * 1.15, radius * 1.05, null, color);
         }
         const rightRadius = 430;
-        oval(width - rightRadius * 0.55, -rightRadius * 0.45, width + rightRadius * 0.75, rightRadius * 0.9, null, "#061522");
+        oval(width - rightRadius * 0.55, -rightRadius * 0.45, width + rightRadius * 0.75, rightRadius * 0.9, null, "rgba(6, 21, 34, 0.34)");
         const gridBottom = Math.floor(height * 0.9);
-        for (let x = 0; x < width; x += 38) line([[x, 0], [x, gridBottom]], x % 76 ? "#0d1726" : "#111d30");
-        for (let y = 0; y < gridBottom; y += 38) line([[0, y], [width, y]], y % 76 ? "#0d1726" : "#111d30");
+        for (let x = 0; x < width; x += 96) line([[x, 0], [x, gridBottom]], "rgba(93, 142, 183, 0.045)");
+        for (let y = 0; y < gridBottom; y += 96) line([[0, y], [width, y]], "rgba(93, 142, 183, 0.04)");
+        ctx.fillStyle = "rgba(237, 242, 255, 0.42)";
+        for (const [sx, sy] of [[0.14, 0.22], [0.31, 0.72], [0.48, 0.18], [0.73, 0.46], [0.88, 0.76]]) {
+          oval(width * sx - 1, height * sy - 1, width * sx + 1, height * sy + 1, null, ctx.fillStyle);
+        }
         const fadeStart = Math.floor(height * 0.58);
         ctx.fillStyle = HUD.BG;
         for (let index = 0; index < 10; index += 1) ctx.fillRect(0, fadeStart + index * 32, width, 18);
-        oval(width / 2 - 360, height / 2 - 280, width / 2 + 360, height / 2 + 280, "#0d1828");
+        oval(width / 2 - 360, height / 2 - 280, width / 2 + 360, height / 2 + 280, "rgba(125, 211, 252, 0.08)");
       }
 
       function drawDottedRing(cx, cy, radius, color, activeColor, intensity) {
@@ -1588,6 +1867,7 @@
       function drawOldHudCore() {
         const width = window.innerWidth;
         const height = window.innerHeight;
+        const switching = performance.now() < panelSwitchingUntil;
         const status = String(currentUiState.status || "INATIVO").toUpperCase();
         const [primary, secondary] = statusPalette(status);
         let speed = 1;
@@ -1614,6 +1894,7 @@
         const cy = normalCy + (cornerCy - normalCy) * smoothFocus;
         const scale = 1 - 0.48 * smoothFocus;
         const compactCore = smoothFocus > 0.55;
+        if (switching) intensity *= 0.45;
         if (smoothFocus > 0.001) {
           ctx.save();
           ctx.translate(cx, cy);
@@ -1624,16 +1905,16 @@
         const outer = 158 + pulse;
         const mid = 112 + pulse * 0.45;
         const inner = 18 + pulse * 0.14;
-        if (!compactCore) {
+        if (!compactCore && !switching) {
           drawAmbientParticles(cx, cy, primary, secondary, intensity);
           drawTargetBrackets(cx, cy, outer, primary, secondary, intensity);
           drawSideAimMarks(cx, cy, primary, secondary, intensity);
         }
         oval(cx - outer, cy - outer, cx + outer, cy + outer, "#171a20");
         oval(cx - outer - 28, cy - outer - 28, cx + outer + 28, cy + outer + 28, "#08243f");
-        if (!compactCore) drawDottedRing(cx, cy, outer + 18, "#17405f", secondary, intensity);
+        if (!compactCore && !switching) drawDottedRing(cx, cy, outer + 18, "#17405f", secondary, intensity);
         oval(cx - mid, cy - mid, cx + mid, cy + mid, secondary, null, 2);
-        if (!compactCore) drawHexCluster(cx, cy, primary, secondary, intensity);
+        if (!compactCore && !switching) drawHexCluster(cx, cy, primary, secondary, intensity);
         drawBrainCore(cx, cy, primary, secondary, compactCore ? intensity * 0.55 : intensity, compactCore ? 0.84 : 1.14);
         oval(cx - inner, cy - inner, cx + inner, cy + inner, null, primary);
         arc(cx, cy, 118, 26 + angle * 8, 92 + Math.floor((Math.sin(angle * speed * 1.2) + 1) * 34), primary, 3);
@@ -1666,21 +1947,44 @@
       }
 
       function animateCore(timestamp = 0) {
+        coreAnimationFrame = 0;
+        if (currentPanelName && !compactPanels.has(currentPanelName)) return;
+        const perf = performanceSettings();
         const transitioning = timestamp < panelSwitchingUntil;
-        const hasPanelOpen = Boolean(document.querySelector(".panel-window.open")) || stage?.classList.contains("focus-mode");
-        const frameDelay = transitioning ? 80 : hasPanelOpen ? 50 : 33;
+        const frameDelay = transitioning ? Math.max(130, perf.transitionFrameDelay) : perf.frameDelay;
         if (!lastFrameAt || timestamp - lastFrameAt >= frameDelay) {
-          angle += hasPanelOpen ? 0.007 : 0.016;
+          const motionScale = perf.reduceMotion ? Math.min(perf.animationScale, 0.42) : perf.animationScale;
+          angle += 0.016 * motionScale * (transitioning ? 0.35 : 1);
           drawOldHudCore();
           lastFrameAt = timestamp;
         }
-        requestAnimationFrame(animateCore);
+        coreAnimationFrame = requestAnimationFrame(animateCore);
+      }
+
+      function startCoreAnimation() {
+        if (coreAnimationFrame || (currentPanelName && !compactPanels.has(currentPanelName))) return;
+        lastFrameAt = 0;
+        coreAnimationFrame = requestAnimationFrame(animateCore);
+      }
+
+      function stopCoreAnimation() {
+        if (coreAnimationFrame) {
+          cancelAnimationFrame(coreAnimationFrame);
+          coreAnimationFrame = 0;
+        }
       }
 
       function sendCommand(text) {
         const value = String(text || "").trim();
         if (!value) return;
         if (bridge) bridge.sendCommand(value);
+      }
+
+      function focusCommandBar() {
+        requestPanelOpen("", false, true);
+        const input = document.getElementById("commandInput");
+        input?.focus();
+        input?.select();
       }
 
       function sendActionFromBuilder() {
@@ -1712,6 +2016,11 @@
         if (el) el.textContent = value || "--";
       }
 
+      function setHtml(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = value || "";
+      }
+
       function hasChanged(key, value) {
         const next = JSON.stringify(value ?? null);
         if (lastRenderKeys[key] === next) return false;
@@ -1724,8 +2033,8 @@
         const html = items.length
           ? items.map((item) => `<li><b>${item.role || "system"}:</b> ${item.text || ""}</li>`).join("")
           : `<li>Sem histórico recente.</li>`;
-        document.getElementById("historyList").innerHTML = html;
-        document.getElementById("contextHistory").innerHTML = html;
+        setHtml("historyList", html);
+        setHtml("contextHistory", html);
       }
 
       function renderMedia(media) {
@@ -1783,9 +2092,7 @@
         const updated = investment?.updated_at ? new Date(investment.updated_at * 1000).toLocaleString("pt-BR") : "--";
         setText("investUpdated", updated);
         const lines = Array.isArray(investment?.lines) ? investment.lines.slice(0, 10) : [];
-        document.getElementById("investLines").innerHTML = lines.length
-          ? lines.map((line) => `<li>${line}</li>`).join("")
-          : "<li>Sem snapshot de carteira.</li>";
+        setHtml("investLines", lines.length ? lines.map((line) => `<li>${line}</li>`).join("") : "<li>Sem snapshot de carteira.</li>");
       }
 
       function renderNews(news) {
@@ -1804,6 +2111,17 @@
         button.onclick = () => {
           if (map?.url) sendCommand(`abrir ${map.url}`);
         };
+      }
+
+      function renderStudy(study) {
+        const goals = Array.isArray(study?.goals) ? study.goals : [];
+        const reviews = Array.isArray(study?.pending_reviews) ? study.pending_reviews : [];
+        setText("studyToday", `${study?.minutes_today || 0}/${study?.daily_minutes || 60} min`);
+        setText("studyPercent", `${study?.percent || 0}%`);
+        setText("studyRemaining", `${study?.remaining_minutes ?? 60} min`);
+        setText("studyReviewCount", String(reviews.length));
+        setHtml("studyGoals", goals.length ? goals.map((item) => `<li><b>${item.text || "Meta"}</b></li>`).join("") : "<li>Sem meta ativa.</li>");
+        setHtml("studyReviews", reviews.length ? reviews.map((item, index) => `<li><b>${index + 1}. ${item.text || "Revisao"}</b><span>${item.due_at || ""}</span></li>`).join("") : "<li>Sem revisoes pendentes.</li>");
       }
 
       function renderHealth(health) {
@@ -1827,9 +2145,44 @@
         setText("healthGit", preflight.change_summary || "--");
         setText("healthLog", `${execution.events_count || 0} eventos recentes`);
         setText("healthArtifacts", `${artifacts.json || 0} json / ${artifacts.tmp || 0} tmp / ${(artifacts.html || 0) + (artifacts.txt || 0)} dumps`);
-        document.getElementById("healthAlerts").innerHTML = alerts.length
-          ? alerts.map((item) => `<li>${item}</li>`).join("")
-          : "<li>Nenhum alerta critico agora.</li>";
+        setHtml("healthAlerts", alerts.length ? alerts.map((item) => `<li>${item}</li>`).join("") : "<li>Nenhum alerta critico agora.</li>");
+      }
+
+      function listFromText(text) {
+        const clean = String(text || "").trim();
+        if (!clean) return [];
+        return clean
+          .replace(/^(Agenda de hoje:|Agenda de amanha:|Lembretes pendentes:)/i, "")
+          .replace(/\.$/, "")
+          .split(/\s;\s|\s\|\s/)
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      function renderRoutineDisabled(routine, weather, investment, health, study) {
+        setText("routineFocus", routine?.focus || routine?.agenda_today || "Sem foco registrado.");
+        const weatherText = weather?.weather_label
+          ? `${weather.weather_label}${Number.isFinite(weather.temperature_c) ? `, ${Math.round(weather.temperature_c)}C` : ""}`
+          : "--";
+        setText("routineWeather", weatherText);
+        setText("routineStudyMetric", `${study?.minutes_today || 0}/${study?.daily_minutes || 60} min`);
+        setText("routineInvestmentMetric", metricValue(investment, ["rentabilidade", "patrimonio", "patrimÃ´nio"]));
+        setText("routineHealthMetric", health?.status || "--");
+
+        const agendaItems = [
+          ...listFromText(routine?.agenda_today),
+          ...listFromText(routine?.agenda_tomorrow),
+        ].slice(0, 6);
+        setHtml("routineAgenda", agendaItems.length ? agendaItems.map((item) => `<li>${item}</li>`).join("") : "<li>Agenda sem itens relevantes agora.</li>");
+
+        const reminders = listFromText(routine?.reminders).slice(0, 5);
+        setHtml("routineReminders", reminders.length ? reminders.map((item) => `<li>${item}</li>`).join("") : "<li>Sem lembretes pendentes.</li>");
+
+        const highlights = [
+          ...(Array.isArray(routine?.study_highlights) ? routine.study_highlights : []),
+          ...(Array.isArray(routine?.investment_highlights) ? routine.investment_highlights : []),
+        ].slice(0, 8);
+        setHtml("routineHighlights", highlights.length ? highlights.map((item) => `<li>${item}</li>`).join("") : "<li>Sem destaques carregados.</li>");
       }
 
       function modeLabel(ui) {
@@ -1839,7 +2192,7 @@
       }
 
       function panelTargetExists(name) {
-        return name === "treino" || Boolean(document.querySelector(`[data-window="${name}"]`));
+        return name === "texto" || name === "treino" || Boolean(document.querySelector(`[data-window="${name}"]`));
       }
 
       function renderSystemPanels(ui) {
@@ -1858,6 +2211,10 @@
         setText("sessionTime", now);
         setText("sessionCommand", ui.last_command || ui.last_heard || "--");
         setText("sessionResponse", ui.last_response || "--");
+        const notifications = Array.isArray(ui.notifications) ? ui.notifications.slice(-4).reverse() : [];
+        document.getElementById("sessionNotifications").innerHTML = notifications.length
+          ? notifications.map((item) => `<li><span>${item.kind || "aviso"}</span><strong>${item.text || ""}</strong></li>`).join("")
+          : "<li><span>Status</span><strong>Sem notificações pendentes.</strong></li>";
 
         setText("contextName", ui.assistant_name || "Axel");
         setText("contextStyle", ui.assistant_style || "--");
@@ -1872,6 +2229,7 @@
         const shell = document.getElementById("commandsList");
         const count = commandGroups.reduce((total, [, commands]) => total + commands.length, 0);
         setText("commandsCount", `${count} ativos`);
+        if (!shell) return;
         shell.innerHTML = commandGroups.map(([group, commands]) => `
           <section class="command-group">
             <h3>${group}</h3>
@@ -1890,6 +2248,8 @@
       window.setAxelState = function setAxelState(payload) {
         const ui = payload?.ui || {};
         currentUiState = ui;
+        const perf = performanceSettings();
+        stage?.classList.toggle("economy-mode", perf.mode === "economy" || perf.reduceMotion);
 
         setText("assistantName", ui.assistant_name || "Axel");
         setText("status", ui.status || "--");
@@ -1903,6 +2263,7 @@
         if (hasChanged("news", payload?.news || [])) renderNews(payload?.news || []);
         if (hasChanged("health", payload?.health || {})) renderHealth(payload?.health || {});
         if (hasChanged("map", payload?.map || {})) renderMap(payload?.map || {});
+        if (hasChanged("study", payload?.study || {})) renderStudy(payload?.study || {});
         renderSystemPanels(ui);
 
         const requestedPanels = Array.isArray(ui.open_panels) ? ui.open_panels : [];
@@ -1914,7 +2275,7 @@
           if (mapped) {
             requestPanelOpen(mapped, false, true);
             activePanelHydrated = true;
-            if (bridge) bridge.setActivePanel(mapped);
+            if (bridge) bridge.setActivePanel(mapped === "texto" ? "" : mapped);
           }
           appliedOpenPanelsKey = requestKey;
           if (bridge) bridge.clearOpenPanels();
@@ -1931,9 +2292,23 @@
       };
 
       function requestPanelOpen(name, notify = true, immediate = false) {
+        if (String(name || "") === "texto") {
+          focusCommandBar();
+          return;
+        }
         pendingPanelRequest = { name: String(name || ""), notify };
         if (immediate) {
           applyPendingPanelOpen();
+          return;
+        }
+        const now = performance.now();
+        if (now < panelSwitchingUntil) {
+          if (!panelSwitchTimeout) {
+            panelSwitchTimeout = setTimeout(() => {
+              panelSwitchTimeout = 0;
+              applyPendingPanelOpen();
+            }, Math.max(24, panelSwitchingUntil - now));
+          }
           return;
         }
         if (panelSwitchFrame) return;
@@ -1949,8 +2324,21 @@
         pendingPanelRequest = null;
         if (name === currentPanelName) return;
         currentPanelName = name;
-        panelSwitchingUntil = performance.now() + 260;
-        stage.classList.toggle("focus-mode", largePanels.has(name));
+        panelSwitchingUntil = performance.now() + 150;
+        stage.classList.add("switching-panels");
+        clearTimeout(panelSwitchClassTimer);
+        panelSwitchClassTimer = setTimeout(() => {
+          stage.classList.remove("switching-panels");
+        }, 190);
+        const compactPanel = compactPanels.has(name);
+        stage.classList.remove("focus-mode");
+        stage.classList.toggle("page-mode", Boolean(name) && !compactPanel);
+        if (name && !compactPanel) {
+          stopCoreAnimation();
+        } else {
+          drawOldHudCore();
+          startCoreAnimation();
+        }
         document.querySelectorAll(".panel-window").forEach((panel) => {
           panel.classList.toggle("open", panel.dataset.window === name);
         });
@@ -2090,7 +2478,10 @@
       setupPanelDragging();
 
       document.querySelectorAll("[data-panel]").forEach((button) => {
-        button.addEventListener("click", () => requestPanelOpen(button.dataset.panel));
+        button.addEventListener("click", () => {
+          const panelName = String(button.dataset.panel || "");
+          requestPanelOpen(currentPanelName === panelName ? "" : panelName);
+        });
       });
       document.querySelectorAll("[data-close]").forEach((button) => {
         button.addEventListener("click", () => requestPanelOpen(""));
@@ -2109,7 +2500,14 @@
         input.value = "";
       });
       document.getElementById("commandInput").addEventListener("keydown", (event) => {
-        if (event.key === "Enter") document.getElementById("sendCommand").click();
+        if (event.key === "Enter") {
+          event.preventDefault();
+          document.getElementById("sendCommand").click();
+        }
+      });
+      document.getElementById("quickCommand").addEventListener("submit", (event) => {
+        event.preventDefault();
+        document.getElementById("sendCommand").click();
       });
       document.getElementById("sendActionCommand").addEventListener("click", sendActionFromBuilder);
       document.getElementById("actionNameInput").addEventListener("keydown", (event) => {
@@ -2120,9 +2518,10 @@
       resizeCanvas();
       window.addEventListener("resize", () => {
         resizeCanvas();
+        if (!currentPanelName) drawOldHudCore();
         keepDraggedPanelsInView();
       });
-      animateCore();
+      startCoreAnimation();
       new QWebChannel(qt.webChannelTransport, (channel) => {
         bridge = channel.objects.axelBridge;
         bridge.requestRefresh();

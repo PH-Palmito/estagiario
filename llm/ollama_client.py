@@ -59,8 +59,20 @@ def ask_model(
     timeout_seconds: int = 15,
     num_predict: int = 80,
     temperature: float = 0.3,
+    provider: str = "auto",
 ) -> str:
-    if _should_prefer_gemini(model):
+    provider = str(provider or "auto").strip().lower()
+    if provider in {"cloud", "gemini"}:
+        gemini_model = model if str(model or "").strip().lower().startswith("gemini") else GEMINI_MODEL
+        return ask_gemini_model(
+            prompt,
+            model=gemini_model,
+            timeout_seconds=max(4, min(timeout_seconds + 8, 45)),
+            max_output_tokens=_gemini_output_tokens(num_predict),
+            temperature=temperature,
+        )
+
+    if provider != "local" and _should_prefer_gemini(model):
         gemini_model = model if str(model or "").strip().lower().startswith("gemini") else GEMINI_MODEL
         try:
             return ask_gemini_model(

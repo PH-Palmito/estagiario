@@ -1,18 +1,9 @@
-import ctypes
-import msvcrt
-import os
-import shutil
-import subprocess
-import tempfile
-import time
+﻿import os
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
-from threading import Lock
 
 import numpy as np
 
-from llm.gemini_tts_client import synthesize_gemini_tts_to_wav
 from memory.voice_preferences import load_voice_preferences
 from voice.audio_capture import (
     audio_has_signal as _audio_has_signal_core,
@@ -32,11 +23,10 @@ from voice.audio_capture import (
 from voice.audio_capture import (
     record_fixed_audio as _record_fixed_audio_core,
 )
+from voice.audio_diagnostics import format_audio_stats as _format_audio_stats_core
+from voice.audio_diagnostics import run_audio_diagnostic as _run_audio_diagnostic_core
 from voice.audio_effects import (
     apply_jarvis_audio_effect as _apply_jarvis_audio_effect_core,
-)
-from voice.audio_effects import (
-    voice_effect_strength as _voice_effect_strength_core,
 )
 from voice.audio_files import (
     save_temp_wav as _save_temp_wav_core,
@@ -44,28 +34,9 @@ from voice.audio_files import (
 from voice.audio_files import (
     save_wav as _save_wav_core,
 )
-from voice.audio_files import (
-    tts_cache_path as _tts_cache_path_core,
-)
-from voice.audio_files import (
-    wav_duration_seconds as _wav_duration_seconds_core,
-)
-from voice.audio_files import (
-    write_raw_pcm_to_wav as _write_raw_pcm_to_wav_core,
-)
-from voice.audio_playback import (
-    play_wav as _play_wav_core,
-)
-from voice.audio_playback import (
-    play_wav_chunk as _play_wav_chunk_core,
-)
 from voice.audio_playback import (
     stop_playback as _stop_playback_core,
 )
-from voice.audio_playback import (
-    wait_for_wav_playback as _wait_for_wav_playback_core,
-)
-from voice.gemini_tts_utils import gemini_tts_plan as _gemini_tts_plan_core
 from voice.hotkeys import (
     consume_key_press as _consume_key_press_core,
 )
@@ -81,44 +52,17 @@ from voice.input_devices import (
 from voice.input_devices import (
     resolve_input_device as _resolve_input_device_core,
 )
-from voice.piper_utils import (
-    load_piper_sample_rate as _load_piper_sample_rate_core,
-)
-from voice.piper_utils import (
-    piper_cache_settings as _piper_cache_settings_core,
-)
-from voice.piper_utils import (
-    piper_cli_command as _piper_cli_command_core,
-)
-from voice.piper_utils import (
-    piper_synthesis_plan as _piper_synthesis_plan_core,
-)
+from voice.listening_runtime import listen_conversation_once as _listen_conversation_once_core
+from voice.listening_runtime import listen_for_hotword as _listen_for_hotword_core
+from voice.listening_runtime import listen_once as _listen_once_core
+from voice.piper_runtime import run_piper_synthesis as _run_piper_synthesis_core
+from voice.piper_speech import prime_piper_cache_runtime as _prime_piper_cache_runtime_core
+from voice.piper_speech import speak_with_piper_runtime as _speak_with_piper_runtime_core
 from voice.piper_utils import (
     piper_tts_settings as _piper_tts_settings_core,
 )
 from voice.piper_utils import (
-    piper_worker_command as _piper_worker_command_core,
-)
-from voice.piper_utils import (
-    piper_worker_payload as _piper_worker_payload_core,
-)
-from voice.piper_utils import (
-    piper_worker_read_size as _piper_worker_read_size_core,
-)
-from voice.piper_utils import (
-    piper_worker_runtime_settings as _piper_worker_runtime_settings_core,
-)
-from voice.piper_utils import (
-    piper_worker_signature as _piper_worker_signature_core,
-)
-from voice.piper_utils import (
-    read_piper_worker_audio_loop as _read_piper_worker_audio_loop_core,
-)
-from voice.piper_utils import (
     validate_piper_tts_settings as _validate_piper_tts_settings_core,
-)
-from voice.piper_utils import (
-    write_piper_worker_payload as _write_piper_worker_payload_core,
 )
 from voice.recognition_text import (
     command_transcription_score as _command_transcription_score,
@@ -142,7 +86,24 @@ from voice.transcription import hotword_listen_plan as _hotword_listen_plan_core
 from voice.transcription import hotword_transcription_plan as _hotword_transcription_plan_core
 from voice.transcription import resolve_hotword_detection as _resolve_hotword_detection_core
 from voice.transcription import resolve_transcription_text as _resolve_transcription_text_core
+from voice.transcription_runtime import WhisperTranscriptionConfig
+from voice.transcription_runtime import transcribe_audio as _transcribe_audio_core
 from voice.tts_routing import speak_with_tts_routing as _speak_with_tts_routing_core
+from voice.tts_runtime import (
+    play_wav_chunk_result as _play_wav_chunk_result_core,
+)
+from voice.tts_runtime import (
+    play_wav_result as _play_wav_result_core,
+)
+from voice.tts_runtime import (
+    speak_with_gemini_runtime as _speak_with_gemini_runtime_core,
+)
+from voice.tts_runtime import (
+    speak_with_windows_runtime as _speak_with_windows_runtime_core,
+)
+from voice.tts_runtime import (
+    wait_for_wav_playback_result as _wait_for_wav_playback_result_core,
+)
 from voice.tts_text import (
     load_tts_pronunciations as _load_tts_pronunciations_core,
 )
@@ -153,13 +114,6 @@ from voice.whisper_models import (
     get_model as _get_model_core,
 )
 from voice.windows_tts import clamp_int as _clamp_int_core
-from voice.windows_tts import monitor_windows_tts_process as _monitor_windows_tts_process_core
-from voice.windows_tts import (
-    windows_tts_error as _windows_tts_error_core,
-)
-from voice.windows_tts import (
-    windows_tts_plan as _windows_tts_plan_core,
-)
 from voice.windows_voice_config import (
     COMMAND_MODEL_SIZE,
     COMMAND_PROMPT,
@@ -177,14 +131,8 @@ from voice.windows_voice_config import (
 )
 
 POWERSHELL_EXE = "powershell"
-kernel32 = ctypes.windll.kernel32
 VOICE_PREFERENCES = load_voice_preferences()
 VOICE_CONFIG = build_voice_runtime_config(VOICE_PREFERENCES)
-_PIPER_WORKER_LOCK = Lock()
-_PIPER_WORKER_PROCESS = None
-_PIPER_WORKER_SIGNATURE = None
-_PIPER_WORKER_SAMPLE_RATE = 22050
-_PIPER_WORKER_WARM = False
 _TTS_WAIT_FOR_PLAYBACK_OVERRIDE = None
 
 
@@ -316,68 +264,26 @@ def _save_wav(path: str | Path, audio: np.ndarray):
 
 
 def _format_audio_stats(label: str, audio: np.ndarray) -> str:
-    peak, rms = _chunk_levels(audio)
-    duration = audio.size / SAMPLE_RATE if audio.size else 0.0
-    return f"{label}: duracao={duration:.2f}s pico={peak:.4f} rms={rms:.4f}"
+    return _format_audio_stats_core(label=label, audio=audio, sample_rate=SAMPLE_RATE, chunk_levels=_chunk_levels)
 
 
 def run_audio_diagnostic(seconds: float | None = None) -> str:
-    duration = seconds if seconds is not None else AUDIO_DIAGNOSTIC_SECONDS
-    duration = max(1.0, min(15.0, float(duration)))
-    active_device = get_active_input_device_info()
-
-    try:
-        raw_audio = _record_fixed_audio(duration)
-    except Exception as exc:
-        return f"Falha ao gravar diagnostico de audio: {exc}"
-
-    processed_audio = _preprocess_audio(raw_audio)
-    output_dir = Path("memory") / "audio_diagnostics"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    raw_path = output_dir / f"audio_raw_{stamp}.wav"
-    processed_path = output_dir / f"audio_processed_{stamp}.wav"
-
-    _save_wav(raw_path, raw_audio)
-    _save_wav(processed_path, processed_audio)
-    raw_transcription = _transcribe_audio(
-        raw_audio,
-        model_size=COMMAND_MODEL_SIZE,
-        prompt=COMMAND_PROMPT,
-        beam_size=WHISPER_COMMAND_BEAM_SIZE,
-        best_of=WHISPER_COMMAND_BEST_OF,
-        vad_filter=WHISPER_COMMAND_VAD_FILTER,
-        preprocess=False,
+    return _run_audio_diagnostic_core(
+        seconds=seconds,
+        default_seconds=AUDIO_DIAGNOSTIC_SECONDS,
+        sample_rate=SAMPLE_RATE,
+        command_model_size=COMMAND_MODEL_SIZE,
+        command_prompt=COMMAND_PROMPT,
+        whisper_command_beam_size=WHISPER_COMMAND_BEAM_SIZE,
+        whisper_command_best_of=WHISPER_COMMAND_BEST_OF,
+        whisper_command_vad_filter=WHISPER_COMMAND_VAD_FILTER,
+        active_input_device_info=get_active_input_device_info,
+        record_fixed_audio=_record_fixed_audio,
+        preprocess_audio=_preprocess_audio,
+        save_wav=_save_wav,
+        transcribe_audio=_transcribe_audio,
+        chunk_levels=_chunk_levels,
     )
-    processed_transcription = _transcribe_audio(
-        processed_audio,
-        model_size=COMMAND_MODEL_SIZE,
-        prompt=COMMAND_PROMPT,
-        beam_size=WHISPER_COMMAND_BEAM_SIZE,
-        best_of=WHISPER_COMMAND_BEST_OF,
-        vad_filter=WHISPER_COMMAND_VAD_FILTER,
-        preprocess=False,
-    )
-    raw_text = raw_transcription.text if raw_transcription.ok else raw_transcription.error
-    processed_text = processed_transcription.text if processed_transcription.ok else processed_transcription.error
-
-    return "\n".join(
-        [
-            "Diagnostico de audio concluido.",
-            (
-                f"Microfone usado: {active_device['name']}"
-                if active_device
-                else "Microfone usado: padrão do Windows"
-            ),
-            _format_audio_stats("Bruto", raw_audio),
-            _format_audio_stats("Processado", processed_audio),
-            f"Whisper bruto: {raw_text}",
-            f"Whisper processado: {processed_text}",
-            f"Arquivo bruto: {raw_path.resolve()}",
-            f"Arquivo processado: {processed_path.resolve()}",
-        ]
-    )
-
 
 def _transcribe_audio(
     audio: np.ndarray,
@@ -388,59 +294,29 @@ def _transcribe_audio(
     vad_filter: bool,
     preprocess: bool = True,
 ) -> VoiceResult:
-    if not _audio_has_signal(audio):
-        return VoiceResult(ok=False, error="Nao detectei fala no microfone.")
-
-    def _transcribe_once(active_prompt: str | None, active_beam: int, active_best_of: int, active_vad: bool):
-        processed_audio = _preprocess_audio(audio) if preprocess else audio
-        active_temp_path = _save_temp_wav(processed_audio)
-        try:
-            model = _get_model(model_size)
-            segments, info = model.transcribe(
-                active_temp_path,
-                language="pt",
-                task="transcribe",
-                vad_filter=active_vad,
-                beam_size=active_beam,
-                best_of=active_best_of,
-                temperature=0.0,
-                initial_prompt=active_prompt or None,
-                condition_on_previous_text=False,
-            )
-            text = " ".join(segment.text.strip() for segment in segments).strip()
-            return text, info
-        finally:
-            if active_temp_path and os.path.exists(active_temp_path):
-                os.remove(active_temp_path)
-
-    try:
-        text, info = _transcribe_once(prompt, beam_size, best_of, vad_filter)
-
-        resolution = _resolve_transcription_text_core(
-            text,
-            model_size=model_size,
+    result = _transcribe_audio_core(
+        audio=audio,
+        model_size=model_size,
+        prompt=prompt,
+        beam_size=beam_size,
+        best_of=best_of,
+        vad_filter=vad_filter,
+        preprocess=preprocess,
+        config=WhisperTranscriptionConfig(
             command_model_size=COMMAND_MODEL_SIZE,
-            prompt=prompt,
             command_prompt=COMMAND_PROMPT,
             command_rescue_prompt=COMMAND_RESCUE_PROMPT,
-            beam_size=beam_size,
-            best_of=best_of,
-            prompt_hallucination_error="Nao captei com precisao.",
-            transcribe_once=_transcribe_once,
-            is_prompt_hallucination=_is_prompt_hallucination,
-            should_retry_command_transcription=_should_retry_command_transcription,
-            command_transcription_score=_command_transcription_score,
-        )
-        if not resolution.ok:
-            return VoiceResult(ok=False, error=resolution.error)
-        text = resolution.text
-
-        if info.language_probability is not None and info.language_probability < 0.25:
-            return VoiceResult(ok=True, text=text)
-
-        return VoiceResult(ok=True, text=text)
-    except Exception as exc:
-        return VoiceResult(ok=False, error=f"Falha ao transcrever audio: {exc}")
+        ),
+        audio_has_signal=_audio_has_signal,
+        preprocess_audio=_preprocess_audio,
+        save_temp_wav=_save_temp_wav,
+        get_model=_get_model,
+        resolve_transcription_text=_resolve_transcription_text_core,
+        is_prompt_hallucination=_is_prompt_hallucination,
+        should_retry_command_transcription=_should_retry_command_transcription,
+        command_transcription_score=_command_transcription_score,
+    )
+    return VoiceResult(ok=result.ok, text=result.text, error=result.error)
 
 
 def _contains_hotword(text: str, hotword: str) -> bool:
@@ -527,219 +403,38 @@ def _prepare_tts_text(text: str) -> str:
     return _prepare_tts_text_core(text, _load_tts_pronunciations())
 
 
-def _wav_duration_seconds(path: str | Path) -> float:
-    return _wav_duration_seconds_core(path)
-
-
-def _tts_cache_path(engine: str, text: str, settings: list[str]) -> Path:
-    return _tts_cache_path_core(engine, text, settings)
-
-
-def _load_piper_sample_rate(config_path: str) -> int:
-    return _load_piper_sample_rate_core(config_path)
-
-
-def _piper_worker_signature(
-    piper_exe: str,
-    model_path: str,
-    config_path: str,
-    speaker_id: str,
-    length_scale: str,
-    noise_scale: str,
-    noise_w: str,
-) -> tuple[str, ...]:
-    return _piper_worker_signature_core(
-        piper_exe,
-        model_path,
-        config_path,
-        speaker_id,
-        length_scale,
-        noise_scale,
-        noise_w,
-    )
-
-
-def _stop_piper_worker_locked():
-    global _PIPER_WORKER_PROCESS, _PIPER_WORKER_SIGNATURE, _PIPER_WORKER_WARM
-
-    process = _PIPER_WORKER_PROCESS
-    _PIPER_WORKER_PROCESS = None
-    _PIPER_WORKER_SIGNATURE = None
-    _PIPER_WORKER_WARM = False
-
-    if not process:
-        return
-
-    try:
-        if process.stdin:
-            try:
-                process.stdin.close()
-            except Exception:
-                pass
-        process.terminate()
-        process.wait(timeout=1.5)
-    except Exception:
-        try:
-            process.kill()
-        except Exception:
-            pass
-
-
-def _ensure_piper_worker(
-    settings,
-    model_path: str,
-):
-    global _PIPER_WORKER_PROCESS, _PIPER_WORKER_SIGNATURE, _PIPER_WORKER_SAMPLE_RATE, _PIPER_WORKER_WARM
-
-    signature = _piper_worker_signature(
-        settings.piper_exe,
-        model_path,
-        settings.config_path,
-        settings.speaker_id,
-        settings.length_scale,
-        settings.noise_scale,
-        settings.noise_w,
-    )
-
-    with _PIPER_WORKER_LOCK:
-        process = _PIPER_WORKER_PROCESS
-        if (
-            process is not None
-            and process.poll() is None
-            and signature == _PIPER_WORKER_SIGNATURE
-        ):
-            return process
-
-        _stop_piper_worker_locked()
-
-        command = _piper_worker_command_core(settings, model_path)
-
-        process = subprocess.Popen(
-            command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            bufsize=0,
-        )
-
-        _PIPER_WORKER_PROCESS = process
-        _PIPER_WORKER_SIGNATURE = signature
-        _PIPER_WORKER_SAMPLE_RATE = _load_piper_sample_rate(settings.config_path)
-        _PIPER_WORKER_WARM = False
-        return process
-
-
-def _piper_stdout_available(stdout) -> int:
-    try:
-        handle = msvcrt.get_osfhandle(stdout.fileno())
-        total_available = ctypes.c_ulong(0)
-        ok = kernel32.PeekNamedPipe(
-            ctypes.c_void_p(handle),
-            None,
-            0,
-            None,
-            ctypes.byref(total_available),
-            None,
-        )
-        return int(total_available.value) if ok else 0
-    except Exception:
-        return 0
-
-
-def _read_piper_stdout_chunk(stdout) -> bytes | None:
-    read_size = _piper_worker_read_size_core(_piper_stdout_available(stdout))
-    if read_size <= 0:
-        return b""
-
-    try:
-        return os.read(stdout.fileno(), read_size)
-    except Exception:
-        return None
-
-
-def _read_piper_worker_audio(process, timeout_seconds: float, idle_seconds: float):
-    global _PIPER_WORKER_WARM
-
-    result = _read_piper_worker_audio_loop_core(
-        process,
-        timeout_seconds=timeout_seconds,
-        idle_seconds=idle_seconds,
-        worker_warm=_PIPER_WORKER_WARM,
-        interrupt_pressed=speech_interrupt_pressed,
-        stop_worker=_stop_piper_worker_locked,
-        read_stdout_chunk=_read_piper_stdout_chunk,
-        monotonic=time.monotonic,
-        sleep=time.sleep,
-    )
-    _PIPER_WORKER_WARM = result.worker_warm
-    if result.error:
-        return VoiceResult(ok=False, error=result.error), result.audio_bytes
-    return None, result.audio_bytes
-
-
-def _write_raw_pcm_to_wav(output_path: str, audio_bytes: bytes, sample_rate: int):
-    _write_raw_pcm_to_wav_core(output_path, audio_bytes, sample_rate)
-
-
 def _wait_for_wav_playback(path: str | Path) -> VoiceResult | None:
-    if _wait_for_wav_playback_core(path, _wav_duration_seconds, speech_interrupt_pressed):
-        return VoiceResult(ok=False, error="Fala interrompida.")
+    result = _wait_for_wav_playback_result_core(path, speech_interrupt_pressed)
+    if result:
+        return VoiceResult(ok=result.ok, text=result.text, error=result.error)
     return None
 
 
 def _play_wav(path: str | Path) -> VoiceResult | None:
-    wait_for_playback = _TTS_WAIT_FOR_PLAYBACK_OVERRIDE
-    if wait_for_playback is None:
-        wait_for_playback = bool(VOICE_PREFERENCES.get("tts_wait_for_playback", True))
-
-    if _play_wav_core(path, _wav_duration_seconds, speech_interrupt_pressed, wait_for_playback):
-        return VoiceResult(ok=False, error="Fala interrompida.")
+    result = _play_wav_result_core(
+        path,
+        preferences=VOICE_PREFERENCES,
+        interrupt_pressed=speech_interrupt_pressed,
+        wait_for_playback=_TTS_WAIT_FOR_PLAYBACK_OVERRIDE,
+    )
+    if result:
+        return VoiceResult(ok=result.ok, text=result.text, error=result.error)
     return None
 
 
 def _play_wav_chunk(path: str | Path) -> VoiceResult | None:
-    if _play_wav_chunk_core(path, _wav_duration_seconds, speech_interrupt_pressed):
-        return VoiceResult(ok=False, error="Fala interrompida.")
+    result = _play_wav_chunk_result_core(path, speech_interrupt_pressed)
+    if result:
+        return VoiceResult(ok=result.ok, text=result.text, error=result.error)
     return None
-
-
-def _voice_effect_strength() -> float:
-    return _voice_effect_strength_core(VOICE_PREFERENCES)
 
 
 def _apply_jarvis_audio_effect(path: str):
     _apply_jarvis_audio_effect_core(path, VOICE_PREFERENCES)
 
 
-def _piper_cache_settings(
-    model_path: str,
-    config_path: str,
-    speaker_id: str,
-    length_scale: str,
-    noise_scale: str,
-    noise_w: str,
-) -> list[str]:
-    return _piper_cache_settings_core(
-        model_path,
-        config_path,
-        speaker_id,
-        length_scale,
-        noise_scale,
-        noise_w,
-        VOICE_PREFERENCES,
-    )
-
-
-def _piper_synthesis_plan(text_for_tts: str, cache_settings: list[str]):
-    return _piper_synthesis_plan_core(text_for_tts, cache_settings, VOICE_PREFERENCES)
-
-
 def _piper_tts_settings():
     return _piper_tts_settings_core(VOICE_PREFERENCES)
-
-
-def _piper_worker_runtime_settings():
-    return _piper_worker_runtime_settings_core(VOICE_PREFERENCES)
 
 
 def _validated_piper_model(settings) -> VoiceResult | Path:
@@ -755,71 +450,16 @@ def _run_piper_synthesis(
     settings,
     model: Path,
 ) -> VoiceResult | None:
-    worker_settings = _piper_worker_runtime_settings()
-
-    if worker_settings.enabled:
-        try:
-            process = _ensure_piper_worker(
-                settings,
-                str(model),
-            )
-
-            payload = _piper_worker_payload_core(text_for_tts)
-
-            with _PIPER_WORKER_LOCK:
-                _write_piper_worker_payload_core(process, payload)
-
-            interrupt_result, audio_bytes = _read_piper_worker_audio(
-                process,
-                timeout_seconds=worker_settings.timeout_seconds,
-                idle_seconds=worker_settings.idle_seconds,
-            )
-
-            if interrupt_result:
-                return interrupt_result
-
-            if audio_bytes:
-                _write_raw_pcm_to_wav(output_path, audio_bytes, _PIPER_WORKER_SAMPLE_RATE)
-                _apply_jarvis_audio_effect(output_path)
-                return None
-
-            with _PIPER_WORKER_LOCK:
-                _stop_piper_worker_locked()
-
-        except Exception as exc:
-            with _PIPER_WORKER_LOCK:
-                _stop_piper_worker_locked()
-
-            if not worker_settings.fallback_to_cli:
-                return VoiceResult(ok=False, error=f"Worker persistente do Piper falhou: {exc}")
-
-        if not worker_settings.fallback_to_cli:
-            return VoiceResult(ok=False, error="Worker persistente do Piper falhou.")
-
-    command = _piper_cli_command_core(settings, str(model), output_path)
-
-    try:
-        completed = subprocess.run(
-            command,
-            input=text_for_tts,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-        )
-    except FileNotFoundError:
-        return VoiceResult(ok=False, error=f"Piper nao encontrado: {settings.piper_exe}")
-    except subprocess.TimeoutExpired:
-        return VoiceResult(ok=False, error="Tempo limite atingido ao falar com Piper.")
-    except Exception as exc:
-        return VoiceResult(ok=False, error=f"Falha ao usar Piper: {exc}")
-
-    if completed.returncode != 0:
-        error = (completed.stderr or completed.stdout or "").strip()
-        return VoiceResult(ok=False, error=error or "Piper nao conseguiu gerar audio.")
-
-    _apply_jarvis_audio_effect(output_path)
+    result = _run_piper_synthesis_core(
+        text_for_tts,
+        output_path,
+        settings,
+        model,
+        preferences=VOICE_PREFERENCES,
+        interrupt_pressed=speech_interrupt_pressed,
+    )
+    if result:
+        return VoiceResult(ok=False, error=result.error)
     return None
 
 
@@ -830,345 +470,102 @@ def prime_piper_cache(phrases: list[str]) -> VoiceResult:
     if isinstance(model, VoiceResult):
         return model
 
-    warmed = 0
-    skipped = 0
-    errors = []
-
-    for phrase in phrases:
-        phrase = str(phrase).strip()
-        if not phrase:
-            continue
-
-        text_for_tts = _prepare_tts_text(phrase)
-        cache_path = _tts_cache_path(
-            "piper",
-            text_for_tts,
-            _piper_cache_settings(
-                str(model),
-                settings.config_path,
-                settings.speaker_id,
-                settings.length_scale,
-                settings.noise_scale,
-                settings.noise_w,
-            ),
-        )
-        if cache_path.exists():
-            skipped += 1
-            continue
-
-        command = _piper_cli_command_core(settings, str(model), str(cache_path))
-
-        try:
-            completed = subprocess.run(
-                command,
-                input=text_for_tts,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
-            )
-        except Exception as exc:
-            errors.append(str(exc))
-            continue
-
-        if completed.returncode != 0:
-            errors.append((completed.stderr or completed.stdout or "Piper falhou.").strip())
-            try:
-                cache_path.unlink(missing_ok=True)
-            except Exception:
-                pass
-            continue
-
-        _apply_jarvis_audio_effect(str(cache_path))
-        warmed += 1
-
-    if errors:
-        return VoiceResult(
-            ok=False,
-            text=f"Cache TTS: {warmed} criado(s), {skipped} ja existia(m).",
-            error=errors[0],
-        )
-
-    return VoiceResult(ok=True, text=f"Cache TTS: {warmed} criado(s), {skipped} ja existia(m).")
+    result = _prime_piper_cache_runtime_core(
+        phrases,
+        settings=settings,
+        model=model,
+        preferences=VOICE_PREFERENCES,
+        prepare_tts_text=_prepare_tts_text,
+        apply_audio_effect=_apply_jarvis_audio_effect,
+    )
+    return VoiceResult(ok=result.ok, text=result.text, error=result.error)
 
 
 def _speak_with_piper(text: str) -> VoiceResult:
-    text_for_tts = _prepare_tts_text(text)
     settings = _piper_tts_settings()
 
     model = _validated_piper_model(settings)
     if isinstance(model, VoiceResult):
         return model
 
-    cache_settings = _piper_cache_settings(
-        str(model),
-        settings.config_path,
-        settings.speaker_id,
-        settings.length_scale,
-        settings.noise_scale,
-        settings.noise_w,
+    result = _speak_with_piper_runtime_core(
+        text,
+        settings=settings,
+        model=model,
+        preferences=VOICE_PREFERENCES,
+        prepare_tts_text=_prepare_tts_text,
+        run_piper_synthesis=_run_piper_synthesis,
+        play_wav=_play_wav,
+        play_wav_chunk=_play_wav_chunk,
     )
-
-    plan = _piper_synthesis_plan(text_for_tts, cache_settings)
-
-    cache_path = None
-    if plan.cache_enabled:
-        cache_path = _tts_cache_path(
-            "piper",
-            plan.text,
-            plan.cache_settings,
-        )
-        if cache_path.exists():
-            interrupted = _play_wav(cache_path)
-            if interrupted:
-                return interrupted
-            return VoiceResult(ok=True, text=text)
-
-    if plan.should_chunk:
-        for chunk_text in plan.chunks:
-            chunk_cache_path = None
-            if plan.cache_enabled:
-                chunk_cache_path = _tts_cache_path("piper", chunk_text, plan.cache_settings)
-                if chunk_cache_path.exists():
-                    interrupted = _play_wav_chunk(chunk_cache_path)
-                    if interrupted:
-                        return interrupted
-                    continue
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
-                chunk_output_path = temp_file.name
-
-            try:
-                error_result = _run_piper_synthesis(
-                    chunk_text,
-                    chunk_output_path,
-                    settings,
-                    model,
-                )
-                if error_result:
-                    return error_result
-
-                play_path = chunk_output_path
-                if chunk_cache_path:
-                    shutil.copy2(chunk_output_path, chunk_cache_path)
-                    play_path = str(chunk_cache_path)
-
-                interrupted = _play_wav_chunk(play_path)
-                if interrupted:
-                    return interrupted
-            finally:
-                try:
-                    Path(chunk_output_path).unlink(missing_ok=True)
-                except Exception:
-                    pass
-
-        return VoiceResult(ok=True, text=text)
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
-        output_path = temp_file.name
-
-    try:
-        error_result = _run_piper_synthesis(
-            plan.text,
-            output_path,
-            settings,
-            model,
-        )
-        if error_result:
-            return error_result
-        play_path = output_path
-        if cache_path:
-            shutil.copy2(output_path, cache_path)
-            play_path = str(cache_path)
-
-        interrupted = _play_wav(play_path)
-        if interrupted:
-            return interrupted
-
-        return VoiceResult(ok=True, text=text)
-    finally:
-        try:
-            Path(output_path).unlink(missing_ok=True)
-        except Exception:
-            pass
+    return VoiceResult(ok=result.ok, text=result.text, error=result.error)
 
 
 def _speak_with_gemini(text: str) -> VoiceResult:
-    text_for_tts = _prepare_tts_text(text)
-    timeout_seconds = _int_pref("gemini_tts_timeout_seconds", 60, 10, 180)
-    plan = _gemini_tts_plan_core(text_for_tts, VOICE_PREFERENCES, timeout_seconds)
-
-    cache_path = None
-    if plan.cache_enabled:
-        cache_path = _tts_cache_path(
-            "gemini",
-            plan.text,
-            plan.cache_settings,
-        )
-        if cache_path.exists():
-            interrupted = _play_wav(cache_path)
-            if interrupted:
-                return interrupted
-            return VoiceResult(ok=True, text=text)
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
-        output_path = temp_file.name
-
-    try:
-        synthesize_gemini_tts_to_wav(
-            plan.text,
-            output_path,
-            voice_name=plan.voice_name,
-            language_code=plan.language_code,
-            timeout_seconds=plan.timeout_seconds,
-        )
-        _apply_jarvis_audio_effect(output_path)
-
-        play_path = output_path
-        if cache_path:
-            shutil.copy2(output_path, cache_path)
-            play_path = str(cache_path)
-
-        interrupted = _play_wav(play_path)
-        if interrupted:
-            return interrupted
-
-        return VoiceResult(ok=True, text=text)
-    except Exception as exc:
-        return VoiceResult(ok=False, error=f"Gemini TTS falhou: {exc}")
-    finally:
-        try:
-            Path(output_path).unlink(missing_ok=True)
-        except Exception:
-            pass
+    result = _speak_with_gemini_runtime_core(
+        text,
+        preferences=VOICE_PREFERENCES,
+        prepare_tts_text=_prepare_tts_text,
+        int_pref=_int_pref,
+        interrupt_pressed=speech_interrupt_pressed,
+        wait_for_playback=_TTS_WAIT_FOR_PLAYBACK_OVERRIDE,
+    )
+    return VoiceResult(ok=result.ok, text=result.text, error=result.error)
 
 
 def _speak_with_windows(text: str, culture: str | None = None) -> VoiceResult:
-    plan = _windows_tts_plan_core(text, culture, VOICE_PREFERENCES, POWERSHELL_EXE)
-
-    try:
-        process = subprocess.Popen(
-            plan.command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        monitor_result = _monitor_windows_tts_process_core(
-            process,
-            speech_interrupt_pressed,
-            time.monotonic,
-            time.sleep,
-        )
-    except Exception as exc:
-        return VoiceResult(ok=False, error=f"Falha ao iniciar voz sintetizada: {exc}")
-
-    if monitor_result.error:
-        return VoiceResult(ok=False, error=monitor_result.error)
-
-    error = _windows_tts_error_core(monitor_result.completed)
-    if error:
-        return VoiceResult(ok=False, error=error)
-
-    return VoiceResult(ok=True, text=text)
+    result = _speak_with_windows_runtime_core(
+        text,
+        culture=culture,
+        preferences=VOICE_PREFERENCES,
+        powershell_exe=POWERSHELL_EXE,
+        interrupt_pressed=speech_interrupt_pressed,
+    )
+    return VoiceResult(ok=result.ok, text=result.text, error=result.error)
 
 
 def listen_for_hotword(hotword: str = HOTWORD) -> VoiceResult:
-    listen_plan = _hotword_listen_plan()
-    hotword_plan = _hotword_transcription_plan()
-    command_plan = _command_transcription_plan()
-
-    try:
-        audio = _record_audio(
-            listen_plan.timeout_seconds,
-            min_speech_seconds=listen_plan.min_speech_seconds,
-            max_silence_seconds=listen_plan.max_silence_seconds,
-        )
-    except Exception as exc:
-        return VoiceResult(ok=False, error=f"Falha ao acessar o microfone: {exc}")
-
-    result = _transcribe_audio(
-        audio=audio,
-        model_size=hotword_plan.model_size,
-        prompt=hotword_plan.prompt,
-        beam_size=hotword_plan.beam_size,
-        best_of=hotword_plan.best_of,
-        vad_filter=hotword_plan.vad_filter,
-    )
-
-    if not result.ok:
-        return result
-
-    def _transcribe_inline_command():
-        return _transcribe_audio(
-            audio=audio,
-            model_size=command_plan.model_size,
-            prompt=command_plan.prompt,
-            beam_size=command_plan.beam_size,
-            best_of=command_plan.best_of,
-            vad_filter=command_plan.vad_filter,
-        )
-
-    hotword_resolution = _resolve_hotword_detection_core(
-        hotword_text=result.text,
+    result = _listen_for_hotword_core(
         hotword=hotword,
+        listen_plan=_hotword_listen_plan(),
+        hotword_plan=_hotword_transcription_plan(),
+        command_plan=_command_transcription_plan(),
+        record_audio=_record_audio,
+        transcribe_audio=_transcribe_audio,
+        resolve_hotword_detection=_resolve_hotword_detection_core,
         contains_hotword=_contains_hotword,
-        transcribe_command=_transcribe_inline_command,
         extract_inline_command=_extract_inline_command,
     )
-    if hotword_resolution.ok:
+    if result.ok:
         return VoiceResult(
             ok=True,
-            text=hotword_resolution.text,
-            command_text=hotword_resolution.command_text,
+            text=result.text,
+            command_text=result.command_text,
         )
 
-    return VoiceResult(ok=False, error=hotword_resolution.error)
+    return VoiceResult(ok=False, error=result.error)
 
 
 def listen_once(timeout_seconds: int = 6, culture: str = "pt") -> VoiceResult:
     del culture
-    plan = _command_transcription_plan()
-
-    try:
-        audio = _record_audio(timeout_seconds)
-    except Exception as exc:
-        return VoiceResult(ok=False, error=f"Falha ao acessar o microfone: {exc}")
-
-    return _transcribe_audio(
-        audio=audio,
-        model_size=plan.model_size,
-        prompt=plan.prompt,
-        beam_size=plan.beam_size,
-        best_of=plan.best_of,
-        vad_filter=plan.vad_filter,
+    result = _listen_once_core(
+        timeout_seconds=timeout_seconds,
+        transcription_plan=_command_transcription_plan(),
+        record_audio=_record_audio,
+        transcribe_audio=_transcribe_audio,
     )
+    return VoiceResult(ok=result.ok, text=result.text, error=result.error)
 
 
 def listen_conversation_once(timeout_seconds: float | None = None, culture: str = "pt") -> VoiceResult:
     del culture
-    listen_plan = _conversation_listen_plan(timeout_seconds)
-    transcription_plan = _conversation_transcription_plan()
-
-    try:
-        audio = _record_audio(
-            listen_plan.timeout_seconds,
-            min_speech_seconds=listen_plan.min_speech_seconds,
-            max_silence_seconds=listen_plan.max_silence_seconds,
-        )
-    except Exception as exc:
-        return VoiceResult(ok=False, error=f"Falha ao acessar o microfone: {exc}")
-
-    return _transcribe_audio(
-        audio=audio,
-        model_size=transcription_plan.model_size,
-        prompt=transcription_plan.prompt,
-        beam_size=transcription_plan.beam_size,
-        best_of=transcription_plan.best_of,
-        vad_filter=transcription_plan.vad_filter,
+    result = _listen_conversation_once_core(
+        listen_plan=_conversation_listen_plan(timeout_seconds),
+        transcription_plan=_conversation_transcription_plan(),
+        record_audio=_record_audio,
+        transcribe_audio=_transcribe_audio,
     )
+    return VoiceResult(ok=result.ok, text=result.text, error=result.error)
 
 
 def speak(

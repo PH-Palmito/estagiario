@@ -21,6 +21,11 @@ class RouterDailyTests(unittest.TestCase):
 
         self.assertEqual(result, {"intent": "daily_briefing", "target": None})
 
+    def test_detects_background_briefing(self):
+        result = detect_briefing_command("briefing em segundo plano")
+
+        self.assertEqual(result, {"intent": "background_daily_briefing", "target": None})
+
     def test_detects_daily_routine(self):
         result = detect_briefing_command("comecar meu dia")
 

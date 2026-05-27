@@ -2,9 +2,11 @@ import json
 import re
 import subprocess
 import time
+import hashlib
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from core.cache_policy import VISION_SCREEN_CACHE_POLICY, is_cache_fresh
 from llm.ollama_client import ask_model
 from llm.vision_client import ask_vision_model, installed_vision_models, vision_unavailable_message
 from memory.vision_history import remember_vision_analysis
@@ -13,9 +15,58 @@ ROOT = Path(__file__).resolve().parents[1]
 POWERSHELL_EXE = "powershell"
 SUPPORTED_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".svg"}
 SCREENSHOT_DIR = ROOT / ".tmp" / "screenshots"
+VISION_SCREEN_CACHE_PATH = ROOT / VISION_SCREEN_CACHE_POLICY.path
+DEFAULT_VISION_SCREEN_CACHE_TTL_SECONDS = VISION_SCREEN_CACHE_POLICY.ttl_seconds
 # Keep visual analysis inexpensive by default, but let chart mode use a visual
 # model when one is installed because graphs need semantic reading.
 LOW_COST_IMAGE_MODE = True
+
+
+def _file_hash(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _read_screen_analysis_cache(mode: str, image_hash: str, ttl_seconds: int) -> str | None:
+    try:
+        payload = json.loads(VISION_SCREEN_CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    created_at = payload.get("created_at")
+    text = str(payload.get("text") or "").strip()
+    if not isinstance(created_at, (int, float)) or not text:
+        return None
+    if str(payload.get("mode") or "") != str(mode or "general"):
+        return None
+    if str(payload.get("image_hash") or "") != str(image_hash or ""):
+        return None
+    if not is_cache_fresh(created_at, ttl_seconds, now=time.time()):
+        return None
+    return text
+
+
+def _write_screen_analysis_cache(mode: str, image_hash: str, text: str) -> None:
+    try:
+        VISION_SCREEN_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        VISION_SCREEN_CACHE_PATH.write_text(
+            json.dumps(
+                {
+                    "created_at": time.time(),
+                    "mode": str(mode or "general"),
+                    "image_hash": image_hash,
+                    "text": str(text or ""),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
 
 
 def _should_use_vision_model(mode: str = "general") -> bool:
@@ -1040,7 +1091,12 @@ def analyze_graph_target(path: str | None = None) -> str:
     return analyze_image_target(path, mode="chart")
 
 
-def analyze_screen_image(mode: str = "general") -> str:
+def analyze_screen_image(
+    mode: str = "general",
+    *,
+    use_cache: bool = True,
+    ttl_seconds: int = DEFAULT_VISION_SCREEN_CACHE_TTL_SECONDS,
+) -> str:
     browser_image = _browser_local_image_from_foreground()
     if browser_image:
         return analyze_image_target(str(browser_image), mode=mode)
@@ -1053,6 +1109,12 @@ def analyze_screen_image(mode: str = "general") -> str:
         if content_crop:
             analysis_path = content_crop
 
+        image_hash = _file_hash(analysis_path)
+        if use_cache:
+            cached = _read_screen_analysis_cache(mode, image_hash, ttl_seconds)
+            if cached:
+                return cached
+
         result = _ocr_image(analysis_path)
         try:
             semantic = _semantic_image_analysis(
@@ -1063,6 +1125,8 @@ def analyze_screen_image(mode: str = "general") -> str:
             )
             if semantic:
                 _remember_visual_result("tela", semantic, details={"kind": "screen", "mode": mode})
+                if use_cache:
+                    _write_screen_analysis_cache(mode, image_hash, semantic)
                 return semantic
         except Exception as exc:
             return vision_unavailable_message(exc) + " " + _format_image_analysis(
@@ -1072,6 +1136,8 @@ def analyze_screen_image(mode: str = "general") -> str:
 
         response = _format_image_analysis(result, prefix="OCR da tela")
         _remember_visual_result("tela", response, details={"kind": "screen", "mode": mode})
+        if use_cache:
+            _write_screen_analysis_cache(mode, image_hash, response)
         return response
     except Exception as exc:
         return f"Não consegui analisar a imagem da tela: {exc}"

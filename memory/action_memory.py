@@ -1,27 +1,20 @@
 from __future__ import annotations
 
-import json
-import os
 import time
 from pathlib import Path
 from typing import Any
+
+from memory.json_store import read_json_file, update_json_file, write_json_atomic
 
 MEMORY_PATH = Path(__file__).resolve().parent / "action_memory.json"
 
 
 def _load() -> dict[str, Any]:
-    try:
-        data = json.loads(MEMORY_PATH.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
+    return read_json_file(MEMORY_PATH, {}, validator=lambda value: isinstance(value, dict))
 
 
 def _save(payload: dict[str, Any]) -> None:
-    MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = MEMORY_PATH.with_name(f"{MEMORY_PATH.stem}.{time.time_ns()}.tmp")
-    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp_path, MEMORY_PATH)
+    write_json_atomic(MEMORY_PATH, payload, indent=2, trailing_newline=True)
 
 
 def remember_memory(namespace: str, key: str, value: Any, tags: list[str] | None = None) -> dict[str, Any]:
@@ -30,14 +23,25 @@ def remember_memory(namespace: str, key: str, value: Any, tags: list[str] | None
     if not key:
         return {"ok": False, "error": "Chave vazia."}
 
-    data = _load()
-    bucket = data.setdefault(namespace, {})
-    bucket[key] = {
+    item = {
         "value": value,
         "tags": [str(tag) for tag in (tags or []) if str(tag).strip()],
         "updated_at": time.time(),
     }
-    _save(data)
+
+    def write_item(data: dict[str, Any]) -> dict[str, Any]:
+        bucket = data.setdefault(namespace, {})
+        bucket[key] = item
+        return data
+
+    update_json_file(
+        MEMORY_PATH,
+        {},
+        write_item,
+        validator=lambda loaded: isinstance(loaded, dict),
+        indent=2,
+        trailing_newline=True,
+    )
     return {"ok": True, "namespace": namespace, "key": key}
 
 

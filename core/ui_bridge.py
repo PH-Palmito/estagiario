@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from datetime import datetime
 from collections.abc import Callable
 from pathlib import Path
 
@@ -27,6 +28,24 @@ class UIBridge:
         self.process_action = process_action
         self.training_snapshot = training_snapshot
         self.hud_started = False
+        self.hud_log_handle = None
+
+    def _hud_log_path(self) -> Path:
+        return self.root_dir / "memory" / "ui_hud.log"
+
+    def _open_hud_log(self):
+        try:
+            self._hud_log_path().parent.mkdir(parents=True, exist_ok=True)
+            if self.hud_log_handle:
+                try:
+                    self.hud_log_handle.close()
+                except Exception:
+                    pass
+            self.hud_log_handle = self._hud_log_path().open("a", encoding="utf-8", buffering=1)
+            self.hud_log_handle.write(f"\n[{datetime.now().isoformat(timespec='seconds')}] launching HUD\n")
+            return self.hud_log_handle
+        except Exception:
+            return subprocess.DEVNULL
 
     def refresh_runtime_state(self, extra: dict | None = None) -> None:
         try:
@@ -47,12 +66,13 @@ class UIBridge:
         python_exec = str(pythonw if pythonw.exists() else Path(self.python_executable))
 
         try:
+            hud_log = self._open_hud_log()
             subprocess.Popen(
                 [python_exec, "-m", "ui.qt_axel_hud"],
                 cwd=str(self.root_dir),
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=hud_log,
+                stderr=subprocess.STDOUT,
             )
             self.hud_started = True
         except Exception:

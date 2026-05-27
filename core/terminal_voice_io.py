@@ -135,9 +135,14 @@ class TerminalVoiceIO:
         listen_for_hotword: Callable[[], object],
         output_response: Callable[..., None],
         refresh_ui_runtime_state: Callable[[], None],
+        idle_sleep_seconds: Callable[[], float] | None = None,
     ) -> tuple[bool, bool, str]:
         if not hotword_mode:
             return True, voice_paused, ""
+
+        def idle_sleep() -> None:
+            delay = idle_sleep_seconds() if idle_sleep_seconds is not None else 0.08
+            self.sleep_fn(max(0.02, float(delay)))
 
         while True:
             maybe_announce_due_reminders(voice_mode)
@@ -166,7 +171,7 @@ class TerminalVoiceIO:
                 continue
 
             if voice_paused:
-                self.sleep_fn(0.08)
+                idle_sleep()
                 continue
 
             if consume_hotkey_press():
@@ -176,7 +181,7 @@ class TerminalVoiceIO:
                 return True, voice_paused, ""
 
             if not hotword_listening_enabled:
-                self.sleep_fn(0.08)
+                idle_sleep()
                 continue
 
             heard = listen_for_hotword()

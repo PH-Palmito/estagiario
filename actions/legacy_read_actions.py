@@ -8,20 +8,11 @@ from memory.action_memory import list_memory_entries, recall_memory
 from memory.agenda import list_agenda_all, list_agenda_today, list_agenda_tomorrow
 from memory.reminders import list_reminders
 from memory.vision_history import format_vision_history
+from services import briefing_service, investment_service, vision_service
 from tools.bluetooth_tools import bluetooth_status
-from tools.briefing_tools import daily_briefing, daily_routine
 from tools.file_tools import list_files, read_file
-from tools.investment_tools import (
-    investment_financial_report,
-    investment_get_auto_ceiling_settings,
-    investment_list_watchlist,
-    investment_memory_answer,
-    investment_memory_status,
-    investment_memory_summary,
-)
 from tools.smart_open_tools import list_smart_memory
 from tools.system_tools import windows_startup_status
-from tools.vision_tools import active_vision_model, last_visual_analysis, vision_status
 from tools.weather_tools import weather_summary
 
 
@@ -81,8 +72,8 @@ def _register(
 
 
 def register_legacy_read_actions() -> None:
-    _register("daily_briefing", "Gera o briefing diario curto.", lambda _args: daily_briefing(), category="briefing")
-    _register("daily_routine", "Gera a rotina diaria acionavel.", lambda _args: daily_routine(), category="briefing")
+    _register("daily_briefing", "Gera o briefing diario curto.", lambda _args: briefing_service.daily_briefing(), category="briefing")
+    _register("daily_routine", "Gera a rotina diaria acionavel.", lambda _args: briefing_service.daily_routine(), category="briefing")
     _register(
         "weather_summary",
         "Consulta resumo de clima para uma localidade.",
@@ -104,24 +95,25 @@ def register_legacy_read_actions() -> None:
     _register(
         "investment_memory_answer",
         "Responde pergunta usando memoria local de investimentos.",
-        lambda args: investment_memory_answer(args.get("question", "")),
+        lambda args: investment_service.investment_answer(args.get("question", "")),
         {"question": {"type": "string", "description": "Pergunta sobre investimentos.", "required": True}},
         category="investments",
     )
-    _register("investment_memory_summary", "Resume a carteira salva.", lambda _args: investment_memory_summary(), category="investments")
-    _register("investment_financial_report", "Gera relatorio financeiro da carteira.", lambda _args: investment_financial_report(), category="investments")
-    _register("investment_memory_status", "Mostra status da memoria de investimentos.", lambda _args: investment_memory_status(), category="investments")
-    _register("investment_list_watchlist", "Lista watchlist de investimentos.", lambda _args: investment_list_watchlist(), category="investments")
+    _register("investment_memory_summary", "Resume a carteira salva.", lambda _args: investment_service.investment_summary(), category="investments")
+    _register("investment_financial_report", "Gera relatorio financeiro da carteira.", lambda _args: investment_service.investment_report(), category="investments")
+    _register("investment_portfolio_monitor", "Executa monitor proativo local da carteira.", lambda _args: investment_service.investment_monitor(), category="investments")
+    _register("investment_memory_status", "Mostra status da memoria de investimentos.", lambda _args: investment_service.investment_status(), category="investments")
+    _register("investment_list_watchlist", "Lista watchlist de investimentos.", lambda _args: investment_service.list_watchlist(), category="investments")
     _register(
         "investment_get_auto_ceiling_settings",
         "Mostra configuracao de preco-teto automatico.",
-        lambda _args: investment_get_auto_ceiling_settings(),
+        lambda _args: investment_service.get_auto_ceiling_settings(),
         category="investments",
     )
     _register("bluetooth_status", "Mostra status do Bluetooth.", lambda _args: bluetooth_status(), category="system")
-    _register("vision_status", "Mostra status do modelo visual.", lambda _args: vision_status(), category="vision")
-    _register("vision_active_model", "Mostra o modelo visual ativo.", lambda _args: active_vision_model(), category="vision")
-    _register("vision_last_analysis", "Mostra a ultima analise visual salva.", lambda _args: last_visual_analysis(), category="vision")
+    _register("vision_status", "Mostra status do modelo visual.", lambda _args: vision_service.vision_status(), category="vision")
+    _register("vision_active_model", "Mostra o modelo visual ativo.", lambda _args: vision_service.active_vision_model(), category="vision")
+    _register("vision_last_analysis", "Mostra a ultima analise visual salva.", lambda _args: vision_service.last_visual_analysis(), category="vision")
     _register("vision_history", "Mostra historico visual recente.", lambda _args: format_vision_history(), category="vision")
     _register("list_files", "Lista arquivos de uma pasta.", lambda args: list_files(args.get("path", "")), category="files")
     _register(

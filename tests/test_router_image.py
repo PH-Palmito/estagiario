@@ -22,10 +22,22 @@ class RouterImageTests(unittest.TestCase):
             {"intent": "image_analyze_screen_graph", "target": None},
         )
 
+    def test_background_screen_graph_analysis(self):
+        self.assertEqual(
+            detect_image_analysis_command("analisar grafico em segundo plano"),
+            {"intent": "background_vision_screen_graph", "target": None},
+        )
+
     def test_screen_image_analysis(self):
         self.assertEqual(
             detect_image_analysis_command("interpretar imagem"),
             {"intent": "image_analyze_screen", "target": None},
+        )
+
+    def test_background_screen_image_analysis(self):
+        self.assertEqual(
+            detect_image_analysis_command("analisar tela em segundo plano"),
+            {"intent": "background_vision_screen", "target": None},
         )
 
     def test_graph_file_analysis_keeps_original_target(self):

@@ -1,8 +1,11 @@
 import re
+import json
 import threading
 import time
+from pathlib import Path
 
 from config import INVESTIDOR10_PRIVATE_WALLET_URL, INVESTIDOR10_WALLET_URL, INVESTMENT_BACKGROUND_REFRESH_ENABLED
+from core.cache_policy import INVESTMENT_REPORT_CACHE_POLICY, INVESTMENT_SUMMARY_CACHE_POLICY, is_cache_fresh
 from memory.investment_snapshot import (
     answer_investment_snapshot_question,
     format_investment_financial_report,
@@ -29,8 +32,45 @@ INVESTMENT_MODE_REFRESH_SECONDS = 6 * 60 * 60
 ASSET_FOCUS_REFRESH_SECONDS = 2 * 60 * 60
 BACKGROUND_REFRESH_SECONDS = 15 * 60 * 60
 BACKGROUND_REFRESH_POLL_SECONDS = 10 * 60
+INVESTMENT_SUMMARY_CACHE_PATH = INVESTMENT_SUMMARY_CACHE_POLICY.path
+INVESTMENT_REPORT_CACHE_PATH = INVESTMENT_REPORT_CACHE_POLICY.path
+DEFAULT_INVESTMENT_CACHE_TTL_SECONDS = INVESTMENT_SUMMARY_CACHE_POLICY.ttl_seconds
 _BACKGROUND_REFRESH_STARTED = False
 _BACKGROUND_REFRESH_LOCK = threading.Lock()
+
+
+def _read_text_cache(path: Path, ttl_seconds: int) -> str | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    created_at = payload.get("created_at")
+    text = str(payload.get("text") or "").strip()
+    if not isinstance(created_at, (int, float)) or not text:
+        return None
+    if not is_cache_fresh(created_at, ttl_seconds, now=time.time()):
+        return None
+    return text
+
+
+def _write_text_cache(path: Path, text: str) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"created_at": time.time(), "text": str(text or "")}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
+def _clear_investment_caches() -> None:
+    for path in (INVESTMENT_SUMMARY_CACHE_PATH, INVESTMENT_REPORT_CACHE_PATH):
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 def _extract_ticker(question: str) -> str:
@@ -60,6 +100,7 @@ def _try_visible_wallet_refresh() -> dict:
         from tools.browser_tools import _visible_wallet_capture_summary
 
         _visible_wallet_capture_summary(wallet_url, close_tab=True)
+        _clear_investment_caches()
     except Exception:
         pass
 
@@ -79,7 +120,9 @@ def _ensure_investment_snapshot_for_question(question: str) -> dict:
 
     if missing_asset_context or is_wallet_snapshot_stale(snapshot, max_age_seconds=ASSET_FOCUS_REFRESH_SECONDS):
         try:
-            return refresh_wallet_snapshot_auto(force=True)
+            refreshed = refresh_wallet_snapshot_auto(force=True)
+            _clear_investment_caches()
+            return refreshed
         except Exception:
             refreshed = _try_visible_wallet_refresh()
             if refreshed.get("updated_at") and not is_wallet_snapshot_stale(
@@ -100,11 +143,24 @@ def _background_refresh_once() -> dict:
     try:
         refreshed = refresh_wallet_snapshot_auto(force=True)
         if not is_wallet_snapshot_stale(refreshed, max_age_seconds=BACKGROUND_REFRESH_SECONDS):
+            _clear_investment_caches()
+            _run_background_portfolio_monitor()
             return refreshed
     except Exception:
         pass
 
-    return _try_visible_wallet_refresh()
+    refreshed = _try_visible_wallet_refresh()
+    _run_background_portfolio_monitor()
+    return refreshed
+
+
+def _run_background_portfolio_monitor() -> None:
+    try:
+        from services.investment_monitor_service import run_portfolio_monitor_once
+
+        run_portfolio_monitor_once(notify=True)
+    except Exception:
+        pass
 
 
 def _background_refresh_worker():
@@ -139,14 +195,38 @@ def investment_background_refresh_status() -> dict:
     }
 
 
-def investment_memory_summary():
+def _build_investment_memory_summary() -> str:
     _ensure_investment_snapshot_for_mode()
     return format_investment_snapshot_summary()
 
 
-def investment_financial_report():
+def investment_memory_summary(*, use_cache: bool = True, ttl_seconds: int = DEFAULT_INVESTMENT_CACHE_TTL_SECONDS):
+    if use_cache:
+        cached = _read_text_cache(INVESTMENT_SUMMARY_CACHE_PATH, ttl_seconds)
+        if cached:
+            return cached
+
+    summary = _build_investment_memory_summary()
+    if use_cache:
+        _write_text_cache(INVESTMENT_SUMMARY_CACHE_PATH, summary)
+    return summary
+
+
+def _build_investment_financial_report() -> str:
     _ensure_investment_snapshot_for_mode()
     return format_investment_financial_report()
+
+
+def investment_financial_report(*, use_cache: bool = True, ttl_seconds: int = DEFAULT_INVESTMENT_CACHE_TTL_SECONDS):
+    if use_cache:
+        cached = _read_text_cache(INVESTMENT_REPORT_CACHE_PATH, ttl_seconds)
+        if cached:
+            return cached
+
+    report = _build_investment_financial_report()
+    if use_cache:
+        _write_text_cache(INVESTMENT_REPORT_CACHE_PATH, report)
+    return report
 
 
 def investment_memory_answer(question: str):
@@ -167,10 +247,13 @@ def investment_memory_status():
 def investment_refresh_public_wallet():
     try:
         snapshot = refresh_wallet_snapshot_auto(force=True)
+        _clear_investment_caches()
         summary = str(snapshot.get("summary", "")).strip()
         return summary or format_public_wallet_refresh_result(force=True)
     except Exception:
-        return format_public_wallet_refresh_result(force=True)
+        result = format_public_wallet_refresh_result(force=True)
+        _clear_investment_caches()
+        return result
 
 
 def investment_set_price_ceiling(ticker: str, price: str):

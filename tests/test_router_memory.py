@@ -46,6 +46,16 @@ class RouterMemoryTests(unittest.TestCase):
 
         self.assertEqual(result, {"intent": "action_tool_list", "target": "memory"})
 
+    def test_detects_memory_backup_shortcuts(self):
+        self.assertEqual(
+            detect_action_core_command("backup da memoria"),
+            {"intent": "action_tool_execute", "target": {"name": "memory.backup.create", "arguments": {}}},
+        )
+        self.assertEqual(
+            detect_action_core_command("backups da memoria"),
+            {"intent": "action_tool_execute", "target": {"name": "memory.backup.list", "arguments": {}}},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

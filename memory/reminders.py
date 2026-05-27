@@ -1,43 +1,39 @@
 from __future__ import annotations
 
-import json
-import os
 import re
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from memory.current_topic import load_current_topic
+from memory.json_store import read_json_file, update_json_file, write_json_atomic
 from memory.supabase_sync import sync_memory_state_safely
 
 REMINDERS_PATH = Path("memory/reminders.json")
 
 
-def _load_json(path: Path):
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
-
-
-def _save_json(path: Path, payload: dict):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    content = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
-    tmp_path = path.with_name(f"{path.stem}.{time.time_ns()}.tmp")
-    tmp_path.write_text(content, encoding="utf-8")
-    os.replace(tmp_path, path)
-
-
 def load_reminders() -> dict:
-    data = _load_json(REMINDERS_PATH)
+    data = read_json_file(REMINDERS_PATH, {}, validator=lambda value: isinstance(value, dict))
     items = data.get("items") if isinstance(data.get("items"), list) else []
     return {"items": items}
 
 
 def save_reminders(data: dict) -> dict:
     payload = {"items": list((data or {}).get("items") or [])}
-    _save_json(REMINDERS_PATH, payload)
+    write_json_atomic(REMINDERS_PATH, payload, indent=2, trailing_newline=True)
+    sync_memory_state_safely("reminders", payload, category="reminders")
+    return payload
+
+
+def _update_reminders(updater) -> dict:
+    payload = update_json_file(
+        REMINDERS_PATH,
+        {"items": []},
+        lambda data: {"items": list((updater({"items": list((data or {}).get("items") or [])}) or {}).get("items") or [])},
+        validator=lambda value: isinstance(value, dict),
+        indent=2,
+        trailing_newline=True,
+    )
     sync_memory_state_safely("reminders", payload, category="reminders")
     return payload
 
@@ -160,8 +156,6 @@ def add_reminder(raw_text: str) -> str:
     if due_at is None:
         return "Quando devo lembrar isso?"
 
-    data = load_reminders()
-    items = data.get("items") or []
     reminder = {
         "id": str(time.time_ns()),
         "text": text,
@@ -169,9 +163,7 @@ def add_reminder(raw_text: str) -> str:
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "notified_at": "",
     }
-    items.append(reminder)
-    items.sort(key=lambda item: str(item.get("due_at", "")))
-    save_reminders({"items": items})
+    _update_reminders(lambda data: {"items": sorted([*(data.get("items") or []), reminder], key=lambda item: str(item.get("due_at", "")))})
     return f"Combinado. Vou lembrar { _format_due_at(due_at) }: {text}."
 
 
@@ -208,32 +200,29 @@ def remove_reminder(index_text: str) -> str:
 
     removed = pending[index - 1]
     removed_id = removed.get("id")
-    remaining = [item for item in (data.get("items") or []) if item.get("id") != removed_id]
-    save_reminders({"items": remaining})
+    _update_reminders(lambda current: {"items": [item for item in (current.get("items") or []) if item.get("id") != removed_id]})
     return f"Removi o lembrete: {removed.get('text', 'item sem titulo')}."
 
 
 def consume_due_reminders(now: datetime | None = None, limit: int = 3) -> list[dict]:
     now = now or datetime.now()
-    data = load_reminders()
-    items = data.get("items") or []
     due = []
-    changed = False
 
-    for item in items:
-        if item.get("notified_at"):
-            continue
-        try:
-            due_at = datetime.fromisoformat(str(item.get("due_at", "")))
-        except Exception:
-            continue
-        if due_at <= now:
-            item["notified_at"] = now.isoformat(timespec="seconds")
-            due.append(dict(item))
-            changed = True
-        if len(due) >= limit:
-            break
+    def mark_due(data: dict) -> dict:
+        items = data.get("items") or []
+        for item in items:
+            if item.get("notified_at"):
+                continue
+            try:
+                due_at = datetime.fromisoformat(str(item.get("due_at", "")))
+            except Exception:
+                continue
+            if due_at <= now:
+                item["notified_at"] = now.isoformat(timespec="seconds")
+                due.append(dict(item))
+            if len(due) >= limit:
+                break
+        return {"items": items}
 
-    if changed:
-        save_reminders({"items": items})
+    _update_reminders(mark_due)
     return due

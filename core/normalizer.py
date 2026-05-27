@@ -1,4 +1,5 @@
 from core.command_schema import Command
+from core.permission_policy import action_requires_confirmation
 
 
 def normalize_action(old_action: dict) -> Command:
@@ -166,6 +167,13 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent == "background_daily_briefing":
+        return Command(
+            action="background_daily_briefing",
+            params={},
+            source="router",
+        )
+
     if intent == "daily_routine":
         return Command(
             action="daily_routine",
@@ -177,10 +185,22 @@ def normalize_action(old_action: dict) -> Command:
         "windows_startup_enable",
         "windows_startup_disable",
         "windows_startup_status",
+        "background_status",
+        "background_latest_result",
+        "background_notifications",
+        "whatsapp.status",
+        "whatsapp.start_local_bridge",
     }:
         return Command(
             action=intent,
             params={},
+            source="router",
+        )
+
+    if intent == "whatsapp.simulate_message":
+        return Command(
+            action="whatsapp.simulate_message",
+            params={"text": target},
             source="router",
         )
 
@@ -306,6 +326,7 @@ def normalize_action(old_action: dict) -> Command:
         "browser_open_wallet_and_summarize",
         "investment_memory_summary",
         "investment_financial_report",
+        "investment_portfolio_monitor",
         "investment_memory_status",
         "browser_read_selection",
         "browser_read_selected_products",
@@ -317,6 +338,9 @@ def normalize_action(old_action: dict) -> Command:
         "browser_zoom_reset",
         "image_analyze_screen_graph",
         "image_analyze_clipboard",
+        "background_vision_screen",
+        "background_vision_screen_graph",
+        "background_investment_report",
         "vision_status",
         "vision_install_hint",
         "vision_download_light_model",
@@ -422,6 +446,14 @@ def normalize_action(old_action: dict) -> Command:
             requires_confirmation=True,
         )
 
+    if intent == "background_investment_refresh":
+        return Command(
+            action="background_investment_refresh",
+            params={},
+            source="router",
+            requires_confirmation=True,
+        )
+
     if intent == "investment_set_price_ceiling":
         return Command(
             action="investment_set_price_ceiling",
@@ -492,15 +524,6 @@ def normalize_action(old_action: dict) -> Command:
     if intent == "action_tool_execute":
         payload = target if isinstance(target, dict) else {}
         name = payload.get("name")
-        requires_confirmation = False
-        try:
-            from actions import ensure_default_actions, get_action
-
-            ensure_default_actions()
-            spec = get_action(name)
-            requires_confirmation = bool(getattr(spec, "requires_confirmation", False)) if spec else False
-        except Exception:
-            requires_confirmation = False
         return Command(
             action="action_tool_execute",
             params={
@@ -508,7 +531,7 @@ def normalize_action(old_action: dict) -> Command:
                 "arguments": payload.get("arguments") or {},
             },
             source="router",
-            requires_confirmation=requires_confirmation,
+            requires_confirmation=action_requires_confirmation(name),
         )
 
     if intent == "action_file_process":
