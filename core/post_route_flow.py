@@ -44,6 +44,7 @@ def handle_post_route_action(
     update_runtime_state: Callable[[Command, str], None],
     is_unclear_response: Callable[[object], bool],
     maybe_suggest_probable_command: Callable[[str], dict | None],
+    decision_plan: dict | None = None,
 ) -> PostRouteResult:
     if voice_mode and is_unclear_response(raw_action):
         suggestion = maybe_suggest_probable_command(user_input)
@@ -128,6 +129,10 @@ def handle_post_route_action(
         result = show_map_in_ui(processed.params.get("target"))
         update_runtime_state(processed, result)
         return PostRouteResult(True, state, result)
+
+    brain_needs_confirmation = bool((decision_plan or {}).get("needs_confirmation"))
+    if brain_needs_confirmation:
+        processed.requires_confirmation = True
 
     if command_requires_confirmation(processed):
         return PostRouteResult(

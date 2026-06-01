@@ -13,6 +13,8 @@ from config import (
     GEMINI_PRIMARY_TEXT_ENABLED,
     NEWSAPI_ENABLED,
     NEWSAPI_KEY,
+    NVIDIA_API_KEY,
+    NVIDIA_TEXT_FALLBACK_ENABLED,
     OBSIDIAN_SYNC_ENABLED,
     OBSIDIAN_VAULT_PATH,
     OLLAMA_BASE_URL,
@@ -279,6 +281,126 @@ def latency_summary(root: Path | None = None, limit: int = 200) -> dict:
     }
 
 
+def _telemetry_domain(data: dict) -> str:
+    for key in ("category", "group", "toolset", "provider"):
+        value = str(data.get(key) or "").strip()
+        if value:
+            return value
+    action = str(data.get("action") or "").strip()
+    if "." in action:
+        return action.split(".", 1)[0]
+    if "_" in action:
+        return action.split("_", 1)[0]
+    return action or "geral"
+
+
+def observability_summary(root: Path | None = None, limit: int = 300) -> dict:
+    project_dir = root or project_root()
+    events = _read_recent_jsonl(project_dir / "memory" / "execution_log.jsonl", limit=limit)
+    recent_actions = []
+    recent_model_calls = []
+    domains: dict[str, dict] = {}
+    action_count = 0
+    action_error_count = 0
+    action_duration_total = 0.0
+    model_count = 0
+    model_error_count = 0
+    fallback_count = 0
+    total_tokens = 0
+    total_cost = 0.0
+
+    for event in events:
+        event_type = str(event.get("event") or "").strip()
+        data = event.get("data") if isinstance(event.get("data"), dict) else {}
+        if event_type == "command_execute_end":
+            action_count += 1
+            domain = _telemetry_domain(data)
+            domain_item = domains.setdefault(domain, {"domain": domain, "actions": 0, "errors": 0, "avg_ms": 0.0, "total_ms": 0.0})
+            domain_item["actions"] += 1
+            success = bool(data.get("success", True))
+            if not success:
+                action_error_count += 1
+                domain_item["errors"] += 1
+            try:
+                duration_ms = float(data.get("duration_ms") or 0.0)
+            except Exception:
+                duration_ms = 0.0
+            action_duration_total += duration_ms
+            domain_item["total_ms"] += duration_ms
+            recent_actions.append(
+                {
+                    "action": data.get("action", ""),
+                    "action_class": data.get("action_class", ""),
+                    "risk_level": data.get("risk_level", ""),
+                    "decision": data.get("decision", ""),
+                    "target": data.get("target", ""),
+                    "duration_ms": round(duration_ms, 2),
+                    "success": success,
+                    "error": data.get("error", ""),
+                }
+            )
+        elif event_type == "model_call_end":
+            model_count += 1
+            success = bool(data.get("success", True))
+            if not success:
+                model_error_count += 1
+            if bool(data.get("fallback_used")):
+                fallback_count += 1
+            try:
+                tokens = int(float(data.get("total_tokens_estimate") or 0))
+            except Exception:
+                tokens = 0
+            try:
+                cost = float(data.get("estimated_cost_usd") or 0.0)
+            except Exception:
+                cost = 0.0
+            total_tokens += max(0, tokens)
+            total_cost += max(0.0, cost)
+            recent_model_calls.append(
+                {
+                    "provider": data.get("provider", ""),
+                    "model": data.get("model", ""),
+                    "requested_provider": data.get("requested_provider", ""),
+                    "model_policy": data.get("model_policy", ""),
+                    "fallback_used": bool(data.get("fallback_used")),
+                    "success": success,
+                    "duration_ms": data.get("duration_ms", 0),
+                    "total_tokens_estimate": tokens,
+                    "estimated_cost_usd": round(cost, 6),
+                    "cost_basis": data.get("cost_basis", ""),
+                    "error": data.get("error", ""),
+                }
+            )
+
+    by_domain = []
+    for item in domains.values():
+        actions = int(item.get("actions") or 0)
+        total_ms = float(item.pop("total_ms", 0.0) or 0.0)
+        item["avg_ms"] = round(total_ms / actions, 2) if actions else 0.0
+        item["error_rate"] = round(float(item.get("errors") or 0) / actions, 3) if actions else 0.0
+        by_domain.append(item)
+    by_domain.sort(key=lambda item: (int(item.get("errors") or 0), int(item.get("actions") or 0)), reverse=True)
+
+    return {
+        "actions": {
+            "count": action_count,
+            "error_count": action_error_count,
+            "error_rate": round(action_error_count / action_count, 3) if action_count else 0.0,
+            "avg_ms": round(action_duration_total / action_count, 2) if action_count else 0.0,
+            "recent": recent_actions[-8:],
+        },
+        "models": {
+            "count": model_count,
+            "error_count": model_error_count,
+            "fallback_count": fallback_count,
+            "tokens_estimate": total_tokens,
+            "estimated_cost_usd": round(total_cost, 6),
+            "recent": recent_model_calls[-6:],
+        },
+        "domains": by_domain[:8],
+    }
+
+
 def memory_artifact_summary(root: Path | None = None) -> dict:
     project_dir = root or project_root()
     memory_dir = project_dir / "memory"
@@ -378,6 +500,9 @@ def action_catalog_summary() -> dict:
 
 
 def service_mode_summary() -> dict:
+    from core.specialist_agents import list_agents
+    from core.toolsets import list_toolsets
+
     try:
         from tools.investment_tools import investment_background_refresh_status
 
@@ -399,11 +524,14 @@ def service_mode_summary() -> dict:
         "integrations": {
             "ollama": {"configured": bool(OLLAMA_BASE_URL)},
             "gemini_primary_text": {"enabled": bool(GEMINI_PRIMARY_TEXT_ENABLED), "configured": bool(GEMINI_API_KEY)},
+            "nvidia_text_fallback": {"enabled": bool(NVIDIA_TEXT_FALLBACK_ENABLED), "configured": bool(NVIDIA_API_KEY)},
             "brapi": {"enabled": bool(BRAPI_ENABLED), "configured": bool(BRAPI_TOKEN)},
             "spotify": {"enabled": bool(SPOTIFY_API_ENABLED), "configured": bool(SPOTIFY_CLIENT_ID)},
             "supabase": {"enabled": bool(SUPABASE_SYNC_ENABLED), "configured": bool(SUPABASE_REST_URL)},
             "obsidian": {"enabled": bool(OBSIDIAN_SYNC_ENABLED), "configured": bool(OBSIDIAN_VAULT_PATH)},
         },
+        "toolsets": list_toolsets(),
+        "agents": list_agents(),
     }
 
 
@@ -418,6 +546,7 @@ def build_project_health_snapshot(root: Path | None = None) -> dict:
     background = background_runtime_health()
     actions = action_catalog_summary()
     services = service_mode_summary()
+    observability = observability_summary(root)
     healthy = (
         not preflight.get("compile_error")
         and not preflight.get("json_errors")
@@ -438,6 +567,7 @@ def build_project_health_snapshot(root: Path | None = None) -> dict:
         "background": background,
         "actions": actions,
         "services": services,
+        "observability": observability,
     }
 
 
@@ -470,6 +600,8 @@ def format_service_modes(snapshot: dict | None = None) -> str:
     always_on = services.get("always_on") or {}
     on_demand = services.get("on_demand") or {}
     integrations = services.get("integrations") or {}
+    toolsets = services.get("toolsets") or []
+    agents = services.get("agents") or []
 
     investment = always_on.get("investment_background_refresh") or {}
     parts = [
@@ -491,6 +623,10 @@ def format_service_modes(snapshot: dict | None = None) -> str:
             configured.append(name)
     if configured:
         parts.append("integracoes prontas: " + ", ".join(configured[:4]))
+    if toolsets:
+        parts.append("toolsets ativos: " + ", ".join(str(item.get("name", "")) for item in toolsets[:6]))
+    if agents:
+        parts.append("agentes especialistas: " + ", ".join(str(item.get("name", "")) for item in agents[:7]))
     return "; ".join(parts) + "."
 
 

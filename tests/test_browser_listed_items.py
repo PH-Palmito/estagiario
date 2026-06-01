@@ -2,6 +2,7 @@ import unittest
 
 from tools.browser_listed_items import (
     BrowserListedItemCommands,
+    click_browser_item_from_text,
     click_query_variants,
     extract_brl_price,
     short_click_query,
@@ -74,6 +75,17 @@ class BrowserListedItemsTests(unittest.TestCase):
         self.assertEqual(short_click_query("Produto A R$ 10,00 detalhes"), "Produto A")
         self.assertEqual(short_click_query("um dois tres quatro cinco seis sete oito nove"), "um dois tres quatro cinco seis sete oito")
         self.assertIn("Produto A", click_query_variants("Produto A - R$ 10,00"))
+
+    def test_click_browser_item_from_text_tries_variants(self):
+        tried = []
+
+        result = click_browser_item_from_text(
+            "Notebook Gamer Lenovo Ideapad 16GB RTX 4060 R$ 4.999,00",
+            lambda query: tried.append(query) or query == "Notebook Gamer Lenovo Ideapad 16GB RTX",
+        )
+
+        self.assertTrue(result)
+        self.assertGreater(len(tried), 1)
 
     def test_extract_brl_price_returns_lowest_price(self):
         self.assertEqual(extract_brl_price("De R$ 1.999,90 por R$ 1.499,00"), 1499.0)

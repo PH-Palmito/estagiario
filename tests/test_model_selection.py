@@ -11,6 +11,7 @@ from llm.model_selection import PROVIDER_CLOUD, PROVIDER_LOCAL, normalize_provid
 class ModelSelectionTests(unittest.TestCase):
     def test_normalizes_provider_aliases(self):
         self.assertEqual(normalize_provider("gemini"), PROVIDER_CLOUD)
+        self.assertEqual(normalize_provider("nvidia"), PROVIDER_CLOUD)
         self.assertEqual(normalize_provider("nuvem"), PROVIDER_CLOUD)
         self.assertEqual(normalize_provider("ollama"), PROVIDER_LOCAL)
         self.assertEqual(normalize_provider("???"), "auto")
@@ -68,7 +69,35 @@ class ModelSelectionTests(unittest.TestCase):
         )
 
         self.assertEqual(route.provider, PROVIDER_LOCAL)
-        self.assertIn("indisponivel", route.reason)
+
+    def test_axel_brain_policy_can_force_cloud(self):
+        route = select_chat_model_route(
+            "revisar codigo",
+            preferences={},
+            local_model="qwen",
+            cloud_model="nvidia/model",
+            cloud_available=True,
+            complex_request=False,
+            model_policy="nvidia_or_gemini_for_reasoning",
+        )
+
+        self.assertEqual(route.provider, PROVIDER_CLOUD)
+        self.assertEqual(route.model, "nvidia/model")
+        self.assertIn("AxelBrain", route.reason)
+
+    def test_axel_brain_local_first_keeps_simple_chat_local(self):
+        route = select_chat_model_route(
+            "oi",
+            preferences={},
+            local_model="qwen",
+            cloud_model="gemini",
+            cloud_available=True,
+            complex_request=True,
+            model_policy="local_first",
+        )
+
+        self.assertEqual(route.provider, PROVIDER_LOCAL)
+        self.assertIn("local_first", route.reason)
 
 
 if __name__ == "__main__":

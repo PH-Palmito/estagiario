@@ -8,6 +8,36 @@ from memory.current_topic import load_current_topic
 from memory.docs_context import docs_context_relevant
 from memory.vision_history import last_vision_item
 
+FACTUAL_QUESTION_PREFIXES = (
+    "o que e ",
+    "oq e ",
+    "oque e ",
+    "quem e ",
+    "qual e ",
+    "quais sao ",
+    "como funciona ",
+)
+
+
+def _looks_like_standalone_factual_question(text: str) -> bool:
+    if not text.startswith(FACTUAL_QUESTION_PREFIXES):
+        return False
+    visual_reference_terms = {
+        "isso",
+        "esse",
+        "essa",
+        "desse",
+        "dessa",
+        "tela",
+        "pagina",
+        "site",
+        "imagem",
+        "grafico",
+        "foto",
+        "print",
+    }
+    return not any(term in text for term in visual_reference_terms)
+
 
 def detect_visual_question_command(user_input: str):
     lower = normalize_text(user_input)
@@ -15,6 +45,9 @@ def detect_visual_question_command(user_input: str):
         return None
 
     if docs_context_relevant(user_input):
+        return None
+
+    if _looks_like_standalone_factual_question(lower):
         return None
 
     if re.search(r"\b[a-z]{4}\d{1,2}\b", lower):

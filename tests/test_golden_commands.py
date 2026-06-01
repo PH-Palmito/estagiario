@@ -14,6 +14,8 @@ GOLDEN_COMMANDS = [
     ("me da o briefing", "daily_briefing", {}),
     ("resumo do dia", "daily_briefing", {}),
     ("comecar meu dia", "daily_routine", {}),
+    ("axel oq temos para hoje", "daily_briefing", {}),
+    ("axel prepara meu dia", "daily_routine", {}),
     (
         "tem noticias da carteira",
         "investment_memory_answer",

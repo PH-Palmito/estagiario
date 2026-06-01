@@ -22,6 +22,11 @@ class UIMemoryFilesTests(unittest.TestCase):
 
             self.assertFalse(loaded["visible"])
             self.assertIn("performance_settings", loaded)
+            self.assertEqual(loaded["axel_brain_plan"], {})
+            self.assertEqual(loaded["axel_brain_brief"], {})
+            self.assertEqual(loaded["last_route_trace"], {})
+            self.assertEqual(loaded["skill_suggestions"], [])
+            self.assertIn("observability", loaded)
             self.assertTrue(updated["visible"])
             self.assertEqual(updated["last_command"], "abrir painel")
 

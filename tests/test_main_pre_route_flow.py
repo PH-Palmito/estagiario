@@ -17,6 +17,7 @@ class MainPreRouteFlowTests(unittest.TestCase):
             patch.object(main, "maybe_handle_ui_command", side_effect=lambda text: calls.append("ui") or None),
             patch.object(main, "maybe_handle_training_command_core", side_effect=lambda text, show_training: calls.append("training") or None),
             patch.object(main, "maybe_handle_study_command_core", side_effect=lambda text, show_hud: calls.append("study") or None),
+            patch.object(main, "maybe_handle_axel_brain_runtime_command", side_effect=lambda text, state: calls.append("axel_brain") or None),
             patch.object(main, "maybe_handle_operational_command", side_effect=lambda text: calls.append("operational") or None),
             patch.object(main, "output_response", side_effect=lambda *args, **kwargs: calls.append(("output", args, kwargs))),
             patch.object(main, "refresh_improvement_brain", side_effect=lambda force=False: calls.append(("brain", force))),
@@ -45,13 +46,13 @@ class MainPreRouteFlowTests(unittest.TestCase):
         )
 
         patches = list(self._patch_pre_route_defaults(calls))
-        patches[9] = patch.object(
+        patches[10] = patch.object(
             main,
             "maybe_handle_operational_command",
             side_effect=lambda text: calls.append("operational") or operational_result,
         )
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patches[13]:
             handled = main.handle_pre_route_command("comando operacional", voice_mode=False)
 
         self.assertTrue(handled)
@@ -63,11 +64,28 @@ class MainPreRouteFlowTests(unittest.TestCase):
         calls = []
 
         patches = self._patch_pre_route_defaults(calls)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patches[13]:
             handled = main.handle_pre_route_command("sem match", voice_mode=False)
 
         self.assertFalse(handled)
-        self.assertEqual(calls[:10], ["correction", "pronunciation", "humor", "input", "voice_profile", "work", "ui", "training", "study", "operational"])
+        self.assertEqual(calls[:11], ["correction", "pronunciation", "humor", "input", "voice_profile", "work", "ui", "training", "study", "axel_brain", "operational"])
+
+    def test_pre_route_handles_axel_brain_runtime_command(self):
+        calls = []
+
+        patches = list(self._patch_pre_route_defaults(calls))
+        patches[9] = patch.object(
+            main,
+            "maybe_handle_axel_brain_runtime_command",
+            side_effect=lambda text, state: calls.append(("axel_brain", state is main.app_runtime.runtime_state)) or "ultima decisao",
+        )
+
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patches[13]:
+            handled = main.handle_pre_route_command("por que o axel decidiu isso", voice_mode=False)
+
+        self.assertTrue(handled)
+        self.assertIn(("axel_brain", True), calls)
+        self.assertIn(("output", ("ultima decisao", False), {}), calls)
 
 
 if __name__ == "__main__":

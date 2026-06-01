@@ -111,6 +111,42 @@ class ResponsePipelineTests(unittest.TestCase):
 
         self.assertEqual(calls["speak"], [])
 
+    def test_output_response_blocks_corrupted_study_pdf_text(self):
+        pipeline, calls, _state = self._pipeline()
+        corrupted = (
+            "Analise de estudo dos arquivos: 1. questoes.pdf: - "
+            "T m s t m s m Q u i t q l i l m l m S o n t w i r m "
+            "Qumstao ciqxi quivtos cisos lm tmstm couxtmx trivsn qvvÃ¡t."
+        )
+
+        result = pipeline.output_response(
+            corrupted,
+            False,
+            direct_response_ready_announced=True,
+        )
+
+        self.assertIn("falhou na verificacao de confianca", result.styled_message)
+        self.assertNotIn("T m s t m s", result.styled_message)
+        self.assertEqual(calls["terminal"], [f"IA: {result.styled_message}"])
+
+    def test_output_response_blocks_corrupted_study_pdf_text_with_nuls(self):
+        pipeline, _calls, _state = self._pipeline()
+        body = (
+            "Analise de estudo dos arquivos: 1. questoes.pdf: - "
+            "T m s t m s m Q u i t q l i l m l m S o n t w i r m "
+            "Qumstao ciqxi quivtos cisos lm tmstm couxtmx trivsn qvvÃ¡t."
+        )
+        corrupted = "".join("\x00" + char for char in body)
+
+        result = pipeline.output_response(
+            corrupted,
+            False,
+            direct_response_ready_announced=True,
+        )
+
+        self.assertIn("falhou na verificacao de confianca", result.styled_message)
+        self.assertNotIn("Qumstao", result.styled_message)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -58,8 +58,11 @@ def reminder_message(due: list[dict] | None) -> str:
 
     if len(due) == 1:
         text = str(due[0].get("text", "")).strip()
+        follow_up = str(due[0].get("follow_up_prompt", "")).strip()
         if due[0].get("source") == "agenda":
-            return f"Agenda: {text}." if text else "Voce tem um compromisso vencido."
+            if not text:
+                return "Voce tem um compromisso vencido."
+            return f"Agenda: {text}.{(' ' + follow_up) if follow_up else ''}"
         return f"Lembrete: {text}." if text else "Voce tem um lembrete vencido."
 
     texts = [str(item.get("text", "")).strip() for item in due if str(item.get("text", "")).strip()]

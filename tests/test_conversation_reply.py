@@ -1,4 +1,7 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from core.conversation_reply import conversation_reply
 
@@ -21,7 +24,17 @@ class ConversationReplyTests(unittest.TestCase):
         self.assertEqual(conversation_reply("boa noite", lambda _text: ""), "Boa noite.")
 
     def test_name_question_tolerates_transcription_noise(self):
-        self.assertEqual(conversation_reply("qual seu nome", lambda _text: ""), "Meu nome e Estagiario.")
+        self.assertEqual(conversation_reply("qual seu nome", lambda _text: ""), "Meu nome e Axel.")
+
+    def test_introduction_is_local_in_conversation_mode(self):
+        with TemporaryDirectory() as temp_dir, patch(
+            "memory.assistant_customization.CUSTOMIZATION_PATH",
+            Path(temp_dir) / "assistant_customization.json",
+        ):
+            response = conversation_reply("se apresente", lambda _text: self.fail("chat should not run"))
+            self.assertIn("Prazer, eu sou o Axel", response)
+            self.assertIn("Axel, o que temos para hoje?", response)
+            self.assertNotIn("instagramavel", response)
 
     def test_identity_questions_are_local(self):
         self.assertIn("nasci ontem", conversation_reply("quantos anos voce tem", lambda _text: ""))

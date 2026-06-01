@@ -39,18 +39,31 @@ class CommandServiceTests(unittest.TestCase):
         processed_payload = events[-1][1]
         self.assertEqual(processed_payload["risk_level"], "read")
         self.assertTrue(processed_payload["read_only"])
+        self.assertEqual(processed_payload["action_class"], "read")
+        self.assertEqual(processed_payload["decision"], "allow_read")
+        self.assertEqual(processed_payload["target"], "Salvador")
 
     def test_execute_processed_command_updates_state_and_logs(self):
         state = FakeRuntimeState()
+        state.axel_brain_plan = {
+            "agent": "voice_agent",
+            "toolset": "voz_rapida",
+            "model_policy": "local_first",
+            "coordination_mode": "single_agent",
+            "handoff_chain": [{"agent": "voice_agent", "toolset": "voz_rapida"}],
+            "tool_libraries": [{"agent": "voice_agent", "actions": [{"name": "respond"}]}],
+        }
+        state.last_route_trace = {"input": "responda ok", "group": "conversation", "detector": "test_detector"}
         events = []
         command = Command(action="respond", params={"message": "ok"})
 
-        result = execute_processed_command(
-            command,
-            state,
-            lambda executed: executed.params["message"],
-            lambda event, **payload: events.append((event, payload)),
-        )
+        with patch("core.command_service.record_task_evaluation") as record_eval:
+            result = execute_processed_command(
+                command,
+                state,
+                lambda executed: executed.params["message"],
+                lambda event, **payload: events.append((event, payload)),
+            )
 
         self.assertEqual(result, "ok")
         self.assertEqual(state.updated, [(command, "ok")])
@@ -60,8 +73,20 @@ class CommandServiceTests(unittest.TestCase):
         )
         self.assertTrue(events[-2][1]["success"])
         self.assertIn("risk_level", events[0][1])
+        self.assertIn("payload_hash", events[0][1])
+        self.assertIn("action_class", events[-2][1])
         self.assertIn("requires_confirmation", events[-2][1])
         self.assertEqual(events[-1][1]["stage"], "action")
+        record_eval.assert_called_once()
+        self.assertEqual(record_eval.call_args.kwargs["action"], "respond")
+        self.assertTrue(record_eval.call_args.kwargs["success"])
+        metadata = record_eval.call_args.kwargs["metadata"]
+        self.assertEqual(metadata["agent"], "voice_agent")
+        self.assertEqual(metadata["toolset"], "voz_rapida")
+        self.assertEqual(metadata["route_group"], "conversation")
+        self.assertEqual(metadata["coordination_mode"], "single_agent")
+        self.assertEqual(metadata["handoff_agents"], ["voice_agent"])
+        self.assertEqual(metadata["tool_library_agents"], ["voice_agent"])
 
     def test_execute_processed_command_auto_backgrounds_safe_heavy_action(self):
         state = FakeRuntimeState()
@@ -98,18 +123,22 @@ class CommandServiceTests(unittest.TestCase):
         events = []
         command = Command(action="respond", params={"message": "ok"})
 
-        result = execute_processed_command(
-            command,
-            state,
-            lambda _executed: ActionResult.failed("nao deu", error="unit failure"),
-            lambda event, **payload: events.append((event, payload)),
-        )
+        with patch("core.command_service.record_task_evaluation") as record_eval:
+            result = execute_processed_command(
+                command,
+                state,
+                lambda _executed: ActionResult.failed("nao deu", error="unit failure"),
+                lambda event, **payload: events.append((event, payload)),
+            )
 
         self.assertEqual(result, "nao deu")
         self.assertEqual(state.updated, [(command, "nao deu")])
         self.assertFalse(events[-2][1]["success"])
         self.assertEqual(events[-2][1]["error"], "unit failure")
         self.assertEqual(events[-1][1]["stage"], "action")
+        record_eval.assert_called_once()
+        self.assertFalse(record_eval.call_args.kwargs["success"])
+        self.assertEqual(record_eval.call_args.kwargs["error"], "unit failure")
 
     def test_command_permission_payload_describes_registered_command(self):
         command = Command(action="file_delete", params={"path": "x"}, requires_confirmation=True)
@@ -121,6 +150,12 @@ class CommandServiceTests(unittest.TestCase):
         self.assertEqual(payload["sandbox_scope"], "filesystem")
         self.assertTrue(payload["dry_run_recommended"])
         self.assertTrue(payload["requires_strong_confirmation"])
+        self.assertEqual(payload["action_class"], "sensitive_write")
+        self.assertEqual(payload["decision"], "confirm_strong")
+        self.assertFalse(payload["reversible"])
+        self.assertEqual(payload["target"], "x")
+        self.assertTrue(payload["audit_required"])
+        self.assertEqual(len(payload["payload_hash"]), 16)
 
 
 if __name__ == "__main__":

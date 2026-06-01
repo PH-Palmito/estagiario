@@ -7,6 +7,7 @@ from core.router_conversation import (
     detect_ollama_chat,
     detect_short_unclear_text,
 )
+from core.router import route
 
 
 class RouterConversationTests(unittest.TestCase):
@@ -41,6 +42,20 @@ class RouterConversationTests(unittest.TestCase):
             detect_ollama_chat("me fale algo util"),
             {"intent": "respond", "target": None, "response": "Resposta local."},
         )
+
+    @patch("core.router_conversation.chat_response", return_value="Alanzoca e um streamer brasileiro.")
+    def test_factual_question_without_question_mark_uses_chat(self, _chat):
+        self.assertEqual(
+            detect_ollama_chat("quem é alanzoca"),
+            {"intent": "respond", "target": None, "response": "Alanzoca e um streamer brasileiro."},
+        )
+
+    @patch("core.router_conversation.chat_response", return_value="Tesla foi uma empresa/pessoa dependendo do contexto.")
+    def test_full_route_keeps_factual_question_out_of_screen(self, _chat):
+        result = route("oq é tesla?")
+
+        self.assertEqual(result["intent"], "respond")
+        self.assertNotEqual(result["intent"], "browser_describe_screen")
 
 
 if __name__ == "__main__":

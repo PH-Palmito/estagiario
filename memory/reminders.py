@@ -10,6 +10,7 @@ from memory.json_store import read_json_file, update_json_file, write_json_atomi
 from memory.supabase_sync import sync_memory_state_safely
 
 REMINDERS_PATH = Path("memory/reminders.json")
+PENDING_REMINDER_PATH = Path("memory/pending_reminder.json")
 
 
 def load_reminders() -> dict:
@@ -42,6 +43,19 @@ def _compact(text: str) -> str:
     return re.sub(r"\s+", " ", str(text or "")).strip(" .,:;-")
 
 
+def _load_pending_reminder() -> str:
+    data = read_json_file(PENDING_REMINDER_PATH, {}, validator=lambda value: isinstance(value, dict))
+    return _compact((data or {}).get("text", ""))
+
+
+def _save_pending_reminder(text: str) -> None:
+    write_json_atomic(PENDING_REMINDER_PATH, {"text": _compact(text)}, indent=2, trailing_newline=True)
+
+
+def _clear_pending_reminder() -> None:
+    write_json_atomic(PENDING_REMINDER_PATH, {"text": ""}, indent=2, trailing_newline=True)
+
+
 def _apply_reminder_text_corrections(text: str) -> str:
     corrected = str(text or "")
     corrected = re.sub(r"\bcomar(\s+banho\b)", r"tomar\1", corrected, flags=re.I)
@@ -58,6 +72,9 @@ def _parse_time_fragment(text: str, base: datetime) -> tuple[int, int] | None:
 
     hour = int(match.group(1))
     minute = int(match.group(2) or 0)
+    period_text = text[match.end(): match.end() + 24]
+    if re.search(r"\b(?:da\s+tarde|da\s+noite)\b", period_text, flags=re.I) and 1 <= hour <= 11:
+        hour += 12
     if 0 <= hour <= 23 and 0 <= minute <= 59:
         return hour, minute
     return None
@@ -69,10 +86,18 @@ def _strip_schedule_text(text: str) -> str:
         r"\b(?:daqui a|em)\s+\d+\s+(?:minuto|minutos|hora|horas|dia|dias)\b",
         r"\b(?:hoje|amanha|amanhã)\b(?:\s+(?:as|às)?\s*\d{1,2}(?::|h)?\d{0,2})?",
         r"\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b(?:\s+(?:as|às)?\s*\d{1,2}(?::|h)?\d{0,2})?",
+        r"\bdia\s+\d{1,2}\b(?:\s+(?:as|às)?\s*\d{1,2}(?::|h)?\d{0,2})?",
         r"\b(?:as|às)\s*\d{1,2}(?::|h)?\d{0,2}\b",
     ]
     for pattern in patterns:
         cleaned = re.sub(pattern, " ", cleaned, flags=re.I)
+    cleaned = re.sub(
+        r"\b(?:as|às)?\s*\d{1,2}(?::|h)?\d{0,2}\s*(?:da\s+manha|da\s+manhã|da\s+tarde|da\s+noite)?\b",
+        " ",
+        cleaned,
+        flags=re.I,
+    )
+    cleaned = re.sub(r"\b(?:da\s+manha|da\s+manhã|da\s+tarde|da\s+noite)\b", " ", cleaned, flags=re.I)
     return _compact(cleaned)
 
 
@@ -114,11 +139,28 @@ def parse_reminder_request(raw_text: str, now: datetime | None = None) -> tuple[
         except ValueError:
             return None, _strip_schedule_text(text)
 
+    day_match = re.search(r"\bdia\s+(\d{1,2})\b", lowered)
+    if day_match and not date_match:
+        day = int(day_match.group(1))
+        month = now.month
+        year = now.year
+        try:
+            candidate = datetime(year, month, day).date()
+            if candidate < now.date():
+                month += 1
+                if month > 12:
+                    month = 1
+                    year += 1
+                candidate = datetime(year, month, day).date()
+            target_day = candidate
+        except ValueError:
+            return None, _strip_schedule_text(text)
+
     time_fragment = _parse_time_fragment(lowered, now)
     if time_fragment:
         hour, minute = time_fragment
         due_at = datetime.combine(target_day, datetime.min.time()).replace(hour=hour, minute=minute)
-        if due_at <= now and not date_match and not re.search(r"\b(?:hoje|amanh[ãa])\b", lowered):
+        if due_at <= now and not date_match and not day_match and not re.search(r"\b(?:hoje|amanh[ãa])\b", lowered):
             due_at += timedelta(days=1)
         return due_at, _strip_schedule_text(text)
 
@@ -148,12 +190,17 @@ def _resolve_deictic_text(text: str) -> str:
 
 
 def add_reminder(raw_text: str) -> str:
+    pending_text = _load_pending_reminder()
     due_at, text = parse_reminder_request(raw_text)
+    if pending_text and due_at is not None and not text:
+        due_at, text = parse_reminder_request(f"{pending_text} {raw_text}")
+        _clear_pending_reminder()
     text = _apply_reminder_text_corrections(text)
     text = _resolve_deictic_text(text)
     if not text:
         return "O que devo lembrar?"
     if due_at is None:
+        _save_pending_reminder(text)
         return "Quando devo lembrar isso?"
 
     reminder = {
@@ -164,6 +211,7 @@ def add_reminder(raw_text: str) -> str:
         "notified_at": "",
     }
     _update_reminders(lambda data: {"items": sorted([*(data.get("items") or []), reminder], key=lambda item: str(item.get("due_at", "")))})
+    _clear_pending_reminder()
     return f"Combinado. Vou lembrar { _format_due_at(due_at) }: {text}."
 
 

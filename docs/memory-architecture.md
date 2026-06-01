@@ -53,3 +53,17 @@ Nas respostas opinativas, o Axel deve separar internamente:
 - limite: o que nao foi verificado, pode estar desatualizado ou depende de dado externo.
 
 Na fala final, isso nao precisa virar uma lista sempre. O ponto e evitar uma opiniao com cara de fato quando a base for fraca.
+
+## Inspiracao Hermes Agent
+
+A avaliacao do Hermes Agent foi salva em `docs/hermes-agent-lessons-for-axel.md`.
+
+Ideias aprovadas para o Axel:
+
+- memoria curta curada em arquivos pequenos e sempre prioritarios no contexto;
+- busca de sessoes antigas com SQLite/FTS5;
+- skills como memoria procedural, separadas de fatos e preferencias;
+- toolsets por modo de uso;
+- orquestrador central de decisao acima dos roteadores.
+
+Essas ideias devem reforcar o Axel sem tirar seu principio local-first: resposta rapida por voz, controle local do Windows e uso de internet apenas quando a tarefa exigir atualidade.

@@ -123,6 +123,17 @@ class PostRouteFlowTests(unittest.TestCase):
         self.assertEqual(result.state.pending_command.action, "unit.post_route_sensitive")
         self.assertEqual(result.message, "confirmar unit.post_route_sensitive?")
 
+    def test_axel_brain_plan_can_require_confirmation(self):
+        result = self._handle(
+            {"intent": "unit_unregistered"},
+            process_action=lambda raw: Command(action="unit_unregistered", params={}, requires_confirmation=False),
+            decision_plan={"needs_confirmation": True, "risk_level": "high"},
+        )
+
+        self.assertEqual(result.state.pending_command.action, "unit_unregistered")
+        self.assertTrue(result.state.pending_command.requires_confirmation)
+        self.assertEqual(result.message, "confirmar unit_unregistered?")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,6 +16,8 @@ from core.improvement_brain import ImprovementBrain
 from core.input_device_commands import maybe_handle_input_device_command as maybe_handle_input_device_command_core
 from core.interactive_modes import handle_interactive_modes
 from core.deferred_runtime import run_deferred
+from core.axel_brain import build_axel_brain_decision
+from core.axel_brain_commands import maybe_handle_axel_brain_runtime_command
 from core.intent_complexity import classify_intent_complexity
 from core.latency_metrics import log_latency_stage
 from core.macro_recording import handle_macro_recording
@@ -98,7 +100,7 @@ from memory.assistant_phrases import (
     next_phrase,
 )
 from memory.execution_log import append_execution_log
-from memory.long_memory import maybe_remember_from_user_text
+from memory.long_memory import curate_recent_ui_history, maybe_remember_from_user_text
 from memory.macros import add_macro
 from memory.operational_context import (
     save_operational_context,
@@ -149,6 +151,8 @@ UI_HISTORY_MAX_ITEMS = 40
 app_runtime = AppRuntime(ui_history_max_items=UI_HISTORY_MAX_ITEMS)
 assistant_state = app_runtime.assistant_state
 STARTUP_BRIEFING_STATE_PATH = Path("memory") / "startup_briefing_state.json"
+LONG_MEMORY_AUTOCURATE_TURNS = 12
+LONG_MEMORY_AUTOCURATE_INTERVAL_SECONDS = 30 * 60
 
 VOICE_PREFERENCES = load_voice_preferences()
 
@@ -181,6 +185,28 @@ def route_user_input(user_input: str, *, source: str = "turn") -> dict:
     )
     intent_level = trace.match.intent_level if trace.match else "conversa"
     complexity = classify_intent_complexity(user_input, intent_level=intent_level, raw_action=raw_action)
+    brain_decision = build_axel_brain_decision(
+        user_input,
+        raw_action,
+        intent_level=intent_level,
+        complexity_kind=complexity.kind,
+    )
+    decision_plan = brain_decision.plan
+    app_runtime.runtime_state.axel_brain_plan = decision_plan.to_dict()
+    app_runtime.runtime_state.axel_brain_brief = brain_decision.brief.to_dict()
+    app_runtime.runtime_state.last_route_trace = {
+        "source": source,
+        "input": user_input,
+        "intent": raw_action.get("intent"),
+        "target": raw_action.get("target"),
+        "group": trace.match.group_name if trace.match else "",
+        "detector": trace.match.detector_name if trace.match else "",
+        "intent_level": intent_level,
+        "complexity": complexity.kind,
+        "complexity_reason": complexity.reason,
+        "checked_detectors": trace.checked_detectors,
+        "checked_groups": list(trace.checked_groups),
+    }
     log_execution_event(
         "route_result",
         source=source,
@@ -196,11 +222,13 @@ def route_user_input(user_input: str, *, source: str = "turn") -> dict:
         should_use_llm=complexity.should_use_llm,
         checked_detectors=trace.checked_detectors,
         checked_groups=list(trace.checked_groups),
+        decision_plan=decision_plan.to_dict(),
+        specialist_brief=brain_decision.brief.to_dict(),
     )
     if source in {"turn", "ui_bridge"}:
         run_noncritical_task(
             "routine_learning",
-            lambda: observe_routine_command_for_learning(user_input, raw_action, source=source),
+            lambda: observe_routine_command_for_learning(user_input, raw_action, source=source, decision_plan=decision_plan),
             defer=source == "turn",
         )
     log_latency_stage(
@@ -217,8 +245,9 @@ def route_user_input(user_input: str, *, source: str = "turn") -> dict:
     return raw_action
 
 
-def observe_routine_command_for_learning(user_input: str, raw_action: dict, *, source: str) -> None:
+def observe_routine_command_for_learning(user_input: str, raw_action: dict, *, source: str, decision_plan=None) -> None:
     from memory.routine_learning import observe_routine_command
+    from memory.skill_learning import observe_skill_opportunity
 
     suggestion = observe_routine_command(user_input, raw_action, source=source)
     if suggestion:
@@ -228,6 +257,26 @@ def observe_routine_command_for_learning(user_input: str, raw_action: dict, *, s
             pair_id=suggestion.get("pair_id"),
         )
         append_ui_notification("routine_learning", str(suggestion.get("title") or ""), level="info")
+
+    if decision_plan is None:
+        return
+
+    skill_suggestion = observe_skill_opportunity(
+        user_input,
+        raw_action,
+        source=source,
+        toolset=str(getattr(decision_plan, "toolset", "") or ""),
+        agent=str(getattr(decision_plan, "agent", "") or ""),
+    )
+    if skill_suggestion:
+        log_execution_event(
+            "skill_suggestion_created",
+            title=skill_suggestion.get("title"),
+            pattern_id=skill_suggestion.get("pattern_id"),
+            agent=skill_suggestion.get("agent"),
+            toolset=skill_suggestion.get("toolset"),
+        )
+        append_ui_notification("skill_learning", str(skill_suggestion.get("title") or ""), level="info")
 
 
 
@@ -431,6 +480,7 @@ def current_ui_mode_label() -> str:
 def _ui_runtime_patch() -> dict:
     from core.performance_mode import performance_settings_from_state
     from memory.ui_state import load_ui_state
+    from memory.skill_learning import pending_skill_suggestions
 
     active_device = get_active_input_device_info() or {}
     perf = performance_settings_from_state(load_ui_state())
@@ -447,6 +497,10 @@ def _ui_runtime_patch() -> dict:
         "conversation_mode": bool(assistant_state.conversation_mode),
         "dictation_mode": bool(assistant_state.dictation_mode),
         "last_command": command_preview(app_runtime.runtime_state.last_command),
+        "axel_brain_plan": dict(getattr(app_runtime.runtime_state, "axel_brain_plan", {}) or {}),
+        "axel_brain_brief": dict(getattr(app_runtime.runtime_state, "axel_brain_brief", {}) or {}),
+        "last_route_trace": dict(getattr(app_runtime.runtime_state, "last_route_trace", {}) or {}),
+        "skill_suggestions": pending_skill_suggestions(limit=5),
     }
 
 
@@ -942,6 +996,11 @@ def handle_pre_route_command(user_input: str, *, voice_mode: bool) -> bool:
         output_response(study_response, voice_mode)
         return True
 
+    axel_brain_response = maybe_handle_axel_brain_runtime_command(user_input, app_runtime.runtime_state)
+    if axel_brain_response:
+        output_response(axel_brain_response, voice_mode)
+        return True
+
     operational_result = maybe_handle_operational_command(user_input)
     if operational_result:
         if operational_result.refresh_improvement_brain:
@@ -977,6 +1036,28 @@ def record_user_turn_start(user_input: str, *, queued_user_input: str, voice_mod
 def remember_user_context_from_turn(user_input: str) -> None:
     try:
         if maybe_remember_from_user_text(user_input, source="conversation"):
+            save_operational_context()
+    except Exception:
+        pass
+    maybe_autocurate_long_memory_from_history()
+
+
+def maybe_autocurate_long_memory_from_history() -> None:
+    try:
+        app_runtime.runtime_state.turns_since_long_memory_curated += 1
+        turns = int(app_runtime.runtime_state.turns_since_long_memory_curated or 0)
+        last_at = float(app_runtime.runtime_state.last_long_memory_curated_at or 0.0)
+        now = time.time()
+        due_by_turns = turns >= LONG_MEMORY_AUTOCURATE_TURNS
+        due_by_time = last_at > 0 and (now - last_at) >= LONG_MEMORY_AUTOCURATE_INTERVAL_SECONDS
+        if not due_by_turns and not due_by_time:
+            return
+
+        app_runtime.runtime_state.turns_since_long_memory_curated = 0
+        app_runtime.runtime_state.last_long_memory_curated_at = now
+        added = curate_recent_ui_history(limit=30)
+        log_execution_event("long_memory_autocurated", added=added)
+        if added:
             save_operational_context()
     except Exception:
         pass
@@ -1086,6 +1167,7 @@ def handle_routed_command(user_input: str, *, original_user_input: str, voice_mo
         update_runtime_state=app_runtime.runtime_state.update,
         is_unclear_response=is_unclear_response,
         maybe_suggest_probable_command=maybe_suggest_probable_command,
+        decision_plan=getattr(app_runtime.runtime_state, "axel_brain_plan", {}) or {},
     )
     assistant_state.apply_post_route_state(result.state)
     if not result.handled:

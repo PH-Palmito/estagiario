@@ -42,6 +42,8 @@ class SensitiveAuditTests(unittest.TestCase):
         self.assertEqual(append.call_args.args[0], "start")
         self.assertEqual(payload["action"], "file_delete")
         self.assertEqual(payload["risk_level"], "critical")
+        self.assertEqual(payload["action_class"], "sensitive_write")
+        self.assertEqual(len(payload["payload_hash"]), 16)
         self.assertTrue(payload["requires_strong_confirmation"])
         self.assertTrue(payload["voice_mode"])
 

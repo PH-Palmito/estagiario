@@ -4,6 +4,8 @@ import re
 from collections.abc import Callable
 
 from core.router_utils import normalize_text
+from core.study_file_analysis import analyze_study_files, answer_study_followup, parse_study_file_command
+from memory.study_context import clear_study_context
 from memory.study import (
     add_study_goal,
     add_study_review,
@@ -22,8 +24,65 @@ def _refresh_study_snapshot(open_panel: bool = False) -> None:
     update_ui_state(patch)
 
 
+def _study_response_has_corrupted_text(response: str) -> bool:
+    normalized = str(response or "").replace("\x00", "").lower()
+    if len(normalized) < 80:
+        return False
+
+    suspicious_patterns = [
+        r"\bt\s+m\s+s\s+t\s+m\s+s\b",
+        r"\bq\s+u\s+i\s+t\s+q\s+l\s+i\s+l\s+m\b",
+        r"\bs\s+o\s+n\s+t\s+w\s+i\s+r\s+m\b",
+        r"\bqum\b",
+        r"\blm\b",
+        r"\bciqxi\b",
+        r"\btmstm?s?\b",
+        r"\bcisos\b",
+        r"\bvitorms?\b",
+        r"\bcouxtmx",
+        r"\bquivtos?\b",
+        r"\btrivsn",
+        r"\bqvv[aã]t",
+    ]
+    hits = sum(len(re.findall(pattern, normalized, flags=re.I)) for pattern in suspicious_patterns)
+    return hits >= 6
+
+
+def _block_corrupted_study_response(response: str) -> str:
+    if not _study_response_has_corrupted_text(response):
+        return response
+    return (
+        "Nao vou resumir esse arquivo ainda: a extracao retornou texto corrompido "
+        "e falhou na verificacao de confianca. Para esse PDF, preciso de OCR externo "
+        "confiavel, como um provider estilo ClawHub/PDF OCR, ou de uma versao exportada "
+        "como texto pesquisavel."
+    )
+
+
 def maybe_handle_study_command(user_input: str, show_hud: Callable[[], str]) -> str | None:
     normalized = normalize_text(user_input)
+
+    file_request = parse_study_file_command(user_input)
+    if file_request:
+        paths, request = file_request
+        show_hud()
+        _refresh_study_snapshot(open_panel=True)
+        return _block_corrupted_study_response(analyze_study_files(paths, request=request))
+
+    if normalized in {
+        "limpar contexto de estudo",
+        "limpar arquivo de estudo",
+        "esquecer arquivo de estudo",
+        "zerar contexto de estudo",
+    }:
+        clear_study_context()
+        _refresh_study_snapshot(open_panel=True)
+        return "Contexto do ultimo arquivo de estudo limpo."
+
+    followup_response = answer_study_followup(user_input)
+    if followup_response:
+        _refresh_study_snapshot(open_panel=True)
+        return followup_response
 
     if normalized in {
         "estudos",

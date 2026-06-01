@@ -8,6 +8,11 @@ class RuntimeState:
         self.last_result = None
         self.last_clipboard = None
         self.last_command = None
+        self.axel_brain_plan = {}
+        self.axel_brain_brief = {}
+        self.last_route_trace = {}
+        self.turns_since_long_memory_curated = 0
+        self.last_long_memory_curated_at = 0.0
 
     def update(self, command, result):
         a = command.action

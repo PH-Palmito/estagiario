@@ -3,6 +3,7 @@ from __future__ import annotations
 import difflib
 from collections.abc import Callable
 
+from memory.assistant_customization import get_axel_introduction
 from core.router_utils import normalize_text
 
 ChatResponse = Callable[[str], str]
@@ -38,8 +39,23 @@ def conversation_reply(user_input: str, chat_response: ChatResponse) -> str:
         response = chat_response(user_input)
         return response or "Boa noite."
 
+    if normalized in {
+        "se apresente",
+        "se apresenta",
+        "apresentese",
+        "apresente se",
+        "apresenta se",
+        "quem e o axel",
+        "quem e axel",
+        "fale de voce",
+        "fala de voce",
+        "conte quem voce e",
+        "conta quem voce e",
+    }:
+        return get_axel_introduction()
+
     if difflib.SequenceMatcher(None, normalized, "qual o seu nome").ratio() >= 0.78:
-        return "Meu nome e Estagiario."
+        return "Meu nome e Axel."
 
     if any(phrase in normalized for phrase in {"quantos anos voce tem", "voce nasceu quando", "voce e novo"}):
         return "Bem, eu nasci ontem. Metaforicamente, pelo menos. Ainda estou aprendendo a ser util sem tropeçar nos cadarços."

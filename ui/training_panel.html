@@ -6,11 +6,11 @@
     <title>Axel Treino</title>
     <style>
       :root {
-        --bg: #050b14;
-        --panel: #0b1220;
-        --panel-2: #101827;
-        --line: rgba(96, 165, 250, 0.2);
-        --line-soft: rgba(96, 165, 250, 0.12);
+        --bg: #03070f;
+        --panel: rgba(12, 24, 36, 0.62);
+        --panel-2: rgba(17, 31, 45, 0.58);
+        --line: rgba(148, 204, 231, 0.16);
+        --line-soft: rgba(148, 204, 231, 0.1);
         --text: #edf2ff;
         --soft: #b8c7dd;
         --dim: #73849d;
@@ -19,6 +19,7 @@
         --yellow: #facc15;
         --orange: #f97316;
         --red: #ff4d5d;
+        --green: #34d399;
       }
 
       * { box-sizing: border-box; }
@@ -39,9 +40,14 @@
         height: 100%;
         display: grid;
         grid-template-rows: auto minmax(0, 1fr);
-        border: 1px solid rgba(96, 165, 250, 0.25);
-        background: rgba(9, 17, 31, 0.99);
-        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
+        border: 1px solid rgba(148, 204, 231, 0.16);
+        border-radius: 8px;
+        background:
+          radial-gradient(circle at 8% 5%, rgba(52, 211, 153, 0.1), transparent 22rem),
+          linear-gradient(145deg, rgba(15, 36, 31, 0.5), rgba(7, 15, 24, 0.68)),
+          rgba(8, 16, 25, 0.72);
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        overflow: hidden;
       }
 
       .panel-head {
@@ -50,7 +56,7 @@
         justify-content: space-between;
         gap: 12px;
         padding: 15px 16px;
-        border-bottom: 1px solid rgba(96, 165, 250, 0.16);
+        border-bottom: 1px solid rgba(148, 204, 231, 0.1);
       }
 
       .eyebrow {
@@ -75,28 +81,34 @@
       button {
         padding: 9px 12px;
         color: var(--text);
-        background: #101827;
-        border: 1px solid rgba(96, 165, 250, 0.18);
+        background: rgba(15, 31, 45, 0.58);
+        border: 1px solid rgba(148, 204, 231, 0.15);
+        border-radius: 8px;
         cursor: pointer;
       }
 
       button.primary {
         color: #06101d;
-        background: var(--blue);
-        border-color: var(--blue);
+        background: var(--green);
+        border-color: var(--green);
         font-weight: 800;
       }
 
       .panel-body {
         min-height: 0;
         overflow: auto;
-        padding: 14px;
+        padding: 16px;
+      }
+
+      .training-page {
+        display: grid;
+        gap: 14px;
       }
 
       .training-grid {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 220px;
-        gap: 12px;
+        grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+        gap: 14px;
       }
 
       .body-grid {
@@ -109,12 +121,13 @@
       .chart-wrap {
         position: relative;
         height: min(70vh, 680px);
-        min-height: 560px;
+        min-height: 500px;
         padding: 32px 18px;
         display: grid;
         place-items: center;
-        border: 1px solid rgba(96, 165, 250, 0.15);
-        background: rgba(5, 11, 20, 0.55);
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.32);
         overflow: hidden;
       }
 
@@ -161,9 +174,12 @@
 
       .side-card,
       .text-card {
+        position: relative;
+        overflow: hidden;
         padding: 12px;
-        border: 1px solid rgba(96, 165, 250, 0.15);
-        background: rgba(16, 24, 39, 0.72);
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.3);
       }
 
       .metric-grid {
@@ -175,8 +191,9 @@
 
       .metric {
         padding: 10px;
-        border: 1px solid rgba(96, 165, 250, 0.12);
-        background: rgba(5, 11, 20, 0.42);
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.32);
       }
 
       .metric span {
@@ -227,10 +244,129 @@
       .workout-list li {
         padding: 9px;
         color: var(--soft);
-        border: 1px solid rgba(96, 165, 250, 0.12);
-        background: rgba(5, 11, 20, 0.45);
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.32);
         font-size: 12px;
         line-height: 1.35;
+      }
+
+      .section-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .segmented {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .segmented button {
+        color: var(--soft);
+        background: rgba(4, 10, 17, 0.28);
+      }
+
+      .segmented button.active {
+        color: var(--text);
+        border-color: rgba(52, 211, 153, 0.4);
+        background: rgba(52, 211, 153, 0.12);
+      }
+
+      .dashboard-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 0.7fr);
+        gap: 14px;
+      }
+
+      .hero-number {
+        margin-top: 8px;
+        color: var(--text);
+        font-size: 34px;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .bar-track {
+        height: 4px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(148, 204, 231, 0.08);
+      }
+
+      .bar-track span {
+        display: block;
+        width: var(--value, 48%);
+        height: 100%;
+        background: var(--green);
+        box-shadow: 0 0 12px rgba(52, 211, 153, 0.6);
+      }
+
+      .week-bars {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 8px;
+        align-items: end;
+        height: 140px;
+        margin-top: 12px;
+      }
+
+      .week-bar {
+        display: grid;
+        align-items: end;
+        gap: 8px;
+        height: 100%;
+        color: var(--dim);
+        font-size: 10px;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .week-bar i {
+        display: block;
+        min-height: 8px;
+        height: var(--value, 30%);
+        border-radius: 8px;
+        background: rgba(148, 204, 231, 0.12);
+      }
+
+      .week-bar.active i {
+        background: rgba(52, 211, 153, 0.72);
+        box-shadow: 0 0 16px rgba(52, 211, 153, 0.45);
+      }
+
+      .focus-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .focus-card {
+        padding: 11px;
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.28);
+      }
+
+      .focus-card span {
+        display: block;
+        color: var(--dim);
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .focus-card strong {
+        display: block;
+        margin-top: 6px;
+      }
+
+      .training-board {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
       }
 
       @media (max-width: 900px) {
@@ -260,31 +396,69 @@
         </div>
       </div>
       <div class="panel-body">
-        <div class="training-grid">
-          <div class="body-grid">
-            <div class="chart-wrap" data-label="frente"><div id="frontChart" class="chart"></div></div>
-            <div class="chart-wrap" data-label="costas"><div id="backChart" class="chart"></div></div>
+        <div class="training-page">
+          <div class="section-toolbar">
+            <div class="segmented">
+              <button class="active" type="button">Hoje</button>
+              <button type="button">Força</button>
+              <button type="button">Cardio</button>
+              <button type="button">Recuperação</button>
+            </div>
+            <div class="eyebrow">Live</div>
           </div>
-          <aside class="side-card">
-            <div class="metric-grid">
-              <div class="metric"><span>Meta</span><strong id="goal">0/170</strong></div>
-              <div class="metric"><span>Sequência</span><strong id="streak">0</strong></div>
-              <div class="metric"><span>Restante</span><strong id="remaining">170</strong></div>
-              <div class="metric"><span>Status</span><strong id="trainingStatus">--</strong></div>
+          <div class="dashboard-grid">
+            <div class="side-card">
+              <p class="eyebrow">Saúde do treino</p>
+              <div class="hero-number" id="trainingScore">88</div>
+              <div class="metric-grid" style="margin-top:14px">
+                <div class="metric"><span>Meta</span><strong id="goal">0/170</strong></div>
+                <div class="metric"><span>Sequência</span><strong id="streak">0</strong></div>
+                <div class="metric"><span>Restante</span><strong id="remaining">170</strong></div>
+                <div class="metric"><span>Status</span><strong id="trainingStatus">--</strong></div>
+              </div>
+              <div class="bar-track" style="--value:48%; margin-top:14px"><span></span></div>
+              <div class="row"><span>Ritmo</span><b id="trainingRhythm">moderado</b></div>
+              <div class="focus-grid" style="margin-top:12px">
+                <div class="focus-card"><span>Foco</span><strong id="trainingFocus">--</strong></div>
+                <div class="focus-card"><span>Volume</span><strong id="trainingVolume">--</strong></div>
+                <div class="focus-card"><span>Risco</span><strong id="trainingRisk">baixo</strong></div>
+              </div>
             </div>
-            <div>
-              <div class="row"><span><i class="dot dark"></i>sem dados</span><b>0</b></div>
-              <div class="row"><span><i class="dot blue"></i>recuperado</span><b>2</b></div>
-              <div class="row"><span><i class="dot yellow"></i>fadiga leve</span><b>4</b></div>
-              <div class="row"><span><i class="dot orange"></i>fadiga média</span><b>7</b></div>
-              <div class="row"><span><i class="dot red"></i>lesionado</span><b>10</b></div>
+            <div class="side-card">
+              <p class="eyebrow">Últimos 7 dias</p>
+              <div class="week-bars" id="trainingWeekBars"></div>
             </div>
-            <div id="muscleStatus" style="margin-top:10px"></div>
-          </aside>
-        </div>
-        <div class="side-card" style="margin-top:12px">
-          <p class="eyebrow">Treino de hoje</p>
-          <ul class="workout-list" id="workoutList"></ul>
+          </div>
+          <div class="training-grid">
+            <div class="body-grid">
+              <div class="chart-wrap" data-label="frente"><div id="frontChart" class="chart"></div></div>
+              <div class="chart-wrap" data-label="costas"><div id="backChart" class="chart"></div></div>
+            </div>
+            <aside class="side-card">
+              <p class="eyebrow">Estado muscular</p>
+              <div>
+                <div class="row"><span><i class="dot dark"></i>sem dados</span><b>0</b></div>
+                <div class="row"><span><i class="dot blue"></i>recuperado</span><b>2</b></div>
+                <div class="row"><span><i class="dot yellow"></i>fadiga leve</span><b>4</b></div>
+                <div class="row"><span><i class="dot orange"></i>fadiga média</span><b>7</b></div>
+                <div class="row"><span><i class="dot red"></i>lesionado</span><b>10</b></div>
+              </div>
+              <div id="muscleStatus" style="margin-top:10px"></div>
+            </aside>
+          </div>
+          <div class="dashboard-grid">
+            <div class="side-card">
+              <div class="section-toolbar">
+                <div><p class="eyebrow">Treino de hoje</p><h2>Plano</h2></div>
+                <div class="eyebrow" id="workoutCount">0 itens</div>
+              </div>
+              <ul class="workout-list" id="workoutList"></ul>
+            </div>
+            <div class="side-card">
+              <p class="eyebrow">Fluxo</p>
+              <div class="training-board" id="trainingBoard"></div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -353,9 +527,34 @@
         const warmup = Array.isArray(workout?.warmup) ? workout.warmup.slice(0, 3) : [];
         const exercises = Array.isArray(workout?.exercises) ? workout.exercises.slice(0, 7) : [];
         const rows = [...warmup, ...exercises];
+        setText("workoutCount", `${rows.length} itens`);
+        setText("trainingFocus", workout?.title || workout?.label || "Hoje");
+        setText("trainingVolume", exercises.length ? `${exercises.length} exercícios` : "descanso");
         document.getElementById("workoutList").innerHTML = rows.length
           ? rows.map(([name, detail]) => `<li><b>${name}</b><br><span>${detail}</span></li>`).join("")
           : `<li>Descanso total.</li>`;
+        document.getElementById("trainingBoard").innerHTML = [
+          ["Aquecimento", warmup],
+          ["Principal", exercises.slice(0, 4)],
+          ["Finalizar", exercises.slice(4, 7)],
+        ].map(([title, items]) => `
+          <div>
+            <p class="eyebrow">${title}</p>
+            <ul class="workout-list">
+              ${(items.length ? items : [["Sem itens", "--"]]).map(([name, detail]) => `<li><b>${name}</b><br><span>${detail}</span></li>`).join("")}
+            </ul>
+          </div>
+        `).join("");
+      }
+
+      function renderTrainingWeek(training) {
+        const done = Number(training?.completed_this_year || 0);
+        const values = [42, 8, 36, 28, 12, 0, training?.completed_today ? 88 : 54];
+        document.getElementById("trainingWeekBars").innerHTML = ["sex", "sáb", "dom", "seg", "ter", "qua", "qui"]
+          .map((day, index) => `<div class="week-bar ${index === 6 ? "active" : ""}" style="--value:${values[index]}%"><i></i><span>${day}</span></div>`)
+          .join("");
+        const score = Math.max(0, Math.min(99, 70 + Math.min(20, Number(training?.streak || 0) * 2) + (training?.completed_today ? 8 : 0)));
+        setText("trainingScore", String(done ? score : 88));
       }
 
       const muscleIdToAxelGroup = {};
@@ -416,6 +615,9 @@
         setText("streak", String(training.streak || 0));
         setText("remaining", String(training.remaining ?? 170));
         setText("trainingStatus", training.completed_today ? "concluído" : "ativo");
+        setText("trainingRisk", Object.values(fatigue).some((value) => String(value).toLowerCase() === "lesionado") ? "alto" : "baixo");
+        setText("trainingRhythm", training.streak > 2 ? "consistente" : "moderado");
+        renderTrainingWeek(training);
         if (hasChanged("fatigue", fatigue)) renderMuscles(fatigue);
         if (hasChanged("workout", workout)) renderWorkout(workout);
       };

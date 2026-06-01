@@ -485,9 +485,12 @@
       .dock button[data-panel="midia"] { --nav-accent: #a78bfa; }
       .dock button[data-panel="tempo"] { --nav-accent: #38bdf8; }
       .dock button[data-panel="carteira"] { --nav-accent: #2dd4bf; }
+      .dock button[data-panel="tarefas"] { --nav-accent: #facc15; }
+      .dock button[data-panel="habitos"] { --nav-accent: #22d3ee; }
       .dock button[data-panel="noticias"] { --nav-accent: #fbbf24; }
       .dock button[data-panel="saude"] { --nav-accent: #fb7185; }
       .dock button[data-panel="estudos"] { --nav-accent: #60a5fa; }
+      .dock button[data-panel="skills"] { --nav-accent: #2dd4bf; }
       .dock button[data-panel="treino"] { --nav-accent: #34d399; }
 
       .dock button.active::before {
@@ -566,6 +569,13 @@
         width: min(960px, calc(100vw - 140px));
       }
 
+      .panel-window[data-window="tarefas"] {
+        --panel-accent: #facc15;
+        --panel-accent-soft: rgba(250, 204, 21, 0.1);
+        left: clamp(84px, 12vw, 210px);
+        width: min(1120px, calc(100vw - 140px));
+      }
+
       .panel-window[data-window="midia"] {
         --panel-accent: #a78bfa;
         --panel-accent-soft: rgba(167, 139, 250, 0.14);
@@ -589,14 +599,21 @@
       }
 
       .panel-window[data-window="carteira"],
+      .panel-window[data-window="tarefas"],
+      .panel-window[data-window="habitos"],
       .panel-window[data-window="noticias"],
       .panel-window[data-window="mapas"] {
-        width: min(720px, calc(100vw - 132px));
+        width: min(1120px, calc(100vw - 140px));
       }
 
       .panel-window[data-window="carteira"] {
         --panel-accent: #2dd4bf;
         --panel-accent-soft: rgba(45, 212, 191, 0.12);
+      }
+
+      .panel-window[data-window="habitos"] {
+        --panel-accent: #22d3ee;
+        --panel-accent-soft: rgba(34, 211, 238, 0.11);
       }
 
       .panel-window[data-window="noticias"] {
@@ -639,6 +656,11 @@
         --panel-accent-soft: rgba(244, 114, 182, 0.1);
       }
 
+      .panel-window[data-window="skills"] {
+        --panel-accent: #2dd4bf;
+        --panel-accent-soft: rgba(45, 212, 191, 0.1);
+      }
+
       .panel-window.open {
         opacity: 1;
         visibility: visible;
@@ -650,6 +672,7 @@
 
       .panel-window[data-window="treino"].open,
       .panel-window[data-window="carteira"].open,
+      .panel-window[data-window="habitos"].open,
       .panel-window[data-window="noticias"].open,
       .panel-window[data-window="mapas"].open {
         transform: translateY(0);
@@ -1093,6 +1116,40 @@
         overflow-wrap: anywhere;
       }
 
+      .context-decision {
+        margin: 0 0 12px;
+        padding: 10px;
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.26);
+        color: var(--soft);
+        font-size: 12px;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+      }
+
+      .skill-suggestion {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.28);
+      }
+
+      .skill-suggestion h3 {
+        margin: 0;
+        color: var(--text);
+        font-size: 14px;
+      }
+
+      .skill-suggestion p {
+        margin: 0;
+        color: var(--soft);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
       .row {
         display: flex;
         align-items: center;
@@ -1147,6 +1204,58 @@
         gap: 8px;
       }
 
+      .attach-button {
+        position: relative;
+        width: 42px;
+        min-width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        color: var(--soft);
+        background: rgba(4, 10, 17, 0.42);
+        border-color: rgba(148, 204, 231, 0.13);
+      }
+
+      .attach-button svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .attach-count {
+        position: absolute;
+        right: -5px;
+        top: -5px;
+        min-width: 18px;
+        height: 18px;
+        display: none;
+        place-items: center;
+        padding: 0 5px;
+        color: #06101d;
+        background: var(--cyan);
+        border: 1px solid rgba(237, 242, 255, 0.7);
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .attach-button.active,
+      .attach-button:hover {
+        color: var(--text);
+        border-color: rgba(96, 165, 250, 0.45);
+        background: rgba(37, 99, 235, 0.18);
+      }
+
+      .attach-button.active .attach-count {
+        display: grid;
+      }
+
       input {
         flex: 1;
         min-width: 0;
@@ -1190,6 +1299,260 @@
         background: rgba(4, 10, 17, 0.32);
         font-size: 12px;
         line-height: 1.35;
+      }
+
+      .section-page {
+        display: grid;
+        gap: 16px;
+      }
+
+      .section-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .segmented {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .segmented button {
+        min-height: 34px;
+        color: var(--soft);
+        background: rgba(4, 10, 17, 0.28);
+      }
+
+      .segmented button.active {
+        color: var(--text);
+        border-color: color-mix(in srgb, var(--panel-accent) 48%, transparent);
+        background: var(--panel-accent-soft);
+      }
+
+      .dashboard-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+        gap: 14px;
+      }
+
+      .wide-card {
+        padding: 16px;
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.28);
+      }
+
+      .hero-number {
+        margin-top: 8px;
+        color: var(--text);
+        font-size: 34px;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .finance-line-chart {
+        height: 150px;
+        margin-top: 14px;
+        border-bottom: 1px solid rgba(148, 204, 231, 0.08);
+        background:
+          linear-gradient(180deg, transparent, rgba(45, 212, 191, 0.08)),
+          linear-gradient(90deg, transparent 24%, rgba(148, 204, 231, 0.06) 24% 24.2%, transparent 24.2% 49%, rgba(148, 204, 231, 0.06) 49% 49.2%, transparent 49.2% 74%, rgba(148, 204, 231, 0.06) 74% 74.2%, transparent 74.2%);
+        clip-path: polygon(0 78%, 14% 72%, 28% 74%, 42% 44%, 55% 58%, 68% 36%, 82% 24%, 100% 12%, 100% 100%, 0 100%);
+      }
+
+      .finance-calendar,
+      .task-calendar {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .calendar-day {
+        min-height: 78px;
+        padding: 10px;
+        border: 1px solid rgba(148, 204, 231, 0.08);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.24);
+        color: var(--dim);
+        font-size: 12px;
+      }
+
+      .calendar-day.active {
+        color: var(--text);
+        border-color: color-mix(in srgb, var(--panel-accent) 45%, transparent);
+        background: var(--panel-accent-soft);
+      }
+
+      .calendar-day strong {
+        display: block;
+        margin-top: 12px;
+        color: var(--panel-accent);
+        font-size: 12px;
+      }
+
+      .category-bars,
+      .finance-rows,
+      .task-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .bar-row,
+      .finance-row,
+      .task-row {
+        padding: 10px 12px;
+        border: 1px solid rgba(148, 204, 231, 0.08);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.26);
+      }
+
+      .bar-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .bar-track {
+        grid-column: 1 / -1;
+        height: 4px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(148, 204, 231, 0.08);
+      }
+
+      .bar-track span {
+        display: block;
+        height: 100%;
+        width: var(--value, 42%);
+        background: var(--panel-accent);
+        box-shadow: 0 0 12px var(--panel-accent);
+      }
+
+      .finance-row,
+      .task-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        color: var(--soft);
+      }
+
+      .task-dot,
+      .finance-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        border: 1px solid var(--panel-accent);
+      }
+
+      .task-board {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .task-column h3 {
+        color: var(--soft);
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .task-column .task-row {
+        grid-template-columns: auto minmax(0, 1fr);
+        margin-top: 8px;
+      }
+
+      .habit-overview {
+        display: grid;
+        grid-template-columns: 180px minmax(0, 1fr);
+        gap: 16px;
+        align-items: center;
+      }
+
+      .habit-score {
+        width: 154px;
+        aspect-ratio: 1;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 50% 50%, rgba(4, 10, 17, 0.86) 0 56%, transparent 57%),
+          conic-gradient(var(--panel-accent) var(--score, 51%), rgba(148, 204, 231, 0.12) 0);
+        box-shadow: inset 0 0 28px rgba(34, 211, 238, 0.12), 0 0 36px rgba(34, 211, 238, 0.12);
+      }
+
+      .habit-score strong {
+        display: block;
+        font-size: 30px;
+        line-height: 1;
+      }
+
+      .habit-score span {
+        display: block;
+        margin-top: 6px;
+        color: var(--dim);
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        text-align: center;
+      }
+
+      .habit-chart {
+        height: 116px;
+        margin-top: 14px;
+        border-bottom: 1px solid rgba(148, 204, 231, 0.08);
+        background:
+          linear-gradient(180deg, transparent, rgba(34, 211, 238, 0.08)),
+          linear-gradient(90deg, transparent 19%, rgba(148, 204, 231, 0.055) 19% 19.2%, transparent 19.2% 39%, rgba(148, 204, 231, 0.055) 39% 39.2%, transparent 39.2% 59%, rgba(148, 204, 231, 0.055) 59% 59.2%, transparent 59.2% 79%, rgba(148, 204, 231, 0.055) 79% 79.2%, transparent 79.2%);
+        clip-path: polygon(0 76%, 8% 68%, 16% 72%, 24% 56%, 32% 64%, 40% 44%, 48% 62%, 56% 34%, 64% 48%, 72% 29%, 80% 42%, 88% 24%, 100% 18%, 100% 100%, 0 100%);
+      }
+
+      .habit-pills {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .habit-pill {
+        padding: 10px;
+        border: 1px solid rgba(148, 204, 231, 0.08);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.26);
+      }
+
+      .habit-pill span {
+        display: block;
+        color: var(--dim);
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .habit-pill strong {
+        display: block;
+        margin-top: 5px;
+        color: var(--text);
+      }
+
+      .habit-day strong {
+        color: var(--panel-accent);
+      }
+
+      .habit-group {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .habit-group h3 {
+        color: var(--dim);
+        font-size: 11px;
+        text-transform: uppercase;
       }
 
       @keyframes rotate {
@@ -1255,6 +1618,12 @@
       </section>
 
       <form class="quick-command" id="quickCommand" autocomplete="off">
+        <button id="attachFiles" class="attach-button" type="button" title="Adicionar arquivos" aria-label="Adicionar arquivos">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M21.4 11.6 12 21a6 6 0 0 1-8.5-8.5l10-10a4 4 0 1 1 5.7 5.7L9.6 17.8a2 2 0 0 1-2.8-2.8l8.8-8.8" />
+          </svg>
+          <span class="attach-count" id="attachCount">0</span>
+        </button>
         <input id="commandInput" placeholder="Pergunte ou peça algo ao Axel" />
         <button id="sendCommand" class="primary" type="button">Enviar</button>
       </form>
@@ -1262,10 +1631,13 @@
       <nav class="dock">
         <button type="button" data-panel="midia" title="Mídia" aria-label="Mídia">♪<span>Mídia</span></button>
         <button type="button" data-panel="tempo" title="Tempo" aria-label="Tempo">☁<span>Tempo</span></button>
-        <button type="button" data-panel="carteira" title="Carteira" aria-label="Carteira">↗<span>Carteira</span></button>
+        <button type="button" data-panel="carteira" title="Finanças" aria-label="Finanças">↗<span>Finanças</span></button>
+        <button type="button" data-panel="tarefas" title="Tarefas" aria-label="Tarefas">✓<span>Tarefas</span></button>
+        <button type="button" data-panel="habitos" title="Hábitos" aria-label="Hábitos">◎<span>Hábitos</span></button>
         <button type="button" data-panel="noticias" title="Notícias" aria-label="Notícias">◫<span>Notícias</span></button>
         <button type="button" data-panel="saude" title="Saúde" aria-label="Saúde">+<span>Saúde</span></button>
         <button type="button" data-panel="estudos" title="Estudos" aria-label="Estudos">◇<span>Estudos</span></button>
+        <button type="button" data-panel="skills" title="Skills" aria-label="Skills">⌁<span>Skills</span></button>
         <button type="button" data-panel="treino" title="Treino" aria-label="Treino">⊙<span>Treino</span></button>
       </nav>
 
@@ -1326,7 +1698,15 @@
               <div class="metric"><span>Estilo</span><strong id="contextStyle">--</strong></div>
               <div class="metric"><span>Perfil</span><strong id="contextProfile">--</strong></div>
               <div class="metric"><span>Modo</span><strong id="contextMode">--</strong></div>
+              <div class="metric"><span>Agente</span><strong id="contextAgent">--</strong></div>
+              <div class="metric"><span>Toolset</span><strong id="contextToolset">--</strong></div>
+              <div class="metric"><span>Risco</span><strong id="contextRisk">--</strong></div>
+              <div class="metric"><span>Confiança</span><strong id="contextConfidence">--</strong></div>
+              <div class="metric"><span>Grupo</span><strong id="contextRouteGroup">--</strong></div>
+              <div class="metric"><span>Detector</span><strong id="contextRouteDetector">--</strong></div>
             </div>
+            <p class="eyebrow">Decisão</p>
+            <p class="context-decision" id="contextDecisionReason">--</p>
             <p class="eyebrow">Histórico</p>
             <ul class="history-list" id="contextHistory"></ul>
           </div>
@@ -1366,6 +1746,29 @@
         </div>
       </section>
 
+      <section class="panel-window" data-window="skills">
+        <div class="panel-head">
+          <div><p class="eyebrow">Skills</p><h2>Sugestoes procedurais</h2></div>
+          <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
+        </div>
+        <div class="panel-body">
+          <div class="text-card">
+            <div class="metric-grid">
+              <div class="metric"><span>Pendentes</span><strong id="skillsPendingCount">0</strong></div>
+              <div class="metric"><span>Origem</span><strong>AxelBrain</strong></div>
+            </div>
+            <div class="actions">
+              <button type="button" data-command="sugestoes de skills">Listar</button>
+              <button type="button" data-command="listar skills do axel">Catalogo</button>
+            </div>
+          </div>
+          <div class="text-card" style="margin-top:12px">
+            <p class="eyebrow">Fila</p>
+            <div class="task-list" id="skillSuggestionsList"></div>
+          </div>
+        </div>
+      </section>
+
       <section class="panel-window" data-window="saude">
         <div class="panel-head">
           <div><p class="eyebrow">Saude</p><h2>Projeto Axel</h2></div>
@@ -1388,6 +1791,23 @@
           <div class="text-card" style="margin-top:12px">
             <p class="eyebrow">Alertas</p>
             <ul class="workout-list" id="healthAlerts"></ul>
+          </div>
+          <div class="text-card" style="margin-top:12px">
+            <p class="eyebrow">Observabilidade</p>
+            <div class="metric-grid">
+              <div class="metric"><span>Actions</span><strong id="obsActionCount">0</strong></div>
+              <div class="metric"><span>Erros</span><strong id="obsActionErrors">0%</strong></div>
+              <div class="metric"><span>Tokens</span><strong id="obsTokens">0</strong></div>
+              <div class="metric"><span>Custo API</span><strong id="obsCost">$0.000000</strong></div>
+              <div class="metric"><span>Modelos</span><strong id="obsModelCalls">0</strong></div>
+              <div class="metric"><span>Fallbacks</span><strong id="obsFallbacks">0</strong></div>
+            </div>
+            <p class="eyebrow">Actions recentes</p>
+            <ul class="workout-list" id="obsRecentActions"></ul>
+            <p class="eyebrow" style="margin-top:12px">Modelos recentes</p>
+            <ul class="workout-list" id="obsRecentModels"></ul>
+            <p class="eyebrow" style="margin-top:12px">Dominios</p>
+            <ul class="workout-list" id="obsDomains"></ul>
           </div>
         </div>
       </section>
@@ -1476,18 +1896,180 @@
       </section>
       <section class="panel-window" data-window="carteira">
         <div class="panel-head">
-          <div><p class="eyebrow">Carteira</p><h2>Investimentos</h2></div>
+          <div><p class="eyebrow">Finanças</p><h2>Visão geral</h2></div>
           <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
         </div>
         <div class="panel-body">
-          <div class="text-card">
-            <div class="metric-grid">
-              <div class="metric"><span>Patrimônio</span><strong id="investTotal">--</strong></div>
-              <div class="metric"><span>Rentabilidade</span><strong id="investReturn">--</strong></div>
-              <div class="metric"><span>Proventos 12M</span><strong id="investIncome">--</strong></div>
-              <div class="metric"><span>Atualização</span><strong id="investUpdated">--</strong></div>
+          <div class="section-page">
+            <div class="section-toolbar">
+              <div class="segmented">
+                <button class="active" type="button">Todos</button>
+                <button type="button">Bancos</button>
+                <button type="button">Cartões</button>
+                <button type="button">Investimentos</button>
+                <button type="button" title="Futuro">Open Finance</button>
+              </div>
+              <div class="media-note">Open Finance entra depois, sem integração ativa agora.</div>
             </div>
-            <ul class="workout-list" id="investLines"></ul>
+            <div class="dashboard-grid">
+              <div class="wide-card">
+                <p class="eyebrow">Saldo consolidado</p>
+                <div class="hero-number" id="investTotal">--</div>
+                <div class="metric-grid" style="margin-top:14px">
+                  <div class="metric"><span>Rentabilidade</span><strong id="investReturn">--</strong></div>
+                  <div class="metric"><span>Proventos 12M</span><strong id="investIncome">--</strong></div>
+                  <div class="metric"><span>Atualização</span><strong id="investUpdated">--</strong></div>
+                  <div class="metric"><span>Conexões</span><strong>Manual</strong></div>
+                </div>
+                <div class="finance-line-chart" aria-hidden="true"></div>
+              </div>
+              <div class="wide-card">
+                <p class="eyebrow">Contas e cartões</p>
+                <div class="finance-rows" id="financeAccounts"></div>
+              </div>
+            </div>
+            <div class="dashboard-grid">
+              <div class="wide-card">
+                <div class="section-toolbar">
+                  <div><p class="eyebrow">Abril</p><h2>Calendário financeiro</h2></div>
+                  <div class="media-note">previsto / realizado</div>
+                </div>
+                <div class="finance-calendar" id="financeCalendar"></div>
+              </div>
+              <div class="wide-card">
+                <p class="eyebrow">Categorias</p>
+                <div class="category-bars" id="financeCategories"></div>
+                <p class="eyebrow" style="margin-top:16px">Movimentos</p>
+                <div class="finance-rows" id="investLines"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="panel-window" data-window="tarefas">
+        <div class="panel-head">
+          <div><p class="eyebrow">Tarefas</p><h2>Rotina e agenda</h2></div>
+          <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
+        </div>
+        <div class="panel-body">
+          <div class="section-page">
+            <div class="section-toolbar">
+              <div class="segmented">
+                <button class="active" type="button">Todas</button>
+                <button type="button">Normais</button>
+                <button type="button">Recorrentes</button>
+              </div>
+              <div class="segmented">
+                <button type="button">Casa</button>
+                <button type="button">Pessoal</button>
+                <button type="button">Saúde</button>
+                <button type="button">Trabalho</button>
+              </div>
+            </div>
+            <div class="dashboard-grid">
+              <div class="wide-card">
+                <p class="eyebrow">Saúde da rotina</p>
+                <div class="hero-number" id="tasksScore">88</div>
+                <div class="metric-grid" style="margin-top:14px">
+                  <div class="metric"><span>Total</span><strong id="tasksTotal">29</strong></div>
+                  <div class="metric"><span>Atrasadas</span><strong id="tasksLate">2</strong></div>
+                  <div class="metric"><span>Pendentes</span><strong id="tasksPending">14</strong></div>
+                  <div class="metric"><span>Hoje</span><strong id="tasksToday">4</strong></div>
+                </div>
+                <div class="bar-track" style="margin-top:14px"><span style="--value:48%"></span></div>
+                <div class="media-note" style="margin-top:10px">Ritmo moderado · quinta mais produtivo</div>
+              </div>
+              <div class="wide-card">
+                <p class="eyebrow">Últimos 7 dias</p>
+                <div class="category-bars" id="tasksWeek"></div>
+              </div>
+            </div>
+            <div class="dashboard-grid">
+              <div class="wide-card">
+                <div class="section-toolbar">
+                  <div><p class="eyebrow">Lista</p><h2>Próximas tarefas</h2></div>
+                  <div class="media-note">prioridade e prazo</div>
+                </div>
+                <div class="task-list" id="tasksList"></div>
+              </div>
+              <div class="wide-card">
+                <p class="eyebrow">Abril 2026</p>
+                <div class="task-calendar" id="tasksCalendar"></div>
+              </div>
+            </div>
+            <div class="wide-card">
+              <div class="section-toolbar">
+                <div><p class="eyebrow">Kanban</p><h2>Fluxo</h2></div>
+                <div class="media-note">rascunho visual</div>
+              </div>
+              <div class="task-board" id="tasksBoard"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="panel-window" data-window="habitos">
+        <div class="panel-head">
+          <div><p class="eyebrow">Hábitos</p><h2>Consistência e rotina</h2></div>
+          <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
+        </div>
+        <div class="panel-body">
+          <div class="section-page">
+            <div class="section-toolbar">
+              <div class="segmented">
+                <button class="active" type="button">Hoje</button>
+                <button type="button">Semana</button>
+                <button type="button">Mês</button>
+                <button type="button">Sequência</button>
+              </div>
+              <div class="media-note" id="habitsTrend">--</div>
+            </div>
+            <div class="dashboard-grid">
+              <div class="wide-card">
+                <div class="habit-overview">
+                  <div class="habit-score" id="habitsScoreRing" style="--score:51%">
+                    <div><strong id="habitsScore">51</strong><span>pontos</span></div>
+                  </div>
+                  <div>
+                    <p class="eyebrow">Status</p>
+                    <div class="hero-number" id="habitsStatus">Bom</div>
+                    <div class="metric-grid" style="margin-top:14px">
+                      <div class="metric"><span>Hoje</span><strong id="habitsTodayMetric">4 de 7</strong></div>
+                      <div class="metric"><span>Sequência</span><strong id="habitsStreak">4 dias</strong></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="habit-pills" id="habitsPills"></div>
+              </div>
+              <div class="wide-card">
+                <p class="eyebrow">Consistência</p>
+                <div class="hero-number" id="habitsAverage">29%</div>
+                <div class="habit-chart" aria-hidden="true"></div>
+                <div class="media-note" style="margin-top:10px">janela dos últimos 90 dias</div>
+              </div>
+            </div>
+            <div class="dashboard-grid">
+              <div class="wide-card">
+                <div class="section-toolbar">
+                  <div><p class="eyebrow">Abril 2026</p><h2>Calendário de hábitos</h2></div>
+                  <div class="media-note">concluídos / total</div>
+                </div>
+                <div class="task-calendar" id="habitsCalendar"></div>
+              </div>
+              <div class="wide-card">
+                <div class="section-toolbar">
+                  <div><p class="eyebrow">Hoje</p><h2 id="habitsTodayTitle">4/7</h2></div>
+                  <div class="media-note">por período</div>
+                </div>
+                <div id="habitsToday"></div>
+              </div>
+            </div>
+            <div class="wide-card">
+              <div class="section-toolbar">
+                <div><p class="eyebrow">Análise</p><h2>Leitura rápida</h2></div>
+                <div class="media-note">padrão e foco</div>
+              </div>
+              <div class="task-list" id="habitsAnalysis"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -1529,6 +2111,7 @@
       let currentPanelName = "";
       let pendingPanelRequest = null;
       let panelSwitchFrame = 0;
+      let attachedStudyFiles = [];
       let coreAnimationFrame = 0;
       let panelSwitchingUntil = 0;
       let panelSwitchTimeout = 0;
@@ -1545,6 +2128,7 @@
           ["⌁", "Tela", "o que tem na tela"],
           ["☁", "Clima", "como esta o clima"],
           ["↗", "Carteira", "resumo da carteira"],
+          ["◎", "Hábitos", "abrir habitos"],
           ["◫", "Notícias", "tem noticias da carteira"],
           ["+", "Saude", "saude do axel"],
           ["●", "Conversa", "quero conversar"],
@@ -1573,6 +2157,7 @@
         ["Dados", [
           ["☁", "Clima", "como esta o clima"],
           ["↗", "Carteira", "resumo da carteira"],
+          ["◎", "Hábitos", "abrir habitos"],
           ["◫", "Notícias", "tem noticias da carteira"],
           ["+", "Saude", "saude do axel"],
           ["⊙", "Treino", "abrir treino"],
@@ -1980,6 +2565,42 @@
         if (bridge) bridge.sendCommand(value);
       }
 
+      function updateAttachButton() {
+        const button = document.getElementById("attachFiles");
+        const countLabel = document.getElementById("attachCount");
+        if (!button) return;
+        const count = attachedStudyFiles.length;
+        button.classList.toggle("active", count > 0);
+        button.title = count ? `${count} arquivo(s) anexado(s)` : "Adicionar arquivos";
+        if (countLabel) countLabel.textContent = String(count);
+      }
+
+      function buildAttachedFileCommand(text) {
+        const request = String(text || "").trim() || "resuma, explique e gere questoes";
+        return `analisar arquivos anexados: ${JSON.stringify(attachedStudyFiles)} :: ${request}`;
+      }
+
+      function selectStudyFiles() {
+        if (!bridge?.selectStudyFiles) return;
+        bridge.selectStudyFiles((payload) => {
+          let paths = [];
+          try {
+            const parsed = JSON.parse(payload || "[]");
+            if (Array.isArray(parsed)) paths = parsed.map(String).filter(Boolean);
+          } catch (_error) {
+            paths = [];
+          }
+          if (!paths.length) return;
+          attachedStudyFiles = paths;
+          updateAttachButton();
+          const input = document.getElementById("commandInput");
+          if (input && !String(input.value || "").trim()) {
+            input.value = "resuma, explique e crie questoes";
+          }
+          input?.focus();
+        });
+      }
+
       function focusCommandBar() {
         requestPanelOpen("", false, true);
         const input = document.getElementById("commandInput");
@@ -2019,6 +2640,15 @@
       function setHtml(id, value) {
         const el = document.getElementById(id);
         if (el) el.innerHTML = value || "";
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
       }
 
       function hasChanged(key, value) {
@@ -2086,13 +2716,163 @@
       }
 
       function renderInvestment(investment) {
-        setText("investTotal", metricValue(investment, ["patrimonio", "patrimônio"]));
-        setText("investReturn", metricValue(investment, ["rentabilidade"]));
-        setText("investIncome", metricValue(investment, ["proventos 12m", "proventos recebidos"]));
+        const total = metricValue(investment, ["patrimonio", "patrimônio"]);
+        const returnValue = metricValue(investment, ["rentabilidade"]);
+        const income = metricValue(investment, ["proventos 12m", "proventos recebidos"]);
+        setText("investTotal", total);
+        setText("investReturn", returnValue);
+        setText("investIncome", income);
         const updated = investment?.updated_at ? new Date(investment.updated_at * 1000).toLocaleString("pt-BR") : "--";
         setText("investUpdated", updated);
         const lines = Array.isArray(investment?.lines) ? investment.lines.slice(0, 10) : [];
-        setHtml("investLines", lines.length ? lines.map((line) => `<li>${line}</li>`).join("") : "<li>Sem snapshot de carteira.</li>");
+        const rows = lines.length ? lines : ["Carteira manual aguardando Open Finance", "Gastos e bancos serão conectados futuramente"];
+        setHtml("investLines", rows.map((line, index) => `
+          <div class="finance-row">
+            <span class="finance-dot"></span>
+            <span>${line}</span>
+            <strong>${index === 0 ? returnValue : ""}</strong>
+          </div>
+        `).join(""));
+        setHtml("financeAccounts", [
+          ["Investimentos", total, returnValue],
+          ["Bancos", "Futuro", "Open Finance"],
+          ["Cartões", "Futuro", "Gastos"],
+        ].map(([name, value, note]) => `
+          <div class="finance-row">
+            <span class="finance-dot"></span>
+            <span><b>${name}</b><br><small>${note}</small></span>
+            <strong>${value}</strong>
+          </div>
+        `).join(""));
+        setHtml("financeCategories", [
+          ["Investimentos", "72%", total],
+          ["Renda", "42%", income],
+          ["Gastos", "18%", "futuro"],
+        ].map(([name, value, amount]) => `
+          <div class="bar-row" style="--value:${value}">
+            <span>${name}</span><strong>${amount}</strong>
+            <div class="bar-track"><span></span></div>
+          </div>
+        `).join(""));
+        setHtml("financeCalendar", Array.from({ length: 30 }, (_, index) => {
+          const day = index + 1;
+          const active = [9, 16, 28].includes(day);
+          const amount = day === 16 ? "+R$" : day === 9 ? "-R$" : day === 28 ? "-R$" : "";
+          return `<div class="calendar-day ${active ? "active" : ""}">${day}${amount ? `<strong>${amount}</strong>` : ""}</div>`;
+        }).join(""));
+      }
+
+      function renderTasks(payload = {}) {
+        const rawTasks = Array.isArray(payload?.tasks) ? payload.tasks : [];
+        const fallback = [
+          { text: "Finalizar apresentação", tag: "Trabalho", date: "20/04, 18:00", state: "Para Fazer" },
+          { text: "Ligar para seguradora", tag: "Pessoal", date: "23/04, 18:00", state: "Para Fazer" },
+          { text: "Meditar 15 minutos", tag: "Saúde", date: "Hoje", state: "Fazendo" },
+          { text: "Revisar carteira", tag: "Finanças", date: "Sexta", state: "Feito" },
+        ];
+        const tasks = rawTasks.length ? rawTasks : fallback;
+        const total = tasks.length || 29;
+        const done = tasks.filter((item) => String(item.state || "").toLowerCase().includes("feito")).length || 4;
+        const pending = Math.max(0, total - done);
+        setText("tasksTotal", String(total));
+        setText("tasksPending", String(pending));
+        setText("tasksToday", String(Math.min(4, pending)));
+        setText("tasksLate", String(tasks.filter((item) => item.late).length || 2));
+        setHtml("tasksWeek", ["Sex", "Sáb", "Dom", "Seg", "Ter", "Qua", "Qui"].map((day, index) => `
+          <div class="bar-row" style="--value:${[54, 8, 28, 32, 6, 4, 82][index]}%">
+            <span>${day}</span><strong>${index === 6 ? `${done} concluídas` : ""}</strong>
+            <div class="bar-track"><span></span></div>
+          </div>
+        `).join(""));
+        setHtml("tasksList", tasks.map((item, index) => `
+          <div class="task-row">
+            <span class="task-dot"></span>
+            <span>${item.text || item.title || "Tarefa"}<br><small>${item.tag || "Geral"}</small></span>
+            <strong>${item.date || item.due_at || (index === 0 ? "Hoje" : "--")}</strong>
+          </div>
+        `).join(""));
+        setHtml("tasksCalendar", Array.from({ length: 30 }, (_, index) => {
+          const day = index + 1;
+          const active = [13, 16, 20, 24].includes(day);
+          return `<div class="calendar-day ${active ? "active" : ""}">${day}${active ? "<strong>itens</strong>" : ""}</div>`;
+        }).join(""));
+        const groups = ["Para Fazer", "Fazendo", "Feito"];
+        setHtml("tasksBoard", groups.map((group) => `
+          <div class="task-column">
+            <h3>${group}</h3>
+            ${tasks.filter((item, index) => (item.state || groups[index % 3]) === group).slice(0, 3).map((item) => `
+              <div class="task-row"><span class="task-dot"></span><span>${item.text || item.title || "Tarefa"}</span></div>
+            `).join("") || `<div class="task-row"><span class="task-dot"></span><span>Sem itens</span></div>`}
+          </div>
+        `).join(""));
+      }
+
+      function renderHabits(payload = {}) {
+        const fallbackHabits = [
+          { name: "Caminhar", period: "Manhã", done: true },
+          { name: "Meditar", period: "Manhã", done: true },
+          { name: "Vitaminas", period: "Manhã", done: true },
+          { name: "Leitura", period: "Noite", done: false },
+          { name: "Diário", period: "Noite", done: false },
+          { name: "Academia", period: "Sem horário", done: false },
+          { name: "Beber água", period: "Sem horário", done: true },
+        ];
+        const habits = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload?.habits) ? payload.habits : fallbackHabits;
+        const done = habits.filter((item) => Boolean(item.done || item.completed)).length;
+        const total = habits.length || 7;
+        const score = Number(payload?.score ?? Math.round((done / total) * 90)) || 51;
+        const streak = Number(payload?.streak_days ?? payload?.streak ?? 4) || 4;
+        const average = Number(payload?.average_percent ?? payload?.consistency ?? 29) || 29;
+        const completed = Number(payload?.completed_total ?? payload?.completed ?? 57) || 57;
+        const status = payload?.status || (score >= 70 ? "Ótimo" : score >= 45 ? "Bom" : "Atenção");
+        setText("habitsScore", String(score));
+        setText("habitsStatus", status);
+        setText("habitsTodayMetric", `${done} de ${total}`);
+        setText("habitsStreak", `${streak} dias`);
+        setText("habitsAverage", `${average}%`);
+        setText("habitsTodayTitle", `${done}/${total}`);
+        setText("habitsTrend", payload?.trend || "-6% vs semana anterior");
+        document.getElementById("habitsScoreRing")?.style.setProperty("--score", `${Math.max(0, Math.min(100, score))}%`);
+        setHtml("habitsPills", [
+          ["Pontuação", `${score}%`],
+          ["Hoje", `${done} de ${total}`],
+          ["Taxa mensal", `${Math.max(0, Math.min(100, Math.round((completed / Math.max(1, total * 16)) * 100)))}%`],
+          ["Sequência", `${streak} dias`],
+          ["Completados", String(completed)],
+        ].map(([label, value]) => `<div class="habit-pill"><span>${label}</span><strong>${value}</strong></div>`).join(""));
+        const calendar = Array.isArray(payload?.calendar) ? payload.calendar : Array.from({ length: 30 }, (_, index) => {
+          const day = index + 1;
+          const values = [2, 4, 5, 1, 3, 0, 4, 4, 6, 2, 5, 3, 4, 7, 2, 1, 5, 6, 4, 3, 0, 5, 4, 4, 6, 3, 5, 2, 4, 7];
+          return { day, done: values[index], total: 7 };
+        });
+        setHtml("habitsCalendar", calendar.map((item) => {
+          const day = item.day ?? item.date ?? "";
+          const count = Number(item.done ?? item.completed ?? 0);
+          const dayTotal = Number(item.total ?? total);
+          return `<div class="calendar-day habit-day ${count ? "active" : ""}">${day}<strong>${count}/${dayTotal}</strong></div>`;
+        }).join(""));
+        const periods = ["Manhã", "Noite", "Sem horário"];
+        setHtml("habitsToday", periods.map((period) => {
+          const rows = habits.filter((item) => (item.period || item.time || "Sem horário") === period);
+          return `<div class="habit-group">
+            <h3>${period}</h3>
+            ${(rows.length ? rows : [{ name: "Sem itens", done: false }]).map((item) => `
+              <div class="task-row">
+                <span class="task-dot" style="${item.done || item.completed ? "background:var(--panel-accent)" : ""}"></span>
+                <span>${item.name || item.title || "Hábito"}<br><small>${item.note || (item.done || item.completed ? "concluído" : "pendente")}</small></span>
+                <strong>${item.done || item.completed ? "ok" : ""}</strong>
+              </div>
+            `).join("")}
+          </div>`;
+        }).join(""));
+        const analysis = Array.isArray(payload?.analysis) ? payload.analysis : [
+          "Manhã está puxando sua consistência para cima.",
+          "Noite concentra os hábitos que mais escapam.",
+          "Academia e leitura são bons candidatos para lembrete leve.",
+        ];
+        setHtml("habitsAnalysis", analysis.map((item) => `
+          <div class="task-row"><span class="task-dot"></span><span>${item}</span><strong></strong></div>
+        `).join(""));
       }
 
       function renderNews(news) {
@@ -2129,6 +2909,10 @@
         const execution = health?.execution || {};
         const actions = health?.actions || {};
         const artifacts = health?.artifacts || {};
+        const observability = health?.observability || {};
+        const actionTelemetry = observability.actions || {};
+        const modelTelemetry = observability.models || {};
+        const domainTelemetry = Array.isArray(observability.domains) ? observability.domains : [];
         const compileError = preflight.compile_error || "";
         const jsonErrors = Array.isArray(preflight.json_errors) ? preflight.json_errors : [];
         const recentErrors = Array.isArray(execution.recent_errors) ? execution.recent_errors : [];
@@ -2146,6 +2930,33 @@
         setText("healthLog", `${execution.events_count || 0} eventos recentes`);
         setText("healthArtifacts", `${artifacts.json || 0} json / ${artifacts.tmp || 0} tmp / ${(artifacts.html || 0) + (artifacts.txt || 0)} dumps`);
         setHtml("healthAlerts", alerts.length ? alerts.map((item) => `<li>${item}</li>`).join("") : "<li>Nenhum alerta critico agora.</li>");
+
+        setText("obsActionCount", String(actionTelemetry.count || 0));
+        setText("obsActionErrors", `${Math.round((actionTelemetry.error_rate || 0) * 100)}%`);
+        setText("obsTokens", String(modelTelemetry.tokens_estimate || 0));
+        setText("obsCost", `$${Number(modelTelemetry.estimated_cost_usd || 0).toFixed(6)}`);
+        setText("obsModelCalls", String(modelTelemetry.count || 0));
+        setText("obsFallbacks", String(modelTelemetry.fallback_count || 0));
+
+        const recentActions = Array.isArray(actionTelemetry.recent) ? actionTelemetry.recent.slice(-6).reverse() : [];
+        setHtml("obsRecentActions", recentActions.length ? recentActions.map((item) => {
+          const status = item.success === false ? "falha" : "ok";
+          const meta = [item.action_class, item.risk_level, item.decision].filter(Boolean).join(" / ");
+          return `<li><b>${escapeHtml(item.action || "action")}</b><span>${escapeHtml(status)} Â· ${escapeHtml(String(item.duration_ms || 0))}ms Â· ${escapeHtml(meta || "sem meta")}</span></li>`;
+        }).join("") : "<li>Sem actions recentes.</li>");
+
+        const recentModels = Array.isArray(modelTelemetry.recent) ? modelTelemetry.recent.slice(-5).reverse() : [];
+        setHtml("obsRecentModels", recentModels.length ? recentModels.map((item) => {
+          const fallback = item.fallback_used ? " fallback" : "";
+          const status = item.success === false ? "falha" : "ok";
+          const cost = Number(item.estimated_cost_usd || 0).toFixed(6);
+          return `<li><b>${escapeHtml(item.provider || "modelo")}/${escapeHtml(item.model || "--")}</b><span>${escapeHtml(status + fallback)} Â· ${item.total_tokens_estimate || 0} tok Â· $${cost}</span></li>`;
+        }).join("") : "<li>Sem chamadas de modelo registradas.</li>");
+
+        setHtml("obsDomains", domainTelemetry.length ? domainTelemetry.map((item) => {
+          const errorRate = Math.round((item.error_rate || 0) * 100);
+          return `<li><b>${escapeHtml(item.domain || "geral")}</b><span>${item.actions || 0} actions Â· ${errorRate}% erro Â· ${item.avg_ms || 0}ms med.</span></li>`;
+        }).join("") : "<li>Sem dominios operacionais recentes.</li>");
       }
 
       function listFromText(text) {
@@ -2220,6 +3031,14 @@
         setText("contextStyle", ui.assistant_style || "--");
         setText("contextProfile", ui.voice_profile || "--");
         setText("contextMode", modeLabel(ui));
+        setText("contextAgent", ui.axel_brain_plan?.agent || "--");
+        setText("contextToolset", ui.axel_brain_plan?.toolset || "--");
+        setText("contextRisk", ui.axel_brain_plan?.risk_level || "--");
+        const confidence = ui.axel_brain_plan?.confidence;
+        setText("contextConfidence", Number.isFinite(confidence) ? `${Math.round(confidence * 100)}%` : "--");
+        setText("contextRouteGroup", ui.last_route_trace?.group || "--");
+        setText("contextRouteDetector", ui.last_route_trace?.detector || "--");
+        setText("contextDecisionReason", ui.axel_brain_plan?.reason || "--");
 
         setText("commandsVoice", hotword);
         setText("commandsMode", modeLabel(ui));
@@ -2245,6 +3064,62 @@
         `).join("");
       }
 
+      function renderSkillSuggestions(items) {
+        const suggestions = Array.isArray(items) ? items : [];
+        setText("skillsPendingCount", String(suggestions.length));
+        if (!suggestions.length) {
+          setHtml("skillSuggestionsList", `
+            <div class="skill-suggestion">
+              <h3>Nenhuma sugestao pendente</h3>
+              <p>Quando o Axel perceber um procedimento repetido, ele vai aparecer aqui.</p>
+            </div>
+          `);
+          return;
+        }
+        setHtml("skillSuggestionsList", suggestions.map((item, index) => {
+          const number = index + 1;
+          const examples = Array.isArray(item.examples) ? item.examples.slice(0, 3) : [];
+          const meta = [item.toolset, item.agent, item.intent].filter(Boolean).join(" · ");
+          return `
+            <article class="skill-suggestion">
+              <h3>${escapeHtml(item.title || `Sugestao ${number}`)}</h3>
+              <p>${escapeHtml(item.reason || meta || "Padrao procedural detectado.")}</p>
+              ${examples.length ? `<p>Exemplos: ${examples.map(escapeHtml).join(" | ")}</p>` : ""}
+              <div class="actions">
+                <button type="button" data-command="aprovar skill ${number}" class="primary">Aprovar</button>
+                <button type="button" data-command="rejeitar skill ${number}">Rejeitar</button>
+              </div>
+            </article>
+          `;
+        }).join(""));
+      }
+
+      function normalizePanelName(name) {
+        const key = String(name || "").toLowerCase();
+        return {
+          text: "texto",
+          treino: "treino",
+          midia: "midia",
+          mídia: "midia",
+          tempo: "tempo",
+          invest: "carteira",
+          finanças: "carteira",
+          financas: "carteira",
+          carteira: "carteira",
+          tarefas: "tarefas",
+          habitos: "habitos",
+          hábitos: "habitos",
+          habits: "habitos",
+          noticias: "noticias",
+          notícias: "noticias",
+          skills: "skills",
+          mapas: "mapas",
+          health: "saude",
+          saude: "saude",
+          saúde: "saude",
+        }[key] || key;
+      }
+
       window.setAxelState = function setAxelState(payload) {
         const ui = payload?.ui || {};
         currentUiState = ui;
@@ -2260,8 +3135,11 @@
         if (hasChanged("media", payload?.media || {})) renderMedia(payload?.media || {});
         if (hasChanged("weather", payload?.weather || {})) renderWeather(payload?.weather || {});
         if (hasChanged("investment", payload?.investment || {})) renderInvestment(payload?.investment || {});
+        if (hasChanged("tasks", payload?.tasks || ui.tasks || {})) renderTasks(payload?.tasks || ui.tasks || {});
+        if (hasChanged("habits", payload?.habits || ui.habits || {})) renderHabits(payload?.habits || ui.habits || {});
         if (hasChanged("news", payload?.news || [])) renderNews(payload?.news || []);
         if (hasChanged("health", payload?.health || {})) renderHealth(payload?.health || {});
+        if (hasChanged("skill_suggestions", ui.skill_suggestions || [])) renderSkillSuggestions(ui.skill_suggestions || []);
         if (hasChanged("map", payload?.map || {})) renderMap(payload?.map || {});
         if (hasChanged("study", payload?.study || {})) renderStudy(payload?.study || {});
         renderSystemPanels(ui);
@@ -2270,7 +3148,7 @@
         const requestKey = requestedPanels.join("|");
         if (requestKey && requestKey !== appliedOpenPanelsKey) {
           const mapped = requestedPanels
-            .map((name) => ({ text: "texto", treino: "treino", midia: "midia", tempo: "tempo", invest: "carteira", noticias: "noticias", mapas: "mapas", health: "saude" }[String(name).toLowerCase()] || String(name).toLowerCase()))
+            .map((name) => normalizePanelName(name))
             .find((name) => panelTargetExists(name));
           if (mapped) {
             requestPanelOpen(mapped, false, true);
@@ -2283,8 +3161,8 @@
         if (payload?.map?.open && document.querySelector('[data-window="mapas"]')) {
           requestPanelOpen("mapas", false, true);
           activePanelHydrated = true;
-        } else if (ui.active_panel && ui.active_panel !== currentPanelName && panelTargetExists(ui.active_panel)) {
-          requestPanelOpen(ui.active_panel, false, true);
+        } else if (ui.active_panel && normalizePanelName(ui.active_panel) !== currentPanelName && panelTargetExists(normalizePanelName(ui.active_panel))) {
+          requestPanelOpen(normalizePanelName(ui.active_panel), false, true);
           activePanelHydrated = true;
         } else if (!ui.active_panel && !payload?.map?.open && !requestKey && currentPanelName) {
           requestPanelOpen("", false, true);
@@ -2491,14 +3369,20 @@
           if (bridge) bridge.refreshData();
         });
       });
-      document.querySelectorAll("[data-command]").forEach((button) => {
-        button.addEventListener("click", () => sendCommand(button.dataset.command));
+      document.addEventListener("click", (event) => {
+        const button = event.target?.closest?.("[data-command]");
+        if (!button) return;
+        sendCommand(button.dataset.command);
       });
       document.getElementById("sendCommand").addEventListener("click", () => {
         const input = document.getElementById("commandInput");
-        sendCommand(input.value);
+        const command = attachedStudyFiles.length ? buildAttachedFileCommand(input.value) : input.value;
+        sendCommand(command);
         input.value = "";
+        attachedStudyFiles = [];
+        updateAttachButton();
       });
+      document.getElementById("attachFiles").addEventListener("click", selectStudyFiles);
       document.getElementById("commandInput").addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
           event.preventDefault();

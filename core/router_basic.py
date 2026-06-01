@@ -4,6 +4,13 @@ import difflib
 import re
 
 from core.router_utils import normalize_text
+from memory.assistant_customization import (
+    get_axel_introduction,
+    get_direct_response,
+    remember_direct_response,
+    reset_axel_introduction,
+    set_axel_introduction,
+)
 from memory.profile import get_value, set_value
 from tools.math_tools import calculate_basic_expression, calculate_percentage
 
@@ -60,14 +67,6 @@ CHATTER_PATTERNS = {
     "fala uma coisa interessante": "Uma coisa interessante: quase toda automacao boa nasce de uma frase irritante repetida muitas vezes. A gente esta transformando irritacao em botao invisivel.",
 }
 
-AXEL_INTRODUCTION = (
-    "Prazer, eu sou o Axel, o assistente local do Pedro. "
-    "Eu ajudo a controlar o computador por voz, abrir aplicativos e sites, navegar, ler telas, organizar contexto e lembrar preferencias importantes. "
-    "A ideia nao e substituir ninguem: e tirar pequenos atritos do caminho para o Pedro pensar, estudar, programar e decidir melhor. "
-    "Ainda estou evoluindo, mas ja tenho uma especialidade bem clara: transformar frases soltas em acoes uteis."
-)
-
-
 def _contains_bluetooth(text: str) -> bool:
     normalized = normalize_text(text)
     compact = normalized.replace(" ", "")
@@ -90,6 +89,69 @@ def _contains_bluetooth(text: str) -> bool:
 
 def _has_any_word(text: str, words: set[str]) -> bool:
     return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
+
+
+def _text_after_first_colon(text: str) -> str | None:
+    if ":" not in text:
+        return None
+    value = text.split(":", 1)[1].strip(" \t,:;-\"'")
+    return value or None
+
+
+def _text_from_match(text: str, match: re.Match, group_index: int) -> str:
+    if ":" in text[: match.start(group_index) + 3]:
+        value = _text_after_first_colon(text)
+        if value:
+            return value
+    return text[match.start(group_index):].strip(" \t,:;-\"'")
+
+
+def detect_custom_response_command(user_input: str):
+    text = user_input.strip()
+    lower = normalize_text(user_input)
+    if lower.startswith("axel "):
+        lower_without_name = lower[len("axel "):].strip()
+    else:
+        lower_without_name = lower
+
+    response = get_direct_response(lower_without_name)
+    if response:
+        return {"intent": "respond", "target": None, "response": response}
+
+    reset_intro_phrases = {
+        "resetar apresentacao",
+        "resetar sua apresentacao",
+        "voltar apresentacao padrao",
+        "restaurar apresentacao padrao",
+        "esquecer apresentacao personalizada",
+    }
+    if lower_without_name in reset_intro_phrases:
+        reset_axel_introduction()
+        return {"intent": "respond", "target": None, "response": "Pronto. Voltei para minha apresentacao padrao."}
+
+    intro_patterns = [
+        r"^(?:axel\s+)?(?:aprenda|aprende|lembre|lembrar)\s+(?:a\s+)?(?:se\s+)?apresentar\s+(?:assim|desse\s+jeito|desta\s+forma)\s*[:,-]?\s+(.+)$",
+        r"^(?:axel\s+)?quando\s+(?:eu\s+)?(?:pedir|mandar)\s+(?:para\s+)?(?:voce\s+)?(?:se\s+)?apresentar\s+(?:responda|responder|diga|fale)\s*[:,-]?\s+(.+)$",
+    ]
+    for pattern in intro_patterns:
+        match = re.match(pattern, lower)
+        if not match:
+            continue
+        raw_intro = _text_from_match(text, match, 1)
+        if set_axel_introduction(raw_intro):
+            return {"intent": "respond", "target": None, "response": "Aprendi minha nova apresentacao. Quando voce pedir para eu me apresentar, vou usar esse texto."}
+
+    teach_response_match = re.match(
+        r"^(?:axel\s+)?quando\s+(?:eu\s+)?(?:disser|falar|perguntar)\s+['\"]?(.+?)['\"]?\s+(?:responda|responder|diga|fale)\s*[:,-]?\s*['\"]?(.+?)['\"]?$",
+        lower,
+    )
+    if teach_response_match:
+        trigger = teach_response_match.group(1).strip(" .,:;-")
+        response_text = text[teach_response_match.start(2):].strip(" \t,:;-\"'")
+        if remember_direct_response(trigger, response_text):
+            return {"intent": "respond", "target": None, "response": f"Aprendi. Quando voce disser '{trigger}', eu respondo com essa fala."}
+
+    return None
 
 
 def detect_user_name(user_input: str):
@@ -137,7 +199,10 @@ def detect_greeting(user_input: str):
         "axel pode se apresentar",
         "axel pode se apresente",
         "se apresente",
+        "se apresenta",
+        "apresentese",
         "apresente se",
+        "apresenta se",
         "apresenta voce",
         "apresenta o axel",
         "apresente o axel",
@@ -149,10 +214,10 @@ def detect_greeting(user_input: str):
         "conte quem voce e",
         "conta quem voce e",
     }:
-        return {"intent": "respond", "target": None, "response": AXEL_INTRODUCTION}
+        return {"intent": "respond", "target": None, "response": get_axel_introduction()}
 
     if text.startswith("axel ") and any(phrase in text for phrase in {"se apresente", "apresente se", "quem voce e", "quem e voce"}):
-        return {"intent": "respond", "target": None, "response": AXEL_INTRODUCTION}
+        return {"intent": "respond", "target": None, "response": get_axel_introduction()}
 
     if text in CHATTER_PATTERNS:
         return {"intent": "respond", "target": None, "response": CHATTER_PATTERNS[text]}
@@ -231,6 +296,7 @@ def detect_bluetooth_command(user_input: str):
 
 
 BASIC_EARLY_DETECTORS = (
+    detect_custom_response_command,
     detect_user_name,
     detect_greeting,
     detect_math,

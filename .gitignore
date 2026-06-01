@@ -20,13 +20,19 @@ memory/*.html
 memory/*.txt
 memory/*.playwright.txt
 memory/*.log
+memory/*.sqlite3
+memory/episodes.json
+memory/task_evaluations.json
 memory/obsidian_vault/
 memory/audio_diagnostics/
 memory/chunks/
 memory/map_cache/
+memory/workflows/
 memory/wallet*
 !memory/*.py
 !memory/todo.md
+!memory/core_memory.md
+!memory/user_profile.md
 
 models/
 

@@ -37,6 +37,17 @@ class StudyCommandTests(unittest.TestCase):
     def test_unrelated_command_returns_none(self):
         self.assertIsNone(maybe_handle_study_command("abrir spotify", Mock()))
 
+    def test_clear_study_context_command(self):
+        with (
+            patch("core.study_commands.clear_study_context") as clear_context,
+            patch("core.study_commands.study_snapshot", return_value={}),
+            patch("core.study_commands.update_ui_state"),
+        ):
+            result = maybe_handle_study_command("limpar contexto de estudo", Mock())
+
+        self.assertEqual(result, "Contexto do ultimo arquivo de estudo limpo.")
+        clear_context.assert_called_once_with()
+
 
 if __name__ == "__main__":
     unittest.main()

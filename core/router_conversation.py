@@ -4,6 +4,16 @@ from core.router_utils import normalize_text
 from llm.action_selector import select_read_action
 from llm.chat import chat_response
 
+FACTUAL_QUESTION_PREFIXES = (
+    "o que e ",
+    "oq e ",
+    "oque e ",
+    "quem e ",
+    "qual e ",
+    "quais sao ",
+    "como funciona ",
+)
+
 REPEAT_PATTERNS = {
     "de novo",
     "denovo",
@@ -65,6 +75,11 @@ def detect_ollama_chat(user_input: str):
     text = normalize_text(user_input)
     if not text or len(text) <= 4:
         return None
+
+    if text.startswith(FACTUAL_QUESTION_PREFIXES):
+        response = chat_response(user_input)
+        if response:
+            return {"intent": "respond", "target": None, "response": response}
 
     response = chat_response(user_input)
     if response:

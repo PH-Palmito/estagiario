@@ -92,6 +92,18 @@ class UIBridgeTests(unittest.TestCase):
         patch_payloads = [call.args[0] for call in update_mock.call_args_list]
         self.assertTrue(any(payload.get("open_panels") == ["saude"] for payload in patch_payloads))
 
+    @patch("core.ui_bridge.subprocess.Popen")
+    @patch("core.ui_bridge.load_ui_state", return_value={"visible": False})
+    @patch("core.ui_bridge.update_ui_state")
+    def test_skills_command_opens_skills_panel(self, update_mock, _load_mock, _popen_mock):
+        bridge = make_bridge()
+
+        result = bridge.maybe_handle_command("abrir painel de skills")
+
+        self.assertEqual(result, "Painel de skills aberto.")
+        patch_payloads = [call.args[0] for call in update_mock.call_args_list]
+        self.assertTrue(any(payload.get("open_panels") == ["skills"] for payload in patch_payloads))
+
 
 if __name__ == "__main__":
     unittest.main()

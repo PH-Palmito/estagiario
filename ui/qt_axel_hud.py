@@ -10,7 +10,7 @@ from PySide6.QtCore import QObject, QTimer, QUrl, Slot
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow
 
 from core.performance_mode import performance_settings_from_state
 from memory.ui_commands import enqueue_ui_command
@@ -66,7 +66,7 @@ class AxelBridge(QObject):
     @Slot()
     def requestRefresh(self):
         try:
-            self.window.push_state()
+            self.window.push_state(force=True)
         except Exception:
             self.window.log_exception("requestRefresh")
 
@@ -94,9 +94,23 @@ class AxelBridge(QObject):
     def refreshData(self):
         try:
             self.window.clear_cache()
-            self.window.push_state()
+            self.window.push_state(force=True)
         except Exception:
             self.window.log_exception("refreshData")
+
+    @Slot(result=str)
+    def selectStudyFiles(self) -> str:
+        try:
+            paths, _selected_filter = QFileDialog.getOpenFileNames(
+                self.window,
+                "Adicionar arquivos ao Axel",
+                str(Path.home()),
+                "Arquivos de estudo (*.pdf *.pptx *.docx *.txt *.md *.csv *.json *.xlsx);;Todos os arquivos (*.*)",
+            )
+            return json.dumps([str(path) for path in paths], ensure_ascii=False)
+        except Exception:
+            self.window.log_exception("selectStudyFiles")
+            return "[]"
 
 
 class AxelWebHud(QMainWindow):
@@ -107,6 +121,9 @@ class AxelWebHud(QMainWindow):
         self._closing_from_state = False
         self._js_busy = False
         self._queued_payload = ""
+        self._queued_payload_force = False
+        self._last_payload = ""
+        self._last_training_payload = ""
         self._cache = {
             "media": {"at": 0.0, "data": {}},
             "weather": {"at": 0.0, "data": {}},
@@ -149,6 +166,8 @@ class AxelWebHud(QMainWindow):
     def clear_cache(self):
         for entry in self._cache.values():
             entry["at"] = 0.0
+        self._last_payload = ""
+        self._last_training_payload = ""
 
     def log_exception(self, source: str) -> None:
         print(f"[HUD] {source} failed", file=sys.stderr)
@@ -162,7 +181,7 @@ class AxelWebHud(QMainWindow):
     def _on_load_finished(self, ok: bool):
         if ok:
             update_ui_state({"visible": True})
-            self.push_state()
+            self.push_state(force=True)
             self.timer.start()
 
     def closeEvent(self, event):
@@ -343,7 +362,7 @@ class AxelWebHud(QMainWindow):
             "map": self._map_payload(ui_state),
         }
 
-    def push_state(self):
+    def push_state(self, force: bool = False):
         payload_data = self._payload()
         if not payload_data.get("ui", {}).get("visible", True):
             self._closing_from_state = True
@@ -353,18 +372,28 @@ class AxelWebHud(QMainWindow):
         training_open = str(payload_data.get("ui", {}).get("active_panel") or "").strip().lower() == "treino"
         if training_open:
             self._position_training_view()
-            self.training_view.show()
-            self.training_view.raise_()
-            self.training_view.page().runJavaScript(f"window.setTrainingState && window.setTrainingState({payload});")
+            if not self.training_view.isVisible():
+                self.training_view.show()
+                self.training_view.raise_()
+            if force or payload != self._last_training_payload:
+                self._last_training_payload = payload
+                self.training_view.page().runJavaScript(f"window.setTrainingState && window.setTrainingState({payload});")
         else:
-            self.training_view.hide()
-        self._send_payload(payload)
+            self._last_training_payload = ""
+            if self.training_view.isVisible():
+                self.training_view.hide()
+        self._send_payload(payload, force=force)
 
-    def _send_payload(self, payload: str):
+    def _send_payload(self, payload: str, force: bool = False):
+        if not force and payload == self._last_payload:
+            return
         if self._js_busy:
-            self._queued_payload = payload
+            if force or payload != self._last_payload:
+                self._queued_payload = payload
+                self._queued_payload_force = force
             return
         self._js_busy = True
+        self._last_payload = payload
         self.view.page().runJavaScript(
             f"window.setAxelState && window.setAxelState({payload});",
             self._on_js_state_applied,
@@ -375,8 +404,10 @@ class AxelWebHud(QMainWindow):
         if not self._queued_payload:
             return
         payload = self._queued_payload
+        force = self._queued_payload_force
         self._queued_payload = ""
-        self._send_payload(payload)
+        self._queued_payload_force = False
+        self._send_payload(payload, force=force)
 
 
 def main() -> int:

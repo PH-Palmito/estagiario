@@ -10,6 +10,20 @@ class ReminderAnnouncerTests(unittest.TestCase):
     def test_formats_single_due_agenda_item(self):
         self.assertEqual(reminder_message([{"text": "reuniao", "source": "agenda"}]), "Agenda: reuniao.")
 
+    def test_formats_agenda_follow_up_prompt(self):
+        self.assertEqual(
+            reminder_message(
+                [
+                    {
+                        "text": "prova de matematica",
+                        "source": "agenda",
+                        "follow_up_prompt": "Depois me conta como foi.",
+                    }
+                ]
+            ),
+            "Agenda: prova de matematica. Depois me conta como foi.",
+        )
+
     def test_formats_empty_single_reminder(self):
         self.assertEqual(reminder_message([{"text": ""}]), "Voce tem um lembrete vencido.")
 

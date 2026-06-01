@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -16,6 +17,43 @@ class OutputResponseResult:
     styled_message: str
     repeat_listen_until: float | None
     direct_response_ready_announced: bool
+
+
+def response_text_looks_corrupted_study_pdf(message: str) -> bool:
+    normalized = str(message or "").replace("\x00", "").lower()
+    if "analise de estudo dos arquivos" not in normalized:
+        return False
+    if len(normalized) < 80:
+        return False
+
+    suspicious_patterns = [
+        r"\bt\s+m\s+s\s+t\s+m\s+s\b",
+        r"\bq\s+u\s+i\s+t\s+q\s+l\s+i\s+l\s+m\b",
+        r"\bs\s+o\s+n\s+t\s+w\s+i\s+r\s+m\b",
+        r"\bqum\b",
+        r"\blm\b",
+        r"\bciqxi\b",
+        r"\btmstm?s?\b",
+        r"\bcisos\b",
+        r"\bvitorms?\b",
+        r"\bcouxtmx",
+        r"\bquivtos?\b",
+        r"\btrivsn",
+        r"\bqvv(?:a|Ã¡|á)t",
+    ]
+    hits = sum(len(re.findall(pattern, normalized, flags=re.I)) for pattern in suspicious_patterns)
+    return hits >= 6
+
+
+def block_corrupted_study_pdf_response(message: str) -> str:
+    if not response_text_looks_corrupted_study_pdf(message):
+        return message
+    return (
+        "Nao vou resumir esse arquivo ainda: a extracao do PDF retornou texto corrompido "
+        "e falhou na verificacao de confianca. Para esse caso, preciso usar OCR externo "
+        "confiavel, como um provider ClawHub/PDF OCR configurado, ou uma versao do PDF "
+        "exportada como texto pesquisavel."
+    )
 
 
 class ResponsePipeline:
@@ -123,7 +161,8 @@ class ResponsePipeline:
         wait_for_tts: bool | None = None,
     ) -> OutputResponseResult:
         output_started_at = time.perf_counter()
-        styled_message = self.style_response(message)
+        safe_message = block_corrupted_study_pdf_response(message)
+        styled_message = self.style_response(safe_message)
         self.log_event(
             "assistant_output",
             message=styled_message,

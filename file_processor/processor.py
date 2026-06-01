@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from file_processor.detector import detect_file
-from file_processor.extractors import extract_docx, extract_json, extract_pdf, extract_table, extract_text, extract_xlsx
+from file_processor.extractors import extract_docx, extract_json, extract_pdf, extract_pptx, extract_table, extract_text, extract_xlsx
 
 
 def process_file(path: str, max_chars: int = 4000) -> dict:
@@ -25,6 +25,8 @@ def process_file(path: str, max_chars: int = 4000) -> dict:
             extracted = extract_pdf(info["path"], max_chars=max_chars)
         elif info["extension"] == ".docx":
             extracted = extract_docx(info["path"], max_chars=max_chars)
+        elif info["extension"] == ".pptx":
+            extracted = extract_pptx(info["path"], max_chars=max_chars)
         elif info["extension"] == ".xlsx":
             extracted = extract_xlsx(info["path"])
         elif kind in {"text", "code", "structured_text"}:

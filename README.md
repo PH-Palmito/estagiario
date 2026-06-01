@@ -4,7 +4,7 @@ Assistente local para Windows com foco em voz, automação de desktop, navegaç�
 
 O projeto foi pensado para rodar localmente, com Ollama para LLM, Faster-Whisper para transcrição e Piper para TTS. A proposta é ter um assistente útil de verdade, controlando apps, sites, mídia e tarefas práticas sem depender de cloud para tudo.
 
-Opcionalmente, o projeto também pode usar Gemini API como cérebro principal de texto, mantendo o Ollama local como fallback.
+Opcionalmente, o projeto também pode usar Gemini API como cérebro principal de texto, NVIDIA NIM como segunda opção remota e Ollama local como fallback.
 
 ## O que ele faz
 
@@ -89,6 +89,15 @@ Variáveis principais:
 - `AXEL_GEMINI_PRIMARY_TEXT_ENABLED`
   Se ativado, o Gemini vira o modelo principal para chamadas de texto do Axel, com fallback para Ollama se a API falhar.
 
+- `AXEL_NVIDIA_API_KEY`
+  Chave opcional da NVIDIA NIM API. Por padrão, entra como segunda opção remota quando Gemini falhar ou não estiver configurado.
+
+- `AXEL_NVIDIA_MODEL`
+  Modelo NVIDIA usado no endpoint OpenAI-compatible da NVIDIA. Padrão: `meta/llama-3.1-70b-instruct`.
+
+- `AXEL_NVIDIA_TEXT_FALLBACK_ENABLED`
+  Se ativado, tenta NVIDIA depois do Gemini e antes do Ollama local.
+
 - `AXEL_GEMINI_COMPLEX_CHAT_ENABLED`
   Se ativado, o Gemini entra apenas em perguntas mais complexas, analíticas ou opinativas. Comandos operacionais continuam no fluxo normal.
 
@@ -169,7 +178,7 @@ Por seguranca, o modo atual deve permanecer read-only: responder perguntas e con
 
 ## Gemini opcional como principal
 
-Quando `AXEL_GEMINI_API_KEY` estiver preenchida e `AXEL_GEMINI_PRIMARY_TEXT_ENABLED=1`, o Axel passa a usar Gemini como principal nas chamadas de texto e deixa o Ollama como fallback.
+Quando `AXEL_GEMINI_API_KEY` estiver preenchida e `AXEL_GEMINI_PRIMARY_TEXT_ENABLED=1`, o Axel passa a usar Gemini como principal nas chamadas de texto. Se `AXEL_NVIDIA_API_KEY` também estiver preenchida e `AXEL_NVIDIA_TEXT_FALLBACK_ENABLED=1`, NVIDIA entra como segunda opção remota antes do Ollama local.
 
 Isso afeta, por exemplo:
 
@@ -188,7 +197,8 @@ Exemplos:
 Fluxo adotado:
 
 - Gemini como principal quando a chave estiver configurada
-- Ollama como fallback automático se a API falhar
+- NVIDIA como fallback remoto automático se Gemini falhar
+- Ollama como fallback local se as APIs remotas falharem
 - Se quiser limitar o Gemini depois, basta desligar `AXEL_GEMINI_PRIMARY_TEXT_ENABLED` e manter só o modo complexo
 
 Também existe um uso híbrido nas perguntas sobre a tela: quando você faz uma leitura de página e depois pergunta algo mais amplo, o Axel pode usar a tela como contexto inicial e consultar outras fontes pela web via grounding do Gemini, em vez de ficar preso apenas ao trecho visível.

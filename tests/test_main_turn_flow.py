@@ -55,6 +55,31 @@ class MainTurnFlowTests(unittest.TestCase):
 
         self.assertEqual(calls, [("conversation_memory", True)])
 
+    def test_auto_curates_long_memory_after_turn_threshold(self):
+        previous_turns = main.app_runtime.runtime_state.turns_since_long_memory_curated
+        previous_at = main.app_runtime.runtime_state.last_long_memory_curated_at
+        calls = []
+        try:
+            main.app_runtime.runtime_state.turns_since_long_memory_curated = main.LONG_MEMORY_AUTOCURATE_TURNS - 1
+            main.app_runtime.runtime_state.last_long_memory_curated_at = 0.0
+            with (
+                patch.object(main, "maybe_remember_from_user_text", return_value=False),
+                patch.object(main, "curate_recent_ui_history", side_effect=lambda limit=30: calls.append(("curate", limit)) or 2),
+                patch.object(main, "save_operational_context", side_effect=lambda: calls.append("save")),
+                patch.object(main, "log_execution_event", side_effect=lambda event, **payload: calls.append(("log", event, payload))),
+                patch.object(main.time, "time", return_value=1234.0),
+            ):
+                main.remember_user_context_from_turn("vamos fazer uma memoria duravel")
+
+            self.assertEqual(main.app_runtime.runtime_state.turns_since_long_memory_curated, 0)
+            self.assertEqual(main.app_runtime.runtime_state.last_long_memory_curated_at, 1234.0)
+            self.assertIn(("curate", 30), calls)
+            self.assertIn(("log", "long_memory_autocurated", {"added": 2}), calls)
+            self.assertIn("save", calls)
+        finally:
+            main.app_runtime.runtime_state.turns_since_long_memory_curated = previous_turns
+            main.app_runtime.runtime_state.last_long_memory_curated_at = previous_at
+
     def test_handle_interactive_command_outputs_message_with_result_voice_mode(self):
         calls = []
         result = SimpleNamespace(
@@ -254,6 +279,7 @@ class MainTurnFlowTests(unittest.TestCase):
         self.assertTrue(handled)
         self.assertEqual(calls[0], ("route", "abrir chrome", "turn"))
         self.assertEqual(post_route.call_args.kwargs["original_user_input"], "abrir chrome")
+        self.assertIn("decision_plan", post_route.call_args.kwargs)
         self.assertEqual(calls[-2], ("apply", post_state))
         self.assertEqual(calls[-1], ("output", "executado", False))
 
@@ -286,12 +312,61 @@ class MainTurnFlowTests(unittest.TestCase):
         self.assertEqual(calls[0][1]["complexity"], "simple_command")
         self.assertTrue(calls[0][1]["should_use_llm"])
         self.assertEqual(calls[0][1]["checked_detectors"], 20)
+        self.assertIn("decision_plan", calls[0][1])
+        self.assertIn("specialist_brief", calls[0][1])
+        self.assertEqual(main.app_runtime.runtime_state.axel_brain_plan["intent"], "respond")
+        self.assertEqual(main.app_runtime.runtime_state.last_route_trace["intent"], "respond")
+        self.assertEqual(main.app_runtime.runtime_state.last_route_trace["checked_detectors"], 20)
+        self.assertEqual(
+            main.app_runtime.runtime_state.axel_brain_brief["agent"],
+            main.app_runtime.runtime_state.axel_brain_plan["agent"],
+        )
+        self.assertIn("risco", main.app_runtime.runtime_state.axel_brain_plan["reason"])
         self.assertEqual(calls[1][0], "latency_stage")
         self.assertEqual(calls[1][1]["stage"], "routing")
         self.assertEqual(calls[1][1]["source"], "unit")
         self.assertEqual(calls[1][1]["intent"], "respond")
         self.assertEqual(calls[1][1]["intent_level"], "conversa")
         self.assertEqual(calls[1][1]["complexity"], "simple_command")
+
+    def test_ui_runtime_patch_exposes_axel_brain_decision(self):
+        previous_plan = main.app_runtime.runtime_state.axel_brain_plan
+        previous_brief = main.app_runtime.runtime_state.axel_brain_brief
+        previous_route = main.app_runtime.runtime_state.last_route_trace
+        try:
+            main.app_runtime.runtime_state.axel_brain_plan = {
+                "agent": "dev_agent",
+                "toolset": "programacao",
+                "risk_level": "read",
+                "confidence": 0.86,
+                "reason": "toolset por gatilho; agente dev_agent; risco read",
+            }
+            main.app_runtime.runtime_state.axel_brain_brief = {
+                "agent": "dev_agent",
+                "toolset": "programacao",
+                "mission": "Ajudar com codigo.",
+            }
+            main.app_runtime.runtime_state.last_route_trace = {
+                "group": "conversation",
+                "detector": "detect_ollama_chat",
+            }
+            with (
+                patch.object(main, "get_active_input_device_info", return_value={"name": "Mic"}),
+                patch("memory.ui_state.load_ui_state", return_value={}),
+                patch("memory.skill_learning.pending_skill_suggestions", return_value=[{"title": "Criar skill"}]),
+            ):
+                payload = main._ui_runtime_patch()
+
+            self.assertEqual(payload["axel_brain_plan"]["agent"], "dev_agent")
+            self.assertEqual(payload["axel_brain_plan"]["toolset"], "programacao")
+            self.assertEqual(payload["axel_brain_plan"]["reason"], "toolset por gatilho; agente dev_agent; risco read")
+            self.assertEqual(payload["axel_brain_brief"]["mission"], "Ajudar com codigo.")
+            self.assertEqual(payload["last_route_trace"]["detector"], "detect_ollama_chat")
+            self.assertEqual(payload["skill_suggestions"][0]["title"], "Criar skill")
+        finally:
+            main.app_runtime.runtime_state.axel_brain_plan = previous_plan
+            main.app_runtime.runtime_state.axel_brain_brief = previous_brief
+            main.app_runtime.runtime_state.last_route_trace = previous_route
 
     def test_route_user_input_defers_routine_learning_for_turn_source(self):
         calls = []

@@ -33,6 +33,8 @@ def normalize_provider(value: str | None) -> str:
         "nuvem": PROVIDER_CLOUD,
         "cloud": PROVIDER_CLOUD,
         "gemini": PROVIDER_CLOUD,
+        "nvidia": PROVIDER_CLOUD,
+        "nim": PROVIDER_CLOUD,
         "remoto": PROVIDER_CLOUD,
         "local": PROVIDER_LOCAL,
         "ollama": PROVIDER_LOCAL,
@@ -53,6 +55,7 @@ def select_chat_model_route(
     cloud_available: bool,
     complex_request: bool,
     intent_level: str = INTENT_LEVEL_CONVERSATION,
+    model_policy: str = "",
 ) -> ModelRoute:
     prefs = preferences or {}
     provider_preference = normalize_provider(
@@ -64,6 +67,7 @@ def select_chat_model_route(
     local_model = str(local_model or "").strip() or "qwen2.5:0.5b"
     cloud_model = str(cloud_model or "").strip() or "gemini"
     intent_level = str(intent_level or INTENT_LEVEL_CONVERSATION)
+    policy = str(model_policy or "").strip().lower()
 
     if provider_preference == PROVIDER_LOCAL:
         return ModelRoute(PROVIDER_LOCAL, local_model, "preferencia explicita local")
@@ -75,6 +79,15 @@ def select_chat_model_route(
 
     if not cloud_available:
         return ModelRoute(PROVIDER_LOCAL, local_model, "nuvem indisponivel")
+
+    if policy == "local_first":
+        return ModelRoute(PROVIDER_LOCAL, local_model, "politica AxelBrain local_first")
+
+    if policy in {"nvidia_or_gemini_for_reasoning", "cloud_with_sources", "grounded_cloud_when_current"}:
+        return ModelRoute(PROVIDER_CLOUD, cloud_model, f"politica AxelBrain {policy}", PROVIDER_LOCAL)
+
+    if policy == "local_for_commands_cloud_for_summary" and complex_request:
+        return ModelRoute(PROVIDER_CLOUD, cloud_model, "politica AxelBrain resumo em nuvem", PROVIDER_LOCAL)
 
     if intent_level == INTENT_LEVEL_DIRECT_COMMAND:
         return ModelRoute(PROVIDER_LOCAL, local_model, "comando direto deve ficar local")

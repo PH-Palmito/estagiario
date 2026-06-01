@@ -89,6 +89,21 @@ GEMINI_PRIMARY_TEXT_ENABLED = env_str(
     default="1",
     aliases=("GEMINI_PRIMARY_TEXT_ENABLED",),
 ).strip().lower() not in {"0", "false", "no", "off"}
+NVIDIA_API_KEY = env_str(
+    "AXEL_NVIDIA_API_KEY",
+    default="",
+    aliases=("NVIDIA_API_KEY", "NVIDIA_API_TOKEN"),
+)
+NVIDIA_MODEL = env_str(
+    "AXEL_NVIDIA_MODEL",
+    default="meta/llama-3.1-70b-instruct",
+    aliases=("NVIDIA_MODEL",),
+)
+NVIDIA_TEXT_FALLBACK_ENABLED = env_str(
+    "AXEL_NVIDIA_TEXT_FALLBACK_ENABLED",
+    default="1",
+    aliases=("NVIDIA_TEXT_FALLBACK_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
 GEMINI_TTS_MODEL = env_str(
     "AXEL_GEMINI_TTS_MODEL",
     default="gemini-3.1-flash-tts-preview",

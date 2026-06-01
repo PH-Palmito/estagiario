@@ -1,7 +1,10 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from core.router_basic import (
+    detect_custom_response_command,
     detect_bluetooth_command,
     detect_greeting,
     detect_math,
@@ -33,9 +36,63 @@ class RouterBasicTests(unittest.TestCase):
         )
 
     def test_introduction(self):
-        result = detect_greeting("quem e o axel")
-        self.assertEqual(result["intent"], "respond")
-        self.assertIn("assistente local", result["response"])
+        with TemporaryDirectory() as temp_dir, patch(
+            "memory.assistant_customization.CUSTOMIZATION_PATH",
+            Path(temp_dir) / "assistant_customization.json",
+        ):
+            result = detect_greeting("quem e o axel")
+            self.assertEqual(result["intent"], "respond")
+            self.assertIn("assistente local", result["response"])
+            self.assertIn("Axel, o que temos para hoje?", result["response"])
+            self.assertNotIn("instagramavel", result["response"])
+
+    def test_introduction_accepts_compact_transcription(self):
+        with TemporaryDirectory() as temp_dir, patch(
+            "memory.assistant_customization.CUSTOMIZATION_PATH",
+            Path(temp_dir) / "assistant_customization.json",
+        ):
+            result = detect_greeting("apresentese")
+            self.assertEqual(result["intent"], "respond")
+            self.assertIn("Prazer, eu sou o Axel", result["response"])
+
+    def test_teaches_custom_introduction(self):
+        with TemporaryDirectory() as temp_dir, patch(
+            "memory.assistant_customization.CUSTOMIZATION_PATH",
+            Path(temp_dir) / "assistant_customization.json",
+        ):
+            learned = detect_custom_response_command("axel aprenda a se apresentar assim: Sou o Axel em modo vitrine.")
+            self.assertEqual(learned["intent"], "respond")
+
+            result = detect_greeting("se apresente")
+            self.assertEqual(result["response"], "Sou o Axel em modo vitrine.")
+
+    def test_teaches_long_custom_introduction_with_accents(self):
+        intro = (
+            "Olá, eu sou o Axel. Um assistente pessoal inteligente criado para ajudar na rotina, "
+            "nos estudos, nos treinos, nos investimentos e na automação do computador. "
+            "Meu objetivo é simples: reunir informações importantes, responder com rapidez e executar ações de forma prática. "
+            "Ainda estou em desenvolvimento, mas evoluo a cada nova função. Eu sou o Axel. Seu assistente pessoal."
+        )
+        with TemporaryDirectory() as temp_dir, patch(
+            "memory.assistant_customization.CUSTOMIZATION_PATH",
+            Path(temp_dir) / "assistant_customization.json",
+        ):
+            learned = detect_custom_response_command(f"axel aprenda a se apresentar assim: {intro}")
+            self.assertEqual(learned["intent"], "respond")
+
+            result = detect_greeting("apresentese")
+            self.assertEqual(result["response"], intro)
+
+    def test_teaches_custom_direct_response(self):
+        with TemporaryDirectory() as temp_dir, patch(
+            "memory.assistant_customization.CUSTOMIZATION_PATH",
+            Path(temp_dir) / "assistant_customization.json",
+        ):
+            learned = detect_custom_response_command("quando eu disser status bonito responda Sistema elegante e pronto.")
+            self.assertEqual(learned["intent"], "respond")
+
+            result = detect_custom_response_command("status bonito")
+            self.assertEqual(result["response"], "Sistema elegante e pronto.")
 
     def test_math(self):
         result = detect_math("2 + 2")

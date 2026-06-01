@@ -1,28 +1,38 @@
 import json
 import re
+import time
 from collections import deque
 from pathlib import Path
 
-from config import GEMINI_API_KEY, GEMINI_COMPLEX_CHAT_ENABLED, GEMINI_MODEL
-from llm.gemini_client import ask_gemini_model
+from config import GEMINI_API_KEY, GEMINI_COMPLEX_CHAT_ENABLED, GEMINI_MODEL, NVIDIA_API_KEY, NVIDIA_MODEL
+from core.decision_orchestrator import build_decision_plan
+from core.router_registry import INTENT_LEVEL_CONVERSATION, INTENT_LEVEL_QUESTION
 from llm.model_selection import select_chat_model_route
 from llm.ollama_client import ask_model
 from memory.current_topic import load_current_topic, update_current_topic_from_conversation
+from memory.curated_memory import format_curated_memory
 from memory.docs_context import docs_context_relevant, search_docs_context
 from memory.long_memory import format_relevant_long_memory
+from memory.layered_recall import format_layered_memory_recall
 from memory.obsidian_sync import load_vault_context, search_vault_context
 from memory.operational_context import load_operational_context
 from memory.profile import load_profile
 from memory.research_sources import format_research_sources
+from memory.session_index import format_relevant_session_memory, index_exchange
+from memory.procedural_skills import format_relevant_skills
 from memory.vault_bootstrap import bootstrap_obsidian_knowledge
+from core.toolsets import format_relevant_toolsets
+from core.specialist_agents import format_relevant_agents
+from core.axel_brain import format_conversation_brief
 from memory.voice_preferences import load_voice_preferences
+from memory.execution_log import append_execution_log
 
 PREFERENCES = load_voice_preferences()
 CHAT_HISTORY = deque(maxlen=6)
 DIRECTIVES_PATH = Path(__file__).resolve().parents[1] / "memory" / "axel_directives.json"
 
 BASE_CHAT_PROMPT = """
-Voce e o Estagiario, uma IA local controlada por voz no PC do usuario.
+Voce e o Axel, uma IA local controlada por voz no PC do usuario.
 
 Personalidade:
 - Fale em portugues do Brasil.
@@ -42,10 +52,10 @@ Personalidade:
 - Nao use markdown.
 - Nao responda com listas longas.
 - Evite respostas maiores que 2 frases.
-- Responda somente a sua fala final, sem escrever "Usuario:" ou "Estagiario:".
+- Responda somente a sua fala final, sem escrever "Usuario:" ou "Axel:".
 - Nao continue a conversa inventando falas do usuario.
 - Voce nunca deve dizer que se chama Qwen, Llama ou qualquer nome de modelo.
-- Se perguntarem quem voce e, diga que e o Estagiario.
+- Se perguntarem quem voce e, diga que e o Axel.
 
 Contexto:
 Voce consegue abrir apps e sites, controlar janelas, navegar no navegador, controlar midia,
@@ -316,9 +326,9 @@ def _clean_response(response: str) -> str:
 
     # Some small models continue the dialogue transcript. Keep only the assistant's first turn.
     response = re.split(r"\bUsuario\s*:", response, maxsplit=1, flags=re.IGNORECASE)[0].strip()
-    response = re.sub(r"^(Estagi.rio|Estagiario|Assistente)\s*:\s*", "", response, flags=re.IGNORECASE).strip()
+    response = re.sub(r"^(Axel|Estagi.rio|Estagiario|Assistente)\s*:\s*", "", response, flags=re.IGNORECASE).strip()
 
-    response = re.split(r"\b(Usuario|Usu.rio|Estagi.rio|Estagiario|Assistente)\s*:", response, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+    response = re.split(r"\b(Usuario|Usu.rio|Axel|Estagi.rio|Estagiario|Assistente)\s*:", response, maxsplit=1, flags=re.IGNORECASE)[0].strip()
 
     sentences = re.split(r"(?<=[.!?])\s+", response)
     response = " ".join(sentence for sentence in sentences[:2] if sentence).strip()
@@ -342,8 +352,81 @@ def _looks_like_complex_request(user_input: str) -> bool:
     return word_count >= 18
 
 
+def _looks_like_factual_question(user_input: str) -> bool:
+    normalized = _normalize_for_compare(user_input)
+    if not normalized:
+        return False
+
+    starters = (
+        "o que e",
+        "oq e",
+        "o que sao",
+        "oq sao",
+        "quem e",
+        "quem foi",
+        "qual e",
+        "quais sao",
+        "onde fica",
+        "quando foi",
+        "como funciona",
+        "por que",
+        "porque",
+    )
+    if normalized.startswith(starters):
+        return True
+
+    if "?" in str(user_input or "") and len(normalized.split()) >= 3:
+        return True
+
+    return False
+
+
 def _should_use_gemini(user_input: str) -> bool:
     return bool(GEMINI_COMPLEX_CHAT_ENABLED and GEMINI_API_KEY and _looks_like_complex_request(user_input))
+
+
+def _chat_decision_plan(user_input: str, *, complex_request: bool):
+    intent_level = INTENT_LEVEL_QUESTION if complex_request or _looks_like_factual_question(user_input) else INTENT_LEVEL_CONVERSATION
+    complexity_kind = "complex_reasoning" if complex_request else "simple_conversation"
+    return build_decision_plan(
+        user_input,
+        {"intent": "respond", "target": None},
+        intent_level=intent_level,
+        complexity_kind=complexity_kind,
+    )
+
+
+def _cloud_model_for_policy(model_policy: str) -> str:
+    policy = str(model_policy or "").strip().lower()
+    if policy == "nvidia_or_gemini_for_reasoning" and NVIDIA_API_KEY:
+        return NVIDIA_MODEL
+    if GEMINI_API_KEY:
+        return GEMINI_MODEL
+    return NVIDIA_MODEL
+
+
+def _estimate_tokens(text: str) -> int:
+    clean = str(text or "")
+    if not clean:
+        return 0
+    return max(1, round(len(clean) / 4))
+
+
+def _estimated_model_cost_usd(provider: str, model: str, total_tokens: int) -> tuple[float, str]:
+    if str(provider or "").strip().lower() == "local":
+        return 0.0, "local"
+
+    model_name = str(model or "").strip().lower()
+    if "gemini" in model_name:
+        return round((max(0, int(total_tokens)) / 1000.0) * 0.0001, 6), "rough_estimate"
+    return 0.0, "unpriced_or_free_tier"
+
+
+def _log_model_call(event_type: str, **payload) -> None:
+    try:
+        append_execution_log(event_type, payload)
+    except Exception:
+        pass
 
 
 def _looks_generic_or_wrong(response: str) -> bool:
@@ -534,13 +617,16 @@ def chat_response(user_input: str):
 
     model = str(PREFERENCES.get("chat_model", "qwen2.5:0.5b")).strip() or "qwen2.5:0.5b"
     complex_request = _looks_like_complex_request(user_input)
+    decision_plan = _chat_decision_plan(user_input, complex_request=complex_request)
+    cloud_model = _cloud_model_for_policy(decision_plan.model_policy)
     route = select_chat_model_route(
         user_input,
         preferences=PREFERENCES,
         local_model=model,
-        cloud_model=GEMINI_MODEL,
-        cloud_available=bool(GEMINI_COMPLEX_CHAT_ENABLED and GEMINI_API_KEY),
+        cloud_model=cloud_model,
+        cloud_available=bool(GEMINI_COMPLEX_CHAT_ENABLED and (GEMINI_API_KEY or NVIDIA_API_KEY)),
         complex_request=complex_request,
+        model_policy=decision_plan.model_policy,
     )
     use_gemini = route.uses_cloud
     try:
@@ -559,6 +645,9 @@ Historico recente:
 Perfil do operador:
 {_profile_text()}
 
+Memoria curta curada:
+{format_curated_memory()}
+
 Contexto operacional:
 {_operational_context_text()}
 
@@ -573,6 +662,27 @@ Trechos mais relevantes do vault para esta pergunta:
 
 Memoria longa relevante:
 {format_relevant_long_memory(user_input)}
+
+Sessoes antigas relevantes:
+{format_relevant_session_memory(user_input)}
+
+Recall de memoria em camadas:
+{format_layered_memory_recall(user_input)}
+
+Skills procedurais relevantes:
+{format_relevant_skills(user_input)}
+
+Toolsets relevantes:
+{format_relevant_toolsets(user_input)}
+
+Agentes especialistas relevantes:
+{format_relevant_agents(user_input)}
+
+Briefing do AxelBrain para esta resposta:
+{format_conversation_brief(user_input, complex_request=complex_request)}
+
+Politica de modelo do AxelBrain:
+{decision_plan.model_policy}; rota escolhida: {route.provider}/{route.model}; motivo: {route.reason}
 
 Trechos mais relevantes dos documentos de plano e arquitetura:
 {_targeted_docs_context_text(user_input)}
@@ -589,16 +699,33 @@ Modo desta resposta:
 Mensagem atual do usuario:
 {user_input}
 
-Resposta curta do Estagiario:"""
+Resposta curta do Axel:"""
+
+    model_started_at = time.time()
+    prompt_tokens = _estimate_tokens(prompt)
+    _log_model_call(
+        "model_call_start",
+        provider=route.provider,
+        model=route.model,
+        model_policy=decision_plan.model_policy,
+        route_reason=route.reason,
+        fallback_provider=getattr(route, "fallback_provider", ""),
+        prompt_tokens_estimate=prompt_tokens,
+        complex_request=complex_request,
+    )
+    attempted_provider = route.provider
+    attempted_model = route.model
+    used_fallback = False
 
     try:
         if use_gemini:
-            response = ask_gemini_model(
+            response = ask_model(
                 prompt,
                 model=route.model,
                 timeout_seconds=max(4, min(timeout + 8, 40)),
-                max_output_tokens=280 if docs_mode else (220 if opinion_mode else 180),
+                num_predict=210 if docs_mode else (165 if opinion_mode else 135),
                 temperature=min(0.8, _chat_temperature() + 0.05),
+                provider="cloud",
             )
         else:
             response = ask_model(
@@ -612,6 +739,9 @@ Resposta curta do Estagiario:"""
     except Exception:
         if use_gemini:
             try:
+                used_fallback = True
+                attempted_provider = "local"
+                attempted_model = model
                 response = ask_model(
                     prompt,
                     model=model,
@@ -621,8 +751,42 @@ Resposta curta do Estagiario:"""
                     provider="local",
                 )
             except Exception:
+                _log_model_call(
+                    "model_call_end",
+                    provider=attempted_provider,
+                    model=attempted_model,
+                    requested_provider=route.provider,
+                    requested_model=route.model,
+                    model_policy=decision_plan.model_policy,
+                    fallback_used=used_fallback,
+                    success=False,
+                    error="cloud_and_local_failed",
+                    duration_ms=round((time.time() - model_started_at) * 1000, 2),
+                    prompt_tokens_estimate=prompt_tokens,
+                    completion_tokens_estimate=0,
+                    total_tokens_estimate=prompt_tokens,
+                    estimated_cost_usd=0.0,
+                    cost_basis="failed",
+                )
                 return None
         else:
+            _log_model_call(
+                "model_call_end",
+                provider=route.provider,
+                model=route.model,
+                requested_provider=route.provider,
+                requested_model=route.model,
+                model_policy=decision_plan.model_policy,
+                fallback_used=False,
+                success=False,
+                error="local_failed",
+                duration_ms=round((time.time() - model_started_at) * 1000, 2),
+                prompt_tokens_estimate=prompt_tokens,
+                completion_tokens_estimate=0,
+                total_tokens_estimate=prompt_tokens,
+                estimated_cost_usd=0.0,
+                cost_basis="failed",
+            )
             return None
 
     response = (response or "").strip()
@@ -641,7 +805,7 @@ Resposta curta do Estagiario:"""
         return None
 
     if "meu nome e qwen" in lower or "meu nome é qwen" in lower or "sou qwen" in lower or "sou uma ia local" in lower:
-        response = "Sou o Estagiario. Estou aqui para conversar e ajudar a controlar o PC."
+        response = "Sou o Axel. Estou aqui para conversar e ajudar a controlar o PC."
 
     confused_markers = {
         "nao consigo entender",
@@ -659,6 +823,28 @@ Resposta curta do Estagiario:"""
     if len(response) > max_len:
         response = response[: max_len - 3].rstrip() + "..."
 
+    completion_tokens = _estimate_tokens(response)
+    total_tokens = prompt_tokens + completion_tokens
+    estimated_cost, cost_basis = _estimated_model_cost_usd(attempted_provider, attempted_model, total_tokens)
+    _log_model_call(
+        "model_call_end",
+        provider=attempted_provider,
+        model=attempted_model,
+        requested_provider=route.provider,
+        requested_model=route.model,
+        model_policy=decision_plan.model_policy,
+        route_reason=route.reason,
+        fallback_provider=getattr(route, "fallback_provider", ""),
+        fallback_used=used_fallback,
+        success=True,
+        duration_ms=round((time.time() - model_started_at) * 1000, 2),
+        prompt_tokens_estimate=prompt_tokens,
+        completion_tokens_estimate=completion_tokens,
+        total_tokens_estimate=total_tokens,
+        estimated_cost_usd=estimated_cost,
+        cost_basis=cost_basis,
+    )
+
     update_current_topic_from_conversation(
         user_input=user_input,
         assistant_response=response,
@@ -668,5 +854,9 @@ Resposta curta do Estagiario:"""
         keywords=_derive_topic_keywords(user_input, response),
     )
     CHAT_HISTORY.append(("Usuario", user_input))
-    CHAT_HISTORY.append(("Estagiario", response))
+    CHAT_HISTORY.append(("Axel", response))
+    try:
+        index_exchange(user_input, response)
+    except Exception:
+        pass
     return response

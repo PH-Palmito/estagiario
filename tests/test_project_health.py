@@ -9,6 +9,7 @@ from core.project_health import (
     latency_summary,
     memory_backup_health,
     memory_artifact_summary,
+    observability_summary,
     project_change_summary,
     recent_execution_summary,
     run_estagiario_preflight,
@@ -163,6 +164,28 @@ class ProjectHealthTests(unittest.TestCase):
             self.assertEqual(result["recommendations"][0]["action"], "daily_briefing")
             self.assertEqual(result["recommendations"][0]["mode"], "background_with_cache")
 
+    def test_observability_summary_groups_actions_models_and_domains(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            memory = root / "memory"
+            memory.mkdir()
+            (memory / "execution_log.jsonl").write_text(
+                '{"event":"command_execute_end","data":{"action":"file_delete","category":"files","action_class":"sensitive_write","risk_level":"critical","decision":"confirm_strong","target":"x","duration_ms":1200,"success":false,"error":"negado"}}\n'
+                '{"event":"command_execute_end","data":{"action":"open_app","category":"system","action_class":"write","risk_level":"low","decision":"allow","target":"chrome","duration_ms":200,"success":true}}\n'
+                '{"event":"model_call_end","data":{"provider":"cloud","model":"gemini","requested_provider":"cloud","model_policy":"cloud_with_sources","fallback_used":true,"success":true,"duration_ms":900,"total_tokens_estimate":1234,"estimated_cost_usd":0.000123,"cost_basis":"rough_estimate"}}\n',
+                encoding="utf-8",
+            )
+
+            result = observability_summary(root)
+
+            self.assertEqual(result["actions"]["count"], 2)
+            self.assertEqual(result["actions"]["error_count"], 1)
+            self.assertEqual(result["actions"]["recent"][0]["action_class"], "sensitive_write")
+            self.assertEqual(result["models"]["count"], 1)
+            self.assertEqual(result["models"]["fallback_count"], 1)
+            self.assertEqual(result["models"]["tokens_estimate"], 1234)
+            self.assertTrue(any(item["domain"] == "files" for item in result["domains"]))
+
     def test_format_project_health_panel_summarizes_snapshot(self):
         snapshot = {
             "status": "saudavel",
@@ -216,6 +239,11 @@ class ProjectHealthTests(unittest.TestCase):
                     "training": {"enabled": True},
                 },
                 "integrations": {},
+            },
+            "observability": {
+                "actions": {"count": 2, "error_count": 0, "error_rate": 0.0, "avg_ms": 450.0, "recent": []},
+                "models": {"count": 1, "error_count": 0, "fallback_count": 0, "tokens_estimate": 200, "estimated_cost_usd": 0.0, "recent": []},
+                "domains": [],
             },
         }
 
@@ -299,6 +327,11 @@ class ProjectHealthTests(unittest.TestCase):
                 },
                 "integrations": {},
             },
+            "observability": {
+                "actions": {"count": 3, "error_count": 1, "error_rate": 0.333, "avg_ms": 700.0, "recent": []},
+                "models": {"count": 2, "error_count": 0, "fallback_count": 1, "tokens_estimate": 500, "estimated_cost_usd": 0.0001, "recent": []},
+                "domains": [{"domain": "files", "actions": 1, "errors": 1, "avg_ms": 1200, "error_rate": 1.0}],
+            },
         }
 
         result = format_project_health_panel(snapshot)
@@ -351,6 +384,11 @@ class ProjectHealthTests(unittest.TestCase):
                 "on_demand": {},
                 "integrations": {},
             },
+            "observability": {
+                "actions": {"count": 0, "error_count": 0, "error_rate": 0.0, "avg_ms": 0, "recent": []},
+                "models": {"count": 0, "error_count": 0, "fallback_count": 0, "tokens_estimate": 0, "estimated_cost_usd": 0.0, "recent": []},
+                "domains": [],
+            },
         }
 
         result = format_project_health_panel(snapshot)
@@ -374,6 +412,7 @@ class ProjectHealthTests(unittest.TestCase):
             self.assertIn("background", result)
             self.assertIn("actions", result)
             self.assertIn("services", result)
+            self.assertIn("observability", result)
             self.assertIn("text", result)
 
     def test_service_mode_summary_separates_background_and_on_demand(self):
@@ -381,8 +420,12 @@ class ProjectHealthTests(unittest.TestCase):
 
         self.assertIn("always_on", result)
         self.assertIn("on_demand", result)
+        self.assertIn("toolsets", result)
+        self.assertIn("agents", result)
         self.assertIn("investment_background_refresh", result["always_on"])
         self.assertIn("news", result["on_demand"])
+        self.assertTrue(any(item["name"] == "programacao" for item in result["toolsets"]))
+        self.assertTrue(any(item["name"] == "dev_agent" for item in result["agents"]))
 
     def test_format_service_modes_mentions_background_and_training(self):
         snapshot = {
@@ -396,6 +439,8 @@ class ProjectHealthTests(unittest.TestCase):
                     "training": {"enabled": True},
                 },
                 "integrations": {},
+                "toolsets": [{"name": "programacao"}, {"name": "pesquisa"}],
+                "agents": [{"name": "dev_agent"}, {"name": "research_agent"}],
             }
         }
 
@@ -403,6 +448,8 @@ class ProjectHealthTests(unittest.TestCase):
 
         self.assertIn("carteira em background desligado", result)
         self.assertIn("treinos sob demanda", result)
+        self.assertIn("toolsets ativos: programacao, pesquisa", result)
+        self.assertIn("agentes especialistas: dev_agent, research_agent", result)
 
 
 if __name__ == "__main__":

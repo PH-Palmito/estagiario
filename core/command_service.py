@@ -4,6 +4,7 @@ import time
 from collections.abc import Callable
 
 from core.action_result import normalize_action_result
+from core.action_governance import command_audit_required, command_governance_payload
 from core.command_schema import Command
 from core.context_resolver import resolve_params
 from core.latency_metrics import log_latency_stage
@@ -11,9 +12,57 @@ from core.normalizer import normalize_action
 from core.permission_policy import permission_decision
 from core.performance_policy import default_action_performance_advice
 from memory.sensitive_audit import append_sensitive_action_audit
+from memory.task_evaluation import record_task_evaluation
 from core.validator import validate_command
 
 LogEvent = Callable[..., None]
+
+
+def _runtime_evaluation_metadata(runtime_state) -> dict:
+    metadata = {}
+    plan = getattr(runtime_state, "axel_brain_plan", {}) or {}
+    if isinstance(plan, dict):
+        for key in ("intent", "agent", "toolset", "model_policy", "risk_level", "response_mode", "coordination_mode"):
+            value = str(plan.get(key) or "").strip()
+            if value:
+                metadata[key] = value
+        chain = plan.get("handoff_chain")
+        if isinstance(chain, (list, tuple)):
+            metadata["handoff_agents"] = [
+                str(item.get("agent") or "").strip()
+                for item in chain
+                if isinstance(item, dict) and str(item.get("agent") or "").strip()
+            ][:4]
+        libraries = plan.get("tool_libraries")
+        if isinstance(libraries, (list, tuple)):
+            metadata["tool_library_agents"] = [
+                str(item.get("agent") or "").strip()
+                for item in libraries
+                if isinstance(item, dict) and str(item.get("agent") or "").strip()
+            ][:4]
+
+    trace = getattr(runtime_state, "last_route_trace", {}) or {}
+    if isinstance(trace, dict):
+        for key in ("group", "detector", "intent_level", "complexity"):
+            value = str(trace.get(key) or "").strip()
+            if value:
+                metadata[f"route_{key}"] = value
+        user_input = str(trace.get("input") or "").strip()
+        if user_input:
+            metadata["user_input"] = user_input[:240]
+            try:
+                from memory.procedural_skills import search_skills
+
+                skills = [
+                    str(item.get("name") or "").strip()
+                    for item in search_skills(user_input, limit=3)
+                    if str(item.get("name") or "").strip()
+                ]
+                if skills:
+                    metadata["skills"] = skills
+            except Exception:
+                pass
+    return metadata
 
 
 def command_permission_payload(command: Command) -> dict:
@@ -27,16 +76,12 @@ def command_permission_payload(command: Command) -> dict:
         "risk_level": decision.risk_level,
         "sandbox_scope": decision.sandbox_scope,
         "dry_run_recommended": decision.dry_run_recommended,
+        **command_governance_payload(command),
     }
 
 
 def should_audit_command(command: Command) -> bool:
-    decision = permission_decision(command)
-    return bool(
-        decision.requires_confirmation
-        or decision.requires_strong_confirmation
-        or decision.risk_level in {"high", "critical"}
-    )
+    return command_audit_required(permission_decision(command))
 
 
 def audit_sensitive_command(event_type: str, command: Command, **payload) -> None:
@@ -181,6 +226,21 @@ def execute_processed_command(
             duration_ms=round((time.time() - started_at) * 1000, 2),
             **command_permission_payload(command),
         )
+        try:
+            record_task_evaluation(
+                action=getattr(command, "action", ""),
+                success=action_result.success,
+                source="auto",
+                result=result,
+                error=action_result.error,
+                metadata={
+                    "voice_mode": voice_mode,
+                    **_runtime_evaluation_metadata(runtime_state),
+                    **command_permission_payload(command),
+                },
+            )
+        except Exception:
+            pass
         audit_sensitive_command(
             "command_execute_end",
             command,

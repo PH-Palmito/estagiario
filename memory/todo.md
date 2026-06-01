@@ -83,13 +83,50 @@
 - [x] Criar memoria de correcoes automatica para o Axel aprender variacoes de voz sem mapear tudo manualmente.
 - [x] Evoluir modo musica com comandos como gostei dessa, nao gostei, mais desse estilo e menos triste agora.
 - [ ] Criar cache e fast path para Mercado Livre e sites frequentes, nos mesmos moldes do Spotify.
-- [ ] Integrar o Axel ao WhatsApp para ler, resumir e enviar mensagens com confirmacao.
-- [ ] Integrar o Axel a uma agenda/calendario real para criar, consultar e sincronizar compromissos, usando isso no briefing e nos lembretes proativos.
+- [ ] Criar um canal remoto por Telegram Bot para falar com o Axel sem numero de celular, com Discord apenas como alternativa futura.
+- [ ] Integrar o Axel a uma agenda/calendario real para criar, consultar e sincronizar compromissos, avaliando Microsoft To Do, Google Agenda ou Samsung Calendar, usando isso no briefing e nos lembretes proativos.
 - [ ] Criar resumo diario do que mudou na carteira desde ontem: patrimonio, rentabilidade, ativos que mais variaram, dividendos novos, noticias relevantes e alertas de preco-teto.
+- [ ] Controlar os LEDs do teclado pelo Axel, com comandos de ligar/desligar, trocar cor/perfil e usar efeitos como feedback visual de escuta, alerta e foco.
+- [x] Aproveitar ideias do Hermes Agent no Axel: memoria curta curada, busca de sessoes, skills procedurais, toolsets por contexto e orquestrador central de decisao.
+- [x] Criar `memory/core_memory.md` e `memory/user_profile.md` como memoria curta prioritaria e consolidada.
+- [x] Criar busca local de sessoes antigas com SQLite/FTS5 para recuperar conversas por assunto.
+- [x] Criar sistema inicial de skills do Axel em `memory/skills/`, com procedimentos reutilizaveis para briefing, carteira, navegacao, visao e avaliacao de projeto.
+- [x] Criar toolsets por modo de uso: voz rapida, programacao, carteira, navegador, sistema e pesquisa.
+- [x] Criar `DecisionOrchestrator` ou `AxelBrain` acima dos roteadores para unir intencao, contexto, risco, ferramenta candidata e resposta.
+- [x] Expor introspeccao do AxelBrain por comando, respondendo agente, toolset, risco, confianca e motivo da ultima decisao.
+- [x] Expor diagnostico da ultima rota por comando e HUD, mostrando grupo, detector, intent e complexidade.
+- [x] Fazer o plano do AxelBrain participar da confirmacao antes da execucao quando a decisao marcar risco alto ou critico.
+- [x] Fazer a politica de modelo do AxelBrain influenciar o chat, priorizando local, NVIDIA/Gemini ou nuvem conforme a tarefa.
+- [x] Roteiar perguntas factuais aleatorias como pesquisa leve, mantendo conversa aleatoria simples em modo local.
+- [x] Proteger perguntas factuais como "quem e..." e "oq e..." contra normalizacao acidental para comandos de tela.
+- [x] Permitir aprovar sugestoes de skills procedurais por comando e materializar `SKILL.md` inicial.
+- [x] Adicionar curadoria automatica leve da memoria longa apos um numero de turnos, reutilizando os filtros existentes.
+- [x] Adicionar fallback de API de IA para quando Gemini estiver sem cota, lento ou indisponivel, usando NVIDIA API como segunda opcao remota e mantendo Ollama local como retaguarda.
+- [x] Usar ClawHub como radar de ideias para o Axel, avaliando providers de IA, memoria vetorial, Google OAuth, Telegram Bot, observabilidade, seguranca e catalogo interno de skills/plugins.
+- [x] Criar agentes especialistas por dominio, como programacao, pesquisa, investimentos, navegacao, automacao do sistema, memoria e voz, com roteamento por `AxelBrain` e escolha de modelo/toolset por tarefa.
+- [x] Integrar aprendizado procedural para sugerir criacao ou atualizacao de skills quando padroes de uso se repetirem.
 - [x] Tratar buscas provaveis no YouTube, como "aqueles caras no YouTube", com confirmacao inteligente.
+- [x] Criar painel visual para aprovar/rejeitar sugestoes de skills procedurais no HUD.
+- [x] Criar memoria episodica mais rica, com resumo automatico por sessao e pontos importantes do dia.
+- [x] Adicionar autoavaliacao pos-tarefa: perguntar ou registrar se a execucao funcionou, falhou ou precisa ajuste.
+- [x] Criar ranking de skills, toolsets e agentes por sucesso, erro, frequencia e utilidade.
+- [x] Evoluir para execucao multiagente real com handoff entre especialistas quando a tarefa atravessar dominios.
+- [x] Modularizar biblioteca de ferramentas por agente, expondo somente capacidades relevantes por contexto.
+- [x] Criar planejamento longo com checkpoints, progresso e retomada de tarefas grandes.
+- [x] Evoluir actions do Axel com `action_class`, `payload_hash`, risco, reversibilidade, alvo, decisao e trilha de auditoria inspirada em DashClaw/Clawthority.
+- [x] Criar workflow planner duravel para tarefas grandes, com ideia, pesquisa, gate, design, plano, tarefas, handoff e fechamento em arquivo legivel.
+- [x] Evoluir memoria para recall em camadas: busca semantica, resumo expandido e transcript original quando necessario.
+- [x] Evoluir painel de saude com observabilidade de actions, custos de API, tokens, latencia, fallback de modelo e taxa de erro por dominio.
+- [x] Criar skill de estudos para resumir slides, analisar arquivos, gerar questoes por tema ou por slide, corrigir respostas e montar revisoes.
+- [x] Permitir que o Axel crie ou atualize qualquer skill procedural sozinho por comando natural, gerando `SKILL.md` com gatilhos, procedimento, riscos, exemplos e comandos relacionados sem depender do Codex.
+- [ ] Empacotar o Axel como app real no Windows, para abrir sem terminal, com atalho/menu iniciar/icone e logs acessiveis; deixar para fase final enquanto o projeto ainda muda com frequencia.
 
 ## Prioridades atuais
 
+- [x] Implementar governanca de actions com `action_class`, `payload_hash`, risco, reversibilidade, alvo, decisao e auditoria.
+- [x] Implementar workflow planner duravel em arquivo legivel para tarefas grandes e retomaveis.
+- [x] Implementar recall de memoria em camadas: busca semantica, resumo expandido e transcript original.
+- [x] Implementar observabilidade no HUD para actions, custos de API, tokens, latencia, fallback de modelo e erros por dominio.
 - [x] Iniciar quebra de tools/browser_tools.py extraindo estado de snapshot do navegador.
 - [x] Extrair controles basicos do navegador de tools/browser_tools.py.
 - [x] Extrair dominio de musica/Spotify para tools/browser_music.py.
@@ -114,3 +151,8 @@
 - [x] Atualizar README.md e corrigir encoding da documentacao principal.
 - [x] Criar politica de caches/artefatos em memory/ e ajustar .gitignore.
 - [x] Criar painel de saude do Axel.
+- [x] Implementar criador autonomo de skills do Axel, com comando direto como "crie uma skill para estudar slides" e validacao basica antes de salvar em `memory/skills/`.
+- [ ] Implementar skill/agente de estudos para ler PDF/PPTX/DOCX/TXT, resumir por slide/secao, extrair pontos-chave, gerar questoes, gabarito e plano de revisao.
+- [x] Aplicar "confie, mas verifique" na analise de arquivos de estudo: validar a qualidade da extracao antes de resumir ou gerar questoes.
+- [x] Criar hook para OCR externo de PDF, incluindo provider estilo ClawHub/OpenClaw configuravel por `AXEL_PDF_OCR_COMMAND` ou `AXEL_CLAWHUB_PDF_OCR_COMMAND`.
+- [x] Evoluir skill de estudos com contexto do ultimo arquivo, respostas de follow-up, arguição, correcao simples, plano de revisao e limpeza de contexto.

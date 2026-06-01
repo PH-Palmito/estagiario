@@ -45,6 +45,8 @@ def detect_file(path: str) -> dict:
         kind = "spreadsheet"
     elif suffix in {".docx", ".doc"}:
         kind = "document"
+    elif suffix in {".pptx", ".ppt"}:
+        kind = "presentation"
 
     return {
         "path": str(file_path),

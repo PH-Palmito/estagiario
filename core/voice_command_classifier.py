@@ -275,6 +275,15 @@ def _build_command_candidates() -> dict[str, str]:
 
 
 UNSAFE_SHORT_INPUTS = {"oi", "ola", "opa", "boa", "um beijo", "beijo"}
+FACTUAL_QUESTION_PREFIXES = (
+    "o que e ",
+    "oq e ",
+    "oque e ",
+    "quem e ",
+    "qual e ",
+    "quais sao ",
+    "como funciona ",
+)
 
 
 def _similarity(left: str, right: str) -> float:
@@ -322,6 +331,9 @@ def _normalize_search_intent(text: str) -> str | None:
 
 
 def _normalize_screen_intent(text: str) -> str | None:
+    if text.startswith(FACTUAL_QUESTION_PREFIXES):
+        return None
+
     tokens = [token for token in text.split() if token]
     if not tokens:
         return None
@@ -348,6 +360,12 @@ def normalize_voice_command(user_input: str) -> str:
     text = normalize_text(user_input)
 
     if not text or text in UNSAFE_SHORT_INPUTS:
+        return user_input
+
+    if (
+        re.match(r"^(?:axel\s+)?(?:aprenda|aprende|lembre|lembrar)\s+", text)
+        or re.match(r"^(?:axel\s+)?quando\s+(?:eu\s+)?(?:disser|falar|perguntar|pedir|mandar)\s+", text)
+    ):
         return user_input
 
     text = re.sub(r"^(?:comandos?|comando)\s+(?:de|para|pra)\s+", "", text).strip(" .")

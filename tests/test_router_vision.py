@@ -37,6 +37,10 @@ class RouterVisionTests(unittest.TestCase):
     def test_investment_question_is_not_visual(self):
         self.assertIsNone(detect_visual_question_command("qual a cotacao de PETR4?"))
 
+    def test_standalone_factual_question_is_not_visual(self):
+        self.assertIsNone(detect_visual_question_command("oq é tesla?"))
+        self.assertIsNone(detect_visual_question_command("quem é alanzoca"))
+
     @patch("core.router_vision.docs_context_relevant", return_value=True)
     def test_docs_context_is_not_visual(self, _docs):
         self.assertIsNone(detect_visual_question_command("qual funcao faz isso?"))

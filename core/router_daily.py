@@ -4,6 +4,7 @@ import re
 from urllib.parse import quote_plus
 
 from core.router_utils import normalize_text
+from memory.contextual_suggestions import exam_result_prompt, place_dislike_memory_prompt
 from memory.profile import get_value
 
 
@@ -58,6 +59,9 @@ def detect_weather_command(user_input: str):
 
 def detect_briefing_command(user_input: str):
     lower = normalize_text(user_input)
+    if lower.startswith("axel "):
+        lower = lower[len("axel "):].strip()
+
     if lower in {
         "briefing em segundo plano",
         "briefing no background",
@@ -89,6 +93,15 @@ def detect_briefing_command(user_input: str):
         "me da meu briefing",
         "resumo do dia",
         "panorama do dia",
+        "o que temos para hoje",
+        "oq temos para hoje",
+        "que temos para hoje",
+        "o que tem para hoje",
+        "oq tem para hoje",
+        "o que eu tenho hoje",
+        "o que temos hoje",
+        "qual o plano de hoje",
+        "qual e o plano de hoje",
     }:
         return {"intent": "daily_briefing", "target": None}
     return None
@@ -112,6 +125,14 @@ def detect_agenda_command(user_input: str):
             if not text:
                 return {"intent": "respond", "target": None, "response": "Qual compromisso devo registrar?"}
             return {"intent": "agenda_add", "target": text}
+
+    natural_commitment = re.match(
+        r"^(?:axel\s+)?(?:eu\s+)?tenho\s+(.+?\b(?:hoje|amanha|dia\s+\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{2,4})?)(?:\s+.*)?)$",
+        lower,
+    )
+    if natural_commitment:
+        original_text = user_input[natural_commitment.start(1):].strip()
+        return {"intent": "agenda_add", "target": original_text}
 
     if lower in {"agenda de hoje", "compromissos de hoje", "o que eu tenho hoje"}:
         return {"intent": "agenda_list_today", "target": None}
@@ -141,6 +162,21 @@ def detect_agenda_command(user_input: str):
 
 def detect_reminder_command(user_input: str):
     lower = normalize_text(user_input)
+    standalone_time = re.match(
+        r"^(?:as\s+|às\s+)?\d{1,2}(?::|h)?\d{0,2}\s*(?:da\s+manha|da\s+manhã|da\s+tarde|da\s+noite)?$",
+        lower,
+    )
+    if standalone_time:
+        return {"intent": "reminder_add", "target": user_input.strip()}
+
+    trailing_reminder = re.match(
+        r"^(.+?\b(?:hoje|hj|amanha|amanhã|dia\s+\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{2,4})?)\b.*?)\s+(?:me\s+)?lembre$",
+        lower,
+    )
+    if trailing_reminder:
+        original_text = user_input[trailing_reminder.start(1): trailing_reminder.end(1)].strip()
+        return {"intent": "agenda_add", "target": original_text}
+
     add_patterns = (
         r"^(?:me\s+)?(?:lembre|lembra|lembrar)\s+(?:de\s+|que\s+)?(.+)$",
         r"^(?:me\s+)?(?:avise|avisa|avisar)\s+(?:de\s+|que\s+)?(.+)$",
@@ -240,10 +276,22 @@ def detect_map_command(user_input: str):
     }
 
 
+def detect_experience_memory_prompt(user_input: str):
+    prompt = exam_result_prompt(user_input)
+    if prompt:
+        return {"intent": "respond", "target": None, "response": prompt}
+
+    prompt = place_dislike_memory_prompt(user_input)
+    if prompt:
+        return {"intent": "respond", "target": None, "response": prompt}
+    return None
+
+
 DAILY_DETECTORS = [
     detect_weather_command,
     detect_briefing_command,
     detect_reminder_command,
     detect_agenda_command,
+    detect_experience_memory_prompt,
     detect_map_command,
 ]

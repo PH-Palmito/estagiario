@@ -41,6 +41,13 @@ def click_query_variants(text: str) -> list[str]:
     return variants
 
 
+def click_browser_item_from_text(text: str, click_browser_element_by_text: Callable[[str], bool]) -> bool:
+    for query in click_query_variants(text):
+        if click_browser_element_by_text(query):
+            return True
+    return False
+
+
 def extract_brl_price(text: str):
     matches = re.findall(r"R\$\s*([\d\.]+,\d{2})", text or "", flags=re.IGNORECASE)
     if not matches:

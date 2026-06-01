@@ -199,6 +199,67 @@ def _load_open_tasks(limit: int = 6) -> list[str]:
     return tasks
 
 
+def _load_active_workflow() -> dict:
+    try:
+        from memory.workflow_planner import list_workflow_plans
+
+        for plan in list_workflow_plans(limit=10):
+            if plan.get("status") != "done":
+                return plan
+        return {}
+    except Exception:
+        return {}
+
+
+def _load_latest_episode() -> dict:
+    try:
+        from memory.episodic_memory import latest_episode
+
+        episode = latest_episode()
+        if not episode:
+            return {}
+        return {
+            "date": episode.get("date", ""),
+            "summary": episode.get("summary", ""),
+            "important_points": list(episode.get("important_points") or [])[:4],
+            "next_steps": list(episode.get("next_steps") or [])[:3],
+        }
+    except Exception:
+        return {}
+
+
+def _load_task_evaluation_overview() -> dict:
+    try:
+        from memory.task_evaluation import task_evaluation_summary
+
+        summary = task_evaluation_summary(limit=40)
+        if not summary.get("total"):
+            return {}
+        return {
+            "total": summary.get("total", 0),
+            "counts": summary.get("counts") or {},
+            "success_rate": summary.get("success_rate", 0.0),
+            "by_action": list(summary.get("by_action") or [])[:4],
+            "recent": list(summary.get("recent") or [])[:3],
+        }
+    except Exception:
+        return {}
+
+
+def _load_capability_ranking_overview() -> dict:
+    try:
+        from memory.capability_ranking import capability_rankings
+
+        rankings = capability_rankings(limit=3)
+        return {
+            "agents": list(rankings.get("agent") or [])[:3],
+            "toolsets": list(rankings.get("toolset") or [])[:3],
+            "skills": list(rankings.get("skill") or [])[:3],
+        }
+    except Exception:
+        return {}
+
+
 def _load_pending_reminders(limit: int = 4) -> list[str]:
     reminders = load_reminders().get("items") or []
     pending = []
@@ -386,6 +447,10 @@ def generate_operational_context() -> dict:
     recent_topics = _extract_keywords(user_texts, limit=6)
     recent_tickers = _extract_recent_tickers(context_texts, limit=8)
     open_tasks = _load_open_tasks(limit=6)
+    active_workflow = _load_active_workflow()
+    latest_episode = _load_latest_episode()
+    task_evaluation = _load_task_evaluation_overview()
+    capability_ranking = _load_capability_ranking_overview()
     pending_reminders = _load_pending_reminders(limit=4)
     current_topic = load_current_topic()
 
@@ -417,6 +482,28 @@ def generate_operational_context() -> dict:
         summary_parts.append(f"Assunto atual: {topic_name}.")
     if open_tasks:
         summary_parts.append("Tarefas abertas: " + "; ".join(open_tasks[:2]) + ".")
+    if active_workflow:
+        workflow_title = str(active_workflow.get("title", "")).strip()
+        workflow_step = str(active_workflow.get("current_step", "")).strip()
+        if workflow_title and workflow_step:
+            summary_parts.append(f"Workflow ativo: {workflow_title}; proxima etapa: {workflow_step}.")
+        elif workflow_title:
+            summary_parts.append(f"Workflow ativo: {workflow_title}.")
+    if latest_episode:
+        episode_summary = str(latest_episode.get("summary", "")).strip()
+        if episode_summary:
+            summary_parts.append(f"Ultimo episodio: {episode_summary}")
+    if task_evaluation:
+        counts = task_evaluation.get("counts") or {}
+        failures = int(counts.get("failure") or 0)
+        adjustments = int(counts.get("needs_adjustment") or 0)
+        if failures or adjustments:
+            summary_parts.append(f"Autoavaliacao: {failures} falha(s), {adjustments} ajuste(s) recentes.")
+    if capability_ranking:
+        top_agent = (capability_ranking.get("agents") or [{}])[0].get("name", "")
+        top_toolset = (capability_ranking.get("toolsets") or [{}])[0].get("name", "")
+        if top_agent or top_toolset:
+            summary_parts.append(f"Ranking atual: agente {top_agent or '--'}, toolset {top_toolset or '--'}.")
     if pending_reminders:
         summary_parts.append("Lembretes pendentes: " + "; ".join(pending_reminders[:2]) + ".")
 
@@ -440,6 +527,10 @@ def generate_operational_context() -> dict:
         "dictation_mode": bool(ui_state.get("dictation_mode")),
         "next_advances": next_advances,
         "open_tasks": open_tasks,
+        "active_workflow": active_workflow,
+        "latest_episode": latest_episode,
+        "task_evaluation": task_evaluation,
+        "capability_ranking": capability_ranking,
         "pending_reminders": pending_reminders,
         "active_bottlenecks": active_bottlenecks,
         "summary": " ".join(summary_parts).strip(),

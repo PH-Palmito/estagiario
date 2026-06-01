@@ -179,6 +179,23 @@ class UIBridge:
         }:
             return self.show_health()
 
+        if normalized in {
+            "abrir painel de skills",
+            "mostrar painel de skills",
+            "painel de skills",
+            "skills sugeridas no painel",
+            "abrir skills",
+        }:
+            update_ui_state(
+                {
+                    "visible": True,
+                    "open_panels": ["skills"],
+                    "last_command": "abrir painel de skills",
+                }
+            )
+            self.launch_hud()
+            return "Painel de skills aberto."
+
         raw_action = self.route(user_input)
         if raw_action.get("intent") == "ui_show_map":
             processed = self.process_action(raw_action)

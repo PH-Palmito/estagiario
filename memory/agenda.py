@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+from memory.contextual_suggestions import agenda_contextual_suggestion, agenda_follow_up_prompt
 from memory.json_store import read_json_file, update_json_file, write_json_atomic
 from memory.reminders import parse_reminder_request
 
@@ -41,12 +43,25 @@ def _parse_target_day_and_text(raw_text: str) -> tuple[date, str]:
     lowered = text.lower()
     today = _today()
 
+    def clean_schedule_words(value: str) -> str:
+        cleaned = re.sub(r"\b(?:me\s+)?lembre\b", " ", value, flags=re.I)
+        cleaned = re.sub(r"\blembrete\b", " ", cleaned, flags=re.I)
+        return re.sub(r"\s+", " ", cleaned).strip(" .,:;-")
+
     if lowered.startswith("amanhã "):
-        return today + timedelta(days=1), text[7:].strip()
+        return today + timedelta(days=1), clean_schedule_words(text[7:])
     if lowered.startswith("amanha "):
-        return today + timedelta(days=1), text[7:].strip()
+        return today + timedelta(days=1), clean_schedule_words(text[7:])
     if lowered.startswith("hoje "):
-        return today, text[5:].strip()
+        return today, clean_schedule_words(text[5:])
+
+    if re.search(r"\bamanh[ãa]\b", lowered):
+        cleaned = re.sub(r"\bamanh[ãa]\b", " ", text, flags=re.I)
+        return today + timedelta(days=1), clean_schedule_words(cleaned) or text
+
+    if re.search(r"\b(?:hoje|hj)\b", lowered):
+        cleaned = re.sub(r"\b(?:hoje|hj)\b", " ", text, flags=re.I)
+        return today, clean_schedule_words(cleaned) or text
 
     parts = text.split(" ", 1)
     if parts:
@@ -56,12 +71,29 @@ def _parse_target_day_and_text(raw_text: str) -> tuple[date, str]:
                 day = int(head[:2])
                 month = int(head[3:])
                 target = date(today.year, month, day)
-                body = parts[1].strip() if len(parts) > 1 else ""
+                body = clean_schedule_words(parts[1]) if len(parts) > 1 else ""
                 return target, body or text
             except Exception:
                 pass
 
-    return today, text
+    day_match = re.search(r"\bdia\s+(\d{1,2})\b", lowered)
+    if day_match:
+        day = int(day_match.group(1))
+        try:
+            target = date(today.year, today.month, day)
+            if target < today:
+                next_month = today.month + 1
+                year = today.year
+                if next_month > 12:
+                    next_month = 1
+                    year += 1
+                target = date(year, next_month, day)
+            cleaned = clean_schedule_words(re.sub(r"\bdia\s+\d{1,2}\b", " ", text, flags=re.I))
+            return target, cleaned or text
+        except Exception:
+            pass
+
+    return today, clean_schedule_words(text) or text
 
 
 def _parse_agenda_request(raw_text: str) -> tuple[date, str, datetime | None]:
@@ -98,11 +130,12 @@ def add_agenda_item(raw_text: str) -> str:
 
     time_suffix = f" as {due_at.strftime('%H:%M')}" if due_at is not None else ""
 
+    suggestion = agenda_contextual_suggestion(text, target_day, due_at)
     if target_day == _today():
-        return f"Compromisso registrado para hoje{time_suffix}: {text}."
+        return f"Compromisso registrado para hoje{time_suffix}: {text}.{suggestion}"
     if target_day == _today() + timedelta(days=1):
-        return f"Compromisso registrado para amanha{time_suffix}: {text}."
-    return f"Compromisso registrado para {target_day.strftime('%d/%m')}{time_suffix}: {text}."
+        return f"Compromisso registrado para amanha{time_suffix}: {text}.{suggestion}"
+    return f"Compromisso registrado para {target_day.strftime('%d/%m')}{time_suffix}: {text}.{suggestion}"
 
 
 def _format_agenda_items(items: list[dict]) -> str:
@@ -215,6 +248,7 @@ def consume_due_agenda_items(now: datetime | None = None, limit: int = 3) -> lis
                             "text": str(item.get("text") or "").strip(),
                             "due_at": item.get("due_at"),
                             "source": "agenda",
+                            "follow_up_prompt": agenda_follow_up_prompt(str(item.get("text") or "")),
                         }
                     )
                 if len(due) >= limit:
