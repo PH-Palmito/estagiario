@@ -4,6 +4,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 
+PANEL_INLINE_PREFIX = "\0panel:"
+
+
 @dataclass(frozen=True)
 class ListenModes:
     direct_response: bool
@@ -242,8 +245,13 @@ def read_next_user_input(
         hotword_mode=state.hotword_mode,
         inline_command=inline_command,
     ):
-        terminal_print_user_command("voz", inline_command)
-        user_input = inline_command
+        if inline_command.startswith(PANEL_INLINE_PREFIX):
+            user_input = inline_command[len(PANEL_INLINE_PREFIX):]
+            queued_user_input = user_input
+            terminal_print_user_command("painel", user_input)
+        else:
+            terminal_print_user_command("voz", inline_command)
+            user_input = inline_command
     elif should_read_default_input(
         queued_user_input=queued_user_input,
         modes=modes,

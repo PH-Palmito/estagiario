@@ -30,7 +30,7 @@ class TerminalVoiceIOTests(unittest.TestCase):
 
         self.assertEqual(printed, ["Voce (voz): briefing", "Voce (voz): briefing"])
 
-    def test_user_command_dedup_keeps_different_sources(self):
+    def test_user_command_dedup_suppresses_same_text_across_sources(self):
         printed = []
         now = iter([10.0, 10.5])
         io = TerminalVoiceIO(
@@ -41,7 +41,7 @@ class TerminalVoiceIOTests(unittest.TestCase):
         io.terminal_print_user_command("painel", "qual o assunto?")
         io.terminal_print_user_command("voz", "qual o assunto?")
 
-        self.assertEqual(printed, ["Voce (painel): qual o assunto?", "Voce (voz): qual o assunto?"])
+        self.assertEqual(printed, ["Voce (painel): qual o assunto?"])
 
     def test_read_text_input_updates_history(self):
         history = []
@@ -96,7 +96,7 @@ class TerminalVoiceIOTests(unittest.TestCase):
             refresh_ui_runtime_state=lambda: refreshes.append(True),
         )
 
-        self.assertEqual(result, (True, False, "briefing"))
+        self.assertEqual(result, (True, False, "\0panel:briefing"))
         self.assertEqual(io.voice_status, "COMANDO")
         self.assertTrue(refreshes)
 
@@ -125,7 +125,7 @@ class TerminalVoiceIOTests(unittest.TestCase):
             idle_sleep_seconds=lambda: 0.25,
         )
 
-        self.assertEqual(result, (True, True, "briefing"))
+        self.assertEqual(result, (True, True, "\0panel:briefing"))
         self.assertEqual(sleeps, [0.25])
 
 

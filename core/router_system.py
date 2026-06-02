@@ -123,6 +123,47 @@ def detect_whatsapp_bridge_command(user_input: str):
     return None
 
 
+def detect_telegram_bridge_command(user_input: str):
+    lower = normalize_text(user_input)
+    if lower in {
+        "status do telegram",
+        "status telegram",
+        "status do bot telegram",
+        "telegram bot",
+        "bot telegram",
+    }:
+        return {"intent": "telegram.status", "target": None}
+    if lower in {
+        "chat id telegram",
+        "id telegram",
+        "descobrir chat id telegram",
+        "descobrir id telegram",
+        "listar chats telegram",
+        "chats recentes telegram",
+    }:
+        return {"intent": "telegram.recent_chats", "target": None}
+    if lower in {
+        "iniciar telegram",
+        "iniciar bot telegram",
+        "ligar telegram",
+        "ligar bot telegram",
+        "ativar telegram",
+        "ativar bot telegram",
+        "iniciar telegram bot",
+    }:
+        return {"intent": "telegram.start_bot", "target": None}
+    for prefix in (
+        "simular telegram ",
+        "testar telegram ",
+        "simular mensagem telegram ",
+    ):
+        if lower.startswith(prefix):
+            text = user_input[len(prefix):].strip()
+            if text:
+                return {"intent": "telegram.simulate_message", "target": text}
+    return None
+
+
 def detect_type_text(user_input: str):
     lower = normalize_text(user_input)
     compact_lower = re.sub(r"[:\-]+", " ", lower)
@@ -148,6 +189,7 @@ SYSTEM_INPUT_DETECTORS = (
 SYSTEM_DETECTORS = (
     detect_windows_startup_command,
     detect_background_status_command,
+    detect_telegram_bridge_command,
     detect_whatsapp_bridge_command,
     detect_run_script,
 )

@@ -620,6 +620,9 @@ def _looks_incomplete_response(response: str) -> bool:
     if normalized in {"e", "é", "o projeto que estamos discutindo atualmente e"}:
         return True
 
+    if text.count("`") % 2 == 1:
+        return True
+
     dangling_phrases = (
         "atualmente e",
         "atualmente é",

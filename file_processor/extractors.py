@@ -576,6 +576,7 @@ def _extract_pdf_text_with_external_ocr(path: Path, *, max_chars: int = 4000) ->
 def extract_pdf(path: str, max_chars: int = 4000) -> dict:
     file_path = Path(path)
     text = ""
+    pages: list[dict] = []
     engine = "basic"
     ocr = {"text": "", "pages": 0, "note": ""}
     external_ocr = {"text": "", "provider": "", "note": ""}
@@ -583,7 +584,13 @@ def extract_pdf(path: str, max_chars: int = 4000) -> dict:
         from pypdf import PdfReader  # type: ignore
 
         reader = PdfReader(str(file_path))
-        text = "\n".join((page.extract_text() or "") for page in reader.pages)
+        page_texts = [page.extract_text() or "" for page in reader.pages]
+        pages = [
+            {"index": index, "text": page_text[:max_chars]}
+            for index, page_text in enumerate(page_texts, start=1)
+            if page_text.strip()
+        ]
+        text = "\n".join(page_texts)
         engine = "pypdf"
     except Exception:
         data = file_path.read_bytes()
@@ -630,6 +637,8 @@ def extract_pdf(path: str, max_chars: int = 4000) -> dict:
         "engine": engine,
         "quality": round(quality, 3),
         "note": note,
+        "pages": pages[:20],
+        "page_count": len(pages),
         "ocr_pages": int(ocr.get("pages") or 0),
         "external_ocr": str(external_ocr.get("provider") or ""),
     }

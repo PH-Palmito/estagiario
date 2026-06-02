@@ -174,6 +174,32 @@ class VoiceLoopTests(unittest.TestCase):
         self.assertEqual(result.user_input, "abrir chrome")
         self.assertEqual(printed, [("voz", "abrir chrome")])
 
+    def test_read_next_user_input_keeps_panel_command_from_hotword_wait_source(self):
+        printed = []
+
+        result = read_next_user_input(
+            state=VoiceReadState(
+                voice_mode=True,
+                hotword_mode=True,
+                voice_paused=False,
+                direct_response_ready_announced=False,
+                conversation_ready_announced=False,
+                dictation_ready_announced=False,
+                conversation_mode=False,
+                dictation_mode=False,
+            ),
+            queued_user_input="",
+            waiting_for_direct_response=False,
+            read_user_input=lambda *args, **kwargs: "nao deveria ler",
+            wait_for_hotword=lambda *_args: (True, False, "\0panel:briefing"),
+            set_voice_status=lambda _status: None,
+            terminal_print_user_command=lambda source, text: printed.append((source, text)),
+        )
+
+        self.assertEqual(result.user_input, "briefing")
+        self.assertEqual(result.queued_user_input, "briefing")
+        self.assertEqual(printed, [("painel", "briefing")])
+
     def test_read_next_user_input_can_stop_from_hotword(self):
         result = read_next_user_input(
             state=VoiceReadState(

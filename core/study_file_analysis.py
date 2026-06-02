@@ -258,6 +258,38 @@ def _contains_any(text: str, needles: set[str]) -> bool:
     return any(needle in plain for needle in needles)
 
 
+def _is_page_only_reference(reference: str) -> bool:
+    plain = _plain(reference).strip(" .,:;!?")
+    page_words = (
+        "primeira",
+        "primeiro",
+        "segunda",
+        "segundo",
+        "terceira",
+        "terceiro",
+        "quarta",
+        "quarto",
+        "quinta",
+        "quinto",
+        "sexta",
+        "sexto",
+        "setima",
+        "setimo",
+        "oitava",
+        "oitavo",
+        "nona",
+        "nono",
+        "decima",
+        "decimo",
+    )
+    page_word_pattern = "|".join(page_words)
+    return bool(
+        re.fullmatch(r"(?:na|no|a|o)?\s*(?:pagina|pag|p)\s*\d+", plain)
+        or re.fullmatch(rf"(?:na|no|a|o)?\s*(?:{page_word_pattern})\s+pagina", plain)
+        or re.fullmatch(rf"(?:na|no|a|o)?\s*pagina\s+(?:{page_word_pattern})", plain)
+    )
+
+
 def parse_study_file_command(user_input: str) -> tuple[list[str], str] | None:
     raw = str(user_input or "").strip()
     command_match = re.match(
@@ -288,6 +320,8 @@ def parse_study_file_command(user_input: str) -> tuple[list[str], str] | None:
     )
     if flexible_natural_match:
         reference = flexible_natural_match.group(1).strip(" .,:;-\"'")
+        if _is_page_only_reference(reference):
+            return None
         resolved = _resolve_file_reference_by_name(reference)
         if resolved:
             return [resolved], f"o que tem no arquivo {reference}"
@@ -618,6 +652,36 @@ def _looks_like_study_material(text: str) -> bool:
             "conteudo programatico",
         }
     )
+
+
+def _looks_like_slide_deck_text(text: str) -> bool:
+    raw_lines = [str(line or "").strip() for line in str(text or "").splitlines()]
+    lines = [_clean_readable_text(line) for line in raw_lines if str(line or "").strip()]
+    plain = _plain("\n".join(lines))
+    if not plain:
+        return False
+
+    markers = {
+        "agenda",
+        "professor",
+        "slide",
+        "aula",
+        "topicos",
+        "topicos da aula",
+        "objetivos",
+        "conteudo programatico",
+        "referencias",
+    }
+    marker_hits = sum(1 for marker in markers if marker in plain)
+    short_heading_lines = [
+        line
+        for line in lines
+        if 4 <= len(line) <= 80
+        and not line.endswith(".")
+        and len(re.findall(r"\w+", line)) <= 8
+    ]
+    repeated_teaching_terms = sum(1 for term in {"professor", "agenda", "aula"} if term in plain)
+    return marker_hits >= 2 or (repeated_teaching_terms >= 1 and len(short_heading_lines) >= 5)
 
 
 def _topic_from_text(text: str) -> str:
@@ -1273,6 +1337,207 @@ def _answer_specific_file_request(name: str, text: str, request: str) -> str | N
     return None
 
 
+def _content_subject_from_request(request: str) -> str:
+    if _requested_page_number(request) is not None:
+        return ""
+    plain = _plain(request)
+    patterns = (
+        r"(?:fala|falam|trata|tratam|tem|cita|menciona)\s+(?:sobre\s+)?(.+?)(?:\?|$)",
+        r"sobre\s+(.+?)(?:\?|$)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, plain)
+        if not match:
+            continue
+        subject = match.group(1).strip(" .,:;!?")
+        subject = re.sub(r"^(?:o|a|os|as|um|uma)\s+", "", subject)
+        if subject and subject not in {
+            "que",
+            "o que",
+            "arquivo",
+            "esse arquivo",
+            "nesse arquivo",
+            "neste arquivo",
+            "slide",
+            "slides",
+            "pdf",
+            "esse pdf",
+            "nesse pdf",
+            "neste pdf",
+            "documento",
+            "esse documento",
+            "nesse documento",
+            "material",
+            "esse material",
+            "nesse material",
+        }:
+            return subject
+    return ""
+
+
+def _requested_page_number(request: str) -> int | None:
+    plain = _plain(request)
+    digit_match = re.search(r"(?:pagina|pag|p)\s*(\d+)|(\d+)\s*(?:pagina|pag)", plain)
+    if digit_match:
+        return int(next(group for group in digit_match.groups() if group))
+
+    number_words = {
+        "primeira": 1,
+        "primeiro": 1,
+        "uma": 1,
+        "um": 1,
+        "segunda": 2,
+        "segundo": 2,
+        "duas": 2,
+        "dois": 2,
+        "terceira": 3,
+        "terceiro": 3,
+        "tres": 3,
+        "quarta": 4,
+        "quarto": 4,
+        "quatro": 4,
+        "quinta": 5,
+        "quinto": 5,
+        "cinco": 5,
+        "sexta": 6,
+        "sexto": 6,
+        "seis": 6,
+        "setima": 7,
+        "setimo": 7,
+        "sete": 7,
+        "oitava": 8,
+        "oitavo": 8,
+        "oito": 8,
+        "nona": 9,
+        "nono": 9,
+        "nove": 9,
+        "decima": 10,
+        "decimo": 10,
+        "dez": 10,
+    }
+    for word, number in number_words.items():
+        if re.search(rf"\b(?:pagina\s+{word}|{word}\s+pagina)\b", plain):
+            return number
+    return None
+
+
+def _answer_content_subject(name: str, text: str, request: str, topic: str = "") -> str | None:
+    subject = _content_subject_from_request(request)
+    if not subject:
+        return None
+    text_plain = _plain(text)
+    subject_plain = _plain(subject)
+    if subject_plain and subject_plain in text_plain:
+        return f"Sim. No {name}, encontrei menção a {subject}. O tema geral parece ser {topic or _topic_from_text(text) or 'o conteúdo extraído'}."
+    return f"Não. No trecho extraído de {name}, não encontrei menção clara a {subject}. O material parece falar sobre {topic or _topic_from_text(text) or 'outro assunto'}."
+
+
+def _answer_page_request(name: str, pages: list, request: str) -> str | None:
+    number = _requested_page_number(request)
+    if number is None:
+        return None
+    clean_pages = [page for page in pages if isinstance(page, dict)]
+    for page in clean_pages:
+        try:
+            page_index = int(page.get("index") or 0)
+        except Exception:
+            continue
+        if page_index == number:
+            page_text = _clean_readable_text(str(page.get("text") or ""))
+            if page_text:
+                return f"Na página {number} de {name}: {page_text[:700]}"
+    if clean_pages:
+        available = ", ".join(str(page.get("index")) for page in clean_pages[:6] if page.get("index"))
+        return f"Não encontrei texto separado da página {number} em {name}. Páginas disponíveis no contexto: {available or 'nenhuma com texto'}."
+    return f"Eu lembro do arquivo {name}, mas o texto salvo no contexto não veio separado por páginas. Para responder a página {number}, preciso reanalisar o PDF com extração por página."
+
+
+def _format_file_type_answer(
+    *,
+    name: str,
+    kind: str,
+    suffix: str,
+    topic: str,
+    text: str,
+    presentation_like: bool = False,
+) -> str:
+    topic_text = topic or "o conteudo extraido dele"
+    kind_normalized = str(kind or "").lower()
+    suffix_normalized = str(suffix or "").lower()
+    looks_like_presentation = bool(presentation_like) or _looks_like_slide_deck_text(text)
+    is_presentation = kind_normalized == "presentation" or suffix_normalized in {".ppt", ".pptx", ".odp"}
+    if is_presentation:
+        return f"{name}: sim, e uma apresentação/slide. O tema parece ser {topic_text}."
+    if suffix_normalized == ".pdf" and looks_like_presentation:
+        return (
+            f"{name}: sim, o conteudo parece material em formato de slides ou aula. "
+            f"Tecnicamente, o arquivo e um PDF, provavelmente exportado de uma apresentação. "
+            f"O tema parece ser {topic_text}."
+        )
+    if suffix_normalized == ".pdf":
+        return (
+            f"{name}: e um PDF, nao um arquivo de slide nativo. "
+            f"Ele pode ter sido exportado de slides, mas pelo conteudo extraido eu nao confirmaria formato de apresentação. "
+            f"O tema parece ser {topic_text}."
+        )
+    if suffix_normalized in {".doc", ".docx"}:
+        return f"{name}: e um documento de texto. O tema parece ser {topic_text}."
+    return f"{name}: pelo conteudo, parece tratar de {topic_text}."
+
+
+def _asks_for_file_type_answer(normalized: str) -> bool:
+    content_intent_terms = {
+        "fala sobre",
+        "falas sobre",
+        "fale sobre",
+        "falam sobre",
+        "trata de",
+        "tratam de",
+        "tem sobre",
+        "menciona",
+        "cita",
+    }
+    if any(term in normalized for term in content_intent_terms):
+        return False
+
+    asks_slide_identity = "slide" in normalized and any(
+        phrase in normalized
+        for phrase in {
+            "e slide",
+            "um slide",
+            "e um slide",
+            "isso e slide",
+            "arquivo e slide",
+            "formato de slide",
+        }
+    )
+    file_reference_terms = {
+        "arquivo",
+        "documento",
+        "material",
+        "anexo",
+        "pdf",
+        "slide",
+        "slides",
+        "apresentacao",
+        "powerpoint",
+        "pptx",
+    }
+    identity_question_terms = {
+        "consegue ver",
+        "voce ve",
+        "isso e",
+        "e um",
+        "parece",
+        "tipo",
+        "formato",
+    }
+    return asks_slide_identity or (
+        any(term in normalized for term in file_reference_terms)
+        and any(term in normalized for term in identity_question_terms)
+    )
+
+
 def _answer_study_followup_raw(user_input: str) -> str | None:
     raw = _compact(user_input)
     normalized = _plain(raw)
@@ -1286,6 +1551,19 @@ def _answer_study_followup_raw(user_input: str) -> str | None:
         name = str(first.get("name") or "arquivo")
         text = str(first.get("raw_text") or first.get("text") or "")
         return _answer_project_name_from_file(name, text, str(first.get("topic") or ""))
+
+    first = files[0] if isinstance(files[0], dict) else {}
+    first_name = str(first.get("name") or "arquivo")
+    first_text = str(first.get("raw_text") or first.get("text") or "")
+    first_topic = str(first.get("topic") or "").strip()
+
+    page_answer = _answer_page_request(first_name, first.get("pages") if isinstance(first.get("pages"), list) else [], raw)
+    if page_answer:
+        return page_answer
+
+    content_answer = _answer_content_subject(first_name, first_text, raw, first_topic)
+    if content_answer:
+        return content_answer
 
     file_reference_terms = {
         "arquivo",
@@ -1312,23 +1590,27 @@ def _answer_study_followup_raw(user_input: str) -> str | None:
         "tipo",
         "formato",
     }
-    if any(term in normalized for term in file_reference_terms) and any(term in normalized for term in identity_question_terms):
-        first = files[0] if isinstance(files[0], dict) else {}
-        name = str(first.get("name") or "arquivo")
+    asks_if_slide = _asks_for_file_type_answer(normalized)
+    if asks_if_slide or (
+        any(term in normalized for term in file_reference_terms)
+        and any(term in normalized for term in identity_question_terms)
+    ):
+        name = first_name
         kind = str(first.get("kind") or "").lower()
         suffix = Path(str(first.get("path") or name)).suffix.lower()
-        topic = str(first.get("topic") or "").strip()
-        is_presentation = kind == "presentation" or suffix in {".ppt", ".pptx", ".odp"}
-        if is_presentation:
-            return f"Sim. Pelo ultimo arquivo analisado, {name} e uma apresentacao/slide. O tema parece ser {topic or 'o conteudo extraido dele'}."
-        if suffix == ".pdf":
-            return f"O ultimo arquivo analisado foi {name}, um PDF. Ele pode conter slides, mas pelo arquivo em si eu o trato como PDF; o tema parece ser {topic or 'o conteudo extraido dele'}."
-        if suffix in {".doc", ".docx"}:
-            return f"O ultimo arquivo analisado foi {name}, um documento de texto. O tema parece ser {topic or 'o conteudo extraido dele'}."
-        return f"O ultimo arquivo analisado foi {name}. Pelo conteudo, ele parece tratar de {topic or 'informacoes do arquivo'}."
+        topic = first_topic
+        text = first_text
+        presentation_like = bool(first.get("presentation_like")) or _looks_like_slide_deck_text(text)
+        return _format_file_type_answer(
+            name=name,
+            kind=kind,
+            suffix=suffix,
+            topic=topic,
+            text=text,
+            presentation_like=presentation_like,
+        )
 
     if "arquivo" in normalized or any(word in normalized for word in {"integrantes", "tecnologias", "executar", "testes", "bugs", "status", "slogan", "conceitos", "topicos", "tópicos", "protocolo", "tcp", "udp", "osi", "camadas", "rede", "redes"}):
-        first = files[0] if isinstance(files[0], dict) else {}
         specific = _answer_specific_file_request(
             str(first.get("name") or "arquivo"),
             str(first.get("raw_text") or first.get("text") or ""),
@@ -1466,6 +1748,7 @@ def analyze_study_files(paths: list[str], request: str = "") -> str:
     context_files: list[dict] = []
     failures = []
     has_study_material = request_is_study_or_practice(request)
+    request_plain = _plain(request)
 
     for index, path in enumerate(clean_paths, start=1):
         result = process_file(path, max_chars=9000)
@@ -1485,14 +1768,19 @@ def analyze_study_files(paths: list[str], request: str = "") -> str:
         all_focus.extend(focus)
         question_sections = _question_sections(raw_text or text)
         has_study_material = has_study_material or _looks_like_study_material(raw_text or text)
+        presentation_like = bool(_looks_like_slide_deck_text(raw_text or text))
+        extracted = result.get("extracted", {}) if isinstance(result.get("extracted"), dict) else {}
+        pages = extracted.get("pages", []) if isinstance(extracted.get("pages"), list) else []
         context_files.append(
             {
                 "path": str(path),
                 "name": name,
                 "kind": str(file_info.get("kind") or ""),
+                "presentation_like": presentation_like,
                 "text": _compact(text)[:12000],
                 "raw_text": str(raw_text or "")[:12000],
                 "focus": focus,
+                "pages": pages,
                 "questions": {str(key): value for key, value in question_sections.items()},
                 "topic": _topic_from_text(raw_text or text),
             }
@@ -1508,6 +1796,30 @@ def analyze_study_files(paths: list[str], request: str = "") -> str:
                     else "consegui abrir, mas nao encontrei texto suficiente para resumir."
                 )
                 sections.append(f"{index}. {name}: {fallback}")
+            continue
+
+        page_answer = _answer_page_request(name, pages, request)
+        if page_answer:
+            sections.append(f"{index}. {page_answer}")
+            continue
+
+        content_answer = _answer_content_subject(name, raw_text or text, request, _topic_from_text(raw_text or text))
+        if content_answer:
+            sections.append(f"{index}. {content_answer}")
+            continue
+
+        if _asks_for_file_type_answer(request_plain):
+            sections.append(
+                f"{index}. "
+                + _format_file_type_answer(
+                    name=name,
+                    kind=str(file_info.get("kind") or ""),
+                    suffix=Path(path).suffix.lower(),
+                    topic=_topic_from_text(raw_text or text),
+                    text=raw_text or text,
+                    presentation_like=presentation_like,
+                )
+            )
             continue
 
         file_sections, file_questions = _format_study_file_response(name, raw_text or text, focus, request)

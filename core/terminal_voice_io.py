@@ -44,7 +44,7 @@ class TerminalVoiceIO:
             return
 
         label = str(source or "comando").strip().lower()
-        fingerprint = f"{label}:{content}"
+        fingerprint = content
         now = self.now_fn()
         if self.last_user_command_printed == fingerprint and now - self.last_user_command_printed_at < 1.0:
             return
@@ -156,8 +156,7 @@ class TerminalVoiceIO:
             queued_command = poll_ui_text_command()
             if queued_command:
                 self.set_voice_status("COMANDO", refresh_ui_runtime_state=refresh_ui_runtime_state)
-                self.terminal_print_user_command("painel", queued_command)
-                return True, voice_paused, queued_command
+                return True, voice_paused, "\0panel:" + queued_command
 
             if consume_toggle_listening_hotkey_press():
                 voice_paused = not voice_paused

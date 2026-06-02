@@ -239,6 +239,21 @@ WHATSAPP_BRIDGE_PORT = env_str(
     default="8765",
     aliases=("WHATSAPP_BRIDGE_PORT",),
 )
+TELEGRAM_BOT_TOKEN = env_str(
+    "AXEL_TELEGRAM_BOT_TOKEN",
+    default="",
+    aliases=("TELEGRAM_BOT_TOKEN",),
+)
+TELEGRAM_ALLOWED_CHAT_IDS = env_str(
+    "AXEL_TELEGRAM_ALLOWED_CHAT_IDS",
+    default="",
+    aliases=("TELEGRAM_ALLOWED_CHAT_IDS",),
+)
+TELEGRAM_POLL_INTERVAL_SECONDS = env_str(
+    "AXEL_TELEGRAM_POLL_INTERVAL_SECONDS",
+    default="2",
+    aliases=("TELEGRAM_POLL_INTERVAL_SECONDS",),
+)
 AXEL_PERFORMANCE_MODE = env_str(
     "AXEL_PERFORMANCE_MODE",
     default="balanced",

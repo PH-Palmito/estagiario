@@ -188,6 +188,9 @@ def normalize_action(old_action: dict) -> Command:
         "background_status",
         "background_latest_result",
         "background_notifications",
+        "telegram.status",
+        "telegram.recent_chats",
+        "telegram.start_bot",
         "whatsapp.status",
         "whatsapp.start_local_bridge",
     }:
@@ -200,6 +203,13 @@ def normalize_action(old_action: dict) -> Command:
     if intent == "whatsapp.simulate_message":
         return Command(
             action="whatsapp.simulate_message",
+            params={"text": target},
+            source="router",
+        )
+
+    if intent == "telegram.simulate_message":
+        return Command(
+            action="telegram.simulate_message",
             params={"text": target},
             source="router",
         )

@@ -25,6 +25,8 @@ Opcionalmente, o projeto também pode usar Gemini API como cérebro principal de
 - Análise de imagem disponível por tela, navegador, clipboard e arquivo quando houver modelo visual configurado
 - Suíte de testes `unittest` cobrindo comandos, actions, voz, carteira, UI runtime e fluxos principais
 - HUD otimizado para troca rapida entre paineis animados
+- AxelBrain 2.0 ativo como nucleo de decisao, contrato de seguranca por canal e introspeccao no HUD
+- Telegram Bot ativo como canal remoto principal, com allowlist por `chat_id`, leitura remota e confirmacao por botoes para midia leve
 - Painel `Dia`/cockpit diario removido temporariamente do runtime por estabilidade
 - WhatsApp local em pausa: base de webhook/allowlist existe, mas integracao real depende de provedor/numero
 - Plataforma principal: Windows

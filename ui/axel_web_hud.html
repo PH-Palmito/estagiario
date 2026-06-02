@@ -1128,6 +1128,30 @@
         overflow-wrap: anywhere;
       }
 
+      .context-stack {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .context-chip-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .context-chip-list span {
+        max-width: 100%;
+        padding: 6px 8px;
+        border: 1px solid rgba(148, 204, 231, 0.12);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.3);
+        color: var(--soft);
+        font-size: 11px;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+      }
+
       .skill-suggestion {
         display: grid;
         gap: 10px;
@@ -1702,11 +1726,34 @@
               <div class="metric"><span>Toolset</span><strong id="contextToolset">--</strong></div>
               <div class="metric"><span>Risco</span><strong id="contextRisk">--</strong></div>
               <div class="metric"><span>Confiança</span><strong id="contextConfidence">--</strong></div>
+              <div class="metric"><span>Brain</span><strong id="contextBrainVersion">--</strong></div>
+              <div class="metric"><span>Coordenacao</span><strong id="contextCoordination">--</strong></div>
+              <div class="metric"><span>Canal</span><strong id="contextChannel">--</strong></div>
+              <div class="metric"><span>Perfil seguro</span><strong id="contextSafetyProfile">--</strong></div>
+              <div class="metric"><span>Decisoes</span><strong id="contextBrainDecisionCount">--</strong></div>
+              <div class="metric"><span>Remoto</span><strong id="contextBrainRemoteCount">--</strong></div>
+              <div class="metric"><span>Bloqueios</span><strong id="contextBrainBlockedCount">--</strong></div>
               <div class="metric"><span>Grupo</span><strong id="contextRouteGroup">--</strong></div>
               <div class="metric"><span>Detector</span><strong id="contextRouteDetector">--</strong></div>
             </div>
             <p class="eyebrow">Decisão</p>
             <p class="context-decision" id="contextDecisionReason">--</p>
+            <div class="context-stack">
+              <p class="eyebrow">Proximo passo</p>
+              <p class="context-decision" id="contextNextStep">--</p>
+              <p class="eyebrow">Guia de execucao</p>
+              <p class="context-decision" id="contextExecutionGuidance">--</p>
+              <p class="eyebrow">Memoria consultada</p>
+              <div class="context-chip-list" id="contextMemoryLayers"></div>
+              <p class="eyebrow">Criterios</p>
+              <div class="context-chip-list" id="contextSuccessCriteria"></div>
+              <p class="eyebrow">Pos-tarefa</p>
+              <div class="context-chip-list" id="contextPostTaskSignals"></div>
+              <p class="eyebrow">Historico do Brain</p>
+              <div class="context-chip-list" id="contextBrainHistory"></div>
+              <p class="eyebrow">Recomendacoes</p>
+              <div class="context-chip-list" id="contextBrainRecommendations"></div>
+            </div>
             <p class="eyebrow">Histórico</p>
             <ul class="history-list" id="contextHistory"></ul>
           </div>
@@ -3006,6 +3053,15 @@
         return name === "texto" || name === "treino" || Boolean(document.querySelector(`[data-window="${name}"]`));
       }
 
+      function renderChipList(id, items, mapper = (item) => item) {
+        const values = Array.isArray(items)
+          ? items.map(mapper).map((item) => String(item || "").trim()).filter(Boolean).slice(0, 5)
+          : [];
+        setHtml(id, values.length
+          ? values.map((item) => `<span>${escapeHtml(item)}</span>`).join("")
+          : `<span>--</span>`);
+      }
+
       function renderSystemPanels(ui) {
         const hotword = ui.hotword_enabled ? "ativa" : "manual";
         const channel = ui.visible ? "painel + voz" : "voz";
@@ -3036,9 +3092,27 @@
         setText("contextRisk", ui.axel_brain_plan?.risk_level || "--");
         const confidence = ui.axel_brain_plan?.confidence;
         setText("contextConfidence", Number.isFinite(confidence) ? `${Math.round(confidence * 100)}%` : "--");
+        setText("contextBrainVersion", ui.axel_brain_brief?.brain_version || "--");
+        setText("contextCoordination", ui.axel_brain_plan?.coordination_mode || ui.axel_brain_brief?.coordination_mode || "--");
+        setText("contextChannel", ui.axel_brain_contract?.channel || ui.axel_brain_contract?.remote_policy?.channel || "--");
+        setText("contextSafetyProfile", ui.axel_brain_contract?.remote_policy?.safety_profile || ui.axel_brain_contract?.remote_policy?.decision || "--");
+        setText("contextBrainDecisionCount", ui.axel_brain_history_summary?.total ?? "--");
+        setText("contextBrainRemoteCount", ui.axel_brain_history_summary?.remote ?? "--");
+        setText("contextBrainBlockedCount", ui.axel_brain_history_summary?.remote_blocked ?? "--");
         setText("contextRouteGroup", ui.last_route_trace?.group || "--");
         setText("contextRouteDetector", ui.last_route_trace?.detector || "--");
         setText("contextDecisionReason", ui.axel_brain_plan?.reason || "--");
+        setText("contextNextStep", ui.axel_brain_brief?.next_step || "--");
+        setText("contextExecutionGuidance", ui.axel_brain_contract?.execution_guidance || ui.axel_brain_contract?.remote_policy?.execution_guidance || "--");
+        renderChipList("contextMemoryLayers", ui.axel_brain_brief?.memory_layers, (item) => item?.name || item?.title || item);
+        renderChipList("contextSuccessCriteria", ui.axel_brain_brief?.success_criteria);
+        renderChipList("contextPostTaskSignals", ui.axel_brain_brief?.post_task_signals);
+        renderChipList("contextBrainHistory", (ui.axel_brain_history || []).slice(-5), (item) => {
+          const intent = item?.intent || "--";
+          const profile = item?.safety_profile || item?.channel || "--";
+          return `${intent} · ${profile}`;
+        });
+        renderChipList("contextBrainRecommendations", ui.axel_brain_history_summary?.recommendations);
 
         setText("commandsVoice", hotword);
         setText("commandsMode", modeLabel(ui));

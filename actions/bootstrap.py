@@ -13,6 +13,7 @@ from actions.legacy_write_actions import register_legacy_write_actions
 from actions.memory_actions import register_memory_actions
 from actions.memory_backup_actions import register_memory_backup_actions
 from actions.study_actions import register_study_actions
+from actions.telegram_actions import register_telegram_actions
 from actions.training_actions import register_training_actions
 from actions.whatsapp_actions import register_whatsapp_actions
 
@@ -29,6 +30,7 @@ def ensure_default_actions() -> None:
     register_memory_backup_actions()
     register_study_actions()
     register_training_actions()
+    register_telegram_actions()
     register_whatsapp_actions()
     register_investment_actions()
     register_legacy_read_actions()

@@ -18,6 +18,7 @@ from core.interactive_modes import handle_interactive_modes
 from core.deferred_runtime import run_deferred
 from core.axel_brain import build_axel_brain_decision
 from core.axel_brain_commands import maybe_handle_axel_brain_runtime_command
+from core.axel_brain_contract import build_axel_brain_contract
 from core.intent_complexity import classify_intent_complexity
 from core.latency_metrics import log_latency_stage
 from core.macro_recording import handle_macro_recording
@@ -194,7 +195,7 @@ def route_user_input(user_input: str, *, source: str = "turn") -> dict:
     decision_plan = brain_decision.plan
     app_runtime.runtime_state.axel_brain_plan = decision_plan.to_dict()
     app_runtime.runtime_state.axel_brain_brief = brain_decision.brief.to_dict()
-    app_runtime.runtime_state.last_route_trace = {
+    route_payload = {
         "source": source,
         "input": user_input,
         "intent": raw_action.get("intent"),
@@ -207,6 +208,21 @@ def route_user_input(user_input: str, *, source: str = "turn") -> dict:
         "checked_detectors": trace.checked_detectors,
         "checked_groups": list(trace.checked_groups),
     }
+    app_runtime.runtime_state.last_route_trace = route_payload
+    brain_contract = build_axel_brain_contract(
+        source=source,
+        user_input=user_input,
+        raw_action=raw_action,
+        plan=decision_plan,
+        brief=brain_decision.brief,
+        route_trace=route_payload,
+    )
+    app_runtime.runtime_state.axel_brain_contract = brain_contract
+    app_runtime.runtime_state.record_axel_brain_decision(
+        decision_plan.to_dict(),
+        brain_contract,
+        route_payload,
+    )
     log_execution_event(
         "route_result",
         source=source,
@@ -224,6 +240,7 @@ def route_user_input(user_input: str, *, source: str = "turn") -> dict:
         checked_groups=list(trace.checked_groups),
         decision_plan=decision_plan.to_dict(),
         specialist_brief=brain_decision.brief.to_dict(),
+        axel_brain_contract=brain_contract,
     )
     if source in {"turn", "ui_bridge"}:
         run_noncritical_task(
@@ -499,6 +516,9 @@ def _ui_runtime_patch() -> dict:
         "last_command": command_preview(app_runtime.runtime_state.last_command),
         "axel_brain_plan": dict(getattr(app_runtime.runtime_state, "axel_brain_plan", {}) or {}),
         "axel_brain_brief": dict(getattr(app_runtime.runtime_state, "axel_brain_brief", {}) or {}),
+        "axel_brain_contract": dict(getattr(app_runtime.runtime_state, "axel_brain_contract", {}) or {}),
+        "axel_brain_history": list(getattr(app_runtime.runtime_state, "axel_brain_history", []) or []),
+        "axel_brain_history_summary": app_runtime.runtime_state.axel_brain_history_summary(),
         "last_route_trace": dict(getattr(app_runtime.runtime_state, "last_route_trace", {}) or {}),
         "skill_suggestions": pending_skill_suggestions(limit=5),
     }

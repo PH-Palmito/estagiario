@@ -315,6 +315,11 @@ class MainTurnFlowTests(unittest.TestCase):
         self.assertIn("decision_plan", calls[0][1])
         self.assertIn("specialist_brief", calls[0][1])
         self.assertEqual(main.app_runtime.runtime_state.axel_brain_plan["intent"], "respond")
+        self.assertEqual(main.app_runtime.runtime_state.axel_brain_contract["version"], "2.0")
+        self.assertEqual(main.app_runtime.runtime_state.axel_brain_contract["channel"], "local")
+        self.assertEqual(main.app_runtime.runtime_state.axel_brain_contract["remote_policy"]["decision"], "local_flow")
+        self.assertEqual(main.app_runtime.runtime_state.axel_brain_history[-1]["intent"], "respond")
+        self.assertEqual(main.app_runtime.runtime_state.axel_brain_history[-1]["safety_profile"], "local_normal")
         self.assertEqual(main.app_runtime.runtime_state.last_route_trace["intent"], "respond")
         self.assertEqual(main.app_runtime.runtime_state.last_route_trace["checked_detectors"], 20)
         self.assertEqual(
@@ -332,6 +337,8 @@ class MainTurnFlowTests(unittest.TestCase):
     def test_ui_runtime_patch_exposes_axel_brain_decision(self):
         previous_plan = main.app_runtime.runtime_state.axel_brain_plan
         previous_brief = main.app_runtime.runtime_state.axel_brain_brief
+        previous_contract = main.app_runtime.runtime_state.axel_brain_contract
+        previous_history = main.app_runtime.runtime_state.axel_brain_history
         previous_route = main.app_runtime.runtime_state.last_route_trace
         try:
             main.app_runtime.runtime_state.axel_brain_plan = {
@@ -346,6 +353,13 @@ class MainTurnFlowTests(unittest.TestCase):
                 "toolset": "programacao",
                 "mission": "Ajudar com codigo.",
             }
+            main.app_runtime.runtime_state.axel_brain_contract = {
+                "version": "2.0",
+                "channel": "local",
+            }
+            main.app_runtime.runtime_state.axel_brain_history = [
+                {"intent": "respond", "agent": "conversation_agent", "channel": "remote", "safety_profile": "remote_blocked"}
+            ]
             main.app_runtime.runtime_state.last_route_trace = {
                 "group": "conversation",
                 "detector": "detect_ollama_chat",
@@ -361,11 +375,18 @@ class MainTurnFlowTests(unittest.TestCase):
             self.assertEqual(payload["axel_brain_plan"]["toolset"], "programacao")
             self.assertEqual(payload["axel_brain_plan"]["reason"], "toolset por gatilho; agente dev_agent; risco read")
             self.assertEqual(payload["axel_brain_brief"]["mission"], "Ajudar com codigo.")
+            self.assertEqual(payload["axel_brain_contract"]["version"], "2.0")
+            self.assertEqual(payload["axel_brain_history"][0]["intent"], "respond")
+            self.assertEqual(payload["axel_brain_history_summary"]["total"], 1)
+            self.assertEqual(payload["axel_brain_history_summary"]["remote_blocked"], 1)
+            self.assertIn("recommendations", payload["axel_brain_history_summary"])
             self.assertEqual(payload["last_route_trace"]["detector"], "detect_ollama_chat")
             self.assertEqual(payload["skill_suggestions"][0]["title"], "Criar skill")
         finally:
             main.app_runtime.runtime_state.axel_brain_plan = previous_plan
             main.app_runtime.runtime_state.axel_brain_brief = previous_brief
+            main.app_runtime.runtime_state.axel_brain_contract = previous_contract
+            main.app_runtime.runtime_state.axel_brain_history = previous_history
             main.app_runtime.runtime_state.last_route_trace = previous_route
 
     def test_route_user_input_defers_routine_learning_for_turn_source(self):

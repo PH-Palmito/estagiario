@@ -82,6 +82,17 @@ class StudyFileAnalysisTests(unittest.TestCase):
         self.assertEqual(second, ([str(path)], "o que tem no arquivo cv Pedro"))
         self.assertEqual(third, ([str(path)], "o que tem nesse arquivo"))
 
+    def test_parse_page_followup_does_not_search_for_file_named_page(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            stale = root / "Planilha Rosa de Iung - Pagina1.pdf"
+            stale.write_text("arquivo antigo", encoding="utf-8")
+
+            with patch("core.study_file_analysis._candidate_file_search_roots", return_value=[root]):
+                result = parse_study_file_command("oq tem na pagina 2?")
+
+        self.assertIsNone(result)
+
     def test_partial_file_search_prefers_exact_name_in_earlier_root(self):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -231,6 +242,45 @@ class StudyFileAnalysisTests(unittest.TestCase):
 
         self.assertIn("Redes de Computadores", result)
         self.assertNotIn("Pontos centrais", result)
+
+    def test_analyze_study_files_answers_slide_format_request_directly(self):
+        fake_result = {
+            "ok": True,
+            "file": {"name": "RedesBasico.pdf", "kind": "pdf"},
+            "extracted": {
+                "text": (
+                    "Agenda\nRedes de Computadores\nComunicacao Digital\n"
+                    "Conceitos Basicos\nMeios Fisicos\nProfessor Marco Antonio\n"
+                )
+            },
+        }
+
+        with patch("core.study_file_analysis.process_file", return_value=fake_result):
+            result = analyze_study_files(["C:/fake/RedesBasico.pdf"], request="é um slide?")
+
+        self.assertIn("RedesBasico.pdf", result)
+        self.assertIn("formato de slides", result)
+        self.assertIn("PDF", result)
+        self.assertNotIn("Pontos centrais", result)
+
+    def test_analyze_study_files_prioritizes_subject_when_slide_is_reference(self):
+        fake_result = {
+            "ok": True,
+            "file": {"name": "RedesBasico.pdf", "kind": "pdf"},
+            "extracted": {
+                "text": (
+                    "Agenda\nRedes de Computadores\nComunicacao Digital\n"
+                    "Conceitos Basicos\nMeios Fisicos\nProfessor Marco Antonio\n"
+                )
+            },
+        }
+
+        with patch("core.study_file_analysis.process_file", return_value=fake_result):
+            result = analyze_study_files(["C:/fake/RedesBasico.pdf"], request="o slide fala sobre bananas?")
+
+        self.assertIn("bananas", result.lower())
+        self.assertIn("n", result.lower())
+        self.assertNotIn("formato de slides", result)
 
     def test_analyze_general_cv_does_not_use_study_framing(self):
         fake_result = {
@@ -633,9 +683,154 @@ endstream endobj
         with patch("core.study_file_analysis.load_study_context", return_value=fake_context):
             result = answer_study_followup("voce consegue ver que isso e um slide?")
 
-        self.assertIn("apresentacao/slide", result)
+        self.assertIn("apresentação/slide", result)
         self.assertIn("aula_redes.pptx", result)
         self.assertIn("Redes de Computadores", result)
+
+    def test_answer_study_followup_identifies_recent_pdf_with_slide_like_content(self):
+        fake_context = {
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "kind": "pdf",
+                    "presentation_like": True,
+                    "text": "Agenda Redes de Computadores Professor Marco Antonio Comunicacao Digital Meios Fisicos.",
+                    "raw_text": "Agenda\nRedes de Computadores\nProfessor Marco Antonio\nComunicacao Digital\nMeios Fisicos",
+                    "topic": "Redes de Computadores",
+                    "questions": {},
+                }
+            ]
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context):
+            result = answer_study_followup("voce sabe dizer se o arquivo ? um slide?")
+
+        self.assertIn("RedesBasico.pdf", result)
+        self.assertIn("PDF", result)
+        self.assertIn("slides", result)
+        self.assertIn("apresentação", result)
+        self.assertNotIn("Pelo nome", result)
+
+    def test_answer_study_followup_detects_slide_like_pdf_from_text(self):
+        fake_context = {
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "kind": "pdf",
+                    "raw_text": (
+                        "Agenda\n"
+                        "Redes de Computadores\n"
+                        "Comunicacao Digital\n"
+                        "Conceitos Basicos\n"
+                        "Meios Fisicos\n"
+                        "Professor Marco Antonio\n"
+                    ),
+                    "text": "Agenda Redes de Computadores Comunicacao Digital Conceitos Basicos Meios Fisicos Professor Marco Antonio",
+                    "topic": "Redes de Computadores",
+                    "questions": {},
+                }
+            ]
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context):
+            result = answer_study_followup("o arquivo redes basico e um slide?")
+
+        self.assertIn("formato de slides", result)
+        self.assertIn("PDF", result)
+
+    def test_answer_study_followup_says_subject_is_not_in_slide(self):
+        fake_context = {
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "kind": "pdf",
+                    "raw_text": "Agenda Redes de Computadores Comunicacao Digital Meios Fisicos Professor Marco Antonio",
+                    "text": "Agenda Redes de Computadores Comunicacao Digital Meios Fisicos Professor Marco Antonio",
+                    "topic": "Redes de Computadores",
+                    "questions": {},
+                }
+            ]
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context):
+            result = answer_study_followup("o slide fala sobre bananas?")
+
+        self.assertIn("não encontrei menção clara a bananas", result.lower())
+        self.assertIn("Redes de Computadores", result)
+
+    def test_answer_study_followup_answers_page_when_page_text_is_available(self):
+        fake_context = {
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "kind": "pdf",
+                    "raw_text": "Pagina 1\nPagina 2",
+                    "text": "Pagina 1 Pagina 2",
+                    "topic": "Redes de Computadores",
+                    "pages": [
+                        {"index": 1, "text": "Capa da aula"},
+                        {"index": 2, "text": "Comunicacao Digital e Conceitos Basicos"},
+                    ],
+                    "questions": {},
+                }
+            ]
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context):
+            result = answer_study_followup("oq fala na pagina 2?")
+
+        self.assertIn("página 2", result)
+        self.assertIn("Comunicacao Digital", result)
+
+    def test_answer_study_followup_understands_ordinal_page_request(self):
+        fake_context = {
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "kind": "pdf",
+                    "raw_text": "Pagina 1\nPagina 2",
+                    "text": "Pagina 1 Pagina 2",
+                    "topic": "Redes de Computadores",
+                    "pages": [
+                        {"index": 1, "text": "Capa da aula"},
+                        {"index": 2, "text": "Comunicacao Digital e Conceitos Basicos"},
+                    ],
+                    "questions": {},
+                }
+            ]
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context):
+            result = answer_study_followup("pode falas sobre a segunda pagina?")
+
+        self.assertIn("2", result)
+        self.assertIn("Comunicacao Digital", result)
+
+    def test_answer_study_followup_page_request_does_not_fall_to_screen_when_pages_missing(self):
+        fake_context = {
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "kind": "pdf",
+                    "raw_text": "Redes de Computadores Comunicacao Digital",
+                    "text": "Redes de Computadores Comunicacao Digital",
+                    "topic": "Redes de Computadores",
+                    "questions": {},
+                }
+            ]
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context):
+            result = answer_study_followup("oq fala na pagina 2?")
+
+        self.assertIn("não veio separado por páginas", result.lower())
+        self.assertIn("RedesBasico.pdf", result)
 
     def test_answer_study_followup_main_concepts_from_last_file(self):
         fake_context = {

@@ -83,7 +83,8 @@
 - [x] Criar memoria de correcoes automatica para o Axel aprender variacoes de voz sem mapear tudo manualmente.
 - [x] Evoluir modo musica com comandos como gostei dessa, nao gostei, mais desse estilo e menos triste agora.
 - [ ] Criar cache e fast path para Mercado Livre e sites frequentes, nos mesmos moldes do Spotify.
-- [ ] Criar um canal remoto por Telegram Bot para falar com o Axel sem numero de celular, com Discord apenas como alternativa futura.
+- [x] Criar um canal remoto por Telegram Bot para falar com o Axel sem numero de celular, com allowlist por chat_id, polling local e bloqueio de acoes sensiveis fora do PC.
+- [ ] Manter Discord apenas como alternativa futura caso o Telegram nao cubra bem o uso remoto.
 - [ ] Integrar o Axel a uma agenda/calendario real para criar, consultar e sincronizar compromissos, avaliando Microsoft To Do, Google Agenda ou Samsung Calendar, usando isso no briefing e nos lembretes proativos.
 - [ ] Criar resumo diario do que mudou na carteira desde ontem: patrimonio, rentabilidade, ativos que mais variaram, dividendos novos, noticias relevantes e alertas de preco-teto.
 - [ ] Controlar os LEDs do teclado pelo Axel, com comandos de ligar/desligar, trocar cor/perfil e usar efeitos como feedback visual de escuta, alerta e foco.
@@ -120,10 +121,19 @@
 - [x] Criar skill de estudos para resumir slides, analisar arquivos, gerar questoes por tema ou por slide, corrigir respostas e montar revisoes.
 - [x] Permitir que o Axel crie ou atualize qualquer skill procedural sozinho por comando natural, gerando `SKILL.md` com gatilhos, procedimento, riscos, exemplos e comandos relacionados sem depender do Codex.
 - [x] Iniciar AxelBrain 2.0 com decisao executiva estruturada: memoria em camadas, proximo passo, criterios de sucesso e sinais pos-tarefa.
-- [ ] Expor AxelBrain 2.0 no HUD com resumo visual de memoria consultada, proximo passo, risco e sinais pos-tarefa.
-- [ ] Usar AxelBrain 2.0 como contrato unico no Telegram Bot, mantendo continuidade com voz, terminal e HUD.
+- [x] Expor AxelBrain 2.0 no HUD com resumo visual de memoria consultada, proximo passo, risco e sinais pos-tarefa.
+- [x] Expor no AxelBrain 2.0 o perfil de seguranca por canal, incluindo local, remoto leitura, remoto midia confirmada e remoto bloqueado.
+- [x] Adicionar guia de execucao por canal ao contrato do AxelBrain 2.0, para orientar HUD, Telegram e diagnosticos sem reinterpretar risco.
+- [x] Adicionar historico curto de decisoes do AxelBrain 2.0 na sessao, exposto por comando e no HUD.
+- [x] Adicionar insights de sessao do AxelBrain 2.0 com contagem de agentes, toolsets, riscos, perfis seguros e bloqueios remotos.
+- [x] Adicionar recomendacoes de sessao do AxelBrain 2.0 a partir de bloqueios remotos, risco alto, uso de midia remota e padroes de leitura.
+- [x] Usar AxelBrain 2.0 como contrato unico no Telegram Bot, mantendo continuidade com voz, terminal e HUD.
+- [x] Permitir confirmacao remota segura no Telegram para acoes leves de midia/volume, com acao pendente por chat, expiração curta e log de auditoria.
+- [x] Evoluir confirmacao remota do Telegram com botoes inline de Confirmar/Cancelar.
+- [x] Desativar o modo remoto ampliado no Telegram apos teste pratico, mantendo AxelBrain 2.0 com leitura e midia leve confirmada.
 - [ ] Empacotar o Axel como app real no Windows, para abrir sem terminal, com atalho/menu iniciar/icone e logs acessiveis; deixar para fase final enquanto o projeto ainda muda com frequencia.
 - [ ] No Telegram Bot, aceitar audio/voice memo e transcrever como entrada remota do Axel.
+- [ ] Reavaliar futuramente niveis de permissao remota alem de midia/volume somente com modelo de seguranca mais forte.
 - [ ] Criar comandos compartilhados para terminal, HUD e Telegram: reset, retry, undo, stop, usage, insights, skills, status e troca de modelo.
 - [ ] Criar comandos `axel setup`, `axel doctor` e futuramente `axel update` para configuracao, diagnostico e atualizacao.
 - [ ] Avaliar MCP como camada futura para conectar ferramentas externas ao Axel sem acoplar tudo no nucleo.

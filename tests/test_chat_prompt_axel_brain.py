@@ -22,6 +22,7 @@ class ChatPromptAxelBrainTests(unittest.TestCase):
 
     def test_incomplete_model_response_is_rejected(self):
         self.assertTrue(chat._looks_incomplete_response("O projeto que estamos discutindo atualmente é"))
+        self.assertTrue(chat._looks_incomplete_response("Pelo nome `Redes"))
         self.assertFalse(chat._looks_incomplete_response("O projeto se chama Axel."))
 
     def test_chat_prompt_includes_axel_brain_brief(self):

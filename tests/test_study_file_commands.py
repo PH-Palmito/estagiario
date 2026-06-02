@@ -68,6 +68,16 @@ class StudyFileCommandTests(unittest.TestCase):
 
         self.assertEqual(result, "Resposta da questão 1.")
 
+    def test_page_question_uses_followup_instead_of_file_search(self):
+        with patch("core.study_commands.parse_study_file_command", return_value=None) as parse_command, patch(
+            "core.study_commands.answer_study_followup", return_value="Na pÃ¡gina 2 de RedesBasico.pdf: Comunicacao Digital."
+        ) as followup, patch("core.study_commands.study_snapshot", return_value={}), patch("core.study_commands.update_ui_state"):
+            result = maybe_handle_study_command("oq tem na pagina 2?", Mock(return_value="hud"))
+
+        parse_command.assert_called_once()
+        followup.assert_called_once_with("oq tem na pagina 2?")
+        self.assertIn("RedesBasico.pdf", result)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,10 +42,33 @@ AXEL_ROUTE_TRACE_COMMANDS = {
     "diagnostico do roteamento",
 }
 
+AXEL_BRAIN_HISTORY_COMMANDS = {
+    "historico do axelbrain",
+    "historico do axel brain",
+    "ultimas decisoes do axelbrain",
+    "ultimas decisoes do axel brain",
+    "ultimos planos do axelbrain",
+    "ultimos planos do axel brain",
+}
 
-def format_axel_brain_runtime_decision(plan: dict | None, brief: dict | None = None) -> str:
+AXEL_BRAIN_INSIGHT_COMMANDS = {
+    "insights do axelbrain",
+    "insights do axel brain",
+    "resumo do axelbrain",
+    "resumo do axel brain",
+    "padroes do axelbrain",
+    "padroes do axel brain",
+}
+
+
+def format_axel_brain_runtime_decision(
+    plan: dict | None,
+    brief: dict | None = None,
+    contract: dict | None = None,
+) -> str:
     payload = plan if isinstance(plan, dict) else {}
     specialist = brief if isinstance(brief, dict) else {}
+    contract_payload = contract if isinstance(contract, dict) else {}
     if not payload:
         return "Ainda nao tenho uma decisao recente do AxelBrain para explicar."
 
@@ -63,6 +86,12 @@ def format_axel_brain_runtime_decision(plan: dict | None, brief: dict | None = N
     post_task_signals = specialist.get("post_task_signals") or []
     memory_layers = specialist.get("memory_layers") or []
     coordination_mode = str(payload.get("coordination_mode") or specialist.get("coordination_mode") or "single_agent")
+    remote_policy = contract_payload.get("remote_policy") if isinstance(contract_payload.get("remote_policy"), dict) else {}
+    channel = str(contract_payload.get("channel") or remote_policy.get("channel") or "").strip()
+    safety_profile = str(remote_policy.get("safety_profile") or "").strip()
+    remote_decision = str(remote_policy.get("decision") or "").strip()
+    execution_guidance = str(contract_payload.get("execution_guidance") or remote_policy.get("execution_guidance") or "").strip()
+    can_confirm_remotely = remote_policy.get("can_confirm_remotely")
     handoff_chain = payload.get("handoff_chain") or specialist.get("handoff_chain") or []
     if not isinstance(handoff_chain, list):
         handoff_chain = list(handoff_chain) if isinstance(handoff_chain, tuple) else []
@@ -90,6 +119,19 @@ def format_axel_brain_runtime_decision(plan: dict | None, brief: dict | None = N
     ]
     if mission:
         parts.append(f"missao do agente: {mission}")
+    if channel or safety_profile or remote_decision:
+        policy_parts = []
+        if channel:
+            policy_parts.append(f"canal {channel}")
+        if safety_profile:
+            policy_parts.append(f"perfil {safety_profile}")
+        if remote_decision:
+            policy_parts.append(f"decisao {remote_decision}")
+        if isinstance(can_confirm_remotely, bool):
+            policy_parts.append(f"confirmacao remota {'sim' if can_confirm_remotely else 'nao'}")
+        parts.append("politica de canal: " + ", ".join(policy_parts))
+    if execution_guidance:
+        parts.append(f"guia de execucao: {execution_guidance}")
     if next_step:
         parts.append(f"proximo passo: {next_step}")
     if isinstance(success_criteria, (list, tuple)) and success_criteria:
@@ -133,6 +175,12 @@ def format_axel_brain_runtime_decision(plan: dict | None, brief: dict | None = N
 
 def maybe_handle_axel_brain_runtime_command(user_input: str, runtime_state) -> str | None:
     normalized = normalize_text(user_input)
+    if normalized in AXEL_BRAIN_INSIGHT_COMMANDS:
+        return format_axel_brain_insights(getattr(runtime_state, "axel_brain_history", None))
+
+    if normalized in AXEL_BRAIN_HISTORY_COMMANDS:
+        return format_axel_brain_history(getattr(runtime_state, "axel_brain_history", None))
+
     if normalized in AXEL_ROUTE_TRACE_COMMANDS:
         return format_axel_route_trace(getattr(runtime_state, "last_route_trace", None))
 
@@ -142,7 +190,87 @@ def maybe_handle_axel_brain_runtime_command(user_input: str, runtime_state) -> s
     return format_axel_brain_runtime_decision(
         getattr(runtime_state, "axel_brain_plan", None),
         getattr(runtime_state, "axel_brain_brief", None),
+        getattr(runtime_state, "axel_brain_contract", None),
     )
+
+
+def format_axel_brain_history(history: list | tuple | None) -> str:
+    items = list(history or [])
+    if not items:
+        return "Ainda nao tenho historico de decisoes do AxelBrain nesta sessao."
+
+    lines = []
+    for index, item in enumerate(items[-5:], start=1):
+        if not isinstance(item, dict):
+            continue
+        intent = str(item.get("intent") or "--")
+        agent = str(item.get("agent") or "--")
+        toolset = str(item.get("toolset") or "--")
+        risk = str(item.get("risk_level") or "--")
+        channel = str(item.get("channel") or "--")
+        safety = str(item.get("safety_profile") or "--")
+        route_group = str(item.get("route_group") or "--")
+        lines.append(
+            f"{index}. {intent}: agente {agent}, toolset {toolset}, risco {risk}, canal {channel}, perfil {safety}, grupo {route_group}"
+        )
+    if not lines:
+        return "Ainda nao tenho historico de decisoes do AxelBrain nesta sessao."
+    return "Ultimas decisoes do AxelBrain: " + "; ".join(lines) + "."
+
+
+def _top_counts(items: list[dict], key: str, limit: int = 3) -> list[tuple[str, int]]:
+    counts: dict[str, int] = {}
+    for item in items:
+        value = str(item.get(key) or "").strip()
+        if not value:
+            continue
+        counts[value] = counts.get(value, 0) + 1
+    return sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))[:limit]
+
+
+def format_axel_brain_insights(history: list | tuple | None) -> str:
+    items = [item for item in list(history or []) if isinstance(item, dict)]
+    if not items:
+        return "Ainda nao tenho decisoes suficientes para gerar insights do AxelBrain nesta sessao."
+
+    total = len(items)
+    agents = ", ".join(f"{name} {count}x" for name, count in _top_counts(items, "agent")) or "--"
+    toolsets = ", ".join(f"{name} {count}x" for name, count in _top_counts(items, "toolset")) or "--"
+    risks = ", ".join(f"{name} {count}x" for name, count in _top_counts(items, "risk_level")) or "--"
+    profiles = ", ".join(f"{name} {count}x" for name, count in _top_counts(items, "safety_profile")) or "--"
+    blocked = sum(1 for item in items if str(item.get("safety_profile") or "") == "remote_blocked")
+    remote = sum(1 for item in items if str(item.get("channel") or "") == "remote")
+    return (
+        f"Insights do AxelBrain nesta sessao: {total} decisoes; "
+        f"agentes mais usados: {agents}; toolsets: {toolsets}; riscos: {risks}; "
+        f"perfis de seguranca: {profiles}; remoto {remote}x; bloqueios remotos {blocked}x. "
+        f"Recomendacoes: {'; '.join(axel_brain_recommendations(items))}"
+    )
+
+
+def axel_brain_recommendations(history: list | tuple | None) -> list[str]:
+    items = [item for item in list(history or []) if isinstance(item, dict)]
+    if not items:
+        return ["acumular mais decisoes antes de ajustar o comportamento"]
+
+    blocked = sum(1 for item in items if str(item.get("safety_profile") or "") == "remote_blocked")
+    remote_light = sum(1 for item in items if str(item.get("safety_profile") or "") == "remote_light_media_confirmation")
+    high_risk = sum(1 for item in items if str(item.get("risk_level") or "") in {"high", "critical"})
+    read = sum(1 for item in items if str(item.get("risk_level") or "") == "read")
+    total = len(items)
+    recommendations: list[str] = []
+
+    if blocked:
+        recommendations.append("manter bloqueio remoto ampliado e revisar manualmente os comandos bloqueados")
+    if remote_light >= 2:
+        recommendations.append("preservar confirmacao por botao para midia remota")
+    if high_risk:
+        recommendations.append("auditar comandos de risco alto antes de ampliar automacao")
+    if read >= max(3, total // 2):
+        recommendations.append("otimizar respostas de leitura com cache e briefing curto")
+    if not recommendations:
+        recommendations.append("sessao equilibrada; manter politica atual")
+    return recommendations[:3]
 
 
 def format_axel_route_trace(trace: dict | None) -> str:

@@ -2,6 +2,9 @@ import unittest
 from types import SimpleNamespace
 
 from core.axel_brain_commands import (
+    axel_brain_recommendations,
+    format_axel_brain_history,
+    format_axel_brain_insights,
     format_axel_brain_runtime_decision,
     format_axel_route_trace,
     maybe_handle_axel_brain_runtime_command,
@@ -38,6 +41,16 @@ class AxelBrainCommandTests(unittest.TestCase):
                 "post_task_signals": ["registrar sucesso"],
                 "memory_layers": [{"name": "memoria_curta"}, {"name": "skills_procedurais"}],
             },
+            {
+                "channel": "remote",
+                "remote_policy": {
+                    "channel": "remote",
+                    "decision": "confirm_remote_light",
+                    "safety_profile": "remote_light_media_confirmation",
+                    "can_confirm_remotely": True,
+                    "execution_guidance": "pedir confirmacao no chat antes de executar midia leve",
+                },
+            },
         )
 
         self.assertIn("AxelBrain 2.0", text)
@@ -53,6 +66,10 @@ class AxelBrainCommandTests(unittest.TestCase):
         self.assertIn("criterios de sucesso: resposta curta", text)
         self.assertIn("sinais pos-tarefa: registrar sucesso", text)
         self.assertIn("memoria consultada: memoria_curta, skills_procedurais", text)
+        self.assertIn("politica de canal: canal remote", text)
+        self.assertIn("perfil remote_light_media_confirmation", text)
+        self.assertIn("confirmacao remota sim", text)
+        self.assertIn("guia de execucao: pedir confirmacao no chat", text)
 
     def test_reports_missing_decision(self):
         text = format_axel_brain_runtime_decision({})
@@ -72,6 +89,10 @@ class AxelBrainCommandTests(unittest.TestCase):
                 "reason": "toolset por fallback de intent; agente system_agent; risco low",
             },
             axel_brain_brief={"mission": "Executar comando local."},
+            axel_brain_contract={
+                "channel": "local",
+                "remote_policy": {"decision": "local_flow", "safety_profile": "local_normal"},
+            },
             last_route_trace={},
         )
 
@@ -80,6 +101,68 @@ class AxelBrainCommandTests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertIn("system_agent", result)
         self.assertIn("sistema", result)
+
+    def test_formats_brain_history(self):
+        text = format_axel_brain_history([
+            {
+                "intent": "daily_briefing",
+                "agent": "daily_agent",
+                "toolset": "rotina",
+                "risk_level": "read",
+                "channel": "remote",
+                "safety_profile": "remote_read_only",
+                "route_group": "daily",
+            }
+        ])
+
+        self.assertIn("Ultimas decisoes do AxelBrain", text)
+        self.assertIn("daily_briefing", text)
+        self.assertIn("perfil remote_read_only", text)
+
+    def test_handles_history_command(self):
+        runtime_state = SimpleNamespace(
+            axel_brain_plan={},
+            axel_brain_brief={},
+            axel_brain_history=[{"intent": "respond", "agent": "conversation_agent"}],
+            last_route_trace={},
+        )
+
+        result = maybe_handle_axel_brain_runtime_command("historico do axelbrain", runtime_state)
+
+        self.assertIsNotNone(result)
+        self.assertIn("respond", result)
+
+    def test_formats_brain_insights(self):
+        history = [
+            {"agent": "daily_agent", "toolset": "rotina", "risk_level": "read", "channel": "remote", "safety_profile": "remote_read_only"},
+            {"agent": "system_agent", "toolset": "midia", "risk_level": "low", "channel": "remote", "safety_profile": "remote_light_media_confirmation"},
+            {"agent": "system_agent", "toolset": "sistema", "risk_level": "low", "channel": "remote", "safety_profile": "remote_blocked"},
+        ]
+        text = format_axel_brain_insights(history)
+
+        self.assertIn("3 decisoes", text)
+        self.assertIn("system_agent 2x", text)
+        self.assertIn("remoto 3x", text)
+        self.assertIn("bloqueios remotos 1x", text)
+        self.assertIn("Recomendacoes:", text)
+
+    def test_brain_recommendations_notice_remote_blocks(self):
+        recommendations = axel_brain_recommendations([
+            {"safety_profile": "remote_blocked", "risk_level": "low"},
+            {"safety_profile": "remote_read_only", "risk_level": "read"},
+        ])
+
+        self.assertIn("manter bloqueio remoto ampliado", recommendations[0])
+
+    def test_handles_insights_command(self):
+        runtime_state = SimpleNamespace(
+            axel_brain_history=[{"intent": "respond", "agent": "conversation_agent"}],
+        )
+
+        result = maybe_handle_axel_brain_runtime_command("insights do axelbrain", runtime_state)
+
+        self.assertIsNotNone(result)
+        self.assertIn("Insights do AxelBrain", result)
 
     def test_ignores_unrelated_text(self):
         runtime_state = SimpleNamespace(axel_brain_plan={}, axel_brain_brief={})
