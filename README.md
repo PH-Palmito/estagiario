@@ -154,6 +154,15 @@ Variáveis principais:
 - `AXEL_NEWSAPI_ENABLED`
   Liga ou desliga o uso da NewsAPI nas respostas de fatos relevantes e notícias.
 
+- `AXEL_TELEGRAM_BOT_TOKEN`
+  Token do bot criado no BotFather. Fica no `.env`; nao publique esse valor.
+
+- `AXEL_TELEGRAM_ALLOWED_CHAT_IDS`
+  Lista de `chat_id`s autorizados a falar com o Axel pelo Telegram, separados por virgula ou ponto e virgula.
+
+- `AXEL_TELEGRAM_POLL_INTERVAL_SECONDS`
+  Intervalo do polling local do Telegram. Padrao recomendado: `2`.
+
 - `AXEL_SPOTIFY_CLIENT_ID` e `AXEL_SPOTIFY_CLIENT_SECRET`
   Credenciais opcionais da Spotify Web API para o Axel buscar a faixa certa antes de abrir/tocar.
 
@@ -177,6 +186,70 @@ Variaveis relacionadas:
 - `AXEL_WHATSAPP_BRIDGE_PORT`
 
 Por seguranca, o modo atual deve permanecer read-only: responder perguntas e consultar o Axel. Envio de mensagens para terceiros precisa de confirmacao explicita e ainda nao deve ser ativado automaticamente.
+
+## Telegram Bot
+
+O Telegram Bot e o canal remoto principal do Axel para falar com ele sem depender de numero de celular.
+
+Configuracao basica:
+
+1. Crie o bot no BotFather.
+2. Coloque o token em `AXEL_TELEGRAM_BOT_TOKEN`.
+3. Envie `/start` ou uma mensagem para o bot.
+4. No Axel, use `descobrir chat id telegram` para listar chats recentes.
+5. Coloque seu `chat_id` em `AXEL_TELEGRAM_ALLOWED_CHAT_IDS`.
+6. Inicie o bot com `iniciar bot telegram`.
+
+Comandos uteis:
+
+- `status do telegram`
+- `descobrir chat id telegram`
+- `iniciar bot telegram`
+- `simular telegram briefing`
+
+Perfil de seguranca atual:
+
+- consultas de leitura podem responder direto no Telegram
+- midia leve, como musica e volume, exige botao `Confirmar`/`Cancelar`
+- app, janela, URL, clique, digitacao, arquivos, scripts e acoes sensiveis ficam bloqueados no Telegram
+- o modo remoto ampliado foi testado e desativado por seguranca
+
+Logs uteis:
+
+- `memory/telegram_bot.log`: eventos do bot, callbacks, bloqueios e confirmacoes
+
+## AxelBrain 2.0
+
+O AxelBrain 2.0 e o nucleo executivo do Axel. Ele fica acima dos roteadores e registra a decisao de cada turno.
+
+Ele produz:
+
+- agente escolhido
+- toolset escolhido
+- risco
+- politica de modelo
+- memoria consultada
+- proximo passo
+- criterios de sucesso
+- sinais pos-tarefa
+- perfil de seguranca por canal
+- guia de execucao por canal
+
+Perfis de seguranca por canal:
+
+- `local_normal`: fluxo local normal, com confirmacao quando necessario
+- `remote_read_only`: resposta remota sem acao de escrita
+- `remote_light_media_confirmation`: midia leve remota com confirmacao no chat
+- `remote_blocked`: comando remoto bloqueado
+
+Comandos de diagnostico:
+
+- `por que o Axel decidiu isso`
+- `ultima rota do Axel`
+- `historico do axelbrain`
+- `insights do axelbrain`
+
+Esses comandos nao executam acoes; eles ajudam a entender como o Axel decidiu, qual detector pegou o comando e quais padroes apareceram na sessao.
 
 ## Gemini opcional como principal
 
