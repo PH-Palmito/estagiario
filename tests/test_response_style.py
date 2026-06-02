@@ -129,6 +129,19 @@ class ResponseStyleTests(unittest.TestCase):
 
         self.assertEqual(result, "Abrindo chrome.")
 
+    def test_repeated_long_response_is_not_replaced_by_confirmation(self):
+        state = {}
+        message = (
+            "Analise dos arquivos: 1. README_CineRadar.md: este arquivo descreve "
+            "um projeto com tecnologias, integrantes, instrucoes de execucao e testes automatizados."
+        )
+
+        first = style_response(message, preferences={}, variants=VARIANTS, next_phrase=first_phrase, state=state)
+        second = style_response(message, preferences={}, variants=VARIANTS, next_phrase=first_phrase, state=state)
+
+        self.assertEqual(first, message)
+        self.assertEqual(second, message)
+
 
 if __name__ == "__main__":
     unittest.main()

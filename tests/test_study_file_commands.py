@@ -19,9 +19,30 @@ class StudyFileCommandTests(unittest.TestCase):
                 lambda: shown.append(True) or "hud",
             )
 
-        self.assertIn("Analise de estudo dos arquivos", result)
-        self.assertIn("Questoes para praticar", result)
+        self.assertIn("Análise de estudo dos arquivos", result)
+        self.assertIn("Questões para praticar", result)
         self.assertEqual(shown, [True])
+
+    def test_general_file_analysis_does_not_open_study_panel(self):
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "cv.txt"
+            path.write_text(
+                "Pedro Henrique Bispo Palmito Objetivo Acadêmico de Engenharia de Software "
+                "com foco em Desenvolvimento Mobile. Tecnologias React Native, Supabase e Git.",
+                encoding="utf-8",
+            )
+            show_hud = Mock(return_value="hud")
+
+            with patch("core.study_commands.update_ui_state") as update_ui:
+                result = maybe_handle_study_command(
+                    f"analisar arquivos anexados: {json.dumps([str(path)])} :: oque tem nesse pdf",
+                    show_hud,
+                )
+
+        self.assertIn("Análise dos arquivos", result)
+        self.assertNotIn("Pedido considerado", result)
+        show_hud.assert_not_called()
+        update_ui.assert_not_called()
 
     def test_study_command_blocks_corrupted_analysis_response(self):
         corrupted = (
@@ -36,7 +57,7 @@ class StudyFileCommandTests(unittest.TestCase):
                 Mock(return_value="hud"),
             )
 
-        self.assertIn("verificacao de confianca", result)
+        self.assertIn("verificação de confiança", result)
         self.assertNotIn("T m s t m s", result)
 
     def test_study_command_handles_followup_before_general_routing(self):
@@ -45,7 +66,7 @@ class StudyFileCommandTests(unittest.TestCase):
         ), patch("core.study_commands.update_ui_state"):
             result = maybe_handle_study_command("pode responder a questao 1?", Mock(return_value="hud"))
 
-        self.assertEqual(result, "Resposta da questao 1.")
+        self.assertEqual(result, "Resposta da questão 1.")
 
 
 if __name__ == "__main__":

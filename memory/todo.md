@@ -119,7 +119,16 @@
 - [x] Evoluir painel de saude com observabilidade de actions, custos de API, tokens, latencia, fallback de modelo e taxa de erro por dominio.
 - [x] Criar skill de estudos para resumir slides, analisar arquivos, gerar questoes por tema ou por slide, corrigir respostas e montar revisoes.
 - [x] Permitir que o Axel crie ou atualize qualquer skill procedural sozinho por comando natural, gerando `SKILL.md` com gatilhos, procedimento, riscos, exemplos e comandos relacionados sem depender do Codex.
+- [x] Iniciar AxelBrain 2.0 com decisao executiva estruturada: memoria em camadas, proximo passo, criterios de sucesso e sinais pos-tarefa.
+- [ ] Expor AxelBrain 2.0 no HUD com resumo visual de memoria consultada, proximo passo, risco e sinais pos-tarefa.
+- [ ] Usar AxelBrain 2.0 como contrato unico no Telegram Bot, mantendo continuidade com voz, terminal e HUD.
 - [ ] Empacotar o Axel como app real no Windows, para abrir sem terminal, com atalho/menu iniciar/icone e logs acessiveis; deixar para fase final enquanto o projeto ainda muda com frequencia.
+- [ ] No Telegram Bot, aceitar audio/voice memo e transcrever como entrada remota do Axel.
+- [ ] Criar comandos compartilhados para terminal, HUD e Telegram: reset, retry, undo, stop, usage, insights, skills, status e troca de modelo.
+- [ ] Criar comandos `axel setup`, `axel doctor` e futuramente `axel update` para configuracao, diagnostico e atualizacao.
+- [ ] Avaliar MCP como camada futura para conectar ferramentas externas ao Axel sem acoplar tudo no nucleo.
+- [ ] Criar arquivos de contexto por workspace/projeto, inspirados em `AGENTS.md`, para orientar respostas e execucoes.
+- [ ] Criar scripts operacionais que chamem tools/actions por RPC local para fluxos repetidos e baratos em contexto.
 
 ## Prioridades atuais
 

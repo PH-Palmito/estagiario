@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from core.router_conversation import (
+    detect_question_fallback,
     detect_light_conversation,
     detect_llm_action_command,
     detect_ollama_chat,
@@ -49,6 +50,19 @@ class RouterConversationTests(unittest.TestCase):
             detect_ollama_chat("quem é alanzoca"),
             {"intent": "respond", "target": None, "response": "Alanzoca e um streamer brasileiro."},
         )
+
+    def test_question_fallback_when_chat_does_not_answer(self):
+        result = detect_question_fallback("quem foi Nikola Tesla?")
+
+        self.assertEqual(result["intent"], "respond")
+        self.assertIn("Não consegui confirmar", result["response"])
+
+    @patch("core.router_conversation.chat_response", return_value=None)
+    def test_full_route_question_does_not_become_unclear_when_chat_fails(self, _chat):
+        result = route("qual a receita de bolo de cenoura?")
+
+        self.assertEqual(result["intent"], "respond")
+        self.assertIn("Não consegui confirmar", result["response"])
 
     @patch("core.router_conversation.chat_response", return_value="Tesla foi uma empresa/pessoa dependendo do contexto.")
     def test_full_route_keeps_factual_question_out_of_screen(self, _chat):

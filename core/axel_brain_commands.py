@@ -57,6 +57,11 @@ def format_axel_brain_runtime_decision(plan: dict | None, brief: dict | None = N
     model_policy = str(payload.get("model_policy") or specialist.get("model_policy") or "--")
     reason = str(payload.get("reason") or "Sem motivo registrado.")
     mission = str(specialist.get("mission") or "").strip()
+    brain_version = str(specialist.get("brain_version") or payload.get("brain_version") or "").strip()
+    next_step = str(specialist.get("next_step") or "").strip()
+    success_criteria = specialist.get("success_criteria") or []
+    post_task_signals = specialist.get("post_task_signals") or []
+    memory_layers = specialist.get("memory_layers") or []
     coordination_mode = str(payload.get("coordination_mode") or specialist.get("coordination_mode") or "single_agent")
     handoff_chain = payload.get("handoff_chain") or specialist.get("handoff_chain") or []
     if not isinstance(handoff_chain, list):
@@ -72,7 +77,7 @@ def format_axel_brain_runtime_decision(plan: dict | None, brief: dict | None = N
         confidence_text = "--"
 
     parts = [
-        "Ultima decisao do AxelBrain:",
+        f"Ultima decisao do AxelBrain{f' {brain_version}' if brain_version else ''}:",
         f"agente {agent}",
         f"toolset {toolset}",
         f"intent {intent}",
@@ -85,6 +90,21 @@ def format_axel_brain_runtime_decision(plan: dict | None, brief: dict | None = N
     ]
     if mission:
         parts.append(f"missao do agente: {mission}")
+    if next_step:
+        parts.append(f"proximo passo: {next_step}")
+    if isinstance(success_criteria, (list, tuple)) and success_criteria:
+        parts.append("criterios de sucesso: " + ", ".join(str(item) for item in success_criteria[:3]))
+    if isinstance(post_task_signals, (list, tuple)) and post_task_signals:
+        parts.append("sinais pos-tarefa: " + ", ".join(str(item) for item in post_task_signals[:3]))
+    if isinstance(memory_layers, (list, tuple)) and memory_layers:
+        layer_names = []
+        for layer in memory_layers[:4]:
+            if isinstance(layer, dict):
+                name = str(layer.get("name") or "").strip()
+                if name:
+                    layer_names.append(name)
+        if layer_names:
+            parts.append("memoria consultada: " + ", ".join(layer_names))
     if handoff_chain:
         chain = " -> ".join(
             f"{item.get('agent', '--')} via {item.get('toolset', '--')}"

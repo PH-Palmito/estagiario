@@ -611,6 +611,35 @@ def _looks_like_echo(user_input: str, response: str) -> bool:
     return False
 
 
+def _looks_incomplete_response(response: str) -> bool:
+    text = re.sub(r"\s+", " ", str(response or "")).strip()
+    if not text:
+        return True
+
+    normalized = _normalize_for_compare(text)
+    if normalized in {"e", "é", "o projeto que estamos discutindo atualmente e"}:
+        return True
+
+    dangling_phrases = (
+        "atualmente e",
+        "atualmente é",
+        "se chama",
+        "foi chamado",
+        "foi chamada",
+        "e chamado",
+        "e chamada",
+    )
+    if normalized.endswith(dangling_phrases):
+        return True
+
+    if len(normalized.split()) >= 5 and not re.search(r"[.!?)]$", text):
+        last_word = normalized.rsplit(" ", 1)[-1]
+        if last_word in {"e", "de", "do", "da", "para", "com", "sobre", "chama", "chamado", "chamada"}:
+            return True
+
+    return False
+
+
 def chat_response(user_input: str):
     if not chat_enabled():
         return None
@@ -802,6 +831,9 @@ Resposta curta do Axel:"""
         return None
 
     if _looks_like_echo(user_input, response):
+        return None
+
+    if _looks_incomplete_response(response):
         return None
 
     if "meu nome e qwen" in lower or "meu nome é qwen" in lower or "sou qwen" in lower or "sou uma ia local" in lower:

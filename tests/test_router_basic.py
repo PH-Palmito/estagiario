@@ -35,6 +35,16 @@ class RouterBasicTests(unittest.TestCase):
             {"intent": "respond", "target": None, "response": "Bom dia. Vamos colocar esse computador em movimento."},
         )
 
+    def test_project_name_question_is_local(self):
+        self.assertEqual(
+            detect_greeting("qual o nome do projeto"),
+            {
+                "intent": "respond",
+                "target": None,
+                "response": "O projeto se chama Axel. E o assistente local que estamos construindo para voz, arquivos, estudos, automacoes e controle do computador.",
+            },
+        )
+
     def test_introduction(self):
         with TemporaryDirectory() as temp_dir, patch(
             "memory.assistant_customization.CUSTOMIZATION_PATH",

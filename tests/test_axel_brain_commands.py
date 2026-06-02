@@ -30,9 +30,17 @@ class AxelBrainCommandTests(unittest.TestCase):
                     {"agent": "research_agent", "actions": [{"name": "web_google_search"}]},
                 ],
             },
-            {"mission": "Ajudar com codigo."},
+            {
+                "mission": "Ajudar com codigo.",
+                "brain_version": "2.0",
+                "next_step": "Responder usando as camadas de memoria e fontes relevantes.",
+                "success_criteria": ["resposta curta", "contexto usado"],
+                "post_task_signals": ["registrar sucesso"],
+                "memory_layers": [{"name": "memoria_curta"}, {"name": "skills_procedurais"}],
+            },
         )
 
+        self.assertIn("AxelBrain 2.0", text)
         self.assertIn("agente dev_agent", text)
         self.assertIn("toolset programacao", text)
         self.assertIn("confianca 82%", text)
@@ -41,6 +49,10 @@ class AxelBrainCommandTests(unittest.TestCase):
         self.assertIn("ferramentas por agente: dev_agent: code_inspect_workspace", text)
         self.assertIn("motivo: toolset por gatilho", text)
         self.assertIn("missao do agente: Ajudar com codigo.", text)
+        self.assertIn("proximo passo: Responder usando", text)
+        self.assertIn("criterios de sucesso: resposta curta", text)
+        self.assertIn("sinais pos-tarefa: registrar sucesso", text)
+        self.assertIn("memoria consultada: memoria_curta, skills_procedurais", text)
 
     def test_reports_missing_decision(self):
         text = format_axel_brain_runtime_decision({})

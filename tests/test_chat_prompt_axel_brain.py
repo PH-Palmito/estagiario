@@ -20,6 +20,10 @@ class ChatPromptAxelBrainTests(unittest.TestCase):
         self.assertEqual(plan.toolset, "voz_rapida")
         self.assertEqual(plan.model_policy, "local_first")
 
+    def test_incomplete_model_response_is_rejected(self):
+        self.assertTrue(chat._looks_incomplete_response("O projeto que estamos discutindo atualmente é"))
+        self.assertFalse(chat._looks_incomplete_response("O projeto se chama Axel."))
+
     def test_chat_prompt_includes_axel_brain_brief(self):
         captured = {}
 

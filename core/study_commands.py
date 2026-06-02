@@ -4,7 +4,13 @@ import re
 from collections.abc import Callable
 
 from core.router_utils import normalize_text
-from core.study_file_analysis import analyze_study_files, answer_study_followup, parse_study_file_command
+from core.study_file_analysis import (
+    analyze_study_files,
+    answer_study_followup,
+    parse_study_file_command,
+    polish_study_response,
+    request_is_study_or_practice,
+)
 from memory.study_context import clear_study_context
 from memory.study import (
     add_study_goal,
@@ -51,7 +57,7 @@ def _study_response_has_corrupted_text(response: str) -> bool:
 def _block_corrupted_study_response(response: str) -> str:
     if not _study_response_has_corrupted_text(response):
         return response
-    return (
+    return polish_study_response(
         "Nao vou resumir esse arquivo ainda: a extracao retornou texto corrompido "
         "e falhou na verificacao de confianca. Para esse PDF, preciso de OCR externo "
         "confiavel, como um provider estilo ClawHub/PDF OCR, ou de uma versao exportada "
@@ -65,8 +71,9 @@ def maybe_handle_study_command(user_input: str, show_hud: Callable[[], str]) -> 
     file_request = parse_study_file_command(user_input)
     if file_request:
         paths, request = file_request
-        show_hud()
-        _refresh_study_snapshot(open_panel=True)
+        if request_is_study_or_practice(request):
+            show_hud()
+            _refresh_study_snapshot(open_panel=True)
         return _block_corrupted_study_response(analyze_study_files(paths, request=request))
 
     if normalized in {
@@ -82,7 +89,7 @@ def maybe_handle_study_command(user_input: str, show_hud: Callable[[], str]) -> 
     followup_response = answer_study_followup(user_input)
     if followup_response:
         _refresh_study_snapshot(open_panel=True)
-        return followup_response
+        return polish_study_response(followup_response)
 
     if normalized in {
         "estudos",

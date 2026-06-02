@@ -26,7 +26,32 @@ O site `hermes-agent.org/pt` reforca pontos importantes para o Axel:
 - O gateway inclui Telegram, Discord, Slack, WhatsApp, Signal e CLI; para o Axel, Telegram Bot segue como canal remoto principal.
 - O sistema de habilidades usa `SKILL.md` portatil e compativel com hubs de skills; isso combina com `memory/skills/` no Axel.
 - O Hermes suporta automacoes agendadas, sub-agentes paralelos, navegador, execucao local, Docker, SSH e endpoints compativeis com OpenAI.
-- O suporte nativo ao Windows e descrito como experimental, com recomendacao de WSL2; por isso o Axel deve aproveitar ideias, mas manter sua execucao nativa Windows/local-first.
+- O README atual descreve suporte nativo ao Windows para CLI, gateway, TUI e tools; apenas o painel de chat no dashboard ainda depende de WSL2 por usar POSIX PTY. O Axel deve aproveitar ideias mantendo sua execucao nativa Windows/local-first.
+
+## Segunda revisao do repositorio
+
+A revisao do README do `NousResearch/hermes-agent` mostrou ideias adicionais que ainda nao estavam fortes no plano do Axel:
+
+- interface de terminal/TUI com autocomplete, historico, interrupcao e streaming de output;
+- comandos compartilhados entre CLI e gateway remoto: `/new`, `/reset`, `/model`, `/retry`, `/undo`, `/compress`, `/usage`, `/insights`, `/skills`, `/stop`, `/status`;
+- transcricao de audio/voice memo no gateway de mensagens;
+- continuidade de conversa entre CLI, Telegram e outros canais;
+- `hermes setup`, `hermes update` e `hermes doctor` como padrao de setup, atualizacao e diagnostico;
+- MCP integration para conectar servidores externos sem acoplar tudo no nucleo;
+- context files como `AGENTS.md` para moldar conversas por projeto/workspace;
+- scripts Python que chamam tools via RPC, reduzindo custo de contexto em pipelines repetidos;
+- terminal backends locais/remotos, incluindo Docker, SSH, Modal e Daytona;
+- batch trajectory generation e trajectory compression para gerar/evoluir datasets de comportamento.
+
+Aplicacao no Axel:
+
+- criar comandos naturais e/ou slash commands para reset, retry, undo, usage, insights, skills, stop e status;
+- no Telegram Bot, aceitar audio curto e transcrever como entrada de voz remota;
+- criar `axel setup`, `axel doctor` e, no futuro, `axel update`;
+- avaliar MCP como camada futura para integrar ferramentas externas sem acoplamento direto;
+- adotar arquivos de contexto por workspace, inspirados em `AGENTS.md`;
+- criar scripts operacionais que executem tools/actions por RPC local quando um fluxo repetido ficar caro em contexto;
+- deixar backends remotos e geracao de trajetorias como pesquisa futura, nao prioridade imediata.
 
 ## O que aproveitar
 

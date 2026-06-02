@@ -25,8 +25,14 @@ class AxelBrainTests(unittest.TestCase):
         self.assertEqual(decision.brief.toolset, "programacao")
         self.assertEqual(decision.brief.coordination_mode, "single_agent")
         self.assertEqual(decision.brief.tool_libraries[0]["agent"], "dev_agent")
+        self.assertEqual(decision.brief.brain_version, "2.0")
+        self.assertEqual(decision.brief.memory_layers[0].name, "memoria_curta")
+        self.assertIn("Responder", decision.brief.next_step)
+        self.assertIn("resposta curta", decision.brief.success_criteria[0])
+        self.assertIn("autoavaliacao", decision.brief.post_task_signals[0])
         self.assertIn("memoria curta", decision.brief.context)
         self.assertIn("skills", decision.brief.context)
+        self.assertEqual(decision.to_dict()["brief"]["memory_layers"][0]["name"], "memoria_curta")
 
     def test_builds_multi_agent_brief(self):
         with (
@@ -61,6 +67,7 @@ class AxelBrainTests(unittest.TestCase):
 
         self.assertIn("AxelBrain escolheu", text)
         self.assertIn("Politica de modelo", text)
+        self.assertIn("Proximo passo", text)
 
     def test_formats_conversation_brief(self):
         with (

@@ -99,6 +99,28 @@ class ResponsePipelineTests(unittest.TestCase):
         self.assertEqual(result.repeat_listen_until, 108.0)
         self.assertFalse(result.direct_response_ready_announced)
 
+    def test_output_response_polishes_common_portuguese(self):
+        pipeline, calls, _state = self._pipeline()
+
+        result = pipeline.output_response(
+            "Nao encontrei microfones disponiveis. O que voce quer fazer?",
+            False,
+            direct_response_ready_announced=True,
+        )
+
+        self.assertEqual(result.styled_message, "Não encontrei microfones disponíveis. O que você quer fazer?")
+        self.assertEqual(calls["terminal"], [f"IA: {result.styled_message}"])
+
+    def test_action_progress_polishes_common_portuguese(self):
+        pipeline, calls, _state = self._pipeline(
+            progress_variants={"daily_briefing": ("Nao consegui iniciar a acao.",)}
+        )
+
+        pipeline.show_action_progress(Command(action="daily_briefing"), voice_mode=True)
+
+        self.assertEqual(calls["terminal"], ["IA: Não consegui iniciar a ação."])
+        self.assertEqual(calls["speak"][0][0], ("Não consegui iniciar a ação.",))
+
     def test_silent_ui_command_skips_tts(self):
         pipeline, calls, _state = self._pipeline()
 
@@ -125,7 +147,7 @@ class ResponsePipelineTests(unittest.TestCase):
             direct_response_ready_announced=True,
         )
 
-        self.assertIn("falhou na verificacao de confianca", result.styled_message)
+        self.assertIn("falhou na verificação de confiança", result.styled_message)
         self.assertNotIn("T m s t m s", result.styled_message)
         self.assertEqual(calls["terminal"], [f"IA: {result.styled_message}"])
 
@@ -144,7 +166,7 @@ class ResponsePipelineTests(unittest.TestCase):
             direct_response_ready_announced=True,
         )
 
-        self.assertIn("falhou na verificacao de confianca", result.styled_message)
+        self.assertIn("falhou na verificação de confiança", result.styled_message)
         self.assertNotIn("Qumstao", result.styled_message)
 
 

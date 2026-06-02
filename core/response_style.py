@@ -176,6 +176,9 @@ def avoid_repeating_response(message: str, *, state: MutableMapping[str, object]
     if state is None:
         return message
     compact = _compact(message)
+    if "\n" in str(message or "") or len(compact) > 120:
+        state["last_styled_response"] = compact
+        return message
     last = str(state.get("last_styled_response") or "")
     if compact and compact == last:
         alternatives = (

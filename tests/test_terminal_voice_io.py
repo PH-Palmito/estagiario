@@ -30,6 +30,19 @@ class TerminalVoiceIOTests(unittest.TestCase):
 
         self.assertEqual(printed, ["Voce (voz): briefing", "Voce (voz): briefing"])
 
+    def test_user_command_dedup_keeps_different_sources(self):
+        printed = []
+        now = iter([10.0, 10.5])
+        io = TerminalVoiceIO(
+            print_fn=lambda *args, **kwargs: printed.append(args[0]),
+            now_fn=lambda: next(now),
+        )
+
+        io.terminal_print_user_command("painel", "qual o assunto?")
+        io.terminal_print_user_command("voz", "qual o assunto?")
+
+        self.assertEqual(printed, ["Voce (painel): qual o assunto?", "Voce (voz): qual o assunto?"])
+
     def test_read_text_input_updates_history(self):
         history = []
         runtime = []

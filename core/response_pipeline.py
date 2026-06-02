@@ -8,7 +8,9 @@ from dataclasses import dataclass
 from core.command_feedback import action_progress_message
 from core.command_service import execute_processed_command
 from core.latency_metrics import log_latency_stage
+from core.response_polish import polish_assistant_response
 from core.response_style import style_response
+from core.study_file_analysis import polish_study_response
 from memory.session import add_turn
 
 
@@ -48,7 +50,7 @@ def response_text_looks_corrupted_study_pdf(message: str) -> bool:
 def block_corrupted_study_pdf_response(message: str) -> str:
     if not response_text_looks_corrupted_study_pdf(message):
         return message
-    return (
+    return polish_study_response(
         "Nao vou resumir esse arquivo ainda: a extracao do PDF retornou texto corrompido "
         "e falhou na verificacao de confianca. Para esse caso, preciso usar OCR externo "
         "confiavel, como um provider ClawHub/PDF OCR configurado, ou uma versao do PDF "
@@ -107,6 +109,7 @@ class ResponsePipeline:
         )
         if not message:
             return
+        message = polish_assistant_response(message)
         self.terminal_print(f"IA: {message}")
         self.append_ui_history("assistant", message, max_items=self.history_max_items)
         self.refresh_ui_runtime_state({"status": "PROCESSANDO", "last_response": message})
@@ -162,7 +165,7 @@ class ResponsePipeline:
     ) -> OutputResponseResult:
         output_started_at = time.perf_counter()
         safe_message = block_corrupted_study_pdf_response(message)
-        styled_message = self.style_response(safe_message)
+        styled_message = polish_assistant_response(self.style_response(safe_message))
         self.log_event(
             "assistant_output",
             message=styled_message,
@@ -191,8 +194,10 @@ class ResponsePipeline:
 
         quiet_messages = {
             "Nao entendi.",
+            "Não entendi.",
             "Pode repetir?",
             "Nao identifiquei o comando.",
+            "Não identifiquei o comando.",
         }
 
         if voice_mode and not silent_ui_command_active and styled_message not in quiet_messages:

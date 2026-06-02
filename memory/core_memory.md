@@ -9,6 +9,7 @@
 - Usar Gemini como primeira opcao remota, NVIDIA NIM como segunda opcao remota e Ollama como retaguarda local.
 - Evoluir ideias do Hermes Agent com memoria curta curada, busca de sessoes, skills, toolsets e AxelBrain.
 - Adotar ideias do ClawHub/OpenClaw para fortalecer actions com governanca/auditoria, workflow planner duravel, memoria em camadas e observabilidade no HUD.
+- AxelBrain 2.0 deve funcionar como nucleo executivo: decisao, contexto em camadas, proximo passo, criterio de sucesso, sinais pos-tarefa e continuidade entre canais.
 
 ## Regras de contexto
 - Esta memoria deve ficar curta, estavel e confiavel.

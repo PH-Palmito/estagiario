@@ -44,7 +44,7 @@ class TerminalVoiceIO:
             return
 
         label = str(source or "comando").strip().lower()
-        fingerprint = content
+        fingerprint = f"{label}:{content}"
         now = self.now_fn()
         if self.last_user_command_printed == fingerprint and now - self.last_user_command_printed_at < 1.0:
             return

@@ -9,9 +9,17 @@ FACTUAL_QUESTION_PREFIXES = (
     "oq e ",
     "oque e ",
     "quem e ",
+    "quem foi ",
     "qual e ",
+    "qual ",
     "quais sao ",
+    "quais ",
+    "onde ",
+    "quando ",
+    "por que ",
+    "porque ",
     "como funciona ",
+    "como ",
 )
 
 REPEAT_PATTERNS = {
@@ -59,6 +67,10 @@ def detect_light_conversation(user_input: str):
 
 
 def detect_llm_action_command(user_input: str):
+    text = normalize_text(user_input)
+    if text.startswith(FACTUAL_QUESTION_PREFIXES) or "?" in str(user_input or ""):
+        return None
+
     selected = select_read_action(user_input)
     if not selected:
         return None
@@ -88,9 +100,23 @@ def detect_ollama_chat(user_input: str):
     return None
 
 
+def detect_question_fallback(user_input: str):
+    text = normalize_text(user_input)
+    if not text or len(text) <= 4:
+        return None
+    if text.startswith(FACTUAL_QUESTION_PREFIXES) or "?" in str(user_input or ""):
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": "Não consegui confirmar uma resposta boa agora. Posso tentar de novo com mais contexto ou usando pesquisa.",
+        }
+    return None
+
+
 CONVERSATION_DETECTORS = (
     detect_short_unclear_text,
     detect_llm_action_command,
     detect_ollama_chat,
+    detect_question_fallback,
     detect_light_conversation,
 )
