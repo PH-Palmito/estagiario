@@ -1,6 +1,7 @@
 ﻿import sys
 from pathlib import Path
 import time
+from copy import deepcopy
 
 from core.app_bootstrap import HELP_TEXT, parse_app_flags
 from core.app_runtime import AppRuntime, AssistantRunConfig, AssistantRuntimeRunner
@@ -28,6 +29,7 @@ from core.performance_mode import runtime_idle_sleep_seconds_from_state
 from core.planner import looks_like_multi_step_request, plan_actions, split_local_steps
 from core.post_route_flow import handle_post_route_action
 from core.pronunciation_commands import maybe_handle_pronunciation_command as maybe_handle_pronunciation_command_core
+from core.project_health import format_project_health_panel
 from core.reminder_announcer import ReminderAnnouncer
 from core.response_pipeline import ResponsePipeline
 from core.router import route, route_trace
@@ -38,6 +40,8 @@ from core.routine_execution import (
 from core.routine_execution import (
     handle_multi_step_request as handle_multi_step_request_core,
 )
+from core.setup_check import format_setup_report
+from core.update_check import format_update_report
 from core.startup_briefing import schedule_startup_briefing_worker, send_startup_briefing_once
 from core.startup_cli import (
     handle_audio_diagnostic_cli as handle_audio_diagnostic_cli_core,
@@ -60,6 +64,7 @@ from core.startup_voice import (
 )
 from core.startup_flow import StartupFlowHandlers, run_startup_flow
 from core.study_commands import maybe_handle_study_command as maybe_handle_study_command_core
+from core.shared_commands import maybe_handle_shared_command
 from core.training_commands import maybe_handle_training_command as maybe_handle_training_command_core
 from core.turn_flow import TurnFlowHandlers, handle_user_turn as handle_user_turn_core
 from core.ui_runtime import UIRuntimeService
@@ -103,6 +108,7 @@ from memory.assistant_phrases import (
 from memory.execution_log import append_execution_log
 from memory.long_memory import curate_recent_ui_history, maybe_remember_from_user_text
 from memory.macros import add_macro
+from memory.memory_backup import create_memory_backup
 from memory.operational_context import (
     save_operational_context,
 )
@@ -518,6 +524,7 @@ def _ui_runtime_patch() -> dict:
         "axel_brain_brief": dict(getattr(app_runtime.runtime_state, "axel_brain_brief", {}) or {}),
         "axel_brain_contract": dict(getattr(app_runtime.runtime_state, "axel_brain_contract", {}) or {}),
         "axel_brain_history": list(getattr(app_runtime.runtime_state, "axel_brain_history", []) or []),
+        "axel_brain_timeline": list(getattr(app_runtime.runtime_state, "axel_brain_timeline", []) or []),
         "axel_brain_history_summary": app_runtime.runtime_state.axel_brain_history_summary(),
         "last_route_trace": dict(getattr(app_runtime.runtime_state, "last_route_trace", {}) or {}),
         "skill_suggestions": pending_skill_suggestions(limit=5),
@@ -690,6 +697,46 @@ def handle_audio_diagnostic_cli(flags) -> bool:
         run_audio_diagnostic=run_audio_diagnostic,
         print_fn=print,
     )
+
+
+def safe_console_text(message: str, encoding: str | None = None) -> str:
+    output_encoding = encoding or getattr(sys.stdout, "encoding", None) or "utf-8"
+    return str(message).encode(output_encoding, errors="replace").decode(output_encoding, errors="replace")
+
+
+def handle_doctor_cli(flags) -> bool:
+    if not getattr(flags, "doctor_requested", False):
+        return False
+    print(safe_console_text(format_project_health_panel()))
+    return True
+
+
+def handle_setup_cli(flags) -> bool:
+    if not getattr(flags, "setup_requested", False):
+        return False
+    print(safe_console_text(format_setup_report()))
+    return True
+
+
+def handle_memory_backup_cli(flags) -> bool:
+    if not getattr(flags, "memory_backup_requested", False):
+        return False
+    result = create_memory_backup()
+    print(
+        safe_console_text(
+            f"Backup de memoria criado: {result.backup_dir.name}. "
+            f"Arquivos copiados: {len(result.copied)}; ausentes: {len(result.skipped)}. "
+            f"Manifesto: {result.manifest_path}"
+        )
+    )
+    return True
+
+
+def handle_update_cli(flags) -> bool:
+    if not getattr(flags, "update_requested", False):
+        return False
+    print(safe_console_text(format_update_report()))
+    return True
 
 
 
@@ -904,6 +951,10 @@ def handle_startup_cli(flags) -> bool:
     return (
         handle_windows_startup_cli()
         or handle_voice_profile_cli()
+        or handle_setup_cli(flags)
+        or handle_memory_backup_cli(flags)
+        or handle_update_cli(flags)
+        or handle_doctor_cli(flags)
         or handle_audio_diagnostic_cli(flags)
     )
 
@@ -969,6 +1020,47 @@ def handle_pre_route_command(user_input: str, *, voice_mode: bool) -> bool:
     correction_response = maybe_learn_correction_for_last_voice(user_input)
     if correction_response:
         output_response(correction_response, voice_mode)
+        return True
+
+    def stop_local_pending() -> None:
+        assistant_state.pending_command = None
+        assistant_state.pending_command_learning_text = ""
+        assistant_state.pending_smart_open_choice = None
+        assistant_state.pending_smart_open_invalid_attempts = 0
+        assistant_state.direct_response_ready_announced = False
+        assistant_state.conversation_mode = False
+        assistant_state.conversation_ready_announced = False
+
+    def retry_last_local_command() -> str:
+        last_command = app_runtime.runtime_state.last_command
+        if last_command is None:
+            return "Nada para tentar novamente agora."
+        return execute_command(deepcopy(last_command), voice_mode=voice_mode)
+
+    def undo_last_local_action() -> str:
+        has_pending = (
+            assistant_state.pending_command is not None
+            or assistant_state.pending_smart_open_choice is not None
+            or assistant_state.conversation_mode
+        )
+        if has_pending:
+            stop_local_pending()
+            return "Pendencia local cancelada. Ainda nao desfaco automaticamente a ultima acao ja executada."
+        return "Nao ha pendencia aberta para desfazer. Undo real de acoes ja executadas ainda nao esta liberado."
+
+    shared_response = maybe_handle_shared_command(
+        user_input,
+        runtime_state=app_runtime.runtime_state,
+        allow_state_changes=True,
+        clear_chat=clear_chat_history,
+        reset_ui=reset_ui_state,
+        stop_pending=stop_local_pending,
+        retry_last=retry_last_local_command,
+        undo_last=undo_last_local_action,
+        refresh_preferences=refresh_voice_preferences,
+    )
+    if shared_response:
+        output_response(shared_response, voice_mode)
         return True
 
     pronunciation_response = maybe_handle_pronunciation_command_core(user_input)

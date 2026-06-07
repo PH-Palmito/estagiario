@@ -10,6 +10,7 @@ from core.study_file_analysis import (
     parse_study_file_command,
     polish_study_response,
     request_is_study_or_practice,
+    run_study_file_self_test,
 )
 from memory.study_context import clear_study_context
 from memory.study import (
@@ -72,8 +73,7 @@ def maybe_handle_study_command(user_input: str, show_hud: Callable[[], str]) -> 
     if file_request:
         paths, request = file_request
         if request_is_study_or_practice(request):
-            show_hud()
-            _refresh_study_snapshot(open_panel=True)
+            _refresh_study_snapshot(open_panel=False)
         return _block_corrupted_study_response(analyze_study_files(paths, request=request))
 
     if normalized in {
@@ -86,9 +86,14 @@ def maybe_handle_study_command(user_input: str, show_hud: Callable[[], str]) -> 
         _refresh_study_snapshot(open_panel=True)
         return "Contexto do ultimo arquivo de estudo limpo."
 
+    self_test_response = run_study_file_self_test(user_input)
+    if self_test_response:
+        _refresh_study_snapshot(open_panel=False)
+        return polish_study_response(self_test_response)
+
     followup_response = answer_study_followup(user_input)
     if followup_response:
-        _refresh_study_snapshot(open_panel=True)
+        _refresh_study_snapshot(open_panel=False)
         return polish_study_response(followup_response)
 
     if normalized in {

@@ -22,6 +22,15 @@ FACTUAL_QUESTION_PREFIXES = (
     "como ",
 )
 
+GENERAL_EXPLANATION_PREFIXES = (
+    "me explica ",
+    "me explique ",
+    "explica ",
+    "explique ",
+    "detalha ",
+    "detalhe ",
+)
+
 REPEAT_PATTERNS = {
     "de novo",
     "denovo",
@@ -32,11 +41,54 @@ REPEAT_PATTERNS = {
 }
 
 
+def detect_builtin_general_answer(user_input: str):
+    text = normalize_text(user_input)
+    if not text or len(text) <= 4:
+        return None
+
+    if "alanzoca" in text:
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": "Alanzoca, ou Alan Ferreira, e um streamer brasileiro conhecido por lives de jogos, humor e conteudo na Twitch/YouTube.",
+        }
+
+    if "tesla" in text:
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": "Tesla pode ser a empresa de carros eletricos e energia fundada por Elon Musk e outros socios, ou Nikola Tesla, o inventor associado a corrente alternada. Se quiser, eu diferencio os dois.",
+        }
+
+    if "recursao" in text or "recursivo" in text:
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": "Recursao em Python e quando uma funcao chama ela mesma para resolver um problema em partes menores. O ponto principal e ter um caso base para parar; sem isso, a funcao entra em repeticao infinita ate estourar o limite de recursao.",
+        }
+
+    if "pergunta" in text and "aleatoria" in text and any(word in text for word in {"responde", "responder"}):
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": "Sim. Se a pergunta for aleatoria, eu tento responder pelo chat geral; se ela parecer sobre arquivo, tela, agenda ou comando, eu tento encaminhar para a funcao certa.",
+        }
+
+    return None
+
+
 def detect_short_unclear_text(user_input: str):
     text = normalize_text(user_input)
 
     if text in REPEAT_PATTERNS:
         return {"intent": "repeat_last", "target": None}
+
+    if text in {"faz aquilo", "faz isso", "faz aquele negocio", "faz esse negocio", "abre aquilo", "resolve isso"}:
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": "Esse comando ficou vago. Me diga o alvo ou a acao, por exemplo: abrir Chrome, resumir arquivo ou analisar tela.",
+        }
 
     if len(text) <= 4:
         return {"intent": "respond", "target": None, "response": "Pode repetir?"}
@@ -69,6 +121,8 @@ def detect_light_conversation(user_input: str):
 def detect_llm_action_command(user_input: str):
     text = normalize_text(user_input)
     if text.startswith(FACTUAL_QUESTION_PREFIXES) or "?" in str(user_input or ""):
+        return None
+    if text.startswith(GENERAL_EXPLANATION_PREFIXES):
         return None
 
     selected = select_read_action(user_input)
@@ -104,6 +158,12 @@ def detect_question_fallback(user_input: str):
     text = normalize_text(user_input)
     if not text or len(text) <= 4:
         return None
+    if text.startswith(GENERAL_EXPLANATION_PREFIXES):
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": "Posso explicar, mas agora nao consegui acionar uma resposta completa do chat. Tente reformular com o tema e o nivel desejado, por exemplo: explique recursao em Python para iniciante.",
+        }
     if text.startswith(FACTUAL_QUESTION_PREFIXES) or "?" in str(user_input or ""):
         return {
             "intent": "respond",
@@ -115,6 +175,7 @@ def detect_question_fallback(user_input: str):
 
 CONVERSATION_DETECTORS = (
     detect_short_unclear_text,
+    detect_builtin_general_answer,
     detect_llm_action_command,
     detect_ollama_chat,
     detect_question_fallback,

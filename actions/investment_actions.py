@@ -30,6 +30,7 @@ def register_investment_actions() -> None:
     ticker_param = {"ticker": {"type": "string", "description": "Ticker do ativo.", "required": True}}
     _register("investment.summary", "Resume a memoria local da carteira.", lambda _args: investment_service.investment_summary())
     _register("investment.report", "Gera relatorio financeiro da carteira.", lambda _args: investment_service.investment_report())
+    _register("investment.daily_report", "Resume o que mudou na carteira desde o ultimo dia salvo.", lambda _args: investment_service.investment_daily_report())
     _register("investment.monitor", "Executa monitor proativo local da carteira.", lambda _args: investment_service.investment_monitor())
     _register("investment.status", "Mostra status da memoria local de investimentos.", lambda _args: investment_service.investment_status())
     _register("investment.answer", "Responde pergunta usando memoria local e contexto de investimentos.", lambda args: investment_service.investment_answer(args.get("question", "")), question_param)

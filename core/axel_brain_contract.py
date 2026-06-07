@@ -25,6 +25,26 @@ REMOTE_LIGHT_CONFIRM_ACTIONS = {
     "volume_down",
     "volume_mute",
 }
+REMOTE_PERMISSION_TIERS = (
+    {
+        "tier": "read_only",
+        "can_execute": True,
+        "can_confirm_remotely": False,
+        "summary": "Leitura e respostas sem escrita podem rodar no canal remoto.",
+    },
+    {
+        "tier": "light_media",
+        "can_execute": False,
+        "can_confirm_remotely": True,
+        "summary": "Midia e volume leves exigem confirmacao no proprio chat.",
+    },
+    {
+        "tier": "sensitive_or_write",
+        "can_execute": False,
+        "can_confirm_remotely": False,
+        "summary": "Acoes sensiveis, escrita, apps, arquivos e automacoes continuam exigindo confirmacao local no PC.",
+    },
+)
 
 
 def _as_dict(value: Any) -> dict:
@@ -46,6 +66,19 @@ def channel_kind(source: str) -> str:
     if normalized in REMOTE_SOURCES:
         return "remote"
     return "local"
+
+
+def remote_permission_summary() -> dict:
+    return {
+        "status": "remote_limited",
+        "remote_mode": "expanded_disabled",
+        "confirmable_actions": sorted(REMOTE_LIGHT_CONFIRM_ACTIONS),
+        "tiers": [dict(item) for item in REMOTE_PERMISSION_TIERS],
+        "next_review_gate": (
+            "Somente ampliar permissoes remotas depois de auditoria, escopo por action, "
+            "expiracao curta, allowlist forte e confirmacao local para risco medio/alto."
+        ),
+    }
 
 
 def remote_execution_policy(plan: dict, *, source: str, action_name: str = "") -> dict:

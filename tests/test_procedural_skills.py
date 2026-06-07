@@ -53,6 +53,7 @@ class ProceduralSkillsTests(unittest.TestCase):
             root = Path(temp_dir)
             path = procedural_skills.upsert_skill_from_suggestion(
                 {
+                    "skill_name": "code-review-tests",
                     "toolset": "programacao",
                     "agent": "dev_agent",
                     "intent": "respond_code_review",
@@ -64,7 +65,8 @@ class ProceduralSkillsTests(unittest.TestCase):
             content = path.read_text(encoding="utf-8")
 
         self.assertEqual(path.name, "SKILL.md")
-        self.assertIn("Skill Programacao", content)
+        self.assertEqual(path.parent.name, "code-review-tests")
+        self.assertIn("Skill Code Review Tests", content)
         self.assertIn("revisar codigo e rodar testes", content)
         self.assertIn("dev_agent", content)
 

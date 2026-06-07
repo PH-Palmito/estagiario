@@ -3,45 +3,32 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from actions import ensure_default_actions, get_action
 from core.action_result import normalize_action_result
 from core.axel_brain import build_axel_brain_decision
-from core.axel_brain_contract import build_axel_brain_contract
+from core.axel_brain_contract import (
+    REMOTE_LIGHT_CONFIRM_ACTIONS,
+    build_axel_brain_contract,
+    remote_permission_summary,
+)
 from core.command_schema import Command
 from core.intent_complexity import classify_intent_complexity
 from core.normalizer import normalize_action
 from core.router import route_trace
 from core.router_utils import normalize_text
+from core.shared_commands import maybe_handle_shared_command
 
 
 TELEGRAM_LOG_PATH = Path("memory/telegram_bot.log")
 REMOTE_CONFIRMATION_TTL_SECONDS = 60
 REMOTE_CONFIRMABLE_CATEGORIES = {"media"}
-REMOTE_CONFIRMABLE_ACTIONS = {
-    "browser_search_music",
-    "browser_queue_music",
-    "browser_surprise_music",
-    "browser_music_session",
-    "spotify_like_current_track",
-    "spotify_dislike_current_track",
-    "spotify_more_like_current_track",
-    "spotify_less_music_vibe",
-    "media_play_pause",
-    "media_next",
-    "media_previous",
-    "media_play_pause_target",
-    "media_play_target",
-    "media_pause_target",
-    "media_next_target",
-    "media_previous_target",
-    "volume_up",
-    "volume_down",
-    "volume_mute",
-}
+REMOTE_CONFIRMABLE_ACTIONS = REMOTE_LIGHT_CONFIRM_ACTIONS
 _CHAT_CONTEXT: dict[str, dict[str, Any]] = {}
 _RETRY_PHRASES = {
+    "retry",
+    "tentar de novo",
     "pode tentar novamente",
     "tenta novamente",
     "tentar novamente",
@@ -52,6 +39,8 @@ _RETRY_PHRASES = {
     "mais uma vez",
     "repete",
     "repetir",
+    "repetir ultimo",
+    "repetir ultima acao",
 }
 _CONFIRMATION_HELP_PHRASES = {
     "como eu confirmo",
@@ -88,6 +77,10 @@ class TelegramRequest:
     username: str = ""
     callback_data: str = ""
     callback_query_id: str = ""
+    media_kind: str = ""
+    media_file_id: str = ""
+    media_duration: int = 0
+    media_mime_type: str = ""
 
 
 @dataclass(frozen=True)
@@ -146,11 +139,23 @@ def parse_inbound_update(update: dict[str, Any]) -> TelegramRequest:
     chat = message.get("chat") if isinstance(message.get("chat"), dict) else {}
     sender = message.get("from") if isinstance(message.get("from"), dict) else {}
     text = str(message.get("text") or message.get("caption") or "").strip()
+    media_kind = ""
+    media = {}
+    for candidate in ("voice", "audio"):
+        item = message.get(candidate)
+        if isinstance(item, dict) and item.get("file_id"):
+            media_kind = candidate
+            media = item
+            break
     return TelegramRequest(
         chat_id=str(chat.get("id") or "").strip(),
         text=text,
         message_id=str(message.get("message_id") or "").strip(),
         username=str(sender.get("username") or sender.get("first_name") or "").strip(),
+        media_kind=media_kind,
+        media_file_id=str(media.get("file_id") or "").strip(),
+        media_duration=int(media.get("duration") or 0),
+        media_mime_type=str(media.get("mime_type") or "").strip(),
     )
 
 
@@ -185,9 +190,16 @@ def _clear_remote_pending(chat_id: str) -> None:
 def _handle_remote_mode_command(text: str, chat_id: str) -> TelegramResponse | None:
     normalized = normalize_text(text)
     if normalized in {"status remoto", "modo remoto", "status do modo remoto", "remoto status"}:
+        summary = remote_permission_summary()
+        confirmable_count = len(summary["confirmable_actions"])
         return TelegramResponse(
             True,
-            "Modo remoto ampliado desativado. AxelBrain 2.0 permite leitura e midia leve com confirmacao.",
+            (
+                "Modo remoto ampliado desativado. "
+                "Permitido: leitura segura. "
+                f"Com confirmacao no chat: {confirmable_count} acoes leves de midia/volume. "
+                "Bloqueado: escrita, apps, arquivos, automacoes e risco medio/alto; use o PC."
+            ),
             status="remote_mode_disabled",
             chat_id=chat_id,
         )
@@ -322,7 +334,7 @@ def _handle_remote_confirmation_reply(text: str, chat_id: str, *, callback_query
 
 
 def _resolve_retry_text(text: str, chat_id: str) -> tuple[str, bool]:
-    normalized = normalize_text(text)
+    normalized = normalize_text(text).lstrip("/").strip()
     if normalized not in _RETRY_PHRASES:
         return text, False
     previous = _CHAT_CONTEXT.get(_chat_key(chat_id), {}).get("last_text")
@@ -378,6 +390,14 @@ def _confirmation_help_response(chat_id: str) -> TelegramResponse | None:
         action=str(blocked_action),
         chat_id=chat_id,
     )
+
+
+def _undo_remote_pending_text(chat_id: str) -> str:
+    pending = _remote_pending(chat_id)
+    if pending:
+        _clear_remote_pending(chat_id)
+        return "Acao remota pendente cancelada. Nao desfaco automaticamente acoes ja executadas pelo Telegram."
+    return "Nao ha acao remota pendente para desfazer. Undo real de acoes ja executadas ainda nao esta liberado."
 
 
 def _is_confirmation_help(text: str) -> bool:
@@ -445,6 +465,18 @@ def handle_telegram_text(text: str, *, chat_id: str = "", callback_query_id: str
         return _confirmation_help_response(chat_id)
 
     effective_text, retried = _resolve_retry_text(clean, chat_id)
+
+    if not retried:
+        shared_response = maybe_handle_shared_command(clean, undo_last=lambda: _undo_remote_pending_text(chat_id))
+        if shared_response:
+            return TelegramResponse(
+                True,
+                shared_response,
+                status="ok",
+                action="shared_command",
+                chat_id=chat_id,
+            )
+
     raw_action, _plan, _brief, contract = build_remote_decision(effective_text)
     _remember_chat_context(chat_id, effective_text, raw_action)
     if raw_action.get("intent") == "respond":
@@ -527,9 +559,55 @@ def handle_telegram_text(text: str, *, chat_id: str = "", callback_query_id: str
     )
 
 
-def handle_telegram_update(update: dict[str, Any], *, allowed_chat_ids: set[str]) -> TelegramResponse:
+def handle_telegram_audio_request(
+    request: TelegramRequest,
+    *,
+    transcribe_audio: Callable[[TelegramRequest], str] | None = None,
+) -> TelegramResponse:
+    if not request.media_file_id:
+        return TelegramResponse(False, "Audio do Telegram sem arquivo reconhecivel.", status="audio_invalid", chat_id=request.chat_id)
+    if transcribe_audio is None:
+        log_telegram_event("audio_transcription_unavailable", chat_id=request.chat_id, media_kind=request.media_kind)
+        return TelegramResponse(
+            False,
+            "Recebi o audio, mas a transcricao remota do Telegram ainda nao esta configurada neste ambiente.",
+            status="audio_transcription_unavailable",
+            action="telegram_audio",
+            chat_id=request.chat_id,
+        )
+    try:
+        text = str(transcribe_audio(request) or "").strip()
+    except Exception as exc:
+        log_telegram_event("audio_transcription_failed", chat_id=request.chat_id, error=type(exc).__name__)
+        return TelegramResponse(
+            False,
+            f"Nao consegui transcrever o audio do Telegram: {exc}",
+            status="audio_transcription_failed",
+            action="telegram_audio",
+            chat_id=request.chat_id,
+        )
+    if not text:
+        return TelegramResponse(
+            False,
+            "Nao consegui reconhecer fala util nesse audio do Telegram.",
+            status="audio_transcription_empty",
+            action="telegram_audio",
+            chat_id=request.chat_id,
+        )
+    log_telegram_event("audio_transcribed", chat_id=request.chat_id, media_kind=request.media_kind, chars=len(text))
+    return handle_telegram_text(text, chat_id=request.chat_id, callback_query_id=request.callback_query_id)
+
+
+def handle_telegram_update(
+    update: dict[str, Any],
+    *,
+    allowed_chat_ids: set[str],
+    transcribe_audio: Callable[[TelegramRequest], str] | None = None,
+) -> TelegramResponse:
     request = parse_inbound_update(update)
     if not chat_allowed(request.chat_id, allowed_chat_ids):
         log_telegram_event("blocked_chat", chat_id=request.chat_id, username=request.username)
         return _blocked_response("Chat nao autorizado.", chat_id=request.chat_id)
+    if request.media_file_id and not request.text:
+        return handle_telegram_audio_request(request, transcribe_audio=transcribe_audio)
     return handle_telegram_text(request.text, chat_id=request.chat_id, callback_query_id=request.callback_query_id)

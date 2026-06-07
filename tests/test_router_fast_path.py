@@ -13,6 +13,9 @@ class RouterFastPathTests(unittest.TestCase):
             {"intent": "spotify_like_current_track", "target": None},
         )
 
+    def test_next_music_is_not_dislike(self):
+        self.assertIsNone(detect_fast_path_command("proxima musica"))
+
     def test_less_music_vibe(self):
         self.assertEqual(
             detect_fast_path_command("menos triste"),

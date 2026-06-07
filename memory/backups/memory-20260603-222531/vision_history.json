@@ -1,0 +1,219 @@
+[
+  {
+    "created_at": 1779886225.657728,
+    "source": "pagina",
+    "summary": "Panorama da tela: Pelo titulo da pagina, o foco parece ser: Modo apresentação Axel. Na tela, vejo: Feito. O comando se apresente agora responde como Axel com uma apresentação mais forte e inclui uma “Demons...; Obs.: já existiam mudanças em ui/axel_web_hud.html e ui/training_panel.html; não mexi nelas.; Voce (painel): axel prepara meu dia.",
+    "details": {
+      "kind": "browser",
+      "page_url": "https://chatgpt.com/c/6a16d105-6f1c-83e9-b1aa-9047d14bfec5",
+      "page_title": "Modo apresentação Axel",
+      "lines": [
+        "Melhore apresentação do Axel",
+        ", gostaria que o axel respondesse melhor ao comando \"se apresente\" adicionando colocar uma demonstraçao algo instagramavel",
+        "Feito. O comando se apresente agora responde como Axel com uma apresentação mais forte e inclui uma “Demonstracao instagramavel” com cena de H...",
+        "unittest tests.test_router_basic tests.test_conversation_reply tests.test_ollama_client tests.test_model_selection passou com 23 testes.",
+        "Obs.: já existiam mudanças em ui/axel_web_hud.html e ui/training_panel.html; não mexi nelas.",
+        "Voce (painel): axel prepara meu dia",
+        "IA: Não consegui entender o comando com segurança.",
+        "Feito. Ajustei a apresentação para tirar “demonstração instagramável” e trocar por um exemplo real:",
+        "Axel, o que temos para hoje?",
+        "Agora essa pergunta funciona e cai em daily_briefing. Também corrigi axel prepara meu dia para ser entendido com “Axel” na frente.",
+        "Adicionei uma memória local para ensinar o Axel diretamente:",
+        "axel aprenda a se apresentar assim: ...",
+        "quando eu disser status bonito responda Sistema elegante e pronto.",
+        "axel resetar apresentação",
+        "Verificação: py_compile passou e rodei 72 testes focados, todos OK.",
+        "Obs.: ui/axel_web_hud.html e ui/training_panel.html já estavam modificados antes; não mexi neles.",
+        "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+      ]
+    }
+  },
+  {
+    "created_at": 1780020505.400079,
+    "source": "pagina",
+    "summary": "Panorama da tela: Pelo titulo da pagina, o foco parece ser Codex. No conteudo visivel, encontrei: adicione a lista de afazeres conectar com microsoft to do ou google agenda ou a agenda da sansung irei aval...; Adicionado em memory/todo.md (line 87):; controlar os LEDs do teclado pelo Axel, com comandos de ligar/desligar, trocar cor/perfil e usar efeitos co...; Resolvido no HUD Qt em ui/qt_axel_hud.py (line 107)..",
+    "details": {
+      "kind": "browser",
+      "page_url": "",
+      "page_title": "Codex",
+      "lines": [
+        "adicione a lista de afazeres conectar com microsoft to do ou google agenda ou a agenda da sansung irei avaliar qual ainda, e controlar os leds...",
+        "Adicionado em memory/todo.md (line 87):",
+        "avaliar integração com Microsoft To Do, Google Agenda ou Samsung Calendar para agenda/calendário real;",
+        "controlar os LEDs do teclado pelo Axel, com comandos de ligar/desligar, trocar cor/perfil e usar efeitos como feedback visual.",
+        "ah e a ui do axel fica piscando, como se tivesse com mal contato pode resolver?",
+        "Resolvido no HUD Qt em ui/qt_axel_hud.py (line 107).",
+        "Parei de reenviar o mesmo estado para a UI a cada ciclo do timer quando nada mudou.",
+        "Mantive refresh manual como atualização forçada.",
+        "Evitei ficar dando show/raise e reenviando estado repetido para o painel de treino.",
+        ".\\venv\\Scripts\\python.exe -m py_compile ui\\qt_axel_hud.py",
+        ".\\venv\\Scripts\\python.exe -m unittest tests.test_ui_bridge -v",
+        "pode avaliar a inteligencia do axel?",
+        "Sim. Avaliando pelo código, eu diria que o Axel hoje está em um nível bem promissor de assistente operacional local, mas ainda não é uma “inte...",
+        "Minha nota honesta: 7,4/10 como assistente local, 6/10 como IA autônoma/contextual.",
+        "O Que Ele Já Faz Bem",
+        "A camada de decisão de complexidade em core/intent_complexity.py (line 67) já separa comando simples de pergunta complexa. Isso é importante p...",
+        "A conversa em llm/chat.py (line 531) já junta histórico, perfil, contexto operacional, memória longa, vault, docs e fontes. Isso é um ótimo co...",
+        "A memória longa em memory/long_memory.py (line 193) já aprende preferências, decisões, projetos e futuros. Ainda é simples, mas útil."
+      ]
+    }
+  },
+  {
+    "created_at": 1780105174.187562,
+    "source": "pagina",
+    "summary": "Panorama da tela: Na tela esta a pagina de video MEUS AMIGOS NÃO SÃO CAVALHEIROS! - A GENTLEMEN'S DISPUTE COM OS AMIGOS. No que ficou visivel, encontrei: MEUS AMIGOS NÃO SÃO CAVALHEIROS! - A GENTLEMEN'S DISPUTE COM OS AMIGOS; TUDO É DESTRUTÍVEL! - TEARDOWN COM OS AMIGOS; CRIME DESORGANIZADO! - WISE GUYS COM OS AMIGOS.",
+    "details": {
+      "kind": "browser",
+      "page_url": "https://www.youtube.com/watch?v=H3P_JJ6p46g",
+      "page_title": "MEUS AMIGOS NÃO SÃO CAVALHEIROS! - A GENTLEMEN'S DISPUTE COM OS AMIGOS - YouTube",
+      "lines": [
+        "MEUS AMIGOS NÃO SÃO CAVALHEIROS! - A GENTLEMEN'S DISPUTE COM OS AMIGOS",
+        "TUDO É DESTRUTÍVEL! - TEARDOWN COM OS AMIGOS",
+        "CRIME DESORGANIZADO! - WISE GUYS COM OS AMIGOS",
+        "alanzoka jogando Golf Gang com os amigos",
+        "O MONSTRO IMITA NOSSAS VOZES! - MIMESIS COM OS AMIGOS",
+        "NUNCA REME COM SEUS AMIGOS! - BOAT TOGETHER COM OS AMIGOS - Parte 1",
+        "QUEM É O MAIOR MANIPULADOR? - SCAM LINE COM OS AMIGOS",
+        "alanzoka jogando Worms Revolution com os amigos na noitada",
+        "QUEM É O LOBO NA PELE DE CORDEIRO? - KILLER INN COM OS AMIGOS",
+        "QUEM CHEGAR NO TOPO GANHA O BEIJO DA PRINCESA! - FROG JUMPER COM OS AMIGOS",
+        "VIREI UM LABUBU E TENTEI FUGIR DA PRISÃO! - CUFFBUST COM OS AMIGOS",
+        "alanzoka jogando Last Train Outta' Wormtown com os amigos",
+        "O Último que Deixar o Mercado, Ganha $250,000",
+        "9,11 mi de inscritos",
+        "1,1 mi de visualizações há 4 meses #Alanzoka",
+        "Coleção lendas da primavera. tudo. 75% off. seu.",
+        "ABRIMOS UM RESTAURANTE Ft. CHEF OTTO",
+        "DE QUEM É O PET 2?"
+      ]
+    }
+  },
+  {
+    "created_at": 1780363544.130212,
+    "source": "pagina",
+    "summary": "Visao rapida da tela: Pelo titulo da pagina, o foco parece ser Axel. No conteudo visivel, encontrei: Pergunte ou peça algo ao Axel; Fazendo uma leitura rápida da tela....",
+    "details": {
+      "kind": "browser",
+      "page_url": "",
+      "page_title": "Axel",
+      "lines": [
+        "Pergunte ou peça algo ao Axel",
+        "Fazendo uma leitura rápida da tela..."
+      ]
+    }
+  },
+  {
+    "created_at": 1780366841.7684433,
+    "source": "pagina",
+    "summary": "Resumo da tela: Na tela esta a pagina de video TUDO É DESTRUTÍVEL! - TEARDOWN COM OS AMIGOS. No que ficou visivel, encontrei: TUDO É DESTRUTÍVEL! - TEARDOWN COM OS AMIGOS; CAÇANDO MEUS AMIGOS MASCARADOS! - THE MASQUERADE COM OS AMIGOS; PASSANDO RAIVA NO GOLF COM OS AMIGOS! - GOLF IT! COM OS AMIGOS.",
+    "details": {
+      "kind": "browser",
+      "page_url": "https://www.youtube.com/watch?v=lqMVLeuC5ag",
+      "page_title": "TUDO É DESTRUTÍVEL! - TEARDOWN COM OS AMIGOS - YouTube",
+      "lines": [
+        "TUDO É DESTRUTÍVEL! - TEARDOWN COM OS AMIGOS",
+        "CAÇANDO MEUS AMIGOS MASCARADOS! - THE MASQUERADE COM OS AMIGOS",
+        "PASSANDO RAIVA NO GOLF COM OS AMIGOS! - GOLF IT! COM OS AMIGOS",
+        "NUNCA APOSTE COM SEUS AMIGOS - GAMBLE WITH YOUR FRIENDS",
+        "QUEM CHEGAR NO TOPO GANHA O BEIJO DA PRINCESA! - FROG JUMPER COM OS AMIGOS",
+        "QUEM É O MAIOR MANIPULADOR? - SCAM LINE COM OS AMIGOS",
+        "SHOW DO MILHÃO COM AMIGOS! | Brain Show",
+        "COMO TER UMA RENDA DE R$500 POR MÊS COM FUNDOS IMOBILIÁRIOS EM 2026",
+        "9,12 mi de inscritos",
+        "1 mi de visualizações há 2 meses #Alanzoka",
+        "Tibia, onde amizades duram uma vida toda.",
+        "ABRIMOS UM RESTAURANTE Ft. CHEF OTTO",
+        "o script tá pronto. o alvo é você.",
+        "Eu Sobrevivi 7 Dias no Ártico",
+        "O único duelo onde GANHAR era PERDER | Yugi vs Kaiba | YU-GI-OH | Zé Renacho",
+        "Essa é a melhor luta de Hunter x Hunter? | Netero Vs. Meruem | Zé Renacho",
+        "BOLADA NAS INTIMIDADES & TEORIAS DA CONSPIRAÇÃO - SINUCASTIGO ft. SUPER XANDÃO 🎱🤣",
+        "DE QUEM É O PET 2?"
+      ]
+    }
+  },
+  {
+    "created_at": 1780367960.68673,
+    "source": "pagina",
+    "summary": "Visao rapida da tela: Na tela esta a pagina de video TUDO É DESTRUTÍVEL! - TEARDOWN COM OS AMIGOS. No que ficou visivel, encontrei: Imagem do avatar; Página inicial do YouTube; Player de vídeo do YouTube.",
+    "details": {
+      "kind": "browser",
+      "page_url": "https://www.youtube.com/watch?v=lqMVLeuC5ag",
+      "page_title": "TUDO É DESTRUTÍVEL! - TEARDOWN COM OS AMIGOS - YouTube",
+      "lines": [
+        "Pular navegação",
+        "Criar",
+        "Imagem do avatar",
+        "Página inicial do YouTube",
+        "Search",
+        "Pesquisar com sua voz",
+        "Notificações",
+        "Menu da conta",
+        "Guia",
+        "Pesquisar",
+        "Player de vídeo do YouTube",
+        "Comece agora"
+      ]
+    }
+  },
+  {
+    "created_at": 1780405426.8113582,
+    "source": "pagina",
+    "summary": "Resumo da tela: Na tela esta a pagina de video TUDO É DESTRUTÍVEL! - TEARDOWN COM OS AMIGOS. No que ficou visivel, encontrei: TUDO É DESTRUTÍVEL! - TEARDOWN COM OS AMIGOS; SENDO DEMITIDO COM MEUS AMIGOS! - LAST MAN SITTING COM OS AMIGOS; ESSE JOGO É MELHOR DO QUE PARECE! - PROJECT: DOORS COM OS AMIGOS.",
+    "details": {
+      "kind": "browser",
+      "page_url": "https://www.youtube.com/watch?v=lqMVLeuC5ag",
+      "page_title": "TUDO É DESTRUTÍVEL! - TEARDOWN COM OS AMIGOS - YouTube",
+      "lines": [
+        "TUDO É DESTRUTÍVEL! - TEARDOWN COM OS AMIGOS",
+        "SENDO DEMITIDO COM MEUS AMIGOS! - LAST MAN SITTING COM OS AMIGOS",
+        "ESSE JOGO É MELHOR DO QUE PARECE! - PROJECT: DOORS COM OS AMIGOS",
+        "NINGUÉM SABE PESCAR! - VOODOO FISHIN' COM OS AMIGOS",
+        "HELLDIVERS NO VELHO OESTE! - FAR FAR WEST COM OS AMIGOS",
+        "O MONSTRO OUVE NOSSA VOZ! - CRYO COM OS AMIGOS",
+        "PASSANDO RAIVA NO GOLF COM OS AMIGOS! - GOLF IT! COM OS AMIGOS",
+        "NUNCA APOSTE COM SEUS AMIGOS - GAMBLE WITH YOUR FRIENDS",
+        "Apenas R$39,99 Cada Unidade",
+        "Últimas horas para garantir o caimento perfeito. Leve 5 peças por R$39,99 cada.",
+        "COMO TER UMA RENDA DE R$500 POR MÊS COM FUNDOS IMOBILIÁRIOS EM 2026",
+        "9,12 mi de inscritos",
+        "1 mi de visualizações há 2 meses #Alanzoka",
+        "LIVE DA BOA - CS2 + REACT + PEAK",
+        "o script tá pronto. o alvo é você.",
+        "As MELHORES práticas de desenvolvimento com I.A",
+        "A VIDA COMO ELA É (GEN Z)",
+        "TRABALHAMOS NO OUTBACK POR UM DIA!"
+      ]
+    }
+  },
+  {
+    "created_at": 1780430972.0174272,
+    "source": "pagina",
+    "summary": "Visao rapida da tela: Na tela esta a pagina de video CAÇANDO MEUS AMIGOS! - OH DEER COM OS AMIGOS. No que ficou visivel, encontrei: CAÇANDO MEUS AMIGOS! - OH DEER COM OS AMIGOS; VIREI LOBISOMEM E TENTEI ENGANAR MEUS AMIGOS! - LYCANS COM OS AMIGOS; ROUBANDO OS OVOS DOS MEUS AMIGOS! - EGGSTRACTION COM OS AMIGOS.",
+    "details": {
+      "kind": "browser",
+      "page_url": "https://www.youtube.com/watch?v=kLE-jkXuh3M",
+      "page_title": "CAÇANDO MEUS AMIGOS! - OH DEER COM OS AMIGOS - YouTube",
+      "lines": [
+        "CAÇANDO MEUS AMIGOS! - OH DEER COM OS AMIGOS",
+        "VIREI LOBISOMEM E TENTEI ENGANAR MEUS AMIGOS! - LYCANS COM OS AMIGOS",
+        "QUEM É O MAIOR MANIPULADOR? - SCAM LINE COM OS AMIGOS",
+        "ROUBANDO OS OVOS DOS MEUS AMIGOS! - EGGSTRACTION COM OS AMIGOS",
+        "alanzoka jogando Worms Revolution com os amigos na noitada",
+        "DEI PALMADA NOS MEUS AMIGOS! - SPANKY! COM OS AMIGOS",
+        "O MONSTRO OUVE NOSSA VOZ! - CRYO COM OS AMIGOS",
+        "CAÇANDO MEUS AMIGOS MASCARADOS! - THE MASQUERADE COM OS AMIGOS",
+        "🫵😂👍 - R.E.P.O COM OS AMIGOS",
+        "NUNCA APOSTE COM SEUS AMIGOS - GAMBLE WITH YOUR FRIENDS",
+        "alanzoka jogando Party Animals com os amigos - #1",
+        "alanzoka jogando West Hunt com os amigos",
+        "CRIME DESORGANIZADO! - WISE GUYS COM OS AMIGOS",
+        "MEUS AMIGOS VIRARAM ARANHAS! - KILL IT WITH FIRE 2 COM OS AMIGOS",
+        "Make your mark in the universe, Unveil the secrets of the galaxy",
+        "9,12 mi de inscritos",
+        "3,8 mi de visualizações há 2 anos #Alanzoka",
+        "Phasmophobia - \"O Desafio Esconde-Esconde Extremo!\""
+      ]
+    }
+  }
+]

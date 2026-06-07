@@ -97,6 +97,19 @@ Regras:
 - Action longa deve usar cache, background ou ambos.
 - Action que depende de recurso externo deve retornar falha clara, nao stack trace cru.
 
+## Contrato De MCP Futuro
+
+Fonte planejada: `docs/mcp-integration-plan.md`.
+
+Regras:
+
+- MCP deve ser uma ponte para ferramentas externas, nao um substituto do router, normalizer ou executor.
+- Toda capacidade MCP aprovada deve virar action registrada antes de executar.
+- Actions vindas de MCP devem declarar `read_only`, `requires_confirmation`, categoria e parametros.
+- Escrita, rede sensivel, processo e acesso amplo a arquivos ficam bloqueados por padrao.
+- Diagnostico de MCP deve falhar de forma clara quando nenhum servidor estiver configurado.
+- A primeira integracao real deve ser read-only e coberta por teste sem rede real.
+
 ## Contrato De Permissao
 
 Fontes: `core/permission_policy.py`, `core/sandbox_policy.py`, `core/command_service.py`.
@@ -287,6 +300,9 @@ Regras:
 - Lembretes e agenda podem compartilhar o anunciador, mas a fala deve diferenciar compromisso de lembrete.
 - Briefing deve ler agenda sem depender do loop de avisos.
 - Falha ao consumir agenda vencida nao deve impedir lembretes normais ou o runtime de voz.
+- Exportacao/importacao ICS e ponte externa; `memory/agenda.json` continua sendo a fonte local canonica.
+- Importacao ICS deve aceitar somente eventos simples com `SUMMARY` e `DTSTART`, ignorando blocos incompletos.
+- Exportacao/importacao de calendario deve passar por action registrada e confirmacao, porque escreve arquivo ou altera agenda.
 
 ## Contrato De Estudos
 

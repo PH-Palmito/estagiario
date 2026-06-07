@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from tools.browser_listed_items import (
     BrowserListedItemCommands,
@@ -104,7 +105,8 @@ class BrowserListedItemsTests(unittest.TestCase):
     def test_click_listed_item_refreshes_list_when_index_missing(self):
         deps = FakeListedDeps()
 
-        result = make_commands(deps).click_listed_item(1)
+        with patch("tools.browser_listed_items.cached_product_items", return_value=[]):
+            result = make_commands(deps).click_listed_item(1)
 
         self.assertEqual(result, "Li a tela, mas nao encontrei esse item na lista atual.")
         self.assertEqual(deps.describe_calls, 1)
@@ -140,6 +142,27 @@ class BrowserListedItemsTests(unittest.TestCase):
         self.assertEqual(commands.describe_listed_item(2), "Item 2: Produto barato R$ 10,00.")
         self.assertEqual(commands.cheapest_listed_item(), "O mais barato que encontrei e o item 2: Produto barato R$ 10,00.")
 
+    def test_describe_listed_item_uses_cache_when_current_list_missing(self):
+        deps = FakeListedDeps()
+        with (
+            patch("tools.browser_listed_items.cached_product_items", return_value=[{"text": "Produto cache R$ 10,00"}]),
+            patch("tools.browser_listed_items.describe_cached_product", return_value="Item 1 em cache: Produto cache R$ 10,00."),
+        ):
+            result = make_commands(deps).describe_listed_item(1)
+
+        self.assertEqual(result, "Item 1 em cache: Produto cache R$ 10,00.")
+
+    def test_cheapest_listed_item_uses_cache_before_screen_read(self):
+        deps = FakeListedDeps()
+        with (
+            patch("tools.browser_listed_items.cached_product_items", return_value=[{"text": "Produto cache R$ 10,00", "price": 10.0}]),
+            patch("tools.browser_listed_items.cheapest_cached_product", return_value="O mais barato no cache recente e o item 1: Produto cache R$ 10,00."),
+        ):
+            result = make_commands(deps).cheapest_listed_item()
+
+        self.assertEqual(result, "O mais barato no cache recente e o item 1: Produto cache R$ 10,00.")
+        self.assertEqual(deps.describe_calls, 0)
+
     def test_invalid_indexes_and_no_prices(self):
         deps = FakeListedDeps()
         commands = make_commands(deps)
@@ -147,7 +170,8 @@ class BrowserListedItemsTests(unittest.TestCase):
         self.assertEqual(commands.click_listed_item(0), "Qual item da lista?")
         self.assertEqual(commands.describe_listed_item(0), "Qual item?")
         deps.elements = [{"text": "Produto sem preco"}]
-        self.assertEqual(commands.cheapest_listed_item(), "Ainda nao tenho precos claros na lista atual. Tente dizer: o que tem na tela.")
+        with patch("tools.browser_listed_items.cached_product_items", return_value=[]):
+            self.assertEqual(commands.cheapest_listed_item(), "Ainda nao tenho precos claros na lista atual. Tente dizer: o que tem na tela.")
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from core.project_health import (
     build_project_health_snapshot,
+    format_latency_report,
     format_project_health_panel,
     format_service_modes,
     latency_summary,
@@ -104,6 +105,22 @@ class ProjectHealthTests(unittest.TestCase):
             self.assertTrue(result["output_log_exists"])
             self.assertEqual(result["recent_errors"], ["PermissionError: log ocupado"])
 
+    def test_startup_health_ignores_diagnostic_errors_before_latest_bootstrap(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tmp = root / ".tmp"
+            tmp.mkdir()
+            (tmp / "axel-startup.log").write_text(
+                "[2026-06-03 20:00:00] Falha fatal durante o startup:\n"
+                "FileNotFoundError: tmp antigo\n"
+                "[2026-06-03 22:00:00] Bootstrap do Axel iniciado.\n",
+                encoding="utf-8",
+            )
+
+            result = startup_health(root)
+
+            self.assertEqual(result["recent_errors"], [])
+
     def test_recent_execution_summary_reports_errors(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -163,6 +180,36 @@ class ProjectHealthTests(unittest.TestCase):
             self.assertEqual(result["top_slowest_actions"][1]["avg_ms"], 300.0)
             self.assertEqual(result["recommendations"][0]["action"], "daily_briefing")
             self.assertEqual(result["recommendations"][0]["mode"], "background_with_cache")
+
+    def test_format_latency_report_mentions_gargalos_and_recommendation(self):
+        result = format_latency_report(
+            {
+                "measured_count": 3,
+                "avg_ms": 700.0,
+                "slow_count": 1,
+                "slow_threshold_ms": 1000,
+                "top_slowest_actions": [
+                    {"action": "daily_briefing", "max_ms": 1500, "avg_ms": 1500},
+                    {"action": "open_app", "max_ms": 400, "avg_ms": 300},
+                ],
+                "recommendations": [
+                    {
+                        "action": "daily_briefing",
+                        "mode": "background_with_cache",
+                        "reason": "acao recorrente ou pesada",
+                    }
+                ],
+            }
+        )
+
+        self.assertIn("Latencia do Axel: 3 comandos medidos", result)
+        self.assertIn("Gargalos recentes: daily_briefing max 1500 ms", result)
+        self.assertIn("Proxima otimizacao: daily_briefing -> background_with_cache", result)
+
+    def test_format_latency_report_handles_empty_log(self):
+        result = format_latency_report({"measured_count": 0})
+
+        self.assertEqual(result, "Latencia do Axel: ainda nao ha comandos medidos no log operacional.")
 
     def test_observability_summary_groups_actions_models_and_domains(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -259,6 +306,7 @@ class ProjectHealthTests(unittest.TestCase):
         self.assertIn("Background runtime: 1 rodando, 0 falhas, 1 concluidas.", result)
         self.assertIn("Background recente: daily_briefing:succeeded 123ms msg=Resumo pronto.", result)
         self.assertIn("Backups de memoria: nenhum snapshot", result)
+        self.assertIn("rode --backup-memory", result)
         self.assertIn("Encoding textual: sem mojibake detectado", result)
 
     def test_format_project_health_panel_mentions_telemetry_alerts(self):

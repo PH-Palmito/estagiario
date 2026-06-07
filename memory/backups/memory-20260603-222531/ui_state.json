@@ -1,0 +1,128 @@
+{
+  "assistant_name": "Axel",
+  "visible": true,
+  "status": "BOTAO F8",
+  "mode": "comando",
+  "last_heard": "",
+  "last_response": "Boa noite, chefe. Agora em Salvador, garoa intensa e 23 graus. Chance alta de chuva hoje, perto de 100 por cento. Vale sair preparado para chuva. Agenda sem compromissos próximos. Carteira monitorada: patrimônio R$ 7.983,36. Rentabilidade 11,94%. Dividendos próximos: PETR4 paga RENDIMENTO em 22/06. Radar da carteira: sem alerta novo agora. Foco do dia: próximo avanço sugerido: Integrar o Axel a uma agenda/calendario real.",
+  "last_command": "",
+  "microphone": "Microfone (WO Mic Device)",
+  "assistant_style": "jarvis",
+  "performance_mode": "balanced",
+  "performance_settings": {
+    "mode": "balanced",
+    "qt_poll_ms": 1500,
+    "web_frame_delay_ms": 33,
+    "web_panel_frame_delay_ms": 50,
+    "web_transition_frame_delay_ms": 80,
+    "animation_scale": 1.0,
+    "reduce_motion": false,
+    "prefer_background": true,
+    "description": "modo equilibrado: custo moderado com HUD fluido"
+  },
+  "voice_profile": "faber",
+  "hotword_enabled": true,
+  "conversation_mode": false,
+  "dictation_mode": false,
+  "axel_brain_plan": {},
+  "axel_brain_brief": {},
+  "last_route_trace": {},
+  "skill_suggestions": [
+    {
+      "pattern_id": "761127c519f22031",
+      "title": "Criar skill de sistema",
+      "reason": "Padrao procedural apareceu 4 vezes para system_agent.",
+      "toolset": "sistema",
+      "agent": "system_agent",
+      "intent": "telegram.start_bot",
+      "examples": [
+        "ativar bot telegram"
+      ],
+      "status": "suggested",
+      "created_at": 1780435507.0041714
+    },
+    {
+      "pattern_id": "6eb135235b20185b",
+      "title": "Criar skill de sistema",
+      "reason": "Padrao procedural apareceu 4 vezes para system_agent.",
+      "toolset": "sistema",
+      "agent": "system_agent",
+      "intent": "telegram.start_bot",
+      "examples": [
+        "iniciar bot telegram"
+      ],
+      "status": "suggested",
+      "created_at": 1780412892.5191598
+    },
+    {
+      "pattern_id": "416b1359e42589cd",
+      "title": "Criar skill de pesquisa",
+      "reason": "Padrao procedural apareceu 4 vezes para research_agent.",
+      "toolset": "pesquisa",
+      "agent": "research_agent",
+      "intent": "vision_answer_question",
+      "examples": [
+        "explique o README_CineRadar.md",
+        "explique README_CineRadar.md"
+      ],
+      "status": "suggested",
+      "created_at": 1780368556.4308155
+    },
+    {
+      "pattern_id": "7048ce41fc37c127",
+      "title": "Criar skill de navegador",
+      "reason": "Padrao procedural apareceu 4 vezes para browser_agent.",
+      "toolset": "navegador",
+      "agent": "browser_agent",
+      "intent": "browser_describe_screen",
+      "examples": [
+        "o que tem na tela"
+      ],
+      "status": "suggested",
+      "created_at": 1780367944.4118884
+    }
+  ],
+  "observability": {},
+  "active_panel": "",
+  "open_panels": [],
+  "map_panel_open": false,
+  "map_request": {},
+  "notifications": [],
+  "voice_notifications_enabled": false,
+  "voice_notifications_pending": [],
+  "history": [
+    {
+      "role": "assistant",
+      "text": "Modo voz ativado. Aperte F8 para falar. Aperte F9 para pausar/retomar.",
+      "at": 1780535894.1933136
+    },
+    {
+      "role": "assistant",
+      "text": "Retomando operações, senhor. Monitoramento de agenda, carteira e lembretes ativo. Podemos revisar, construir ou corrigir.",
+      "at": 1780535896.1488605
+    },
+    {
+      "role": "assistant",
+      "text": "Hoje é Quarta: descanso. Recuperação também conta.",
+      "at": 1780535904.5037944
+    },
+    {
+      "role": "assistant",
+      "text": "Boa noite, chefe. Agora em Salvador, garoa intensa e 23 graus. Chance alta de chuva hoje, perto de 100 por cento. Vale sair preparado para chuva. Agenda sem compromissos próximos. Carteira monitorada: patrimônio R$ 7.983,36. Rentabilidade 11,94%. Dividendos próximos: PETR4 paga RENDIMENTO em 22/06. Radar da carteira: sem alerta novo agora. Foco do dia: próximo avanço sugerido: Integrar o Axel a uma agenda/calendario real.",
+      "at": 1780535914.8218572
+    }
+  ],
+  "updated_at": 1780536024.3332798,
+  "axel_brain_contract": {},
+  "axel_brain_history": [],
+  "axel_brain_history_summary": {
+    "total": 0,
+    "remote": 0,
+    "remote_blocked": 0,
+    "profiles": {},
+    "agents": {},
+    "recommendations": [
+      "acumular mais decisoes antes de ajustar o comportamento"
+    ]
+  }
+}

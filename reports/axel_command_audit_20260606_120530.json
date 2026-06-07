@@ -1,0 +1,2788 @@
+[
+  {
+    "category": "golden_v1",
+    "phrase": "briefing",
+    "effective_phrase": "briefing",
+    "source": "daily_briefing",
+    "pre_handler": null,
+    "intent": "daily_briefing",
+    "action": "daily_briefing",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "daily_briefing",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_briefing_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "rotina diaria",
+    "effective_phrase": "rotina diaria",
+    "source": "daily_routine",
+    "pre_handler": null,
+    "intent": "daily_routine",
+    "action": "daily_routine",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "daily_routine",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_briefing_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "comecar meu dia",
+    "effective_phrase": "comecar meu dia",
+    "source": "start_day",
+    "pre_handler": null,
+    "intent": "daily_routine",
+    "action": "daily_routine",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "daily_routine",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_briefing_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "clima em Salvador",
+    "effective_phrase": "clima em Salvador",
+    "source": "weather_city",
+    "pre_handler": null,
+    "intent": "weather_summary",
+    "action": "weather_summary",
+    "params": {
+      "location": "Salvador"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "weather_summary",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_weather_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "agenda de hoje",
+    "effective_phrase": "agenda de hoje",
+    "source": "agenda_today",
+    "pre_handler": null,
+    "intent": "agenda_list_today",
+    "action": "agenda_list_today",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "agenda_list_today",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_agenda_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "lembretes",
+    "effective_phrase": "lembretes",
+    "source": "reminders_list",
+    "pre_handler": null,
+    "intent": "reminder_list",
+    "action": "reminder_list",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "reminder_list",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_reminder_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "status do telegram",
+    "effective_phrase": "status do telegram",
+    "source": "telegram_status",
+    "pre_handler": null,
+    "intent": "telegram.status",
+    "action": "telegram.status",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "telegram.status",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "system.detect_telegram_bridge_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "iniciar bot telegram",
+    "effective_phrase": "iniciar bot telegram",
+    "source": "telegram_start",
+    "pre_handler": null,
+    "intent": "telegram.start_bot",
+    "action": "telegram.start_bot",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "telegram.start_bot",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "system.detect_telegram_bridge_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "criar backup da memoria",
+    "effective_phrase": "criar backup da memoria",
+    "source": "memory_backup_create",
+    "pre_handler": null,
+    "intent": "action_tool_execute",
+    "action": "action_tool_execute",
+    "params": {
+      "name": "memory.backup.create",
+      "arguments": {}
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "action_tool_execute",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "memory.detect_action_core_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "listar backups da memoria",
+    "effective_phrase": "listar backups da memoria",
+    "source": "memory_backup_list",
+    "pre_handler": null,
+    "intent": "action_tool_execute",
+    "action": "action_tool_execute",
+    "params": {
+      "name": "memory.backup.list",
+      "arguments": {}
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "action_tool_execute",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "memory.detect_action_core_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "abrir spotify",
+    "effective_phrase": "abrir spotify",
+    "source": "open_spotify",
+    "pre_handler": null,
+    "intent": "open_app",
+    "action": "open_app",
+    "params": {
+      "target": "spotify"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "open_app",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "fast_path.detect_fast_path_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "fecha spotify",
+    "effective_phrase": "fecha spotify",
+    "source": "close_spotify",
+    "pre_handler": null,
+    "intent": "close_app",
+    "action": "close_app",
+    "params": {
+      "target": "spotify"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "close_app",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "apps.detect_close_app"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "pausar musica",
+    "effective_phrase": "pausar musica",
+    "source": "media_pause",
+    "pre_handler": null,
+    "intent": "media_play_pause",
+    "action": "media_play_pause",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "media_play_pause",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "media.detect_media_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "aumentar volume",
+    "effective_phrase": "aumentar volume",
+    "source": "volume_up",
+    "pre_handler": null,
+    "intent": "volume_up",
+    "action": "volume_up",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "volume_up",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "media.detect_media_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "nova aba",
+    "effective_phrase": "nova aba",
+    "source": "browser_new_tab",
+    "pre_handler": null,
+    "intent": "browser_new_tab",
+    "action": "browser_new_tab",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "browser_new_tab",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "browser.detect_browser_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "role para baixo",
+    "effective_phrase": "role para baixo",
+    "source": "browser_scroll_down",
+    "pre_handler": null,
+    "intent": "browser_scroll_down",
+    "action": "browser_scroll_down",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "browser_scroll_down",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "browser_controls.detect_browser_control_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "status da visao",
+    "effective_phrase": "status da visao",
+    "source": "vision_status",
+    "pre_handler": null,
+    "intent": "vision_status",
+    "action": "vision_status",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "vision_status",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "vision.detect_vision_model_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "status das tarefas em segundo plano",
+    "effective_phrase": "status das tarefas em segundo plano",
+    "source": "background_status",
+    "pre_handler": null,
+    "intent": "background_status",
+    "action": "background_status",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "background_status",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "system.detect_background_status_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "status do bluetooth",
+    "effective_phrase": "status do bluetooth",
+    "source": "bluetooth_status",
+    "pre_handler": null,
+    "intent": "bluetooth_status",
+    "action": "bluetooth_status",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "bluetooth_status",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "basic_early.detect_bluetooth_command"
+    ]
+  },
+  {
+    "category": "golden_v1",
+    "phrase": "listar arquivos",
+    "effective_phrase": "listar arquivos",
+    "source": "list_files",
+    "pre_handler": null,
+    "intent": "list_files",
+    "action": "list_files",
+    "params": {
+      "path": ""
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "list_files",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "files.detect_list_files"
+    ]
+  },
+  {
+    "category": "golden_ui_v2",
+    "phrase": "mostrar hud",
+    "effective_phrase": "mostrar hud",
+    "source": "hud_show",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "[chat simulado] Resposta geral para: mostrar hud."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": null,
+    "matched_expected": null,
+    "response_preview": "[chat simulado] Resposta geral para: mostrar hud.",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "golden_ui_v2",
+    "phrase": "fechar hud",
+    "effective_phrase": "fechar hud",
+    "source": "hud_hide",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "Nao identifiquei qual app fechar."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": null,
+    "matched_expected": null,
+    "response_preview": "Nao identifiquei qual app fechar.",
+    "flags": [],
+    "trace": [
+      "apps.detect_close_app"
+    ]
+  },
+  {
+    "category": "golden_ui_v2",
+    "phrase": "status da interface",
+    "effective_phrase": "status da interface",
+    "source": "hud_status",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "[chat simulado] Resposta geral para: status da interface."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": null,
+    "matched_expected": null,
+    "response_preview": "[chat simulado] Resposta geral para: status da interface.",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "golden_ui_v2",
+    "phrase": "saude do axel",
+    "effective_phrase": "saude do axel",
+    "source": "health_panel",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "[chat simulado] Resposta geral para: saude do axel."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": null,
+    "matched_expected": null,
+    "response_preview": "[chat simulado] Resposta geral para: saude do axel.",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "golden_ui_v2",
+    "phrase": "abrir painel de skills",
+    "effective_phrase": "abrir painel de skills",
+    "source": "skills_panel",
+    "pre_handler": null,
+    "intent": "smart_open",
+    "action": "smart_open",
+    "params": {
+      "target": "painel de skills"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": null,
+    "matched_expected": null,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "apps.detect_open_app"
+    ]
+  },
+  {
+    "category": "golden_ui_v2",
+    "phrase": "modo economia",
+    "effective_phrase": "modo economia",
+    "source": "economy_mode",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "[chat simulado] Resposta geral para: modo economia."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": null,
+    "matched_expected": null,
+    "response_preview": "[chat simulado] Resposta geral para: modo economia.",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "golden_ui_v2",
+    "phrase": "modo equilibrado",
+    "effective_phrase": "modo equilibrado",
+    "source": "balanced_mode",
+    "pre_handler": null,
+    "intent": "action_tool_execute",
+    "action": "action_tool_execute",
+    "params": {
+      "name": "background_vision_screen_graph",
+      "arguments": {
+        "target": "equilibrado"
+      }
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": null,
+    "matched_expected": null,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "golden_ui_v2",
+    "phrase": "modo performance",
+    "effective_phrase": "modo performance",
+    "source": "performance_mode",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "[chat simulado] Resposta geral para: modo performance."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": null,
+    "matched_expected": null,
+    "response_preview": "[chat simulado] Resposta geral para: modo performance.",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "briefing",
+    "effective_phrase": "briefing",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "daily_briefing",
+    "action": "daily_briefing",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "daily_briefing",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_briefing_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "briefing em segundo plano",
+    "effective_phrase": "briefing em segundo plano",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "background_daily_briefing",
+    "action": "background_daily_briefing",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "background_daily_briefing",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_briefing_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "me da o briefing",
+    "effective_phrase": "me da o briefing",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "daily_briefing",
+    "action": "daily_briefing",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "daily_briefing",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_briefing_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "resumo do dia",
+    "effective_phrase": "resumo do dia",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "daily_briefing",
+    "action": "daily_briefing",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "daily_briefing",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_briefing_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "comecar meu dia",
+    "effective_phrase": "comecar meu dia",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "daily_routine",
+    "action": "daily_routine",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "daily_routine",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_briefing_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "axel oq temos para hoje",
+    "effective_phrase": "axel oq temos para hoje",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "daily_briefing",
+    "action": "daily_briefing",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "daily_briefing",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_briefing_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "axel prepara meu dia",
+    "effective_phrase": "axel prepara meu dia",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "daily_routine",
+    "action": "daily_routine",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "daily_routine",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_briefing_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "tem noticias da carteira",
+    "effective_phrase": "tem noticias da carteira",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_memory_answer",
+    "action": "investment_memory_answer",
+    "params": {
+      "question": "tem noticias da carteira"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_memory_answer",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_questions.detect_investment_question_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "noticias da carteira",
+    "effective_phrase": "noticias da carteira",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_memory_answer",
+    "action": "investment_memory_answer",
+    "params": {
+      "question": "noticias da carteira"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_memory_answer",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_questions.detect_investment_question_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "tem noticia sobre minha carteira",
+    "effective_phrase": "tem noticia sobre minha carteira",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_memory_answer",
+    "action": "investment_memory_answer",
+    "params": {
+      "question": "tem noticia sobre minha carteira"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_memory_answer",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_questions.detect_investment_question_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "fatos relevantes da carteira",
+    "effective_phrase": "fatos relevantes da carteira",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_memory_answer",
+    "action": "investment_memory_answer",
+    "params": {
+      "question": "fatos relevantes da carteira"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_memory_answer",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_questions.detect_investment_question_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "agenda de dividendos",
+    "effective_phrase": "agenda de dividendos",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_memory_answer",
+    "action": "investment_memory_answer",
+    "params": {
+      "question": "agenda de dividendos"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_memory_answer",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_questions.detect_investment_question_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "quais ativos acima do meu preco teto",
+    "effective_phrase": "quais ativos acima do meu preco teto",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_memory_answer",
+    "action": "investment_memory_answer",
+    "params": {
+      "question": "quais ativos acima do meu preco teto"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_memory_answer",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_questions.detect_investment_question_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "qual a cotacao de BBAS3",
+    "effective_phrase": "qual a cotacao de BBAS3",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_memory_answer",
+    "action": "investment_memory_answer",
+    "params": {
+      "question": "qual a cotacao de BBAS3"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_memory_answer",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_questions.detect_investment_question_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "monitoramento da carteira",
+    "effective_phrase": "monitoramento da carteira",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_memory_answer",
+    "action": "investment_memory_answer",
+    "params": {
+      "question": "monitoramento da carteira"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_memory_answer",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_questions.detect_investment_question_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "atualizar carteira em segundo plano",
+    "effective_phrase": "atualizar carteira em segundo plano",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "background_investment_refresh",
+    "action": "background_investment_refresh",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "background_investment_refresh",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_browser.detect_investment_browser_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "relatorio financeiro em segundo plano",
+    "effective_phrase": "relatorio financeiro em segundo plano",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "background_investment_report",
+    "action": "background_investment_report",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "background_investment_report",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_questions.detect_investment_question_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "radar da carteira",
+    "effective_phrase": "radar da carteira",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_memory_answer",
+    "action": "investment_memory_answer",
+    "params": {
+      "question": "radar da carteira"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_memory_answer",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_questions.detect_investment_question_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "rentabilidade da carteira",
+    "effective_phrase": "rentabilidade da carteira",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_memory_answer",
+    "action": "investment_memory_answer",
+    "params": {
+      "question": "rentabilidade da carteira"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_memory_answer",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_browser.detect_investment_browser_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "quais ativos merecem atencao",
+    "effective_phrase": "quais ativos merecem atencao",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_memory_answer",
+    "action": "investment_memory_answer",
+    "params": {
+      "question": "quais ativos merecem atencao"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_memory_answer",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_questions.detect_investment_question_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "status do preco teto automatico",
+    "effective_phrase": "status do preco teto automatico",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_get_auto_ceiling_settings",
+    "action": "investment_get_auto_ceiling_settings",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_get_auto_ceiling_settings",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_strategy.detect_investment_strategy_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "qual minha margem de seguranca",
+    "effective_phrase": "qual minha margem de seguranca",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_get_auto_ceiling_settings",
+    "action": "investment_get_auto_ceiling_settings",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_get_auto_ceiling_settings",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_strategy.detect_investment_strategy_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "adicione BBAS3 na watchlist",
+    "effective_phrase": "adicione BBAS3 na watchlist",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_add_watchlist",
+    "action": "investment_add_watchlist",
+    "params": {
+      "ticker": "BBAS3"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_add_watchlist",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_strategy.detect_investment_strategy_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "remova BBAS3 da watchlist",
+    "effective_phrase": "remova BBAS3 da watchlist",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_remove_watchlist",
+    "action": "investment_remove_watchlist",
+    "params": {
+      "ticker": "BBAS3"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_remove_watchlist",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_strategy.detect_investment_strategy_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "listar watchlist",
+    "effective_phrase": "listar watchlist",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_list_watchlist",
+    "action": "investment_list_watchlist",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_list_watchlist",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_strategy.detect_investment_strategy_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "defina preco teto de BBAS3 em 25 reais",
+    "effective_phrase": "defina preco teto de BBAS3 em 25 reais",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_set_price_ceiling",
+    "action": "investment_set_price_ceiling",
+    "params": {
+      "ticker": "BBAS3",
+      "price": "25"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_set_price_ceiling",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_strategy.detect_investment_strategy_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "salve tese de BBAS3 banco publico barato",
+    "effective_phrase": "salve tese de BBAS3 banco publico barato",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "investment_set_thesis",
+    "action": "investment_set_thesis",
+    "params": {
+      "ticker": "BBAS3",
+      "thesis": "banco publico barato"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "investment_set_thesis",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "investment_strategy.detect_investment_strategy_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "abra o spotify",
+    "effective_phrase": "abra o spotify",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "open_app",
+    "action": "open_app",
+    "params": {
+      "target": "spotify"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "open_app",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "apps.detect_open_app"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "fecha spotify",
+    "effective_phrase": "fecha spotify",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "close_app",
+    "action": "close_app",
+    "params": {
+      "target": "spotify"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "close_app",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "apps.detect_close_app"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "foca no chrome",
+    "effective_phrase": "foca no chrome",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "focus_app",
+    "action": "focus_app",
+    "params": {
+      "target": "chrome"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "focus_app",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "apps.detect_window_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "minimize o chrome",
+    "effective_phrase": "minimize o chrome",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "minimize_app",
+    "action": "minimize_app",
+    "params": {
+      "target": "chrome"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "minimize_app",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "apps.detect_window_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "abre https://example.com",
+    "effective_phrase": "abre https://example.com",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "open_url",
+    "action": "open_url",
+    "params": {
+      "target": "https://example.com"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "open_url",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "apps.detect_open_url"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "clima em Salvador",
+    "effective_phrase": "clima em Salvador",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "weather_summary",
+    "action": "weather_summary",
+    "params": {
+      "location": "Salvador"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "weather_summary",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_weather_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "adicionar na agenda revisar Axel hoje",
+    "effective_phrase": "adicionar na agenda revisar Axel hoje",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "agenda_add",
+    "action": "agenda_add",
+    "params": {
+      "text": "revisar Axel hoje"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "agenda_add",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_agenda_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "agenda de hoje",
+    "effective_phrase": "agenda de hoje",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "agenda_list_today",
+    "action": "agenda_list_today",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "agenda_list_today",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_agenda_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "proximos compromissos",
+    "effective_phrase": "proximos compromissos",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "agenda_list_all",
+    "action": "agenda_list_all",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "agenda_list_all",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_agenda_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "lembre de testar briefing amanha",
+    "effective_phrase": "lembre de testar briefing amanha",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "reminder_add",
+    "action": "reminder_add",
+    "params": {
+      "text": "testar briefing amanha"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "reminder_add",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_reminder_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "lembretes",
+    "effective_phrase": "lembretes",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "reminder_list",
+    "action": "reminder_list",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "reminder_list",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_reminder_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "lembre na memoria que briefing deve ser curto",
+    "effective_phrase": "lembre na memoria que briefing deve ser curto",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "action_memory_remember",
+    "action": "action_memory_remember",
+    "params": {
+      "namespace": "investments",
+      "key": "briefing_deve_ser_curto",
+      "value": "briefing deve ser curto"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "action_memory_remember",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "memory.detect_memory_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "lembre que eu prefiro respostas curtas",
+    "effective_phrase": "lembre que eu prefiro respostas curtas",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "action_memory_remember",
+    "action": "action_memory_remember",
+    "params": {
+      "namespace": "preferences",
+      "key": "respostas_curtas",
+      "value": "respostas curtas"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "action_memory_remember",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "memory.detect_memory_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "o que voce sabe sobre briefing deve ser curto",
+    "effective_phrase": "o que voce sabe sobre briefing deve ser curto",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "action_memory_recall",
+    "action": "action_memory_recall",
+    "params": {
+      "namespace": "investments",
+      "key": "briefing_deve_ser_curto"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "action_memory_recall",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "memory.detect_memory_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "listar memoria investimentos",
+    "effective_phrase": "listar memoria investimentos",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "action_memory_list",
+    "action": "action_memory_list",
+    "params": {
+      "namespace": "investments"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "action_memory_list",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "memory.detect_memory_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "criar backup da memoria",
+    "effective_phrase": "criar backup da memoria",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "action_tool_execute",
+    "action": "action_tool_execute",
+    "params": {
+      "name": "memory.backup.create",
+      "arguments": {}
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "action_tool_execute",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "memory.detect_action_core_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "listar backups da memoria",
+    "effective_phrase": "listar backups da memoria",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "action_tool_execute",
+    "action": "action_tool_execute",
+    "params": {
+      "name": "memory.backup.list",
+      "arguments": {}
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "action_tool_execute",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "memory.detect_action_core_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "executar action file.process {\"path\":\"README.md\",\"max_chars\":1000}",
+    "effective_phrase": "executar action file.process {\"path\":\"README.md\",\"max_chars\":1000}",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "action_tool_execute",
+    "action": "action_tool_execute",
+    "params": {
+      "name": "file.process",
+      "arguments": {
+        "path": "README.md",
+        "max_chars": 1000
+      }
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "action_tool_execute",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "memory.detect_action_core_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "executar action memory.remember {\"namespace\":\"preferences\",\"key\":\"tom\",\"value\":{\"style\":\"curto\"}}",
+    "effective_phrase": "executar action memory.remember {\"namespace\":\"preferences\",\"key\":\"tom\",\"value\":{\"style\":\"curto\"}}",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "action_tool_execute",
+    "action": "action_tool_execute",
+    "params": {
+      "name": "memory.remember",
+      "arguments": {
+        "namespace": "preferences",
+        "key": "tom",
+        "value": {
+          "style": "curto"
+        }
+      }
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "action_tool_execute",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "memory.detect_action_core_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "crie arquivo teste.txt",
+    "effective_phrase": "crie arquivo teste.txt",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "create_file",
+    "action": "file_create",
+    "params": {
+      "path": "teste.txt"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "file_create",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "files.detect_create_file"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "leia arquivo teste.txt",
+    "effective_phrase": "leia arquivo teste.txt",
+    "source": "tests.test_golden_commands",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "file_read",
+    "matched_expected": null,
+    "response_preview": "Análise dos arquivos: 1. teste.txt: consegui abrir, mas não encontrei texto suficiente para resumir.",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "files.detect_read_file"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "listar arquivos",
+    "effective_phrase": "listar arquivos",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "list_files",
+    "action": "list_files",
+    "params": {
+      "path": ""
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "list_files",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "files.detect_list_files"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "liste arquivos",
+    "effective_phrase": "liste arquivos",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "list_files",
+    "action": "list_files",
+    "params": {
+      "path": ""
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "list_files",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "files.detect_list_files"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "crie pasta relatórios",
+    "effective_phrase": "crie pasta relatórios",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "create_folder",
+    "action": "folder_create",
+    "params": {
+      "path": "relatórios"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "folder_create",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "files.detect_create_folder"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "analise o codigo",
+    "effective_phrase": "analise o codigo",
+    "source": "tests.test_golden_commands",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "code_inspect_workspace",
+    "matched_expected": null,
+    "response_preview": "Nao consegui analisar os arquivos. codigo: Arquivo nao encontrado.",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "code.detect_code_inspection_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "inspecione o codigo",
+    "effective_phrase": "inspecione o codigo",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "code_inspect_workspace",
+    "action": "code_inspect_workspace",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "code_inspect_workspace",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "code.detect_code_inspection_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "mostre o mapa de Salvador",
+    "effective_phrase": "mostre o mapa de Salvador",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "ui_show_map",
+    "action": "ui_show_map",
+    "params": {
+      "target": {
+        "kind": "place",
+        "location": "Salvador",
+        "label": "Salvador",
+        "url": "https://www.google.com/maps/search/?api=1&query=Salvador"
+      }
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "ui_show_map",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "daily.detect_map_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "nova aba",
+    "effective_phrase": "nova aba",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "browser_new_tab",
+    "action": "browser_new_tab",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "browser_new_tab",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "browser.detect_browser_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "fechar aba",
+    "effective_phrase": "fechar aba",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "browser_close_tab",
+    "action": "browser_close_tab",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "browser_close_tab",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "browser.detect_browser_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "role para baixo",
+    "effective_phrase": "role para baixo",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "browser_scroll_down",
+    "action": "browser_scroll_down",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "browser_scroll_down",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "browser_controls.detect_browser_control_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "aumentar volume",
+    "effective_phrase": "aumentar volume",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "volume_up",
+    "action": "volume_up",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "volume_up",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "media.detect_media_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "pausar musica",
+    "effective_phrase": "pausar musica",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "media_play_pause",
+    "action": "media_play_pause",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "media_play_pause",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "media.detect_media_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "ligar bluetooth",
+    "effective_phrase": "ligar bluetooth",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "bluetooth_on",
+    "action": "bluetooth_on",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "bluetooth_on",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "basic_early.detect_bluetooth_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "status do bluetooth",
+    "effective_phrase": "status do bluetooth",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "bluetooth_status",
+    "action": "bluetooth_status",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "bluetooth_status",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "basic_early.detect_bluetooth_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "status das tarefas em segundo plano",
+    "effective_phrase": "status das tarefas em segundo plano",
+    "source": "tests.test_golden_commands",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "background_status",
+    "matched_expected": null,
+    "response_preview": "Plano rápido para teste.txt: Depois resolva as questões sem consultar o resumo e corrija pelos pontos-chave.",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "system.detect_background_status_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "resultado da ultima tarefa em segundo plano",
+    "effective_phrase": "resultado da ultima tarefa em segundo plano",
+    "source": "tests.test_golden_commands",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "background_latest_result",
+    "matched_expected": null,
+    "response_preview": "Plano rápido para teste.txt: Depois resolva as questões sem consultar o resumo e corrija pelos pontos-chave.",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "system.detect_background_status_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "notificacoes em segundo plano",
+    "effective_phrase": "notificacoes em segundo plano",
+    "source": "tests.test_golden_commands",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "background_notifications",
+    "matched_expected": null,
+    "response_preview": "Plano rápido para teste.txt: Depois resolva as questões sem consultar o resumo e corrija pelos pontos-chave.",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "system.detect_background_status_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "status da visao",
+    "effective_phrase": "status da visao",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "vision_status",
+    "action": "vision_status",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "vision_status",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "vision.detect_vision_model_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "ultima analise visual",
+    "effective_phrase": "ultima analise visual",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "vision_last_analysis",
+    "action": "vision_last_analysis",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "vision_last_analysis",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "vision.detect_vision_model_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "historico visual",
+    "effective_phrase": "historico visual",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "vision_history",
+    "action": "vision_history",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "vision_history",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "vision.detect_vision_model_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "analisar tela em segundo plano",
+    "effective_phrase": "analisar tela em segundo plano",
+    "source": "tests.test_golden_commands",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "background_vision_screen",
+    "matched_expected": null,
+    "response_preview": "Nao consegui analisar os arquivos. tela em segundo plano: Arquivo nao encontrado.",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "image.detect_image_analysis_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "analisar grafico em segundo plano",
+    "effective_phrase": "analisar grafico em segundo plano",
+    "source": "tests.test_golden_commands",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "background_vision_screen_graph",
+    "matched_expected": null,
+    "response_preview": "Nao consegui analisar os arquivos. grafico em segundo plano: Arquivo nao encontrado.",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "image.detect_image_analysis_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "analisar grafico",
+    "effective_phrase": "analisar grafico",
+    "source": "tests.test_golden_commands",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "image_analyze_screen_graph",
+    "matched_expected": null,
+    "response_preview": "Nao consegui analisar os arquivos. grafico: Arquivo nao encontrado.",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "image.detect_image_analysis_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "interpretar grafico",
+    "effective_phrase": "interpretar grafico",
+    "source": "tests.test_golden_commands",
+    "pre_handler": null,
+    "intent": "image_analyze_screen_graph",
+    "action": "image_analyze_screen_graph",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "image_analyze_screen_graph",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "image.detect_image_analysis_command"
+    ]
+  },
+  {
+    "category": "golden_tests",
+    "phrase": "analisar grafico C:\\prints\\grafico.png",
+    "effective_phrase": "analisar grafico C:\\prints\\grafico.png",
+    "source": "tests.test_golden_commands",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "image_analyze_graph",
+    "matched_expected": null,
+    "response_preview": "Nao consegui analisar os arquivos. grafico.png: Arquivo nao encontrado.",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "image.detect_image_analysis_command"
+    ]
+  },
+  {
+    "category": "presence",
+    "phrase": "esta ai?",
+    "effective_phrase": "esta ai?",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "smart_open",
+    "action": "smart_open",
+    "params": {
+      "target": "steam"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "respond",
+    "matched_expected": false,
+    "response_preview": "",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "apps.detect_open_app"
+    ]
+  },
+  {
+    "category": "presence",
+    "phrase": "está aí?",
+    "effective_phrase": "está aí?",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "smart_open",
+    "action": "smart_open",
+    "params": {
+      "target": "steam"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "respond",
+    "matched_expected": false,
+    "response_preview": "",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "apps.detect_open_app"
+    ]
+  },
+  {
+    "category": "presence",
+    "phrase": "ta ai?",
+    "effective_phrase": "ta ai?",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "[chat simulado] Resposta geral para: ta ai."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "respond",
+    "matched_expected": true,
+    "response_preview": "[chat simulado] Resposta geral para: ta ai.",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "presence",
+    "phrase": "axel?",
+    "effective_phrase": "axel?",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "Pode repetir?"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "respond",
+    "matched_expected": true,
+    "response_preview": "Pode repetir?",
+    "flags": [],
+    "trace": [
+      "conversation.detect_short_unclear_text"
+    ]
+  },
+  {
+    "category": "presence_voice",
+    "phrase": "o que esta ai",
+    "effective_phrase": "o que tem na tela",
+    "source": "custom",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": null,
+    "matched_expected": null,
+    "response_preview": "Nao consegui analisar os arquivos. na tela: Arquivo nao encontrado.",
+    "flags": [],
+    "trace": [
+      "screen.detect_screen_command"
+    ]
+  },
+  {
+    "category": "general_question",
+    "phrase": "quem é alanzoca?",
+    "effective_phrase": "quem é alanzoca?",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "Alanzoca, ou Alan Ferreira, e um streamer brasileiro conhecido por lives de jogos, humor e conteudo na Twitch/YouTube."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "respond",
+    "matched_expected": true,
+    "response_preview": "Alanzoca, ou Alan Ferreira, e um streamer brasileiro conhecido por lives de jogos, humor e conteudo na Twitch/YouTube.",
+    "flags": [],
+    "trace": [
+      "conversation.detect_builtin_general_answer"
+    ]
+  },
+  {
+    "category": "general_question",
+    "phrase": "oq é tesla?",
+    "effective_phrase": "oq é tesla?",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "Tesla pode ser a empresa de carros eletricos e energia fundada por Elon Musk e outros socios, ou Nikola Tesla, o inventor associado a corrente alternada. Se quiser, eu diferencio os dois."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "respond",
+    "matched_expected": true,
+    "response_preview": "Tesla pode ser a empresa de carros eletricos e energia fundada por Elon Musk e outros socios, ou Nikola Tesla, o inventor associado a corrente alternada. Se quiser, eu diferencio os dois.",
+    "flags": [],
+    "trace": [
+      "conversation.detect_builtin_general_answer"
+    ]
+  },
+  {
+    "category": "general_question",
+    "phrase": "me explique recursão em python",
+    "effective_phrase": "me explique recursão em python",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "Recursao em Python e quando uma funcao chama ela mesma para resolver um problema em partes menores. O ponto principal e ter um caso base para parar; sem isso, a funcao entra em repeticao infinita ate estourar o limite de recursao."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "respond",
+    "matched_expected": true,
+    "response_preview": "Recursao em Python e quando uma funcao chama ela mesma para resolver um problema em partes menores. O ponto principal e ter um caso base para parar; sem isso, a funcao entra em repeticao infinita ate estourar o limite de...",
+    "flags": [],
+    "trace": [
+      "conversation.detect_builtin_general_answer"
+    ]
+  },
+  {
+    "category": "general_question",
+    "phrase": "qual a capital do Japão?",
+    "effective_phrase": "qual a capital do Japão?",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "[chat simulado] Resposta geral para: qual a capital do Japão."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "respond",
+    "matched_expected": true,
+    "response_preview": "[chat simulado] Resposta geral para: qual a capital do Japão.",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "general_question",
+    "phrase": "o que acontece se eu fizer uma pergunta muito aleatoria?",
+    "effective_phrase": "o que acontece se eu fizer uma pergunta muito aleatoria?",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "[chat simulado] Resposta geral para: o que acontece se eu fizer uma pergunta muito aleatoria."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "respond",
+    "matched_expected": true,
+    "response_preview": "[chat simulado] Resposta geral para: o que acontece se eu fizer uma pergunta muito aleatoria.",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "ambiguous",
+    "phrase": "nao",
+    "effective_phrase": "nao",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "Pode repetir?"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "respond",
+    "matched_expected": true,
+    "response_preview": "Pode repetir?",
+    "flags": [],
+    "trace": [
+      "conversation.detect_short_unclear_text"
+    ]
+  },
+  {
+    "category": "ambiguous",
+    "phrase": "pode repetir?",
+    "effective_phrase": "pode repetir?",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "respond",
+    "action": "respond",
+    "params": {
+      "message": "[chat simulado] Resposta geral para: pode repetir."
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "repeat_last",
+    "matched_expected": false,
+    "response_preview": "[chat simulado] Resposta geral para: pode repetir.",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "ambiguous",
+    "phrase": "faz aquilo",
+    "effective_phrase": "faz aquilo",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "action_tool_execute",
+    "action": "action_tool_execute",
+    "params": {
+      "name": "background.run_action",
+      "arguments": {
+        "name": "background_vision_screen_graph"
+      }
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "respond",
+    "matched_expected": false,
+    "response_preview": "",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "screen",
+    "phrase": "o que tem na tela?",
+    "effective_phrase": "o que tem na tela?",
+    "source": "custom",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "browser_describe_screen",
+    "matched_expected": null,
+    "response_preview": "Nao consegui analisar os arquivos. na tela?: Arquivo nao encontrado.",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "screen.detect_screen_command"
+    ]
+  },
+  {
+    "category": "screen",
+    "phrase": "resuma a tela",
+    "effective_phrase": "resuma a tela",
+    "source": "custom",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "browser_summarize_screen",
+    "matched_expected": null,
+    "response_preview": "Análise dos arquivos: 1. clinicas.html: <! DOCTYPE html> <html lang=\"pt-BR\"> <head> <meta charset=\"UTF-8\"> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"> <title>Vitality - Doações</title> <link re...",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "screen.detect_screen_command"
+    ]
+  },
+  {
+    "category": "screen",
+    "phrase": "detalha a tela",
+    "effective_phrase": "detalha a tela",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "browser_explain_screen",
+    "action": "browser_explain_screen",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "browser_explain_screen",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "screen.detect_screen_command"
+    ]
+  },
+  {
+    "category": "apps",
+    "phrase": "abrir spotify",
+    "effective_phrase": "abrir spotify",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "open_app",
+    "action": "open_app",
+    "params": {
+      "target": "spotify"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "open_app",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "fast_path.detect_fast_path_command"
+    ]
+  },
+  {
+    "category": "apps",
+    "phrase": "abre o chrome",
+    "effective_phrase": "abre o chrome",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "open_app",
+    "action": "open_app",
+    "params": {
+      "target": "chrome"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "open_app",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "apps.detect_open_app"
+    ]
+  },
+  {
+    "category": "apps",
+    "phrase": "fecha spotify",
+    "effective_phrase": "fecha spotify",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "close_app",
+    "action": "close_app",
+    "params": {
+      "target": "spotify"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "close_app",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "apps.detect_close_app"
+    ]
+  },
+  {
+    "category": "media",
+    "phrase": "pausar musica",
+    "effective_phrase": "pausar musica",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "media_play_pause",
+    "action": "media_play_pause",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "media_play_pause",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "media.detect_media_command"
+    ]
+  },
+  {
+    "category": "media",
+    "phrase": "proxima musica",
+    "effective_phrase": "proxima musica",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "spotify_dislike_current_track",
+    "action": "spotify_dislike_current_track",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "media_next",
+    "matched_expected": false,
+    "response_preview": "",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "fast_path.detect_fast_path_command"
+    ]
+  },
+  {
+    "category": "browser",
+    "phrase": "nova aba",
+    "effective_phrase": "nova aba",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "browser_new_tab",
+    "action": "browser_new_tab",
+    "params": {},
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "browser_new_tab",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "browser.detect_browser_command"
+    ]
+  },
+  {
+    "category": "browser",
+    "phrase": "pesquisar notebook no mercado livre",
+    "effective_phrase": "pesquisar notebook no mercado livre",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "browser_search_site",
+    "action": "browser_search_site",
+    "params": {
+      "site": "https://www.mercadolivre.com.br",
+      "query": "notebook"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "browser_search",
+    "matched_expected": false,
+    "response_preview": "",
+    "flags": [
+      "expected_action_mismatch"
+    ],
+    "trace": [
+      "fast_path.detect_fast_path_command"
+    ]
+  },
+  {
+    "category": "memory",
+    "phrase": "listar memorias",
+    "effective_phrase": "listar memorias",
+    "source": "custom",
+    "pre_handler": null,
+    "intent": "action_memory_list",
+    "action": "action_memory_list",
+    "params": {
+      "namespace": "general"
+    },
+    "valid": true,
+    "validation_error": null,
+    "expected_action": "action_memory_list",
+    "matched_expected": true,
+    "response_preview": "",
+    "flags": [],
+    "trace": [
+      "memory.detect_memory_command"
+    ]
+  },
+  {
+    "category": "shared",
+    "phrase": "status",
+    "effective_phrase": "status",
+    "source": "custom",
+    "pre_handler": "shared",
+    "intent": "respond",
+    "action": "pre:shared",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "pre:shared",
+    "matched_expected": null,
+    "response_preview": "Status do Axel: operacional. Sem erro recente no log operacional.",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "shared",
+    "phrase": "skills",
+    "effective_phrase": "skills",
+    "source": "custom",
+    "pre_handler": "shared",
+    "intent": "respond",
+    "action": "pre:shared",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "pre:shared",
+    "matched_expected": null,
+    "response_preview": "Skills procedurais: briefing: Briefing Diario ; carteira: Carteira e Investimentos ; estudos: Skill Estudos ; navegacao: Navegacao Web ; programacao: Programacao e Avaliacao de Projeto ; sistema: Skill Sistema ; visao: L...",
+    "flags": [],
+    "trace": [
+      "conversation.detect_llm_action_command"
+    ]
+  },
+  {
+    "category": "shared",
+    "phrase": "modelo atual",
+    "effective_phrase": "modelo atual",
+    "source": "custom",
+    "pre_handler": "shared",
+    "intent": "respond",
+    "action": "pre:shared",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "pre:shared",
+    "matched_expected": null,
+    "response_preview": "Modelo do Axel: provedor auto; modelo local/chat qwen2.5:0.5b.",
+    "flags": [],
+    "trace": [
+      "conversation.detect_llm_action_command"
+    ]
+  },
+  {
+    "category": "study_attach",
+    "phrase": "analisar arquivos anexados: [\"C:\\\\Users\\\\almei\\\\Documents\\\\Downloads\\\\RedesBasico.pdf\"] :: oq tem na pagina 4?",
+    "effective_phrase": "analisar arquivos anexados: [\"C:\\\\Users\\\\almei\\\\Documents\\\\Downloads\\\\RedesBasico.pdf\"] :: oq tem na pagina 4?",
+    "source": "custom",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "pre:study",
+    "matched_expected": null,
+    "response_preview": "Análise de estudo dos arquivos: 1. Na página 4 de RedesBasico.pdf: Conceitos Basicos Redes de Computadores Hardware Interfaces, cabos, equipamentos de comunicacao; Software Regras e Procedimentos: protocolos de comunicac...",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "study_followup",
+    "phrase": "oq tem na pagina 2?",
+    "effective_phrase": "oq tem na pagina 2?",
+    "source": "custom",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "pre:study",
+    "matched_expected": null,
+    "response_preview": "Na página 2 de RedesBasico.pdf, consigo ler parcialmente: Redes de Computadores Professor: Marco Antonio C. Camara Agenda C. A extração dessa pagina parece incompleta; use a leitura por imagem/OCR para confirmar todos os...",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "study_followup",
+    "phrase": "pagina 3?",
+    "effective_phrase": "pagina 3?",
+    "source": "custom",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "pre:study",
+    "matched_expected": null,
+    "response_preview": "Na página 3 de RedesBasico.pdf: Comunicacao Digital Redes de Computadores Por que a informação é digital? Migracao na Representacao da Informacao Informacoes Digitais e Binarias Professor: Marco Antonio C. Camara",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "study_followup",
+    "phrase": "o arquivo fala sobre bananas?",
+    "effective_phrase": "o arquivo fala sobre bananas?",
+    "source": "custom",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "pre:study",
+    "matched_expected": null,
+    "response_preview": "Não. No trecho extraído de RedesBasico.pdf, não encontrei menção clara a bananas. O material parece falar sobre Redes de Computadores, Comunicação Digital, Conceitos Básicos de hardware e software, Meios Físicos, Informa...",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "study_followup",
+    "phrase": "o slide fala sobre frutas?",
+    "effective_phrase": "o slide fala sobre frutas?",
+    "source": "custom",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "pre:study",
+    "matched_expected": null,
+    "response_preview": "Não. No trecho extraído de RedesBasico.pdf, não encontrei menção clara a frutas. O material parece falar sobre Redes de Computadores, Comunicação Digital, Conceitos Básicos de hardware e software, Meios Físicos, Informaç...",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "study_followup",
+    "phrase": "o arquivo é um slide?",
+    "effective_phrase": "o arquivo é um slide?",
+    "source": "custom",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "pre:study",
+    "matched_expected": null,
+    "response_preview": "RedesBasico.pdf: sim, o conteúdo parece material em formato de slides ou aula. Tecnicamente, o arquivo e um PDF, provavelmente exportado de uma apresentação. O tema parece ser Redes de Computadores, Comunicação Digital, ...",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "study_followup",
+    "phrase": "testar arquivo atual",
+    "effective_phrase": "testar arquivo atual",
+    "source": "custom",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "pre:study",
+    "matched_expected": null,
+    "response_preview": "Auto teste do arquivo atual: RedesBasico.pdf Assunto provavel: Redes de Computadores, Comunicação Digital, Conceitos Básicos de hardware e software, Meios Físicos, Informações Digitais e Binárias. Formato: RedesBasico.pd...",
+    "flags": [],
+    "trace": [
+      "conversation.detect_llm_action_command"
+    ]
+  },
+  {
+    "category": "study_repeat",
+    "phrase": "analisar arquivos anexados: [\"C:\\\\Users\\\\almei\\\\Documents\\\\Downloads\\\\RedesBasico.pdf\"] :: oq tem na pagina 4?",
+    "effective_phrase": "analisar arquivos anexados: [\"C:\\\\Users\\\\almei\\\\Documents\\\\Downloads\\\\RedesBasico.pdf\"] :: oq tem na pagina 4?",
+    "source": "custom",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "pre:study",
+    "matched_expected": null,
+    "response_preview": "Análise de estudo dos arquivos: 1. Na página 4 de RedesBasico.pdf: Conceitos Basicos Redes de Computadores Hardware Interfaces, cabos, equipamentos de comunicacao; Software Regras e Procedimentos: protocolos de comunicac...",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  },
+  {
+    "category": "study_repeat",
+    "phrase": "analisar arquivos anexados: [\"C:\\\\Users\\\\almei\\\\Documents\\\\Downloads\\\\RedesBasico.pdf\"] :: oq tem na pagina 4?",
+    "effective_phrase": "analisar arquivos anexados: [\"C:\\\\Users\\\\almei\\\\Documents\\\\Downloads\\\\RedesBasico.pdf\"] :: oq tem na pagina 4?",
+    "source": "custom",
+    "pre_handler": "study",
+    "intent": "respond",
+    "action": "pre:study",
+    "params": {},
+    "valid": null,
+    "validation_error": null,
+    "expected_action": "pre:study",
+    "matched_expected": null,
+    "response_preview": "Análise de estudo dos arquivos: 1. Na página 4 de RedesBasico.pdf: Conceitos Basicos Redes de Computadores Hardware Interfaces, cabos, equipamentos de comunicacao; Software Regras e Procedimentos: protocolos de comunicac...",
+    "flags": [],
+    "trace": [
+      "conversation.detect_ollama_chat"
+    ]
+  }
+]

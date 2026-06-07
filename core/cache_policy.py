@@ -38,6 +38,12 @@ VISION_SCREEN_CACHE_POLICY = CachePolicy(
     requires_content_fingerprint=True,
 )
 
+BROWSER_PRODUCT_CACHE_POLICY = CachePolicy(
+    name="browser_products",
+    path=Path("memory/browser_product_cache.json"),
+    ttl_seconds=10 * 60,
+)
+
 KNOWN_CACHE_POLICIES = {
     policy.name: policy
     for policy in (
@@ -45,6 +51,7 @@ KNOWN_CACHE_POLICIES = {
         INVESTMENT_SUMMARY_CACHE_POLICY,
         INVESTMENT_REPORT_CACHE_POLICY,
         VISION_SCREEN_CACHE_POLICY,
+        BROWSER_PRODUCT_CACHE_POLICY,
     )
 }
 

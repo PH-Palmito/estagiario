@@ -30,9 +30,38 @@ class AppBootstrapTests(unittest.TestCase):
         self.assertTrue(flags.startup_mode)
         self.assertFalse(flags.defer_startup_briefing)
 
+    def test_parse_doctor_aliases(self):
+        self.assertTrue(parse_app_flags(["main.py", "--doctor"]).doctor_requested)
+        self.assertTrue(parse_app_flags(["main.py", "doctor"]).doctor_requested)
+        self.assertTrue(parse_app_flags(["main.py", "axel", "doctor"]).doctor_requested)
+        self.assertFalse(parse_app_flags(["main.py", "axel", "setup"]).doctor_requested)
+
+    def test_parse_setup_aliases(self):
+        self.assertTrue(parse_app_flags(["main.py", "--setup"]).setup_requested)
+        self.assertTrue(parse_app_flags(["main.py", "setup"]).setup_requested)
+        self.assertTrue(parse_app_flags(["main.py", "axel", "setup"]).setup_requested)
+        self.assertFalse(parse_app_flags(["main.py", "axel", "doctor"]).setup_requested)
+
+    def test_parse_memory_backup_aliases(self):
+        self.assertTrue(parse_app_flags(["main.py", "--backup-memory"]).memory_backup_requested)
+        self.assertTrue(parse_app_flags(["main.py", "--memory-backup"]).memory_backup_requested)
+        self.assertTrue(parse_app_flags(["main.py", "backup", "memory"]).memory_backup_requested)
+        self.assertTrue(parse_app_flags(["main.py", "axel", "backup", "memory"]).memory_backup_requested)
+        self.assertFalse(parse_app_flags(["main.py", "axel", "doctor"]).memory_backup_requested)
+
+    def test_parse_update_aliases(self):
+        self.assertTrue(parse_app_flags(["main.py", "--update"]).update_requested)
+        self.assertTrue(parse_app_flags(["main.py", "update"]).update_requested)
+        self.assertTrue(parse_app_flags(["main.py", "axel", "update"]).update_requested)
+        self.assertFalse(parse_app_flags(["main.py", "axel", "doctor"]).update_requested)
+
     def test_help_text_is_ascii_and_mentions_main_flags(self):
         HELP_TEXT.encode("ascii")
         self.assertIn("--voice", HELP_TEXT)
+        self.assertIn("--setup", HELP_TEXT)
+        self.assertIn("--doctor", HELP_TEXT)
+        self.assertIn("--update", HELP_TEXT)
+        self.assertIn("--backup-memory", HELP_TEXT)
         self.assertIn("--audio-test", HELP_TEXT)
 
 

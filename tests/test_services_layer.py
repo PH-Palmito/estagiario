@@ -14,6 +14,10 @@ class ServicesLayerTests(unittest.TestCase):
         with patch("services.investment_service.financial_report", return_value="relatorio"):
             self.assertEqual(investment_service.investment_report(), "relatorio")
 
+    def test_investment_daily_service_delegates_to_tool(self):
+        with patch("services.investment_service.daily_change_report", return_value="diario"):
+            self.assertEqual(investment_service.investment_daily_report(), "diario")
+
     def test_vision_service_delegates_to_tool(self):
         with patch("services.vision_service.analyze_screen_image", return_value="tela"):
             self.assertEqual(vision_service.analyze_screen(), "tela")

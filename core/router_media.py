@@ -143,7 +143,9 @@ def detect_media_command(user_input: str):
     ):
         return {"intent": "volume_down", "target": None}
 
-    if any(phrase in lower for phrase in {"muta", "mutar", "mudo", "silencia", "silenciar", "tira o som", "ativar mudo"}):
+    if re.search(r"\b(muta|mutar|mudo|silencia|silenciar)\b", lower) or any(
+        phrase in lower for phrase in {"tira o som", "ativar mudo"}
+    ):
         return {"intent": "volume_mute", "target": None}
 
     return None

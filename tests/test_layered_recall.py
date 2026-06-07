@@ -25,7 +25,13 @@ class LayeredRecallTests(unittest.TestCase):
                 curated_memory.ensure_curated_memory_files()
                 curated_memory.CORE_MEMORY_PATH.write_text("# Core\n- Axel usa AxelBrain.\n", encoding="utf-8")
                 curated_memory.USER_PROFILE_PATH.write_text("# User\n- Prefere respostas curtas.\n", encoding="utf-8")
-                long_memory.remember_fact("Decidimos priorizar AxelBrain e agentes especialistas.", category="decision")
+                long_memory.remember_fact(
+                    "Decidimos priorizar AxelBrain e agentes especialistas.",
+                    category="decision",
+                    source="unit",
+                    confidence=0.88,
+                    reason="decisao de prioridade",
+                )
                 session_index.index_exchange(
                     "falamos sobre agentes especialistas do Axel",
                     "AxelBrain escolhe agente, toolset e risco.",
@@ -38,6 +44,9 @@ class LayeredRecallTests(unittest.TestCase):
         self.assertTrue(recall["semantic"])
         self.assertTrue(recall["expanded_summary"])
         self.assertTrue(recall["transcript"])
+        self.assertEqual(recall["semantic"][0]["origin"], "unit")
+        self.assertEqual(recall["semantic"][0]["confidence"], 0.88)
+        self.assertEqual(recall["semantic"][0]["reason"], "decisao de prioridade")
 
     def test_format_layered_recall_includes_transcript_when_requested(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -54,6 +63,26 @@ class LayeredRecallTests(unittest.TestCase):
 
         self.assertIn("Recall em camadas", text)
         self.assertIn("Transcript original", text)
+
+    def test_format_layered_recall_includes_long_memory_metadata(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            patches = self._patch_memory_paths(temp_dir)
+            with patches[0], patches[1], patches[2], patches[3], patches[4]:
+                long_memory.remember_fact(
+                    "Decidimos priorizar memoria com fontes.",
+                    category="decision",
+                    source="unit",
+                    confidence=0.9,
+                    validity_days=30,
+                    reason="prioridade ativa",
+                )
+
+                text = layered_recall.format_layered_memory_recall("memoria fontes")
+
+        self.assertIn("fonte unit", text)
+        self.assertIn("conf 0.90", text)
+        self.assertIn("validade 30d", text)
+        self.assertIn("motivo prioridade ativa", text)
 
     def test_memory_command_uses_layered_recall(self):
         with patch("core.memory_commands.format_layered_memory_recall", return_value="Recall em camadas para Axel."):

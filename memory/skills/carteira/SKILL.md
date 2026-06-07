@@ -14,6 +14,7 @@
 
 ## Passos
 - Usar snapshot local da carteira antes de buscar fora.
+- Para "o que mudou desde ontem", usar o resumo diario local antes de fazer leitura ampla.
 - Usar BRAPI, NewsAPI ou grounding remoto quando o dado depender de cotacao, noticia ou fato recente.
 - Separar fato, leitura e limite da informacao.
 - Evitar recomendacao financeira direta; preferir criterios, riscos e proximos checks.
@@ -24,5 +25,6 @@
 
 ## Comandos relacionados
 - relatorio da carteira
+- o que mudou na carteira desde ontem
 - noticias dos meus ativos
 - resumo de dividendos

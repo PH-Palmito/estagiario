@@ -13,6 +13,19 @@ SKILL_LEARNING_PATH = Path("memory") / "skill_learning.json"
 MAX_OBSERVATIONS = 120
 SUGGESTION_THRESHOLD = 4
 IGNORED_INTENTS = {"respond", "repeat_last"}
+ACTION_STOPWORDS = {
+    "abrir",
+    "acionar",
+    "ativar",
+    "bot",
+    "comando",
+    "executar",
+    "fazer",
+    "iniciar",
+    "ligar",
+    "mostrar",
+    "rodar",
+}
 
 
 def _default_state() -> dict:
@@ -25,8 +38,59 @@ def _compact(text: str) -> str:
 
 def _normalize_words(text: str) -> list[str]:
     normalized = re.sub(r"[^\w\s/-]", " ", str(text or "").lower())
-    stopwords = {"para", "sobre", "isso", "essa", "esse", "qual", "quais", "como", "quando", "onde", "porque", "abrir", "fazer"}
+    stopwords = {
+        "para",
+        "sobre",
+        "isso",
+        "essa",
+        "esse",
+        "qual",
+        "quais",
+        "como",
+        "quando",
+        "onde",
+        "porque",
+        *ACTION_STOPWORDS,
+    }
     return [token for token in normalized.split() if len(token) >= 4 and token not in stopwords]
+
+
+def _safe_skill_name(value: str, fallback: str = "procedimento") -> str:
+    normalized = re.sub(r"[^a-z0-9_-]+", "-", str(value or "").strip().lower())
+    normalized = re.sub(r"-+", "-", normalized).strip("-_")
+    return normalized or fallback
+
+
+def _intent_slug(intent: str) -> str:
+    parts = [
+        token
+        for token in re.split(r"[^a-zA-Z0-9]+", str(intent or "").lower())
+        if len(token) >= 3 and token not in {"action", "tool", "execute"}
+    ]
+    return "-".join(parts[:4])
+
+
+def _example_slug(examples: list[str]) -> str:
+    words: list[str] = []
+    for example in examples:
+        for token in _normalize_words(example):
+            if token not in words:
+                words.append(token)
+            if len(words) >= 4:
+                break
+        if len(words) >= 4:
+            break
+    return "-".join(words)
+
+
+def _suggestion_profile(toolset: str, agent: str, intent: str, examples: list[str]) -> dict:
+    slug = _intent_slug(intent) or _example_slug(examples) or _safe_skill_name(toolset or agent)
+    skill_name = _safe_skill_name(slug)
+    label = skill_name.replace("-", " ")
+    return {
+        "skill_name": skill_name,
+        "title": f"Criar skill: {label}",
+    }
 
 
 def _pattern_key(toolset: str, agent: str, user_input: str, intent: str) -> str:
@@ -41,6 +105,11 @@ def _pattern_key(toolset: str, agent: str, user_input: str, intent: str) -> str:
 
 def _skill_exists_for_toolset(toolset: str) -> bool:
     normalized = str(toolset or "").strip().lower()
+    return any(skill.name == normalized for skill in load_skills())
+
+
+def _skill_exists_for_name(name: str) -> bool:
+    normalized = str(name or "").strip().lower()
     return any(skill.name == normalized for skill in load_skills())
 
 
@@ -59,6 +128,24 @@ def load_skill_learning() -> dict:
 
 def _suggestion_exists(suggestions: list[dict], pattern_id: str) -> bool:
     return any(isinstance(item, dict) and item.get("pattern_id") == pattern_id for item in suggestions)
+
+
+def _enrich_suggestion(item: dict) -> dict:
+    suggestion = dict(item)
+    examples = [str(example).strip() for example in suggestion.get("examples", []) if str(example).strip()]
+    profile = _suggestion_profile(
+        str(suggestion.get("toolset") or ""),
+        str(suggestion.get("agent") or ""),
+        str(suggestion.get("intent") or ""),
+        examples,
+    )
+    skill_name = str(suggestion.get("skill_name") or profile["skill_name"])
+    suggestion["skill_name"] = skill_name
+    old_title = str(suggestion.get("title") or "").strip().lower()
+    if not old_title or re.match(r"^(?:criar|atualizar) skill de ", old_title):
+        action = "Atualizar" if _skill_exists_for_name(skill_name) else "Criar"
+        suggestion["title"] = str(profile["title"]).replace("Criar skill:", f"{action} skill:", 1)
+    return suggestion
 
 
 def observe_skill_opportunity(
@@ -124,10 +211,15 @@ def observe_skill_opportunity(
         patterns[pattern_id] = pattern
 
         if count >= SUGGESTION_THRESHOLD and not _suggestion_exists(suggestions, pattern_id):
-            action = "Atualizar" if _skill_exists_for_toolset(toolset) else "Criar"
+            profile = _suggestion_profile(str(toolset or ""), str(agent or ""), intent, examples[-5:])
+            action = "Atualizar" if _skill_exists_for_name(profile["skill_name"]) or _skill_exists_for_toolset(toolset) else "Criar"
+            title = str(profile.get("title") or f"{action} skill de {toolset or agent or 'procedimento'}")
+            if action == "Atualizar":
+                title = title.replace("Criar skill:", "Atualizar skill:", 1)
             suggestion = {
                 "pattern_id": pattern_id,
-                "title": f"{action} skill de {toolset or agent or 'procedimento'}",
+                "skill_name": profile["skill_name"],
+                "title": title,
                 "reason": f"Padrao procedural apareceu {count} vezes para {agent or 'agente indefinido'}.",
                 "toolset": str(toolset or ""),
                 "agent": str(agent or ""),
@@ -157,7 +249,7 @@ def observe_skill_opportunity(
 
 def pending_skill_suggestions(limit: int = 5) -> list[dict]:
     suggestions = [
-        item
+        _enrich_suggestion(item)
         for item in load_skill_learning().get("suggestions", [])
         if isinstance(item, dict) and str(item.get("status") or "suggested") == "suggested"
     ]

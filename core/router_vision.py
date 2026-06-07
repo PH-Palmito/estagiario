@@ -18,25 +18,42 @@ FACTUAL_QUESTION_PREFIXES = (
     "como funciona ",
 )
 
+VISUAL_REFERENCE_TERMS = {
+    "isso",
+    "esse",
+    "essa",
+    "desse",
+    "dessa",
+    "tela",
+    "pagina",
+    "site",
+    "imagem",
+    "grafico",
+    "foto",
+    "print",
+    "visual",
+}
+
+GENERAL_EXPLANATION_PREFIXES = (
+    "me explica ",
+    "me explique ",
+    "explica ",
+    "explique ",
+    "detalha ",
+    "detalhe ",
+)
+
 
 def _looks_like_standalone_factual_question(text: str) -> bool:
     if not text.startswith(FACTUAL_QUESTION_PREFIXES):
         return False
-    visual_reference_terms = {
-        "isso",
-        "esse",
-        "essa",
-        "desse",
-        "dessa",
-        "tela",
-        "pagina",
-        "site",
-        "imagem",
-        "grafico",
-        "foto",
-        "print",
-    }
-    return not any(term in text for term in visual_reference_terms)
+    return not any(term in text for term in VISUAL_REFERENCE_TERMS)
+
+
+def _looks_like_standalone_explanation_request(text: str) -> bool:
+    if not text.startswith(GENERAL_EXPLANATION_PREFIXES):
+        return False
+    return not any(term in text for term in VISUAL_REFERENCE_TERMS)
 
 
 def detect_visual_question_command(user_input: str):
@@ -48,6 +65,9 @@ def detect_visual_question_command(user_input: str):
         return None
 
     if _looks_like_standalone_factual_question(lower):
+        return None
+
+    if _looks_like_standalone_explanation_request(lower):
         return None
 
     if re.search(r"\b[a-z]{4}\d{1,2}\b", lower):

@@ -923,6 +923,64 @@
         padding-right: 4px;
       }
 
+      .command-deck-bar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        margin: 12px 0;
+      }
+
+      .command-deck-bar input {
+        min-width: 0;
+        height: 38px;
+        padding: 0 12px;
+        color: var(--text);
+        border: 1px solid rgba(148, 204, 231, 0.16);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.42);
+        outline: none;
+      }
+
+      .command-deck-bar input:focus {
+        border-color: rgba(56, 189, 248, 0.48);
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.08);
+      }
+
+      .command-deck-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: flex-end;
+      }
+
+      .command-deck-filters button {
+        min-height: 30px;
+        padding: 5px 9px;
+        color: var(--soft);
+        border-color: rgba(148, 204, 231, 0.12);
+        background: rgba(4, 10, 17, 0.34);
+        font-size: 10px;
+        text-transform: uppercase;
+      }
+
+      .command-deck-filters button.active {
+        color: var(--text);
+        border-color: rgba(56, 189, 248, 0.42);
+        background: rgba(56, 189, 248, 0.14);
+      }
+
+      .command-deck-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .command-deck-stats .metric {
+        min-height: 58px;
+      }
+
       .command-overlay-head {
         display: flex;
         align-items: center;
@@ -946,6 +1004,7 @@
         border: 1px solid rgba(148, 204, 231, 0.1);
         border-radius: 8px;
         background: rgba(4, 10, 17, 0.32);
+        overflow: hidden;
       }
 
       .command-group h3 {
@@ -958,12 +1017,13 @@
 
       .command-row-item {
         display: grid;
-        grid-template-columns: 34px minmax(90px, 0.8fr) minmax(0, 1.3fr) 84px;
+        grid-template-columns: 30px minmax(82px, 0.7fr) minmax(0, 1.2fr) 72px;
         gap: 8px;
         align-items: center;
         padding: 8px 10px;
         color: var(--soft);
         font-size: 12px;
+        min-width: 0;
       }
 
       .command-row-item + .command-row-item {
@@ -977,6 +1037,9 @@
       .command-row-item code {
         color: var(--dim);
         font-family: "Segoe UI", system-ui, sans-serif;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .command-row-item button {
@@ -1149,6 +1212,36 @@
         color: var(--soft);
         font-size: 11px;
         line-height: 1.25;
+        overflow-wrap: anywhere;
+      }
+
+      .context-timeline {
+        display: grid;
+        gap: 8px;
+        margin: 0 0 12px;
+        padding: 0;
+        list-style: none;
+      }
+
+      .context-timeline li {
+        display: grid;
+        gap: 4px;
+        padding: 9px 10px;
+        border: 1px solid rgba(148, 204, 231, 0.1);
+        border-radius: 8px;
+        background: rgba(4, 10, 17, 0.28);
+        color: var(--soft);
+        font-size: 11px;
+        line-height: 1.35;
+      }
+
+      .context-timeline b {
+        color: var(--text);
+        font-size: 12px;
+        overflow-wrap: anywhere;
+      }
+
+      .context-timeline span {
         overflow-wrap: anywhere;
       }
 
@@ -1751,6 +1844,8 @@
               <div class="context-chip-list" id="contextPostTaskSignals"></div>
               <p class="eyebrow">Historico do Brain</p>
               <div class="context-chip-list" id="contextBrainHistory"></div>
+              <p class="eyebrow">Timeline auditavel</p>
+              <ul class="context-timeline" id="contextBrainTimeline"></ul>
               <p class="eyebrow">Recomendacoes</p>
               <div class="context-chip-list" id="contextBrainRecommendations"></div>
             </div>
@@ -1787,7 +1882,16 @@
               <div class="metric"><span>Voz</span><strong id="commandsVoice">--</strong></div>
               <div class="metric"><span>Modo</span><strong id="commandsMode">--</strong></div>
             </div>
-            <div class="command-overlay-head"><b>COMMAND OVERLAY</b><span id="commandsCount">0 ativos</span></div>
+            <div class="command-deck-stats">
+              <div class="metric"><span>Total</span><strong id="commandsCount">0</strong></div>
+              <div class="metric"><span>Grupos</span><strong id="commandsGroupsCount">0</strong></div>
+              <div class="metric"><span>Filtro</span><strong id="commandsVisibleCount">0</strong></div>
+            </div>
+            <div class="command-deck-bar">
+              <input id="commandDeckSearch" placeholder="Buscar comando" />
+              <div class="command-deck-filters" id="commandDeckFilters"></div>
+            </div>
+            <div class="command-overlay-head"><b>COMMAND DECK</b><span id="commandsActiveFilter">Todos</span></div>
             <div class="command-overlay" id="commandsList"></div>
           </div>
         </div>
@@ -2168,6 +2272,8 @@
       const draggablePanels = new Set();
       let panelPositions = {};
       let dragState = null;
+      let commandDeckFilter = "todos";
+      let commandDeckSearch = "";
 
       const commandGroups = [
         ["Favoritos", [
@@ -2989,7 +3095,7 @@
         setHtml("obsRecentActions", recentActions.length ? recentActions.map((item) => {
           const status = item.success === false ? "falha" : "ok";
           const meta = [item.action_class, item.risk_level, item.decision].filter(Boolean).join(" / ");
-          return `<li><b>${escapeHtml(item.action || "action")}</b><span>${escapeHtml(status)} Â· ${escapeHtml(String(item.duration_ms || 0))}ms Â· ${escapeHtml(meta || "sem meta")}</span></li>`;
+          return `<li><b>${escapeHtml(item.action || "action")}</b><span>${escapeHtml(status)} · ${escapeHtml(String(item.duration_ms || 0))}ms · ${escapeHtml(meta || "sem meta")}</span></li>`;
         }).join("") : "<li>Sem actions recentes.</li>");
 
         const recentModels = Array.isArray(modelTelemetry.recent) ? modelTelemetry.recent.slice(-5).reverse() : [];
@@ -2997,12 +3103,12 @@
           const fallback = item.fallback_used ? " fallback" : "";
           const status = item.success === false ? "falha" : "ok";
           const cost = Number(item.estimated_cost_usd || 0).toFixed(6);
-          return `<li><b>${escapeHtml(item.provider || "modelo")}/${escapeHtml(item.model || "--")}</b><span>${escapeHtml(status + fallback)} Â· ${item.total_tokens_estimate || 0} tok Â· $${cost}</span></li>`;
+          return `<li><b>${escapeHtml(item.provider || "modelo")}/${escapeHtml(item.model || "--")}</b><span>${escapeHtml(status + fallback)} · ${item.total_tokens_estimate || 0} tok · $${cost}</span></li>`;
         }).join("") : "<li>Sem chamadas de modelo registradas.</li>");
 
         setHtml("obsDomains", domainTelemetry.length ? domainTelemetry.map((item) => {
           const errorRate = Math.round((item.error_rate || 0) * 100);
-          return `<li><b>${escapeHtml(item.domain || "geral")}</b><span>${item.actions || 0} actions Â· ${errorRate}% erro Â· ${item.avg_ms || 0}ms med.</span></li>`;
+          return `<li><b>${escapeHtml(item.domain || "geral")}</b><span>${item.actions || 0} actions · ${errorRate}% erro · ${item.avg_ms || 0}ms med.</span></li>`;
         }).join("") : "<li>Sem dominios operacionais recentes.</li>");
       }
 
@@ -3024,7 +3130,7 @@
           : "--";
         setText("routineWeather", weatherText);
         setText("routineStudyMetric", `${study?.minutes_today || 0}/${study?.daily_minutes || 60} min`);
-        setText("routineInvestmentMetric", metricValue(investment, ["rentabilidade", "patrimonio", "patrimÃ´nio"]));
+        setText("routineInvestmentMetric", metricValue(investment, ["rentabilidade", "patrimonio", "patrimônio"]));
         setText("routineHealthMetric", health?.status || "--");
 
         const agendaItems = [
@@ -3060,6 +3166,34 @@
         setHtml(id, values.length
           ? values.map((item) => `<span>${escapeHtml(item)}</span>`).join("")
           : `<span>--</span>`);
+      }
+
+      function renderBrainTimeline(items) {
+        const timeline = Array.isArray(items) ? items.slice(-4).reverse() : [];
+        if (!timeline.length) {
+          setHtml("contextBrainTimeline", `<li><b>Sem auditoria recente</b><span>A timeline aparece apos um comando executado.</span></li>`);
+          return;
+        }
+        setHtml("contextBrainTimeline", timeline.map((item) => {
+          const input = item?.input || "--";
+          const route = [item?.route_group, item?.detector].filter(Boolean).join("/") || "--";
+          const decision = [
+            item?.intent,
+            item?.agent,
+            item?.toolset,
+            item?.risk_level,
+            item?.needs_confirmation ? "confirma sim" : "confirma nao",
+          ].filter(Boolean).join(" / ");
+          const result = item?.result || "--";
+          return `
+            <li>
+              <b>${escapeHtml(input)}</b>
+              <span>Rota: ${escapeHtml(route)}</span>
+              <span>Decisao: ${escapeHtml(decision || "--")}</span>
+              <span>Action: ${escapeHtml(item?.action || "--")} / Resultado: ${escapeHtml(result)}</span>
+            </li>
+          `;
+        }).join(""));
       }
 
       function renderSystemPanels(ui) {
@@ -3110,8 +3244,9 @@
         renderChipList("contextBrainHistory", (ui.axel_brain_history || []).slice(-5), (item) => {
           const intent = item?.intent || "--";
           const profile = item?.safety_profile || item?.channel || "--";
-          return `${intent} · ${profile}`;
+          return `${intent} / ${profile}`;
         });
+        renderBrainTimeline(ui.axel_brain_timeline || []);
         renderChipList("contextBrainRecommendations", ui.axel_brain_history_summary?.recommendations);
 
         setText("commandsVoice", hotword);
@@ -3120,10 +3255,39 @@
 
       function renderCommands() {
         const shell = document.getElementById("commandsList");
+        const filterShell = document.getElementById("commandDeckFilters");
         const count = commandGroups.reduce((total, [, commands]) => total + commands.length, 0);
-        setText("commandsCount", `${count} ativos`);
+        const normalizedSearch = commandDeckSearch.trim().toLowerCase();
+        const activeFilter = commandDeckFilter || "todos";
+        const visibleGroups = commandGroups.map(([group, commands]) => {
+          const groupKey = group.toLowerCase();
+          const filtered = commands.filter(([, label, command]) => {
+            const matchesGroup = activeFilter === "todos" || groupKey === activeFilter;
+            const haystack = `${group} ${label} ${command}`.toLowerCase();
+            const matchesSearch = !normalizedSearch || haystack.includes(normalizedSearch);
+            return matchesGroup && matchesSearch;
+          });
+          return [group, filtered];
+        }).filter(([, commands]) => commands.length);
+        const visibleCount = visibleGroups.reduce((total, [, commands]) => total + commands.length, 0);
+        setText("commandsCount", String(count));
+        setText("commandsGroupsCount", String(commandGroups.length));
+        setText("commandsVisibleCount", String(visibleCount));
+        setText("commandsActiveFilter", activeFilter === "todos" ? "Todos" : activeFilter);
+        if (filterShell && !filterShell.dataset.ready) {
+          const buttons = [["todos", "Todos"], ...commandGroups.map(([group]) => [group.toLowerCase(), group])];
+          filterShell.innerHTML = buttons.map(([key, label]) => `<button type="button" data-command-filter="${key}">${label}</button>`).join("");
+          filterShell.dataset.ready = "1";
+        }
+        document.querySelectorAll("[data-command-filter]").forEach((button) => {
+          button.classList.toggle("active", button.dataset.commandFilter === activeFilter);
+        });
         if (!shell) return;
-        shell.innerHTML = commandGroups.map(([group, commands]) => `
+        if (!visibleGroups.length) {
+          shell.innerHTML = `<section class="command-group"><h3>Sem resultados</h3></section>`;
+          return;
+        }
+        shell.innerHTML = visibleGroups.map(([group, commands]) => `
           <section class="command-group">
             <h3>${group}</h3>
             ${commands.map(([icon, label, command]) => `
@@ -3448,6 +3612,19 @@
         if (!button) return;
         sendCommand(button.dataset.command);
       });
+      document.addEventListener("click", (event) => {
+        const button = event.target?.closest?.("[data-command-filter]");
+        if (!button) return;
+        commandDeckFilter = String(button.dataset.commandFilter || "todos");
+        renderCommands();
+      });
+      const commandDeckSearchInput = document.getElementById("commandDeckSearch");
+      if (commandDeckSearchInput) {
+        commandDeckSearchInput.addEventListener("input", () => {
+          commandDeckSearch = commandDeckSearchInput.value || "";
+          renderCommands();
+        });
+      }
       document.getElementById("sendCommand").addEventListener("click", () => {
         const input = document.getElementById("commandInput");
         const command = attachedStudyFiles.length ? buildAttachedFileCommand(input.value) : input.value;

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from tools.investment_tools import (
     investment_add_watchlist as add_watchlist,
+    investment_daily_change_report as daily_change_report,
     investment_financial_report as financial_report,
     investment_get_auto_ceiling_settings as get_auto_ceiling_settings,
     investment_list_watchlist as list_watchlist,
@@ -22,6 +23,10 @@ def investment_summary() -> str:
 
 def investment_report() -> str:
     return financial_report()
+
+
+def investment_daily_report() -> str:
+    return daily_change_report()
 
 
 def investment_status() -> str:

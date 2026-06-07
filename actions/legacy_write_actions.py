@@ -4,7 +4,7 @@ import json
 
 from actions.registry import ActionSpec, register_action
 from memory.action_memory import remember_memory
-from memory.agenda import add_agenda_item, remove_agenda_item
+from memory.agenda import add_agenda_item, export_agenda_ics, import_agenda_ics, remove_agenda_item
 from memory.reminders import add_reminder, remove_reminder
 
 
@@ -46,6 +46,20 @@ def register_legacy_write_actions() -> None:
     index_param = {"index": {"type": "string", "description": "Numero do item.", "required": True}}
 
     _register("agenda_add", "Adiciona compromisso na agenda local.", lambda args: add_agenda_item(args.get("text", "")), text_param, category="agenda")
+    _register(
+        "agenda_export_ics",
+        "Exporta agenda local para arquivo ICS.",
+        lambda args: export_agenda_ics(args.get("path") or None),
+        {"path": {"type": "string", "description": "Caminho opcional do arquivo ICS."}},
+        category="agenda",
+    )
+    _register(
+        "agenda_import_ics",
+        "Importa compromissos de arquivo ICS para a agenda local.",
+        lambda args: import_agenda_ics(args.get("path", "")),
+        {"path": {"type": "string", "description": "Caminho do arquivo ICS.", "required": True}},
+        category="agenda",
+    )
     _register(
         "agenda_remove",
         "Remove compromisso da agenda local.",

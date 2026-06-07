@@ -4,6 +4,8 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from memory.browser_product_cache import cached_product_items, cheapest_cached_product, describe_cached_product
+
 
 def short_click_query(text: str) -> str:
     normalized = re.sub(r"\s+", " ", text).strip()
@@ -127,6 +129,9 @@ class BrowserListedItemCommands:
 
         elements = self.listed_browser_elements()
         if index > len(elements):
+            cached = cached_product_items()
+            if cached:
+                return describe_cached_product(index)
             return "Ainda nao tenho esse item na lista. Selecione os produtos e diga: ler selecionado."
 
         item = elements[index - 1]
@@ -138,6 +143,8 @@ class BrowserListedItemCommands:
 
         elements = self.listed_browser_elements()
         if not elements:
+            if cached_product_items():
+                return cheapest_cached_product()
             self.describe_screen()
             elements = self.listed_browser_elements()
 

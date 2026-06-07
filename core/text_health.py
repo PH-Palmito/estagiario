@@ -16,9 +16,13 @@ MOJIBAKE_MARKERS = (
     "\u00c3\u00b4",
     "\u00c3\u00b5",
     "\u00c3\u00ba",
-    "\u00c2",
+    "\u00c2\u00a0",
+    "\u00c2\u00b7",
+    "\u00c2\u00ba",
+    "\u00c2\u00aa",
     "\u00e2\u20ac",
     "\u00c4\u0192",
+    "\ufffd",
 )
 
 TEXT_HEALTH_PATTERNS = ("*.py", "*.md", "*.txt", "*.html")
@@ -30,6 +34,7 @@ TEXT_HEALTH_SKIP_PARTS = {
     "models",
     "memory/chunks",
     "backups",
+    "tests",
 }
 
 

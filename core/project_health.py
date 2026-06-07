@@ -281,6 +281,41 @@ def latency_summary(root: Path | None = None, limit: int = 200) -> dict:
     }
 
 
+def format_latency_report(snapshot: dict | None = None) -> str:
+    data = snapshot or latency_summary()
+    measured_count = int(data.get("measured_count") or 0)
+    if not measured_count:
+        return "Latencia do Axel: ainda nao ha comandos medidos no log operacional."
+
+    parts = [
+        "Latencia do Axel: "
+        f"{measured_count} comandos medidos; media {data.get('avg_ms', 0)} ms; "
+        f"{int(data.get('slow_count') or 0)} acima de {data.get('slow_threshold_ms', 1000)} ms."
+    ]
+
+    slowest = data.get("top_slowest_actions") or []
+    if slowest:
+        items = []
+        for item in slowest[:3]:
+            action = str(item.get("action") or "acao").strip() or "acao"
+            items.append(
+                f"{action} max {item.get('max_ms', 0)} ms, media {item.get('avg_ms', 0)} ms"
+            )
+        parts.append("Gargalos recentes: " + "; ".join(items) + ".")
+
+    recommendations = data.get("recommendations") or []
+    if recommendations:
+        advice = recommendations[0]
+        parts.append(
+            "Proxima otimizacao: "
+            f"{advice.get('action', '')} -> {advice.get('mode', '')}; {advice.get('reason', '')}."
+        )
+    else:
+        parts.append("Sem recomendacao automatica de performance no momento.")
+
+    return " ".join(parts)
+
+
 def _telemetry_domain(data: dict) -> str:
     for key in ("category", "group", "toolset", "provider"):
         value = str(data.get(key) or "").strip()
@@ -447,15 +482,26 @@ def _read_tail_text(path: Path, limit: int = 20) -> list[str]:
         return []
 
 
+def _startup_errors_after_latest_bootstrap(lines: list[str]) -> list[str]:
+    latest_start_index = -1
+    for index, line in enumerate(lines):
+        if "Bootstrap do Axel iniciado" in line:
+            latest_start_index = index
+    relevant = lines[latest_start_index + 1 :] if latest_start_index >= 0 else lines
+    error_markers = ("Falha fatal", "PermissionError", "Traceback", "Error:", "FileNotFoundError")
+    return [line for line in relevant if any(marker in line for marker in error_markers)]
+
+
 def startup_health(root: Path | None = None) -> dict:
     project_dir = root or project_root()
     log_path = project_dir / ".tmp" / "axel-startup.log"
     output_log_path = project_dir / ".tmp" / "axel-startup-output.log"
     diagnostic_tail = _read_tail_text(log_path)
     output_tail = _read_tail_text(output_log_path)
-    combined_tail = diagnostic_tail + output_tail
     error_markers = ("Falha fatal", "PermissionError", "Traceback", "Error:")
-    recent_errors = [line for line in combined_tail if any(marker in line for marker in error_markers)]
+    diagnostic_errors = _startup_errors_after_latest_bootstrap(diagnostic_tail)
+    output_errors = [line for line in output_tail if any(marker in line for marker in error_markers)]
+    recent_errors = diagnostic_errors + output_errors
     startup_entry = {}
     try:
         from tools.system_tools import windows_startup_diagnostics
@@ -605,7 +651,6 @@ def format_service_modes(snapshot: dict | None = None) -> str:
 
     investment = always_on.get("investment_background_refresh") or {}
     parts = [
-        "Modos ativos:",
         "carteira em background "
         + _enabled_label(bool(investment.get("enabled")))
         + (" e rodando" if investment.get("started") else ""),
@@ -627,7 +672,7 @@ def format_service_modes(snapshot: dict | None = None) -> str:
         parts.append("toolsets ativos: " + ", ".join(str(item.get("name", "")) for item in toolsets[:6]))
     if agents:
         parts.append("agentes especialistas: " + ", ".join(str(item.get("name", "")) for item in agents[:7]))
-    return "; ".join(parts) + "."
+    return "Modos ativos: " + "; ".join(parts) + "."
 
 
 def format_project_health_panel(snapshot: dict | None = None) -> str:
@@ -743,7 +788,10 @@ def format_project_health_panel(snapshot: dict | None = None) -> str:
         latest = backups.get("latest") or {}
         parts.append(f"Backups de memoria: {backups.get('count')} snapshots; ultimo {latest.get('name', 'indefinido')}.")
     else:
-        parts.append(f"Backups de memoria: nenhum snapshot para {backups.get('critical_files', 0)} arquivos criticos.")
+        parts.append(
+            f"Backups de memoria: nenhum snapshot para {backups.get('critical_files', 0)} arquivos criticos; "
+            "rode --backup-memory antes de refatoracoes."
+        )
     text_findings = text.get("findings") or []
     if text.get("error"):
         parts.append(f"Encoding textual com alerta: {text.get('error')}.")

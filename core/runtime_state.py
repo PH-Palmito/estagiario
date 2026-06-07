@@ -12,6 +12,7 @@ class RuntimeState:
         self.axel_brain_brief = {}
         self.axel_brain_contract = {}
         self.axel_brain_history = []
+        self.axel_brain_timeline = []
         self.last_route_trace = {}
         self.turns_since_long_memory_curated = 0
         self.last_long_memory_curated_at = 0.0
@@ -79,6 +80,8 @@ class RuntimeState:
         if a != "respond":
             self.last_command = command
 
+        self.record_axel_brain_timeline(command, result)
+
     def record_axel_brain_decision(self, plan: dict, contract: dict, route_trace: dict, *, limit: int = 12):
         entry = {
             "intent": str((plan or {}).get("intent") or (contract or {}).get("intent") or ""),
@@ -93,6 +96,88 @@ class RuntimeState:
         self.axel_brain_history.append(entry)
         if len(self.axel_brain_history) > limit:
             self.axel_brain_history = self.axel_brain_history[-limit:]
+        return entry
+
+    def record_axel_brain_timeline(self, command, result, *, limit: int = 20):
+        plan = self.axel_brain_plan if isinstance(self.axel_brain_plan, dict) else {}
+        contract = self.axel_brain_contract if isinstance(self.axel_brain_contract, dict) else {}
+        route_trace = self.last_route_trace if isinstance(self.last_route_trace, dict) else {}
+        policy = contract.get("remote_policy") if isinstance(contract.get("remote_policy"), dict) else {}
+        params = getattr(command, "params", {}) or {}
+        if not isinstance(params, dict):
+            params = {}
+        brief = self.axel_brain_brief if isinstance(self.axel_brain_brief, dict) else {}
+        memory_layers = brief.get("memory_layers") if isinstance(brief.get("memory_layers"), list) else []
+        context_layers = []
+        for layer in memory_layers[:6]:
+            if not isinstance(layer, dict):
+                continue
+            name = str(layer.get("name") or "").strip()
+            if name:
+                context_layers.append(name)
+
+        decision = {
+            "intent": str(route_trace.get("intent") or contract.get("intent") or plan.get("intent") or ""),
+            "agent": str(plan.get("agent") or contract.get("agent") or ""),
+            "toolset": str(plan.get("toolset") or contract.get("toolset") or ""),
+            "risk_level": str(plan.get("risk_level") or contract.get("risk_level") or ""),
+            "reason": str(plan.get("reason") or ""),
+            "confidence": plan.get("confidence"),
+            "response_mode": str(plan.get("response_mode") or ""),
+            "model_policy": str(plan.get("model_policy") or brief.get("model_policy") or ""),
+        }
+        context = {
+            "source": str(route_trace.get("source") or contract.get("source") or ""),
+            "input": str(route_trace.get("input") or contract.get("user_input") or "")[:240],
+            "route_group": str(route_trace.get("group") or ""),
+            "detector": str(route_trace.get("detector") or ""),
+            "intent_level": str(route_trace.get("intent_level") or ""),
+            "complexity": str(route_trace.get("complexity") or ""),
+            "complexity_reason": str(route_trace.get("complexity_reason") or ""),
+            "checked_detectors": route_trace.get("checked_detectors"),
+            "checked_groups": list(route_trace.get("checked_groups") or []) if isinstance(route_trace.get("checked_groups"), list) else [],
+            "memory_layers": context_layers,
+            "channel": str(contract.get("channel") or policy.get("channel") or ""),
+            "safety_profile": str(policy.get("safety_profile") or ""),
+        }
+        execution = {
+            "action": str(getattr(command, "action", "") or ""),
+            "params": dict(params),
+            "needs_confirmation": bool(
+                getattr(command, "requires_confirmation", False)
+                or plan.get("needs_confirmation")
+                or contract.get("needs_confirmation")
+            ),
+            "remote_decision": str(policy.get("decision") or ""),
+            "execution_guidance": str(contract.get("execution_guidance") or policy.get("execution_guidance") or ""),
+        }
+        response = {
+            "final": str(result or "")[:500],
+        }
+
+        entry = {
+            "source": context["source"],
+            "input": context["input"],
+            "route_group": context["route_group"],
+            "detector": context["detector"],
+            "intent": decision["intent"],
+            "agent": decision["agent"],
+            "toolset": decision["toolset"],
+            "risk_level": decision["risk_level"],
+            "needs_confirmation": execution["needs_confirmation"],
+            "channel": context["channel"],
+            "safety_profile": context["safety_profile"],
+            "action": execution["action"],
+            "params": dict(params),
+            "result": response["final"],
+            "decision": decision,
+            "context": context,
+            "execution": execution,
+            "response": response,
+        }
+        self.axel_brain_timeline.append(entry)
+        if len(self.axel_brain_timeline) > limit:
+            self.axel_brain_timeline = self.axel_brain_timeline[-limit:]
         return entry
 
     def axel_brain_history_summary(self) -> dict:

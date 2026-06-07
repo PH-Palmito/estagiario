@@ -239,7 +239,19 @@ def sync_long_memory_note(payload: dict) -> bool:
             if not fact:
                 continue
             source = str(item.get("source", "")).strip()
-            suffix = f" _{source}_" if source else ""
+            confidence = item.get("confidence")
+            validity = str(item.get("validity") or "").strip()
+            reason = str(item.get("reason") or "").strip()
+            meta = []
+            if source:
+                meta.append(f"fonte: {source}")
+            if isinstance(confidence, (int, float)):
+                meta.append(f"confianca: {float(confidence):.2f}")
+            if validity:
+                meta.append(f"validade: {validity}")
+            if reason:
+                meta.append(f"motivo: {reason}")
+            suffix = f" _({' | '.join(meta)})_" if meta else ""
             content.append(f"- {fact}{suffix}")
 
     content.extend(["", "## Estado bruto", _json_block(data)])

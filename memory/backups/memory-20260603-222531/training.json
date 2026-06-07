@@ -1,0 +1,64 @@
+{
+  "completed": [
+    {
+      "date": "2026-05-12",
+      "plan_day": 2,
+      "title": "Empurrar + L-sit",
+      "source": "shifted",
+      "scheduled_label": "Terça",
+      "muscles": [
+        "chest",
+        "shoulders",
+        "triceps",
+        "core"
+      ],
+      "note": "treino de terça",
+      "created_at": "2026-05-15T11:32:58"
+    },
+    {
+      "date": "2026-05-06",
+      "plan_day": 3,
+      "title": "Descanso",
+      "muscles": [],
+      "created_at": "2026-05-15T11:36:38"
+    },
+    {
+      "date": "2026-05-07",
+      "plan_day": 4,
+      "title": "Pernas + Abdômen",
+      "muscles": [
+        "quads",
+        "hamstrings",
+        "calves",
+        "glutes",
+        "core"
+      ],
+      "created_at": "2026-05-15T11:36:39"
+    },
+    {
+      "date": "2026-05-25",
+      "plan_day": 1,
+      "title": "Costas + Bíceps + Core",
+      "muscles": [
+        "back",
+        "biceps",
+        "forearms",
+        "core"
+      ],
+      "created_at": "2026-05-25T12:09:42"
+    }
+  ],
+  "skipped": [],
+  "injuries": {
+    "back": {
+      "created_at": "2026-05-25",
+      "until": "2026-05-28"
+    }
+  },
+  "levels": {},
+  "reminder": {
+    "enabled": true,
+    "time": "19:00",
+    "last_notified_date": "2026-06-03"
+  }
+}

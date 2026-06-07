@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "id": "1778595904370860500",
+      "text": "que eu tenho que comar banho",
+      "due_at": "2026-05-12T11:30",
+      "created_at": "2026-05-12T11:25:04",
+      "notified_at": "2026-05-12T11:30:08"
+    },
+    {
+      "id": "1780413001657073200",
+      "text": "tirar as roupas do varao hj",
+      "due_at": "2026-06-02T15:00",
+      "created_at": "2026-06-02T12:10:01",
+      "notified_at": "2026-06-02T15:38:02"
+    }
+  ]
+}

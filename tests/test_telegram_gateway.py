@@ -40,6 +40,85 @@ class TelegramGatewayTests(unittest.TestCase):
         self.assertEqual(result.text, "Oi.")
         self.assertEqual(result.contract["channel"], "remote")
 
+    def test_parse_voice_message_metadata(self):
+        request = gateway.parse_inbound_update(
+            {
+                "message": {
+                    "chat": {"id": 123},
+                    "voice": {"file_id": "voice-1", "duration": 4, "mime_type": "audio/ogg"},
+                }
+            }
+        )
+
+        self.assertEqual(request.chat_id, "123")
+        self.assertEqual(request.media_kind, "voice")
+        self.assertEqual(request.media_file_id, "voice-1")
+        self.assertEqual(request.media_duration, 4)
+        self.assertEqual(request.media_mime_type, "audio/ogg")
+
+    def test_voice_message_without_transcriber_is_explicit(self):
+        result = gateway.handle_telegram_update(
+            {"message": {"chat": {"id": 123}, "voice": {"file_id": "voice-1"}}},
+            allowed_chat_ids={"123"},
+        )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.status, "audio_transcription_unavailable")
+        self.assertIn("Recebi o audio", result.text)
+
+    def test_voice_message_transcription_reuses_text_flow(self):
+        fake_trace = Mock()
+        fake_trace.match = Mock(
+            result={"intent": "daily_briefing", "target": None},
+            intent_level="pergunta",
+            group_name="daily",
+            detector_name="detect_briefing",
+        )
+        fake_trace.checked_detectors = 2
+        fake_trace.checked_groups = ["daily"]
+        with (
+            patch.object(gateway, "route_trace", return_value=fake_trace),
+            patch.object(gateway, "execute_telegram_command", return_value="Briefing remoto."),
+        ):
+            result = gateway.handle_telegram_update(
+                {"message": {"chat": {"id": 123}, "voice": {"file_id": "voice-1"}}},
+                allowed_chat_ids={"123"},
+                transcribe_audio=lambda request: "briefing",
+            )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.text, "Briefing remoto.")
+        self.assertEqual(result.action, "daily_briefing")
+
+    def test_voice_message_transcription_failure_is_reported(self):
+        def boom(_request):
+            raise RuntimeError("sem codec")
+
+        result = gateway.handle_telegram_update(
+            {"message": {"chat": {"id": 123}, "voice": {"file_id": "voice-1"}}},
+            allowed_chat_ids={"123"},
+            transcribe_audio=boom,
+        )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.status, "audio_transcription_failed")
+        self.assertIn("sem codec", result.text)
+
+    @patch.object(gateway, "maybe_handle_shared_command", return_value="Status do Axel: operacional.")
+    def test_shared_status_command_returns_without_routing_action(self, shared):
+        with patch.object(gateway, "route_trace") as route_trace:
+            result = gateway.handle_telegram_update(
+                {"message": {"chat": {"id": 123}, "text": "/status"}},
+                allowed_chat_ids={"123"},
+            )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.text, "Status do Axel: operacional.")
+        self.assertEqual(result.action, "shared_command")
+        self.assertEqual(shared.call_args.args, ("/status",))
+        self.assertIn("undo_last", shared.call_args.kwargs)
+        route_trace.assert_not_called()
+
     def test_allows_read_command(self):
         fake_trace = Mock()
         fake_trace.match = Mock(
@@ -237,6 +316,18 @@ class TelegramGatewayTests(unittest.TestCase):
         self.assertEqual(pending.status, "blocked")
         self.assertIsNone(pending.reply_markup)
 
+    def test_remote_status_explains_current_permission_limits(self):
+        result = gateway.handle_telegram_update(
+            {"message": {"chat": {"id": 123}, "text": "status remoto"}},
+            allowed_chat_ids={"123"},
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.status, "remote_mode_disabled")
+        self.assertIn("leitura segura", result.text)
+        self.assertIn("midia/volume", result.text)
+        self.assertIn("Bloqueado", result.text)
+
     def test_retry_reuses_last_non_conversation_command(self):
         calls = []
 
@@ -269,6 +360,72 @@ class TelegramGatewayTests(unittest.TestCase):
         self.assertTrue(first.ok)
         self.assertTrue(second.ok)
         self.assertEqual(calls, ["Tem noticias da carteira ?", "Tem noticias da carteira ?"])
+
+    def test_slash_retry_reuses_last_non_conversation_command(self):
+        calls = []
+
+        def fake_route_trace(text):
+            calls.append(text)
+            fake_trace = Mock()
+            fake_trace.match = Mock(
+                result={"intent": "daily_briefing", "target": None},
+                intent_level="pergunta",
+                group_name="daily",
+                detector_name="detect_briefing",
+            )
+            fake_trace.checked_detectors = 2
+            fake_trace.checked_groups = ["daily"]
+            return fake_trace
+
+        with (
+            patch.object(gateway, "route_trace", side_effect=fake_route_trace),
+            patch.object(gateway, "execute_telegram_command", return_value="Briefing."),
+        ):
+            first = gateway.handle_telegram_update(
+                {"message": {"chat": {"id": 123}, "text": "briefing"}},
+                allowed_chat_ids={"123"},
+            )
+            second = gateway.handle_telegram_update(
+                {"message": {"chat": {"id": 123}, "text": "/retry"}},
+                allowed_chat_ids={"123"},
+            )
+
+        self.assertTrue(first.ok)
+        self.assertTrue(second.ok)
+        self.assertEqual(calls, ["briefing", "briefing"])
+
+    def test_undo_cancels_pending_remote_confirmation(self):
+        fake_trace = Mock()
+        fake_trace.match = Mock(
+            result={"intent": "media_play_target", "target": "back in black"},
+            intent_level="comando_direto",
+            group_name="music",
+            detector_name="detect_music",
+        )
+        fake_trace.checked_detectors = 5
+        fake_trace.checked_groups = ["music"]
+        with (
+            patch.object(gateway, "route_trace", return_value=fake_trace),
+            patch.object(gateway, "execute_telegram_command", return_value="Tocando.") as execute_mock,
+        ):
+            pending = gateway.handle_telegram_update(
+                {"message": {"chat": {"id": 123}, "text": "pode tocar back in black?"}},
+                allowed_chat_ids={"123"},
+            )
+            undone = gateway.handle_telegram_update(
+                {"message": {"chat": {"id": 123}, "text": "/undo"}},
+                allowed_chat_ids={"123"},
+            )
+            confirm_after_undo = gateway.handle_telegram_update(
+                {"message": {"chat": {"id": 123}, "text": "confirmar"}},
+                allowed_chat_ids={"123"},
+            )
+
+        self.assertEqual(pending.status, "confirmation_required")
+        self.assertTrue(undone.ok)
+        self.assertIn("pendente cancelada", undone.text)
+        self.assertEqual(confirm_after_undo.status, "confirmation_missing")
+        execute_mock.assert_not_called()
 
 
 if __name__ == "__main__":

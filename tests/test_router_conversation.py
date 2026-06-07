@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from core.router_conversation import (
+    detect_builtin_general_answer,
     detect_question_fallback,
     detect_light_conversation,
     detect_llm_action_command,
@@ -15,6 +16,11 @@ class RouterConversationTests(unittest.TestCase):
     def test_repeat_last(self):
         self.assertEqual(detect_short_unclear_text("repete"), {"intent": "repeat_last", "target": None})
 
+    def test_vague_action_asks_for_target(self):
+        result = detect_short_unclear_text("faz aquilo")
+        self.assertEqual(result["intent"], "respond")
+        self.assertIn("vago", result["response"])
+
     def test_short_unclear_text(self):
         self.assertEqual(
             detect_short_unclear_text("oi"),
@@ -26,6 +32,15 @@ class RouterConversationTests(unittest.TestCase):
             detect_light_conversation("voce consegue conversar?")["intent"],
             "respond",
         )
+
+    def test_builtin_general_answers_common_questions(self):
+        self.assertIn("streamer brasileiro", detect_builtin_general_answer("quem e alanzoca?")["response"])
+        self.assertIn("Nikola Tesla", detect_builtin_general_answer("oq e tesla?")["response"])
+        self.assertIn("caso base", detect_builtin_general_answer("me explique recursao em python")["response"])
+
+    @patch("core.router_conversation.select_read_action", return_value={"name": "background.run_action", "arguments": {"name": "recursao"}})
+    def test_explanation_request_does_not_become_action(self, _select):
+        self.assertIsNone(detect_llm_action_command("me explique recursao em python"))
 
     @patch("core.router_conversation.select_read_action", return_value={"name": "memory.list", "arguments": {"namespace": "general"}})
     def test_llm_action_command(self, _select):

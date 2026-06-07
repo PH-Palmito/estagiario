@@ -13,11 +13,124 @@ class MainStartupFlowTests(unittest.TestCase):
         with (
             patch.object(main, "handle_windows_startup_cli", side_effect=lambda: calls.append("windows") or False),
             patch.object(main, "handle_voice_profile_cli", side_effect=lambda: calls.append("voice") or True),
+            patch.object(main, "handle_setup_cli", side_effect=lambda _flags: calls.append("setup") or False),
+            patch.object(main, "handle_memory_backup_cli", side_effect=lambda _flags: calls.append("backup") or False),
+            patch.object(main, "handle_update_cli", side_effect=lambda _flags: calls.append("update") or False),
+            patch.object(main, "handle_doctor_cli", side_effect=lambda _flags: calls.append("doctor") or False),
             patch.object(main, "handle_audio_diagnostic_cli", side_effect=lambda _flags: calls.append("audio") or False),
         ):
             self.assertTrue(main.handle_startup_cli(flags))
 
         self.assertEqual(calls, ["windows", "voice"])
+
+    def test_handle_startup_cli_runs_doctor_before_audio(self):
+        calls = []
+        flags = SimpleNamespace()
+
+        with (
+            patch.object(main, "handle_windows_startup_cli", side_effect=lambda: calls.append("windows") or False),
+            patch.object(main, "handle_voice_profile_cli", side_effect=lambda: calls.append("voice") or False),
+            patch.object(main, "handle_setup_cli", side_effect=lambda _flags: calls.append("setup") or False),
+            patch.object(main, "handle_memory_backup_cli", side_effect=lambda _flags: calls.append("backup") or False),
+            patch.object(main, "handle_update_cli", side_effect=lambda _flags: calls.append("update") or False),
+            patch.object(main, "handle_doctor_cli", side_effect=lambda _flags: calls.append("doctor") or True),
+            patch.object(main, "handle_audio_diagnostic_cli", side_effect=lambda _flags: calls.append("audio") or False),
+        ):
+            self.assertTrue(main.handle_startup_cli(flags))
+
+        self.assertEqual(calls, ["windows", "voice", "setup", "backup", "update", "doctor"])
+
+    def test_handle_startup_cli_runs_setup_before_backup(self):
+        calls = []
+        flags = SimpleNamespace()
+
+        with (
+            patch.object(main, "handle_windows_startup_cli", side_effect=lambda: calls.append("windows") or False),
+            patch.object(main, "handle_voice_profile_cli", side_effect=lambda: calls.append("voice") or False),
+            patch.object(main, "handle_setup_cli", side_effect=lambda _flags: calls.append("setup") or True),
+            patch.object(main, "handle_memory_backup_cli", side_effect=lambda _flags: calls.append("backup") or False),
+            patch.object(main, "handle_update_cli", side_effect=lambda _flags: calls.append("update") or False),
+            patch.object(main, "handle_doctor_cli", side_effect=lambda _flags: calls.append("doctor") or False),
+            patch.object(main, "handle_audio_diagnostic_cli", side_effect=lambda _flags: calls.append("audio") or False),
+        ):
+            self.assertTrue(main.handle_startup_cli(flags))
+
+        self.assertEqual(calls, ["windows", "voice", "setup"])
+
+    def test_handle_startup_cli_runs_memory_backup_before_doctor(self):
+        calls = []
+        flags = SimpleNamespace()
+
+        with (
+            patch.object(main, "handle_windows_startup_cli", side_effect=lambda: calls.append("windows") or False),
+            patch.object(main, "handle_voice_profile_cli", side_effect=lambda: calls.append("voice") or False),
+            patch.object(main, "handle_setup_cli", side_effect=lambda _flags: calls.append("setup") or False),
+            patch.object(main, "handle_memory_backup_cli", side_effect=lambda _flags: calls.append("backup") or True),
+            patch.object(main, "handle_update_cli", side_effect=lambda _flags: calls.append("update") or False),
+            patch.object(main, "handle_doctor_cli", side_effect=lambda _flags: calls.append("doctor") or False),
+            patch.object(main, "handle_audio_diagnostic_cli", side_effect=lambda _flags: calls.append("audio") or False),
+        ):
+            self.assertTrue(main.handle_startup_cli(flags))
+
+        self.assertEqual(calls, ["windows", "voice", "setup", "backup"])
+
+    def test_handle_doctor_cli_prints_health_panel(self):
+        calls = []
+
+        with (
+            patch.object(main, "format_project_health_panel", return_value="Saude do Axel: projeto saudavel."),
+            patch.object(main, "print", side_effect=lambda message: calls.append(message)),
+        ):
+            handled = main.handle_doctor_cli(SimpleNamespace(doctor_requested=True))
+
+        self.assertTrue(handled)
+        self.assertEqual(calls, ["Saude do Axel: projeto saudavel."])
+
+    def test_handle_doctor_cli_replaces_unprintable_characters(self):
+        self.assertEqual(main.safe_console_text("texto \ufffd quebrado", encoding="cp1252"), "texto ? quebrado")
+
+    def test_handle_setup_cli_prints_setup_report(self):
+        calls = []
+
+        with (
+            patch.object(main, "format_setup_report", return_value="Setup do Axel: pronto."),
+            patch.object(main, "print", side_effect=lambda message: calls.append(message)),
+        ):
+            handled = main.handle_setup_cli(SimpleNamespace(setup_requested=True))
+
+        self.assertTrue(handled)
+        self.assertEqual(calls, ["Setup do Axel: pronto."])
+
+    def test_handle_memory_backup_cli_creates_snapshot(self):
+        calls = []
+        result = SimpleNamespace(
+            backup_dir=main.Path("memory/backups/memory-20260603-120000"),
+            copied=["ui_state.json", "voice_preferences.json"],
+            skipped=["agenda.json"],
+            manifest_path=main.Path("memory/backups/memory-20260603-120000/manifest.json"),
+        )
+
+        with (
+            patch.object(main, "create_memory_backup", return_value=result),
+            patch.object(main, "print", side_effect=lambda message: calls.append(message)),
+        ):
+            handled = main.handle_memory_backup_cli(SimpleNamespace(memory_backup_requested=True))
+
+        self.assertTrue(handled)
+        self.assertIn("Backup de memoria criado: memory-20260603-120000.", calls[0])
+        self.assertIn("Arquivos copiados: 2; ausentes: 1.", calls[0])
+
+    def test_handle_update_cli_prints_update_report(self):
+        calls = []
+
+        with (
+            patch.object(main, "format_update_report", return_value="Update do Axel: pronto para plano manual."),
+            patch.object(main, "print", side_effect=lambda message: calls.append(message)),
+        ):
+            handled = main.handle_update_cli(SimpleNamespace(update_requested=True))
+
+        self.assertTrue(handled)
+        self.assertEqual(calls, ["Update do Axel: pronto para plano manual."])
 
     def test_initialize_runtime_services_starts_ui_only_when_requested(self):
         calls = []

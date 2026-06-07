@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import time
 
+from memory.browser_product_cache import save_product_snapshot
 from memory.vision_history import remember_vision_analysis
 
 LAST_BROWSER_ELEMENTS = []
@@ -24,6 +25,10 @@ def set_browser_elements(elements, context: str = ""):
 
     LAST_BROWSER_ELEMENTS = list(elements)
     LAST_BROWSER_CONTEXT = context
+    try:
+        save_product_snapshot(LAST_BROWSER_ELEMENTS, context=context)
+    except Exception:
+        pass
 
 
 def remember_text_items(lines, context: str = ""):

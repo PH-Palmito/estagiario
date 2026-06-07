@@ -3,6 +3,7 @@ from __future__ import annotations
 from actions.background_actions import register_background_actions
 from actions.file_actions import register_file_actions
 from actions.investment_actions import register_investment_actions
+from actions.keyboard_led_actions import register_keyboard_led_actions
 from actions.legacy_browser_actions import register_legacy_browser_actions
 from actions.legacy_control_actions import register_legacy_control_actions
 from actions.legacy_misc_actions import register_legacy_misc_actions
@@ -33,6 +34,7 @@ def ensure_default_actions() -> None:
     register_telegram_actions()
     register_whatsapp_actions()
     register_investment_actions()
+    register_keyboard_led_actions()
     register_legacy_read_actions()
     register_legacy_write_actions()
     register_legacy_sensitive_actions()

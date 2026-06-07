@@ -41,6 +41,21 @@ class RouterVisionTests(unittest.TestCase):
         self.assertIsNone(detect_visual_question_command("oq é tesla?"))
         self.assertIsNone(detect_visual_question_command("quem é alanzoca"))
 
+    @patch("core.router_vision.time.time", return_value=1000.0)
+    @patch("core.router_vision.load_current_topic", return_value={})
+    @patch("core.router_vision.last_vision_item", return_value={"created_at": 950.0})
+    def test_standalone_explanation_question_is_not_visual(self, _last_item, _topic, _time):
+        self.assertIsNone(detect_visual_question_command("me explique recursao em python"))
+
+    @patch("core.router_vision.time.time", return_value=1000.0)
+    @patch("core.router_vision.load_current_topic", return_value={})
+    @patch("core.router_vision.last_vision_item", return_value={"created_at": 950.0})
+    def test_explanation_about_screen_still_uses_visual_context(self, _last_item, _topic, _time):
+        self.assertEqual(
+            detect_visual_question_command("me explique essa tela"),
+            {"intent": "vision_answer_question", "target": "me explique essa tela"},
+        )
+
     @patch("core.router_vision.docs_context_relevant", return_value=True)
     def test_docs_context_is_not_visual(self, _docs):
         self.assertIsNone(detect_visual_question_command("qual funcao faz isso?"))

@@ -164,6 +164,41 @@ def detect_telegram_bridge_command(user_input: str):
     return None
 
 
+def detect_keyboard_led_command(user_input: str):
+    lower = normalize_text(user_input)
+    if "led" not in lower or "teclado" not in lower:
+        return None
+
+    if any(term in lower for term in {"status", "estado", "como esta"}):
+        return {"intent": "keyboard_led_status", "target": None}
+    if any(term in lower for term in {"deslig", "apagar", "off"}):
+        return {"intent": "keyboard_led_off", "target": None}
+
+    colors = (
+        "vermelho",
+        "verde",
+        "azul",
+        "branco",
+        "amarelo",
+        "roxo",
+        "rosa",
+        "ciano",
+    )
+    effects = ("static", "fixo", "pulso", "respirar", "alerta", "foco", "escuta")
+    target = {
+        "color": next((color for color in colors if color in lower), ""),
+        "profile": "",
+        "effect": next((effect for effect in effects if effect in lower), ""),
+    }
+    if "perfil" in lower:
+        match = re.search(r"perfil\s+([\w-]+)", lower)
+        if match:
+            target["profile"] = match.group(1)
+    if any(term in lower for term in {"lig", "acender", "ativar", "on"}):
+        return {"intent": "keyboard_led_on", "target": target}
+    return {"intent": "keyboard_led_set", "target": target}
+
+
 def detect_type_text(user_input: str):
     lower = normalize_text(user_input)
     compact_lower = re.sub(r"[:\-]+", " ", lower)
@@ -190,6 +225,7 @@ SYSTEM_DETECTORS = (
     detect_windows_startup_command,
     detect_background_status_command,
     detect_telegram_bridge_command,
+    detect_keyboard_led_command,
     detect_whatsapp_bridge_command,
     detect_run_script,
 )

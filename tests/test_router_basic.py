@@ -45,6 +45,16 @@ class RouterBasicTests(unittest.TestCase):
             },
         )
 
+    def test_presence_check(self):
+        self.assertEqual(
+            detect_greeting("esta ai?"),
+            {"intent": "respond", "target": None, "response": "Estou aqui."},
+        )
+        self.assertEqual(
+            detect_greeting("axel?"),
+            {"intent": "respond", "target": None, "response": "Estou aqui."},
+        )
+
     def test_introduction(self):
         with TemporaryDirectory() as temp_dir, patch(
             "memory.assistant_customization.CUSTOMIZATION_PATH",

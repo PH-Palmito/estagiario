@@ -1,0 +1,23 @@
+{
+  "created_at": 1780536331.5666683,
+  "files": [
+    "ui_state.json",
+    "ui_commands.json",
+    "voice_preferences.json",
+    "voice_corrections.json",
+    "tts_pronunciations.json",
+    "training.json",
+    "agenda.json",
+    "reminders.json",
+    "operational_context.json",
+    "operational_memory.json",
+    "long_memory.json",
+    "current_topic.json",
+    "vision_history.json",
+    "macros.json",
+    "assistant_phrase_state.json"
+  ],
+  "skipped": [
+    "action_memory.json"
+  ]
+}

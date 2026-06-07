@@ -44,6 +44,12 @@ class RouterInvestmentsTests(unittest.TestCase):
             {"intent": "investment_financial_report", "target": None},
         )
 
+    def test_detects_daily_report(self):
+        self.assertEqual(
+            detect_investment_question_command("o que mudou na carteira desde ontem"),
+            {"intent": "investment_daily_report", "target": None},
+        )
+
     def test_detects_portfolio_monitor(self):
         self.assertEqual(
             detect_investment_question_command("monitor proativo da carteira"),

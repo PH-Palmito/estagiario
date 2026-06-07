@@ -119,6 +119,38 @@ class InvestmentSnapshotTests(unittest.TestCase):
         self.assertIn("BBAS3", result)
         self.assertIn("valor de R$ 0,50 por cota", result)
 
+    def test_daily_change_report_compares_history_and_current_snapshot(self):
+        history = {
+            "items": [
+                {
+                    "date": "2026-06-05",
+                    "updated_at": 1_780_000_000,
+                    "patrimonio_value": 9500.0,
+                    "rentabilidade_percent": 10.0,
+                },
+                {
+                    "date": "2026-06-06",
+                    "updated_at": 1_780_086_400,
+                    "patrimonio_value": 10000.0,
+                    "rentabilidade_percent": 12.0,
+                },
+            ]
+        }
+        with (
+            patch.object(inv, "load_investment_snapshot", return_value=self.snapshot),
+            patch.object(inv, "_load_json", return_value=history),
+            patch.object(inv, "_portfolio_items_above_ceiling", return_value=[]),
+            patch.object(inv, "_portfolio_news_digest", return_value=["BBAS3: noticia relevante."]),
+        ):
+            result = inv.format_investment_daily_change_report()
+
+        self.assertIn("Resumo diario da carteira", result)
+        self.assertIn("Comparando 2026-06-06 com 2026-06-05", result)
+        self.assertIn("Patrimonio R$ 10.000,00, subiu R$ 500,00", result)
+        self.assertIn("Rentabilidade 12,00%, subiu 2,00%", result)
+        self.assertIn("BBAS3 1,20%", result)
+        self.assertIn("Dividendos no radar", result)
+
     def test_price_ceiling_question_uses_saved_strategy(self):
         with patch.object(inv, "load_investment_snapshot", return_value=self.snapshot), patch.object(inv, "get_asset_strategy", side_effect=fake_strategy):
             result = inv.answer_investment_snapshot_question("preco teto de BBAS3")

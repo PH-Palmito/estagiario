@@ -13,6 +13,13 @@ from memory.ui_state import load_ui_state
 LONG_MEMORY_PATH = Path("memory/long_memory.json")
 MAX_ITEMS = 240
 MAX_ITEMS_PER_CATEGORY = 60
+DEFAULT_VALIDITY_DAYS = {
+    "context": 180,
+    "decision": 365,
+    "future": 365,
+    "project": 365,
+    "preference": 0,
+}
 
 
 def _compact(text: str) -> str:
@@ -31,6 +38,37 @@ def _normalize_key(text: str) -> str:
 def _tokens(text: str) -> set[str]:
     normalized = re.sub(r"[^\w\s/-]", " ", str(text or "").lower())
     return {token for token in normalized.split() if len(token) >= 3}
+
+
+def _default_reason(category: str, source: str) -> str:
+    source_text = str(source or "manual").strip()
+    if source_text == "manual":
+        return "memoria registrada manualmente"
+    if source_text in {"conversation", "ui-history"}:
+        return "padrao relevante observado na conversa"
+    if source_text == "manual-long-memory":
+        return "pedido explicito do usuario para memoria longa"
+    return f"memoria registrada por {source_text}"
+
+
+def _validity_payload(category: str, now: float, validity_days: int | float | None) -> tuple[str, float]:
+    days = DEFAULT_VALIDITY_DAYS.get(str(category or "context"), DEFAULT_VALIDITY_DAYS["context"])
+    if validity_days is not None:
+        try:
+            days = max(0, int(float(validity_days)))
+        except Exception:
+            days = DEFAULT_VALIDITY_DAYS["context"]
+    if int(days) <= 0:
+        return "durable", 0.0
+    return f"{int(days)}d", now + (int(days) * 86400)
+
+
+def _is_expired(item: dict, now: float | None = None) -> bool:
+    try:
+        expires_at = float(item.get("expires_at") or 0.0)
+    except Exception:
+        expires_at = 0.0
+    return bool(expires_at and expires_at < float(now or time.time()))
 
 
 def load_long_memory() -> dict:
@@ -55,6 +93,76 @@ def _prune_items(items: list[dict]) -> list[dict]:
 
     pruned.sort(key=lambda item: float(item.get("updated_at") or item.get("created_at") or 0), reverse=True)
     return pruned[:MAX_ITEMS]
+
+
+def _dedupe_key(item: dict) -> str:
+    category = str(item.get("category") or "context").strip() or "context"
+    fact = str(item.get("fact") or "").strip()
+    return _normalize_key(f"{category}:{fact}")
+
+
+def _merge_memory_items(existing: dict, candidate: dict) -> dict:
+    merged = dict(existing)
+    merged["seen_count"] = int(existing.get("seen_count") or 1) + int(candidate.get("seen_count") or 1)
+    merged["confidence"] = max(float(existing.get("confidence") or 0.0), float(candidate.get("confidence") or 0.0))
+    merged["created_at"] = min(float(existing.get("created_at") or 0.0), float(candidate.get("created_at") or 0.0))
+    merged["updated_at"] = max(float(existing.get("updated_at") or 0.0), float(candidate.get("updated_at") or 0.0))
+
+    for key in ("source", "reason", "validity", "expires_at"):
+        if not merged.get(key) and candidate.get(key):
+            merged[key] = candidate.get(key)
+    if candidate.get("source") and candidate.get("source") != merged.get("source"):
+        sources = [str(item).strip() for item in str(merged.get("source") or "").split("+") if str(item).strip()]
+        next_source = str(candidate.get("source") or "").strip()
+        if next_source and next_source not in sources:
+            sources.append(next_source)
+        merged["source"] = "+".join(sources[:4])
+    return merged
+
+
+def clean_long_memory(*, now: float | None = None) -> dict:
+    current_time = float(now or time.time())
+    items = [item for item in load_long_memory().get("items", []) if isinstance(item, dict)]
+    expired_removed = 0
+    duplicates_merged = 0
+    merged_by_key: dict[str, dict] = {}
+
+    for item in items:
+        fact = str(item.get("fact") or "").strip()
+        if not fact:
+            expired_removed += 1
+            continue
+        if _is_expired(item, current_time):
+            expired_removed += 1
+            continue
+        key = str(item.get("id") or _dedupe_key(item))
+        normalized = dict(item)
+        normalized["id"] = key
+        if key in merged_by_key:
+            merged_by_key[key] = _merge_memory_items(merged_by_key[key], normalized)
+            duplicates_merged += 1
+        else:
+            merged_by_key[key] = normalized
+
+    before = len(items)
+    cleaned_items = _prune_items(list(merged_by_key.values()))
+    payload = save_long_memory({"items": cleaned_items})
+    return {
+        "before": before,
+        "after": len(payload.get("items") or []),
+        "expired_removed": expired_removed,
+        "duplicates_merged": duplicates_merged,
+    }
+
+
+def format_clean_long_memory_report() -> str:
+    result = clean_long_memory()
+    return (
+        "Memoria longa limpa: "
+        f"{result['before']} -> {result['after']} itens; "
+        f"vencidas removidas {result['expired_removed']}; "
+        f"duplicatas mescladas {result['duplicates_merged']}."
+    )
 
 
 def save_long_memory(data: dict) -> dict:
@@ -85,7 +193,15 @@ def _update_long_memory(updater) -> dict:
     return payload
 
 
-def remember_fact(fact: str, category: str = "context", source: str = "manual", confidence: float = 0.75) -> bool:
+def remember_fact(
+    fact: str,
+    category: str = "context",
+    source: str = "manual",
+    confidence: float = 0.75,
+    *,
+    validity_days: int | float | None = None,
+    reason: str = "",
+) -> bool:
     fact = _compact(fact)
     if len(fact) < 12:
         return False
@@ -93,6 +209,8 @@ def remember_fact(fact: str, category: str = "context", source: str = "manual", 
     category = category if category in {"preference", "decision", "project", "future", "context"} else "context"
     key = _normalize_key(f"{category}:{fact}")
     now = time.time()
+    validity, expires_at = _validity_payload(category, now, validity_days)
+    reason_text = _compact(reason, ) or _default_reason(category, source)
 
     created = False
 
@@ -104,6 +222,10 @@ def remember_fact(fact: str, category: str = "context", source: str = "manual", 
                 item["updated_at"] = now
                 item["seen_count"] = int(item.get("seen_count") or 1) + 1
                 item["source"] = source
+                item["confidence"] = max(float(item.get("confidence") or 0.0), float(confidence))
+                item["validity"] = item.get("validity") or validity
+                item["expires_at"] = item.get("expires_at") or expires_at
+                item["reason"] = item.get("reason") or reason_text
                 created = False
                 return {"items": items}
 
@@ -114,6 +236,9 @@ def remember_fact(fact: str, category: str = "context", source: str = "manual", 
                 "fact": fact,
                 "source": source,
                 "confidence": float(confidence),
+                "validity": validity,
+                "expires_at": expires_at,
+                "reason": reason_text,
                 "created_at": now,
                 "updated_at": now,
                 "seen_count": 1,
@@ -221,8 +346,11 @@ def format_long_memory(limit: int = 12) -> str:
     for item in items[: max(1, int(limit))]:
         category = str(item.get("category", "context")).strip()
         fact = str(item.get("fact", "")).strip()
+        source = str(item.get("source", "")).strip()
+        confidence = float(item.get("confidence") or 0.0)
+        validity = str(item.get("validity") or "durable").strip()
         if fact:
-            rows.append(f"{category}: {fact}")
+            rows.append(f"{category} [fonte {source or 'sem fonte'}, conf {confidence:.2f}, validade {validity}]: {fact}")
     return "Memoria longa: " + " ; ".join(rows) + "."
 
 
@@ -234,6 +362,8 @@ def search_long_memory(query: str, limit: int = 5) -> list[dict]:
     now = time.time()
     scored = []
     for item in list(load_long_memory().get("items") or []):
+        if _is_expired(item, now):
+            continue
         fact = str(item.get("fact", "")).strip()
         if not fact:
             continue
@@ -270,5 +400,8 @@ def format_relevant_long_memory(query: str, limit: int = 4) -> str:
         fact = str(item.get("fact", "")).strip()
         score = float(item.get("score") or 0.0)
         if fact:
-            rows.append(f"{category}({score:.2f}): {fact}")
+            source = str(item.get("source") or "sem fonte").strip()
+            confidence = float(item.get("confidence") or 0.0)
+            validity = str(item.get("validity") or "durable").strip()
+            rows.append(f"{category}({score:.2f}, fonte {source}, conf {confidence:.2f}, validade {validity}): {fact}")
     return "Memorias relevantes: " + " ; ".join(rows) + "."

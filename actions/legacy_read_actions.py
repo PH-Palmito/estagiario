@@ -5,7 +5,8 @@ import json
 from actions.registry import ActionSpec, list_actions, register_action
 from file_processor.processor import process_file
 from memory.action_memory import list_memory_entries, recall_memory
-from memory.agenda import list_agenda_all, list_agenda_today, list_agenda_tomorrow
+from memory.browser_product_cache import cheapest_cached_product, format_cached_products
+from memory.agenda import calendar_sync_status, list_agenda_all, list_agenda_today, list_agenda_tomorrow
 from memory.reminders import list_reminders
 from memory.vision_history import format_vision_history
 from services import briefing_service, investment_service, vision_service
@@ -92,6 +93,7 @@ def register_legacy_read_actions() -> None:
     _register("agenda_list_today", "Lista agenda de hoje.", lambda _args: list_agenda_today(), category="agenda")
     _register("agenda_list_tomorrow", "Lista agenda de amanha.", lambda _args: list_agenda_tomorrow(), category="agenda")
     _register("agenda_list_all", "Lista toda a agenda salva.", lambda _args: list_agenda_all(), category="agenda")
+    _register("agenda_calendar_status", "Mostra status da integracao de calendario.", lambda _args: calendar_sync_status(), category="agenda")
     _register(
         "investment_memory_answer",
         "Responde pergunta usando memoria local de investimentos.",
@@ -101,6 +103,7 @@ def register_legacy_read_actions() -> None:
     )
     _register("investment_memory_summary", "Resume a carteira salva.", lambda _args: investment_service.investment_summary(), category="investments")
     _register("investment_financial_report", "Gera relatorio financeiro da carteira.", lambda _args: investment_service.investment_report(), category="investments")
+    _register("investment_daily_report", "Resume o que mudou na carteira desde o ultimo dia salvo.", lambda _args: investment_service.investment_daily_report(), category="investments")
     _register("investment_portfolio_monitor", "Executa monitor proativo local da carteira.", lambda _args: investment_service.investment_monitor(), category="investments")
     _register("investment_memory_status", "Mostra status da memoria de investimentos.", lambda _args: investment_service.investment_status(), category="investments")
     _register("investment_list_watchlist", "Lista watchlist de investimentos.", lambda _args: investment_service.list_watchlist(), category="investments")
@@ -125,6 +128,8 @@ def register_legacy_read_actions() -> None:
     )
     _register("action_tool_list", "Lista actions registradas.", lambda args: _tool_catalog_text(args.get("category") or None), category="actions")
     _register("action_tool_schema", "Mostra schemas das actions registradas.", lambda args: _format_result(_tool_definitions(args.get("category") or None)), category="actions")
+    _register("browser_products_cache", "Lista produtos recentes em cache do navegador.", lambda _args: format_cached_products(), category="browser")
+    _register("browser_products_cheapest_cache", "Mostra produto mais barato no cache recente do navegador.", lambda _args: cheapest_cached_product(), category="browser")
     _register(
         "action_file_process",
         "Detecta tipo de arquivo e extrai uma previa estruturada.",

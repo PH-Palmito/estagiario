@@ -1,12 +1,21 @@
+import builtins
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from zipfile import ZipFile
 
-from core.study_file_analysis import analyze_study_files, answer_study_followup, parse_study_file_command
-from file_processor.extractors import _extract_pdf_text_ocr, extract_pdf
+from core.study_file_analysis import analyze_study_files, answer_study_followup, parse_study_file_command, run_study_file_self_test
+from core.study_file_analysis import STUDY_ANALYSIS_CACHE_VERSION
+from file_processor.extractors import (
+    _clean_pdf_symbol_noise,
+    _extract_pdf_text_ocr,
+    _ocr_page_text_is_better,
+    _pdf_page_needs_ocr,
+    extract_pdf,
+)
 from file_processor.processor import process_file
+from memory.study_context import clear_study_context, load_study_context, save_study_context
 
 
 def write_minimal_pptx(path: Path, slide_texts: list[str]) -> None:
@@ -23,6 +32,15 @@ def write_minimal_pptx(path: Path, slide_texts: list[str]) -> None:
 
 
 class StudyFileAnalysisTests(unittest.TestCase):
+    def setUp(self):
+        self._study_context_backup = load_study_context()
+
+    def tearDown(self):
+        if self._study_context_backup:
+            save_study_context(self._study_context_backup)
+        else:
+            clear_study_context()
+
     def test_parse_attached_file_command_with_json_paths(self):
         result = parse_study_file_command(
             'analisar arquivos anexados: ["C:/a/aula.pptx","C:/a/resumo.pdf"] :: gere questoes'
@@ -282,6 +300,52 @@ class StudyFileAnalysisTests(unittest.TestCase):
         self.assertIn("n", result.lower())
         self.assertNotIn("formato de slides", result)
 
+    def test_analyze_study_files_reuses_cached_identical_request(self):
+        fake_context = {
+            "source": "attached_files",
+            "request": "oq tem na pagina 4?",
+            "analysis_cache_version": STUDY_ANALYSIS_CACHE_VERSION,
+            "files": [{"path": "C:/fake/RedesBasico.pdf", "name": "RedesBasico.pdf"}],
+            "last_response": "Resposta em cache da pagina 4.",
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context), patch(
+            "core.study_file_analysis.process_file"
+        ) as process:
+            result = analyze_study_files(["C:/fake/RedesBasico.pdf"], request="oq tem na pagina 4?")
+
+        self.assertEqual(result, "Resposta em cache da pagina 4.")
+        process.assert_not_called()
+
+    def test_analyze_study_files_reuses_cached_pages_for_new_page_request(self):
+        fake_context = {
+            "source": "attached_files",
+            "request": "oq tem na pagina 4?",
+            "analysis_cache_version": STUDY_ANALYSIS_CACHE_VERSION,
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "raw_text": "Redes de Computadores Comunicacao Digital",
+                    "text": "Redes de Computadores Comunicacao Digital",
+                    "topic": "Redes de Computadores",
+                    "pages": [
+                        {"index": 4, "text": "Conceitos Basicos"},
+                        {"index": 5, "text": "Meios Fisicos"},
+                    ],
+                }
+            ],
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context), patch(
+            "core.study_file_analysis.process_file"
+        ) as process:
+            result = analyze_study_files(["C:/fake/RedesBasico.pdf"], request="oq tem na pagina 5?")
+
+        self.assertIn("página 5", result)
+        self.assertIn("Meios Fisicos", result)
+        process.assert_not_called()
+
     def test_analyze_general_cv_does_not_use_study_framing(self):
         fake_result = {
             "ok": True,
@@ -465,6 +529,159 @@ endstream endobj
 
         self.assertIn("Testes", result["text"])
         self.assertEqual(result["engine"], "basic_cmap")
+
+    def test_pdf_extractor_basic_fallback_keeps_page_texts(self):
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "pages.pdf"
+            path.write_bytes(
+                b"""
+1 0 obj << /Type /Page /Contents 4 0 R >> endobj
+2 0 obj << /Type /Page /Contents 5 0 R >> endobj
+4 0 obj << /Length 40 /Filter /FlateDecode >> stream
+""" + __import__("zlib").compress(b"BT (Capa da aula) Tj ET") + b"""
+endstream endobj
+5 0 obj << /Length 60 /Filter /FlateDecode >> stream
+""" + __import__("zlib").compress(b"BT (Comunicacao Digital e Conceitos Basicos) Tj ET") + b"""
+endstream endobj
+"""
+            )
+
+            result = extract_pdf(str(path))
+
+        self.assertGreaterEqual(len(result["pages"]), 2)
+        self.assertIn("Capa da aula", result["pages"][0]["text"])
+        self.assertIn("Comunicacao Digital", result["pages"][1]["text"])
+
+    def test_pdf_extractor_basic_fallback_joins_fragmented_literals(self):
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "fragmented.pdf"
+            path.write_bytes(
+                b"""
+1 0 obj << /Type /Page /Contents 4 0 R >> endobj
+4 0 obj << /Length 80 /Filter /FlateDecode >> stream
+""" + __import__("zlib").compress(
+                    b"BT (R) Tj (e) Tj (d) Tj (e) Tj (s) Tj ( ) Tj (de) Tj ( ) Tj (Computadores) Tj ET"
+                ) + b"""
+endstream endobj
+"""
+            )
+
+            result = extract_pdf(str(path))
+
+        self.assertIn("Redes de Computadores", result["text"])
+        self.assertIn("Redes de Computadores", result["pages"][0]["text"])
+        self.assertNotIn("(R)", result["pages"][0]["text"])
+
+    def test_pdf_extractor_basic_fallback_filters_symbol_noise_between_text(self):
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "noisy_slide.pdf"
+            path.write_bytes(
+                b"""
+1 0 obj << /Type /Page /Contents 4 0 R >> endobj
+4 0 obj << /Length 120 /Filter /FlateDecode >> stream
+""" + __import__("zlib").compress(
+                    b'BT (Redes de Computadores) Tj ( ) Tj (Professor: Marco Antonio C. Camara) Tj '
+                    b'(!"#$%&\\(\\)*"+F+>&-&.\\(/+G+?&-<\\(\\)) Tj '
+                    b'( ) Tj (Comunicacao Digital) Tj ET'
+                ) + b"""
+endstream endobj
+"""
+            )
+
+            result = extract_pdf(str(path))
+
+        page_text = result["pages"][0]["text"]
+        self.assertIn("Redes de Computadores", page_text)
+        self.assertIn("Professor: Marco Antonio C. Camara", page_text)
+        self.assertIn("Comunicacao Digital", page_text)
+        self.assertNotIn("#$%&", page_text)
+        self.assertNotIn("+>&-&", page_text)
+
+    def test_pdf_extractor_basic_fallback_filters_symbol_noise_glued_to_words(self):
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "noisy_glued_slide.pdf"
+            path.write_bytes(
+                b"""
+1 0 obj << /Type /Page /Contents 4 0 R >> endobj
+4 0 obj << /Length 180 /Filter /FlateDecode >> stream
+""" + __import__("zlib").compress(
+                    b"BT (Redes de Computadores Professor: Marco Antonio C. Camara) Tj "
+                    b'(Agenda!"#$%&\'\\(\\)*"+, &-&.\\(/+0+!"%"1+231&\'"1+456+0+768+91+:+0/0#0%."1+;<+>"1+?0&"1) Tj '
+                    b"(Conceitos Basicos) Tj ET"
+                ) + b"""
+endstream endobj
+"""
+            )
+
+            result = extract_pdf(str(path))
+
+        page_text = result["pages"][0]["text"]
+        self.assertIn("Redes de Computadores", page_text)
+        self.assertIn("Agenda", page_text)
+        self.assertIn("Conceitos Basicos", page_text)
+        self.assertNotIn("#$%&", page_text)
+        self.assertNotIn("231&", page_text)
+
+    def test_pdf_extractor_replaces_noisy_page_with_page_ocr(self):
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "page_ocr.pdf"
+            path.write_bytes(
+                b"""
+1 0 obj << /Type /Page /Contents 4 0 R >> endobj
+4 0 obj << /Length 180 /Filter /FlateDecode >> stream
+""" + __import__("zlib").compress(
+                    b"BT (Redes de Computadores) Tj "
+                    b"(a#b%c&d*e+f<g=h>i@j k#l%m&n*o+p<q=r>s@t) Tj "
+                    b"(Conceitos Basicos) Tj ET"
+                ) + b"""
+endstream endobj
+"""
+            )
+
+            original_import = builtins.__import__
+
+            def fake_import(name, *args, **kwargs):
+                if name == "pypdf":
+                    raise ImportError("pypdf unavailable in fallback test")
+                return original_import(name, *args, **kwargs)
+
+            with patch("builtins.__import__", side_effect=fake_import), patch(
+                "file_processor.extractors._pdf_page_needs_ocr",
+                return_value=True,
+            ), patch(
+                "file_processor.extractors._extract_pdf_pages_ocr",
+                return_value={1: "Redes de Computadores Agenda Conceitos Basicos"},
+            ) as page_ocr:
+                result = extract_pdf(str(path))
+
+        page_ocr.assert_called_once()
+        self.assertIn("page_ocr", result["engine"])
+        self.assertEqual(result["pages"][0]["text"], "Redes de Computadores Agenda Conceitos Basicos")
+
+    def test_pdf_page_ocr_detector_catches_short_mixed_symbol_noise(self):
+        self.assertTrue(_pdf_page_needs_ocr('I%.0<BK+\'\\(L"1K+0E M H N M+O K+<Conceitos Bsicos'))
+
+    def test_pdf_page_ocr_detector_catches_c1_mojibake(self):
+        self.assertTrue(_pdf_page_needs_ocr("Redes de Computadores Professor: Marco Ant\x99nio C. C\x89maraAgenda C"))
+
+    def test_pdf_text_cleanup_repairs_observed_c1_mojibake(self):
+        cleaned = _clean_pdf_symbol_noise("Marco Ant\x99nio C. C\x89mara")
+
+        self.assertIn("Marco Antonio C. Camara", cleaned)
+
+    def test_pdf_text_cleanup_adds_space_between_joined_words(self):
+        cleaned = _clean_pdf_symbol_noise("Redes de ComputadoresMarco Antonio")
+
+        self.assertIn("Computadores Marco", cleaned)
+
+    def test_ocr_page_text_wins_when_it_is_more_complete(self):
+        current = "Redes de Computadores Professor: Marco Antonio C. Camara Agenda C"
+        ocr = (
+            "Redes de Computadores Professor: Marco Antonio C. Camara Agenda "
+            "Comunicacao Digital Conceitos Basicos Hardware Software Meios Fisicos"
+        )
+
+        self.assertTrue(_ocr_page_text_is_better(ocr, current))
 
     def test_pdf_extractor_rejects_garbled_text(self):
         with TemporaryDirectory() as temp_dir:
@@ -785,6 +1002,55 @@ endstream endobj
 
         self.assertIn("página 2", result)
         self.assertIn("Comunicacao Digital", result)
+
+    def test_answer_study_followup_warns_when_page_text_is_partial_agenda(self):
+        fake_context = {
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "kind": "pdf",
+                    "raw_text": "Redes de Computadores Agenda Comunicacao Digital Conceitos Basicos",
+                    "text": "Redes de Computadores Agenda Comunicacao Digital Conceitos Basicos",
+                    "topic": "Redes de Computadores",
+                    "pages": [
+                        {"index": 2, "text": "Redes de Computadores Professor: Marco Antonio C. Camara Agenda C"},
+                    ],
+                    "questions": {},
+                }
+            ]
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context):
+            result = answer_study_followup("oq tem na pagina 2?")
+
+        self.assertIn("consigo ler parcialmente", result)
+        self.assertIn("OCR", result)
+
+    def test_run_study_file_self_test_marks_partial_pages(self):
+        fake_context = {
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "kind": "pdf",
+                    "raw_text": "Redes de Computadores Comunicacao Digital Conceitos Basicos",
+                    "text": "Redes de Computadores Comunicacao Digital Conceitos Basicos",
+                    "topic": "Redes de Computadores",
+                    "pages": [
+                        {"index": 1, "text": "Redes de Computadores Marco Antonio C. Camara"},
+                        {"index": 2, "text": "Redes de Computadores Professor: Marco Antonio C. Camara Agenda C"},
+                    ],
+                    "questions": {},
+                }
+            ]
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context):
+            result = run_study_file_self_test("testar arquivo atual")
+
+        self.assertIn("pagina 2: ATENCAO", result)
+        self.assertNotIn("modulao", result)
 
     def test_answer_study_followup_understands_ordinal_page_request(self):
         fake_context = {

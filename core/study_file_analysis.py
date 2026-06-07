@@ -23,6 +23,7 @@ SUPPORTED_STUDY_EXTENSIONS = {
 }
 MAX_FILES_PER_DIRECTORY_ANALYSIS = 12
 MAX_PARTIAL_FILE_SEARCH_ITEMS = 2500
+STUDY_ANALYSIS_CACHE_VERSION = 2
 
 
 def _compact(text: str) -> str:
@@ -292,6 +293,8 @@ def _is_page_only_reference(reference: str) -> bool:
 
 def parse_study_file_command(user_input: str) -> tuple[list[str], str] | None:
     raw = str(user_input or "").strip()
+    if re.match(r"^(?:ler|leia|ver|veja)\s+(?:o\s+)?arquivo\b", raw, flags=re.I):
+        return None
     command_match = re.match(
         r"^(?P<verb>analisar|analise|analisa|ler|leia|resumir|resuma|estudar|estude|explicar|explique|falar sobre|fale sobre|ver|veja|gerar questoes de|fazer questoes de)\b",
         raw,
@@ -319,12 +322,16 @@ def parse_study_file_command(user_input: str) -> tuple[list[str], str] | None:
         flags=re.I,
     )
     if flexible_natural_match:
-        reference = flexible_natural_match.group(1).strip(" .,:;-\"'")
+        reference = flexible_natural_match.group(1).strip(" .,:;-\"'?!")
+        if _plain(reference) in {"tela", "a tela", "na tela", "isso", "ai", "aqui"}:
+            return None
         if _is_page_only_reference(reference):
             return None
         resolved = _resolve_file_reference_by_name(reference)
         if resolved:
             return [resolved], f"o que tem no arquivo {reference}"
+        if _plain(reference) in {"arquivo", "documento", "pdf", "slide", "slides"}:
+            return None
         return [reference], f"o que tem no arquivo {reference}"
 
     natural_match = re.match(
@@ -351,6 +358,20 @@ def parse_study_file_command(user_input: str) -> tuple[list[str], str] | None:
         return None
 
     payload = match.group(1).strip()
+    payload_plain = _plain(payload)
+    generic_non_file_targets = {
+        "tela",
+        "a tela",
+        "na tela",
+        "grafico",
+        "grafico em segundo plano",
+        "tela em segundo plano",
+        "codigo",
+        "o codigo",
+        "em segundo plano",
+    }
+    if payload_plain in generic_non_file_targets:
+        return None
     request = inferred_request
     for separator in (" :: ", " pedido: ", " tarefa: "):
         if separator in payload:
@@ -394,6 +415,13 @@ def parse_study_file_command(user_input: str) -> tuple[list[str], str] | None:
                     cleaned = resolved
             cleaned_paths.append(cleaned)
     if not cleaned_paths and paths:
+        explicit_file_reference = bool(
+            re.search(r"[\\/]", payload)
+            or re.search(r"\.(?:pdf|docx?|pptx?|xlsx?|csv|txt|md|html?|py|js|ts|tsx|jsx|json)\b", payload, flags=re.I)
+            or re.search(r"\b(?:arquivos?|anexos?|slides?|materiais?|documentos?|pasta|diretorio|diretório)\b", raw, flags=re.I)
+        )
+        if not explicit_file_reference or re.search(r"\b(?:segundo plano|tela|grafico|gráfico|codigo|código)\b", payload, flags=re.I):
+            return None
         fallback = payload.strip().strip('"') if "payload" in locals() else str(paths[0]).strip().strip('"')
         return [fallback], _compact(request)
     return cleaned_paths, _compact(request)
@@ -522,10 +550,14 @@ def _keywords(text: str, limit: int = 10) -> list[str]:
         "exercicio",
         "exercicios",
         "lista",
+        "modulao",
+        "ncia",
         "professor",
         "marco",
         "antonio",
         "camara",
+        "antnio",
+        "cmara",
     }
     counts: dict[str, int] = {}
     for token in re.findall(r"\b[\wÀ-ÿ]{4,}\b", _plain(text)):
@@ -534,6 +566,25 @@ def _keywords(text: str, limit: int = 10) -> list[str]:
         counts[token] = counts.get(token, 0) + 1
     ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
     return [word for word, _count in ranked[:limit]]
+
+
+def _page_quality_warning(page_text: str) -> str:
+    text = _clean_readable_text(page_text)
+    plain = _plain(text)
+    compact = re.sub(r"\s+", "", text)
+    words = re.findall(r"\b\w{3,}\b", text)
+    hard_symbols = len(re.findall(r"[#%&*+<=>@\\^_`{|}~]", text))
+    suspicious_agenda = bool(re.search(r"\bagenda\s+[a-z]\b$", plain))
+
+    if not text:
+        return "sem texto legivel"
+    if hard_symbols >= 3:
+        return "texto com sinais de extracao ruim"
+    if suspicious_agenda or ("agenda" in plain and len(compact) < 90 and len(words) <= 8):
+        return "leitura parcial: a pagina parece ser uma agenda/indice, mas a extracao veio incompleta"
+    if len(compact) < 45 and len(words) <= 5 and "pagina" not in plain:
+        return "leitura curta: pode ser capa/titulo ou extracao incompleta"
+    return ""
 
 
 def _study_request_kind(request: str) -> str:
@@ -940,8 +991,7 @@ def _format_general_file_response(name: str, text: str, focus: list[str], reques
     project = _project_readme_profile(text)
     if project:
         subject = f" chamado {project['name']}" if project.get("name") else ""
-        lines = [f"1. {name}: Ã© um README de projeto{subject}."]
-        lines[0] = f"1. {name}: e um README de projeto{subject}."
+        lines = [f"1. {name}: e um README de projeto{subject}."]
         if project.get("about"):
             lines.append(_short_section_answer("Sobre", project["about"], max_chars=300))
         if project.get("technologies"):
@@ -1445,6 +1495,12 @@ def _answer_page_request(name: str, pages: list, request: str) -> str | None:
         if page_index == number:
             page_text = _clean_readable_text(str(page.get("text") or ""))
             if page_text:
+                warning = _page_quality_warning(page_text)
+                if warning and "parcial" in warning:
+                    return (
+                        f"Na página {number} de {name}, consigo ler parcialmente: {page_text[:700]}. "
+                        "A extracao dessa pagina parece incompleta; use a leitura por imagem/OCR para confirmar todos os itens."
+                    )
                 return f"Na página {number} de {name}: {page_text[:700]}"
     if clean_pages:
         available = ", ".join(str(page.get("index")) for page in clean_pages[:6] if page.get("index"))
@@ -1538,12 +1594,105 @@ def _asks_for_file_type_answer(normalized: str) -> bool:
     )
 
 
+def _should_answer_study_followup(normalized: str) -> bool:
+    if not normalized:
+        return False
+
+    file_reference_terms = {
+        "arquivo",
+        "documento",
+        "material",
+        "anexo",
+        "pdf",
+        "slide",
+        "slides",
+        "apresentacao",
+        "apresentação",
+        "powerpoint",
+        "pptx",
+    }
+    has_file_reference = any(term in normalized for term in file_reference_terms)
+
+    if _requested_page_number(normalized) is not None:
+        return True
+
+    if "nome do projeto" in normalized or "qual o projeto" in normalized or "projeto do arquivo" in normalized:
+        return True
+
+    if has_file_reference:
+        return True
+
+    if re.search(r"(?:questao|questão|pergunta|exercicio|exercício)\s*\d+", normalized):
+        return True
+
+    if any(word in normalized for word in {"questoes", "questões", "exercicios", "exercícios", "quiz", "simulado", "arguir", "arguicao", "arguição"}):
+        return True
+
+    if any(phrase in normalized for phrase in {"conceitos principais", "principais conceitos", "topicos principais", "tópicos principais"}):
+        return True
+
+    if normalized in {"resuma", "resumir", "resumo", "explique", "explica", "analise", "analisar"}:
+        return True
+
+    if normalized in {"plano de estudo", "plano para estudar", "como estudar", "roteiro de estudo"}:
+        return True
+
+    blocked_general_domains = {
+        "segundo plano",
+        "carteira",
+        "financeiro",
+        "noticias",
+        "notícias",
+        "tela",
+        "grafico",
+        "gráfico",
+        "codigo",
+        "código",
+        "interface",
+        "hud",
+        "volume",
+        "musica",
+        "música",
+        "spotify",
+    }
+    if any(term in normalized for term in blocked_general_domains):
+        return False
+
+    technical_terms = {
+        "protocolo",
+        "tcp",
+        "udp",
+        "osi",
+        "camadas",
+        "rede",
+        "redes",
+        "ip",
+        "pacotes",
+        "roteador",
+        "switch",
+        "hardware",
+        "software",
+        "meios fisicos",
+        "meios físicos",
+    }
+    if any(term in normalized for term in technical_terms) and ("?" in normalized or any(word in normalized for word in {"qual", "quais", "explique", "explica", "diferenca", "diferença"})):
+        return True
+
+    return False
+
+
 def _answer_study_followup_raw(user_input: str) -> str | None:
     raw = _compact(user_input)
     normalized = _plain(raw)
     context = load_study_context()
     files = context.get("files") if isinstance(context, dict) else []
     if not isinstance(files, list) or not files:
+        return None
+    forced_study_followup = (
+        ("conceit" in normalized and "principal" in normalized)
+        or any(term in normalized for term in {"tcp", "udp", "osi", "protocolo", "camadas", "roteador", "switch"})
+    )
+    if not _should_answer_study_followup(normalized) and not forced_study_followup:
         return None
 
     if "nome do projeto" in normalized or "qual o projeto" in normalized or "projeto do arquivo" in normalized:
@@ -1610,7 +1759,7 @@ def _answer_study_followup_raw(user_input: str) -> str | None:
             presentation_like=presentation_like,
         )
 
-    if "arquivo" in normalized or any(word in normalized for word in {"integrantes", "tecnologias", "executar", "testes", "bugs", "status", "slogan", "conceitos", "topicos", "tópicos", "protocolo", "tcp", "udp", "osi", "camadas", "rede", "redes"}):
+    if "arquivo" in normalized or forced_study_followup or any(word in normalized for word in {"integrantes", "tecnologias", "executar", "testes", "bugs", "status", "slogan", "conceitos", "topicos", "tópicos", "protocolo", "tcp", "udp", "osi", "camadas", "rede", "redes"}):
         specific = _answer_specific_file_request(
             str(first.get("name") or "arquivo"),
             str(first.get("raw_text") or first.get("text") or ""),
@@ -1695,6 +1844,77 @@ def answer_study_followup(user_input: str) -> str | None:
     return polish_study_response(response) if response else None
 
 
+def run_study_file_self_test(user_input: str) -> str | None:
+    normalized = _plain(user_input)
+    triggers = {
+        "testar arquivo atual",
+        "teste do arquivo atual",
+        "testar leitura do arquivo",
+        "rodar teste do arquivo",
+        "rodar testes do arquivo",
+        "rodar perguntas do arquivo",
+        "fazer perguntas do arquivo",
+        "perguntas automaticas do arquivo",
+        "auto teste do arquivo",
+        "autoteste do arquivo",
+    }
+    if not any(trigger in normalized for trigger in triggers):
+        return None
+
+    context = load_study_context()
+    files = context.get("files") if isinstance(context, dict) else []
+    if not isinstance(files, list) or not files:
+        return "Ainda nao tenho um arquivo atual para testar. Analise um arquivo primeiro."
+
+    first = files[0] if isinstance(files[0], dict) else {}
+    name = str(first.get("name") or "arquivo")
+    text = str(first.get("raw_text") or first.get("text") or "")
+    topic = str(first.get("topic") or _topic_from_text(text) or "conteudo extraido")
+    pages = first.get("pages") if isinstance(first.get("pages"), list) else []
+    kind = str(first.get("kind") or "")
+    suffix = Path(str(first.get("path") or name)).suffix.lower()
+
+    lines = [
+        f"Auto teste do arquivo atual: {name}",
+        f"Assunto provavel: {topic}.",
+    ]
+    lines.append(
+        "Formato: "
+        + _format_file_type_answer(
+            name=name,
+            kind=kind,
+            suffix=suffix,
+            topic=topic,
+            text=text,
+            presentation_like=bool(first.get("presentation_like")),
+        )
+    )
+
+    if pages:
+        lines.append("Paginas testadas:")
+        for page in [page for page in pages if isinstance(page, dict)][:4]:
+            page_index = str(page.get("index") or "?")
+            page_text = _clean_readable_text(str(page.get("text") or ""))
+            preview = page_text[:180] if page_text else "sem texto legivel"
+            warning = _page_quality_warning(page_text)
+            if warning:
+                lines.append(f"- pagina {page_index}: ATENCAO - {warning}. Trecho: {preview}")
+            else:
+                lines.append(f"- pagina {page_index}: OK - {preview}")
+    else:
+        lines.append("Paginas testadas: o contexto atual nao trouxe texto separado por pagina.")
+
+    negative = _answer_content_subject(name, text, "o arquivo fala sobre bananas?", topic)
+    if negative:
+        lines.append("Pergunta negativa: " + negative)
+
+    concept = _answer_specific_file_request(name, text, "quais conceitos principais aparecem?")
+    if concept:
+        lines.append("Pergunta de conteudo: " + concept)
+
+    return "\n".join(lines)
+
+
 def _questions_from_lines(lines: list[str], start: int = 1, limit: int = 4) -> list[str]:
     questions = []
     stems = [
@@ -1735,12 +1955,82 @@ def _expand_analysis_paths(paths: list[str]) -> tuple[list[str], list[str]]:
     return expanded, notes
 
 
+def _analysis_path_signature(path: str) -> dict:
+    try:
+        candidate = Path(path)
+        stat = candidate.stat()
+        return {"path": str(candidate), "size": int(stat.st_size), "mtime": round(float(stat.st_mtime), 3)}
+    except Exception:
+        return {"path": str(path), "size": 0, "mtime": 0.0}
+
+
+def _analysis_path_identity(path: str) -> str:
+    return _plain(str(path)).replace("\\", "/").rstrip("/")
+
+
+def _analysis_signatures(paths: list[str]) -> list[dict]:
+    return [_analysis_path_signature(path) for path in paths]
+
+
+def _same_analysis_files(context: dict, paths: list[str]) -> bool:
+    expected = _analysis_signatures(paths)
+    stored = context.get("file_signatures") if isinstance(context, dict) else None
+    if isinstance(stored, list) and stored:
+        return stored == expected
+
+    files = context.get("files") if isinstance(context, dict) else []
+    if not isinstance(files, list) or len(files) != len(paths):
+        return False
+    stored_paths = [_analysis_path_identity(str(item.get("path") or "")) for item in files if isinstance(item, dict)]
+    return stored_paths == [_analysis_path_identity(str(path)) for path in paths]
+
+
+def _cached_analysis_response(paths: list[str], request: str) -> str | None:
+    context = load_study_context()
+    if not isinstance(context, dict) or not _same_analysis_files(context, paths):
+        return None
+    if int(context.get("analysis_cache_version") or 0) != STUDY_ANALYSIS_CACHE_VERSION:
+        return None
+
+    if _plain(str(context.get("request") or "")) == _plain(request):
+        cached = str(context.get("last_response") or "").strip()
+        if cached:
+            return cached
+
+    if _requested_page_number(request) is None:
+        return None
+
+    files = context.get("files") if isinstance(context.get("files"), list) else []
+    sections: list[str] = []
+    for index, file_context in enumerate(files, start=1):
+        if not isinstance(file_context, dict):
+            continue
+        name = str(file_context.get("name") or "arquivo")
+        pages = file_context.get("pages") if isinstance(file_context.get("pages"), list) else []
+        page_answer = _answer_page_request(name, pages, request)
+        if page_answer:
+            sections.append(f"{index}. {page_answer}")
+    if sections:
+        has_study_material = any(
+            _looks_like_study_material(str(item.get("raw_text") or item.get("text") or ""))
+            for item in files
+            if isinstance(item, dict)
+        )
+        header = "Analise de estudo dos arquivos:" if has_study_material else "Analise dos arquivos:"
+        return polish_study_response("\n".join([header, *sections]))
+    return None
+
+
 def analyze_study_files(paths: list[str], request: str = "") -> str:
     clean_paths, path_notes = _expand_analysis_paths([str(path).strip().strip('"') for path in paths if str(path).strip()])
     if not clean_paths:
         return polish_study_response(
             "Me envie ou informe pelo menos um arquivo, ou diga o caminho de uma pasta com arquivos analisaveis."
         )
+
+    cached = _cached_analysis_response(clean_paths, request)
+    if cached:
+        return cached
 
     sections = []
     all_focus: list[str] = []
@@ -1831,15 +2121,6 @@ def analyze_study_files(paths: list[str], request: str = "") -> str:
     if not sections and failures:
         return "Nao consegui analisar os arquivos. " + " ; ".join(failures[:3])
 
-    if context_files:
-        save_study_context(
-            {
-                "source": "attached_files",
-                "request": request,
-                "files": context_files,
-            }
-        )
-
     response = ["Analise de estudo dos arquivos:" if has_study_material else "Analise dos arquivos:"]
     response.extend(sections)
 
@@ -1860,4 +2141,17 @@ def analyze_study_files(paths: list[str], request: str = "") -> str:
     if request and has_study_material and request_is_study_or_practice(request):
         response.append(f"Pedido considerado: {request}.")
 
-    return polish_study_response("\n".join(response))
+    final_response = polish_study_response("\n".join(response))
+    if context_files:
+        save_study_context(
+            {
+                "source": "attached_files",
+                "request": request,
+                "analysis_cache_version": STUDY_ANALYSIS_CACHE_VERSION,
+                "file_signatures": _analysis_signatures(clean_paths),
+                "files": context_files,
+                "last_response": final_response,
+            }
+        )
+
+    return final_response

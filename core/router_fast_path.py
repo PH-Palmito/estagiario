@@ -34,8 +34,6 @@ def detect_fast_path_command(user_input: str):
         "nao gostei dessa musica",
         "pula essa",
         "pular essa",
-        "proxima musica",
-        "proxima faixa",
     }:
         return {"intent": "spotify_dislike_current_track", "target": None}
 

@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import re
 
+from core.project_health import format_latency_report
 from core.router_utils import normalize_text
 from core.toolsets import format_relevant_toolsets, format_toolset_catalog
 from core.specialist_agents import format_agent_catalog, format_relevant_agents
 from core.agent_tool_library import format_agent_tool_library
-from memory.long_memory import curate_recent_ui_history, format_long_memory, maybe_remember_from_user_text
+from memory.long_memory import curate_recent_ui_history, format_clean_long_memory_report, format_long_memory, maybe_remember_from_user_text
 from memory.operational_context import (
     forget_operational_preference,
     format_operational_context,
@@ -14,6 +15,8 @@ from memory.operational_context import (
     remember_operational_preference,
     save_operational_context,
 )
+from memory.workspace_context import format_workspace_context
+from memory.browser_product_cache import cheapest_cached_product, format_cached_products
 from memory.session_index import format_session_search
 from memory.procedural_skills import create_skill_from_request, format_skill_catalog, format_relevant_skills
 from memory.skill_learning import approve_pending_skill_suggestion, format_pending_skill_suggestions, reject_pending_skill_suggestion
@@ -78,6 +81,34 @@ def maybe_handle_operational_context_command(user_input: str) -> str | None:
         "mostrar memoria operacional",
     }:
         return format_operational_memory()
+
+    if normalized in {
+        "contexto do workspace",
+        "contexto do projeto",
+        "instrucoes do workspace",
+        "instrucoes do projeto",
+        "agents do projeto",
+        "agents md",
+    }:
+        return format_workspace_context()
+
+    if normalized in {
+        "produtos recentes",
+        "produtos em cache",
+        "ultimos produtos",
+        "ultimos produtos vistos",
+        "últimos produtos",
+        "últimos produtos vistos",
+    }:
+        return format_cached_products()
+
+    if normalized in {
+        "produto mais barato em cache",
+        "mais barato em cache",
+        "mais barato recente",
+        "produto mais barato recente",
+    }:
+        return cheapest_cached_product()
 
     if normalized in {
         "qual meu foco",
@@ -208,6 +239,17 @@ def maybe_handle_long_memory_command(user_input: str) -> str | None:
         if not updated:
             return "Ainda nao ha tarefa recente para avaliar."
         return "Autoavaliacao registrada. " + format_latest_task_evaluation()
+
+    if normalized in {
+        "latencia do axel",
+        "latencias do axel",
+        "gargalos do axel",
+        "gargalos recentes",
+        "performance do axel",
+        "relatorio de latencia",
+        "relatorio de performance",
+    }:
+        return format_latency_report()
 
     if normalized in {
         "salvar episodio",
@@ -453,6 +495,15 @@ def maybe_handle_long_memory_command(user_input: str) -> str | None:
         if added:
             return f"Memoria longa curada. Adicionei {added} item(ns) duraveis."
         return "Memoria longa revisada. Nao encontrei nada novo que merecesse virar memoria duravel."
+
+    if normalized in {
+        "limpar memoria longa",
+        "deduplicar memoria longa",
+        "deduplicar memorias",
+        "limpar memorias vencidas",
+        "limpeza da memoria longa",
+    }:
+        return format_clean_long_memory_report()
 
     remember_match = re.match(
         r"^(?:lembre|lembra|memorize|salve)\s+(?:na\s+)?(?:mem.ria longa)\s+(?:que\s+)?(.+)$",

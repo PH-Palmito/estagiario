@@ -60,6 +60,17 @@ AXEL_BRAIN_INSIGHT_COMMANDS = {
     "padroes do axel brain",
 }
 
+AXEL_BRAIN_TIMELINE_COMMANDS = {
+    "timeline do axelbrain",
+    "timeline do axel brain",
+    "linha do tempo do axelbrain",
+    "linha do tempo do axel brain",
+    "auditoria do axelbrain",
+    "auditoria do axel brain",
+    "ultima auditoria do axelbrain",
+    "ultima auditoria do axel brain",
+}
+
 
 def format_axel_brain_runtime_decision(
     plan: dict | None,
@@ -178,6 +189,9 @@ def maybe_handle_axel_brain_runtime_command(user_input: str, runtime_state) -> s
     if normalized in AXEL_BRAIN_INSIGHT_COMMANDS:
         return format_axel_brain_insights(getattr(runtime_state, "axel_brain_history", None))
 
+    if normalized in AXEL_BRAIN_TIMELINE_COMMANDS:
+        return format_axel_brain_timeline(getattr(runtime_state, "axel_brain_timeline", None))
+
     if normalized in AXEL_BRAIN_HISTORY_COMMANDS:
         return format_axel_brain_history(getattr(runtime_state, "axel_brain_history", None))
 
@@ -192,6 +206,52 @@ def maybe_handle_axel_brain_runtime_command(user_input: str, runtime_state) -> s
         getattr(runtime_state, "axel_brain_brief", None),
         getattr(runtime_state, "axel_brain_contract", None),
     )
+
+
+def _shorten(value: object, limit: int = 120) -> str:
+    text = str(value or "").strip().replace("\n", " ")
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rstrip() + "..."
+
+
+def format_axel_brain_timeline(timeline: list | tuple | None) -> str:
+    items = [item for item in list(timeline or []) if isinstance(item, dict)]
+    if not items:
+        return "Ainda nao tenho timeline auditavel do AxelBrain nesta sessao."
+
+    lines = []
+    for index, item in enumerate(items[-5:], start=1):
+        decision = item.get("decision") if isinstance(item.get("decision"), dict) else {}
+        context = item.get("context") if isinstance(item.get("context"), dict) else {}
+        execution = item.get("execution") if isinstance(item.get("execution"), dict) else {}
+        response = item.get("response") if isinstance(item.get("response"), dict) else {}
+
+        source = str(context.get("source") or item.get("source") or "--")
+        user_input = _shorten(context.get("input") or item.get("input"), 80) or "--"
+        route_group = str(context.get("route_group") or item.get("route_group") or "--")
+        detector = str(context.get("detector") or item.get("detector") or "--")
+        intent = str(decision.get("intent") or item.get("intent") or "--")
+        agent = str(decision.get("agent") or item.get("agent") or "--")
+        toolset = str(decision.get("toolset") or item.get("toolset") or "--")
+        risk = str(decision.get("risk_level") or item.get("risk_level") or "--")
+        reason = _shorten(decision.get("reason"), 90)
+        memory_layers = context.get("memory_layers") if isinstance(context.get("memory_layers"), list) else []
+        memory_text = ", ".join(str(layer) for layer in memory_layers[:3] if str(layer).strip())
+        confirmation = "sim" if bool(execution.get("needs_confirmation", item.get("needs_confirmation"))) else "nao"
+        action = str(execution.get("action") or item.get("action") or "--")
+        result = _shorten(response.get("final") or item.get("result"), 120) or "--"
+        decision_text = f"decisao intent {intent}, agente {agent}, toolset {toolset}, risco {risk}"
+        if reason:
+            decision_text += f", motivo {reason}"
+        context_text = f"contexto rota {route_group}/{detector}"
+        if memory_text:
+            context_text += f", memoria {memory_text}"
+        lines.append(
+            f"{index}. entrada '{user_input}' via {source}; {decision_text}; "
+            f"{context_text}; execucao action {action}, confirmacao {confirmation}; resposta final {result}"
+        )
+    return "Timeline auditavel do AxelBrain: " + "; ".join(lines) + "."
 
 
 def format_axel_brain_history(history: list | tuple | None) -> str:

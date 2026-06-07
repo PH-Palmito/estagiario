@@ -1,6 +1,11 @@
 import unittest
 
-from core.axel_brain_contract import build_axel_brain_contract, channel_kind, remote_execution_policy
+from core.axel_brain_contract import (
+    build_axel_brain_contract,
+    channel_kind,
+    remote_execution_policy,
+    remote_permission_summary,
+)
 
 
 class AxelBrainContractTests(unittest.TestCase):
@@ -39,6 +44,14 @@ class AxelBrainContractTests(unittest.TestCase):
         self.assertEqual(policy["decision"], "confirm_remote_light")
         self.assertEqual(policy["safety_profile"], "remote_light_media_confirmation")
         self.assertIn("confirmacao no chat", policy["execution_guidance"])
+
+    def test_remote_permission_summary_documents_current_limits(self):
+        summary = remote_permission_summary()
+
+        self.assertEqual(summary["remote_mode"], "expanded_disabled")
+        self.assertIn("volume_mute", summary["confirmable_actions"])
+        self.assertTrue(any(item["tier"] == "sensitive_or_write" for item in summary["tiers"]))
+        self.assertIn("Somente ampliar", summary["next_review_gate"])
 
     def test_builds_contract_from_plan_and_brief(self):
         contract = build_axel_brain_contract(

@@ -41,7 +41,7 @@ def response_text_looks_corrupted_study_pdf(message: str) -> bool:
         r"\bcouxtmx",
         r"\bquivtos?\b",
         r"\btrivsn",
-        r"\bqvv(?:a|Ã¡|á)t",
+        r"\bqvv(?:a|\u00c3\u00a1|á)t",
     ]
     hits = sum(len(re.findall(pattern, normalized, flags=re.I)) for pattern in suspicious_patterns)
     return hits >= 6

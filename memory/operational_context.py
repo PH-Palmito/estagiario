@@ -13,6 +13,7 @@ from memory.self_evolution import load_self_evolution_plan
 from memory.supabase_sync import sync_memory_state_safely
 from memory.ui_state import load_ui_state
 from memory.voice_preferences import load_voice_preferences
+from memory.workspace_context import load_workspace_context
 
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DIR = ROOT / "memory"
@@ -453,6 +454,7 @@ def generate_operational_context() -> dict:
     capability_ranking = _load_capability_ranking_overview()
     pending_reminders = _load_pending_reminders(limit=4)
     current_topic = load_current_topic()
+    workspace_context = load_workspace_context(ROOT)
 
     operator = str(profile.get("nome", "")).strip() or "Operador"
     assistant = str((profile.get("assistente") or {}).get("nome", "")).strip() or str(ui_state.get("assistant_name", "")).strip() or "Axel"
@@ -506,6 +508,9 @@ def generate_operational_context() -> dict:
             summary_parts.append(f"Ranking atual: agente {top_agent or '--'}, toolset {top_toolset or '--'}.")
     if pending_reminders:
         summary_parts.append("Lembretes pendentes: " + "; ".join(pending_reminders[:2]) + ".")
+    workspace_summary = str(workspace_context.get("summary", "")).strip()
+    if workspace_summary:
+        summary_parts.append(workspace_summary)
 
     payload = {
         "generated_at": time.time(),
@@ -533,6 +538,7 @@ def generate_operational_context() -> dict:
         "capability_ranking": capability_ranking,
         "pending_reminders": pending_reminders,
         "active_bottlenecks": active_bottlenecks,
+        "workspace_context": workspace_context,
         "summary": " ".join(summary_parts).strip(),
     }
     return payload

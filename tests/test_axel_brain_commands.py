@@ -6,6 +6,7 @@ from core.axel_brain_commands import (
     format_axel_brain_history,
     format_axel_brain_insights,
     format_axel_brain_runtime_decision,
+    format_axel_brain_timeline,
     format_axel_route_trace,
     maybe_handle_axel_brain_runtime_command,
 )
@@ -163,6 +164,96 @@ class AxelBrainCommandTests(unittest.TestCase):
 
         self.assertIsNotNone(result)
         self.assertIn("Insights do AxelBrain", result)
+
+    def test_formats_axel_brain_timeline(self):
+        text = format_axel_brain_timeline([
+            {
+                "source": "turn",
+                "input": "fechar spotify",
+                "route_group": "system",
+                "detector": "detect_close_app",
+                "intent": "close_app",
+                "agent": "system_agent",
+                "toolset": "sistema",
+                "risk_level": "high",
+                "needs_confirmation": True,
+                "action": "close_app",
+                "result": "Spotify fechado.",
+                "decision": {
+                    "intent": "close_app",
+                    "agent": "system_agent",
+                    "toolset": "sistema",
+                    "risk_level": "high",
+                    "reason": "comando local de sistema",
+                },
+                "context": {
+                    "source": "turn",
+                    "input": "fechar spotify",
+                    "route_group": "system",
+                    "detector": "detect_close_app",
+                    "memory_layers": ["memoria_curta"],
+                },
+                "execution": {"action": "close_app", "needs_confirmation": True},
+                "response": {"final": "Spotify fechado."},
+            }
+        ])
+
+        self.assertIn("Timeline auditavel do AxelBrain", text)
+        self.assertIn("entrada 'fechar spotify'", text)
+        self.assertIn("decisao intent close_app", text)
+        self.assertIn("motivo comando local de sistema", text)
+        self.assertIn("contexto rota system/detect_close_app", text)
+        self.assertIn("memoria memoria_curta", text)
+        self.assertIn("execucao action close_app", text)
+        self.assertIn("confirmacao sim", text)
+        self.assertIn("resposta final Spotify fechado.", text)
+
+    def test_formats_legacy_axel_brain_timeline(self):
+        text = format_axel_brain_timeline([
+            {
+                "source": "turn",
+                "input": "abrir chrome",
+                "route_group": "apps",
+                "detector": "detect_open_app",
+                "intent": "open_app",
+                "agent": "system_agent",
+                "toolset": "sistema",
+                "risk_level": "low",
+                "needs_confirmation": False,
+                "action": "open_app",
+                "result": "Chrome aberto.",
+            }
+        ])
+
+        self.assertIn("entrada 'abrir chrome'", text)
+        self.assertIn("decisao intent open_app", text)
+        self.assertIn("contexto rota apps/detect_open_app", text)
+        self.assertIn("resposta final Chrome aberto.", text)
+
+    def test_handles_timeline_command(self):
+        runtime_state = SimpleNamespace(
+            axel_brain_timeline=[
+                {
+                    "source": "turn",
+                    "input": "briefing",
+                    "route_group": "daily",
+                    "detector": "detect_daily_briefing",
+                    "intent": "daily_briefing",
+                    "agent": "daily_agent",
+                    "toolset": "rotina",
+                    "risk_level": "read",
+                    "needs_confirmation": False,
+                    "action": "daily_briefing",
+                    "result": "Briefing pronto.",
+                }
+            ]
+        )
+
+        result = maybe_handle_axel_brain_runtime_command("timeline do axelbrain", runtime_state)
+
+        self.assertIsNotNone(result)
+        self.assertIn("daily_briefing", result)
+        self.assertIn("Briefing pronto.", result)
 
     def test_ignores_unrelated_text(self):
         runtime_state = SimpleNamespace(axel_brain_plan={}, axel_brain_brief={})

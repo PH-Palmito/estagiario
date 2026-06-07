@@ -60,11 +60,14 @@ def poll_telegram_updates(
     interval_seconds: float = 2.0,
     stop_when: Callable[[], bool] | None = None,
     on_response: Callable[[object], None] | None = None,
+    transcribe_audio: Callable[[object], str] | None = None,
 ) -> None:
     from services.telegram_gateway import handle_telegram_update, log_telegram_event
+    from services.telegram_audio import make_telegram_audio_transcriber
 
     if not token:
         raise RuntimeError("Token do Telegram nao configurado.")
+    audio_transcriber = transcribe_audio or make_telegram_audio_transcriber(token)
     polling_state = state or TelegramPollingState()
     polling_state.running = True
     log_telegram_event("polling_started", allowed_chats=len(allowed_chat_ids), offset=polling_state.offset)
@@ -84,7 +87,11 @@ def poll_telegram_updates(
                 update_id = int(update.get("update_id") or 0)
                 if update_id > polling_state.offset:
                     polling_state.offset = update_id
-                result = handle_telegram_update(update, allowed_chat_ids=allowed_chat_ids)
+                result = handle_telegram_update(
+                    update,
+                    allowed_chat_ids=allowed_chat_ids,
+                    transcribe_audio=audio_transcriber,
+                )
                 log_telegram_event(
                     "polling_update",
                     chat_id=result.chat_id,

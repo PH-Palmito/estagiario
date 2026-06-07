@@ -193,11 +193,26 @@ def normalize_action(old_action: dict) -> Command:
         "telegram.start_bot",
         "whatsapp.status",
         "whatsapp.start_local_bridge",
+        "keyboard_led_status",
+        "keyboard_led_off",
     }:
         return Command(
             action=intent,
             params={},
             source="router",
+        )
+
+    if intent in {"keyboard_led_on", "keyboard_led_set"}:
+        payload = target if isinstance(target, dict) else {}
+        return Command(
+            action=intent,
+            params={
+                "color": payload.get("color", ""),
+                "profile": payload.get("profile", ""),
+                "effect": payload.get("effect", ""),
+            },
+            source="router",
+            requires_confirmation=True,
         )
 
     if intent == "whatsapp.simulate_message":
@@ -219,6 +234,22 @@ def normalize_action(old_action: dict) -> Command:
             action="agenda_add",
             params={"text": target},
             source="router",
+        )
+
+    if intent == "agenda_export_ics":
+        return Command(
+            action="agenda_export_ics",
+            params={"path": target or ""},
+            source="router",
+            requires_confirmation=True,
+        )
+
+    if intent == "agenda_import_ics":
+        return Command(
+            action="agenda_import_ics",
+            params={"path": target or ""},
+            source="router",
+            requires_confirmation=True,
         )
 
     if intent == "reminder_add":
@@ -259,6 +290,13 @@ def normalize_action(old_action: dict) -> Command:
     if intent == "agenda_list_all":
         return Command(
             action="agenda_list_all",
+            params={},
+            source="router",
+        )
+
+    if intent == "agenda_calendar_status":
+        return Command(
+            action="agenda_calendar_status",
             params={},
             source="router",
         )
@@ -336,6 +374,7 @@ def normalize_action(old_action: dict) -> Command:
         "browser_open_wallet_and_summarize",
         "investment_memory_summary",
         "investment_financial_report",
+        "investment_daily_report",
         "investment_portfolio_monitor",
         "investment_memory_status",
         "browser_read_selection",

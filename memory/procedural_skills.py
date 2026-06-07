@@ -250,11 +250,11 @@ def format_skill_catalog(skills_dir: Path | None = None) -> str:
 
 def upsert_skill_from_suggestion(suggestion: dict, *, skills_dir: Path | None = None) -> Path:
     root = skills_dir or SKILLS_DIR
+    skill_name = _safe_skill_name(suggestion.get("skill_name") or suggestion.get("toolset") or suggestion.get("agent") or suggestion.get("intent"))
     toolset = str(suggestion.get("toolset") or "").strip()
     agent = str(suggestion.get("agent") or "").strip()
     intent = str(suggestion.get("intent") or "").strip()
     examples = [str(item).strip() for item in suggestion.get("examples", []) if str(item).strip()]
-    skill_name = _safe_skill_name(toolset or agent or intent)
     title = f"Skill {skill_name.replace('-', ' ').title()}"
     skill_dir = root / skill_name
     path = skill_dir / "SKILL.md"

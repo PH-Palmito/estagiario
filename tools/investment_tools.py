@@ -8,6 +8,7 @@ from config import INVESTIDOR10_PRIVATE_WALLET_URL, INVESTIDOR10_WALLET_URL, INV
 from core.cache_policy import INVESTMENT_REPORT_CACHE_POLICY, INVESTMENT_SUMMARY_CACHE_POLICY, is_cache_fresh
 from memory.investment_snapshot import (
     answer_investment_snapshot_question,
+    format_investment_daily_change_report,
     format_investment_financial_report,
     format_investment_snapshot_summary,
     load_investment_snapshot,
@@ -227,6 +228,11 @@ def investment_financial_report(*, use_cache: bool = True, ttl_seconds: int = DE
     if use_cache:
         _write_text_cache(INVESTMENT_REPORT_CACHE_PATH, report)
     return report
+
+
+def investment_daily_change_report():
+    _ensure_investment_snapshot_for_mode()
+    return format_investment_daily_change_report()
 
 
 def investment_memory_answer(question: str):

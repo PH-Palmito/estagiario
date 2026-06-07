@@ -1,0 +1,400 @@
+{
+  "generated_at": 1780535916.9449437,
+  "assistant_name": "Axel",
+  "operator_name": "Pedro Henrique",
+  "current_focus": "Integrar o Axel a uma agenda/calendario real",
+  "focus_stack": [
+    "front-end",
+    "mobile",
+    "React Native",
+    "TypeScript"
+  ],
+  "recent_user_requests": [],
+  "recent_apps": [],
+  "recent_sites": [],
+  "recent_topics": [],
+  "recent_tickers": [
+    "PETR4"
+  ],
+  "operational_preferences": {
+    "assistant_style": "jarvis",
+    "assistant_address_user": "senhor",
+    "assistant_brief_confirmations": true,
+    "assistant_humor_enabled": true,
+    "assistant_humor_style": "jarvis",
+    "assistant_humor_level": 2,
+    "chat_enabled": true,
+    "chat_model": "qwen2.5:0.5b",
+    "tts_enabled": true,
+    "tts_engine": "piper",
+    "tts_voice_name": "Microsoft Maria Desktop",
+    "tts_voice_culture": "pt-BR",
+    "gemini_tts_voice_name": "Puck",
+    "hotword": "estagiario",
+    "trigger_hotkey": "F8",
+    "toggle_listening_hotkey": "F9"
+  },
+  "saved_preferences": [
+    "em tarefas de código, teste os comandos antes de sugerir que está pronto",
+    "não precisa narrar demais quando a tarefa for simples",
+    "quando eu disser vamos evoluir, leia o projeto antes de propor mudanças",
+    "prefiro respostas curtas, práticas e com recomendação principal clara"
+  ],
+  "saved_notes": [],
+  "preference_summary": "estilo jarvis, tratamento 'senhor', confirmacoes breves, humor jarvis nivel 2, modelo de chat qwen2.5:0.5b, voz piper/Microsoft Maria Desktop, hotword 'estagiario'",
+  "current_topic": {
+    "topic": "Não, senhor. O PDF",
+    "summary": "",
+    "source": "conversation",
+    "page_title": "",
+    "page_url": "",
+    "lines": [],
+    "last_user_question": "o arquivo fala sobre bananas?",
+    "last_assistant_answer": "Não, senhor. O PDF",
+    "keywords": [
+      "arquivo",
+      "fala",
+      "bananas",
+      "senhor"
+    ],
+    "updated_at": 1780431590.3432198
+  },
+  "conversation_mode": false,
+  "dictation_mode": false,
+  "next_advances": [
+    "Integrar o Axel a uma agenda/calendario real"
+  ],
+  "open_tasks": [
+    "Continuar evoluindo a interface para algo ainda mais futurista e animado.",
+    "Redesenhar a interface como um command deck complexo, rico em informacoes e visualmente denso.",
+    "Criar cache e fast path para Mercado Livre e sites frequentes, nos mesmos moldes do Spotify.",
+    "Manter Discord apenas como alternativa futura caso o Telegram nao cubra bem o uso remoto.",
+    "Integrar o Axel a uma agenda/calendario real para criar, consultar e sincronizar compromissos, avaliando Microsoft To Do, Google Agenda ou Samsung Calendar, usando isso no briefing e nos lembretes proativos.",
+    "Criar resumo diario do que mudou na carteira desde ontem: patrimonio, rentabilidade, ativos que mais variaram, dividendos novos, noticias relevantes e alertas de preco-teto."
+  ],
+  "active_workflow": {},
+  "latest_episode": {},
+  "task_evaluation": {
+    "total": 31,
+    "counts": {
+      "success": 31,
+      "failure": 0,
+      "needs_adjustment": 0
+    },
+    "success_rate": 1.0,
+    "by_action": [
+      {
+        "action": "respond",
+        "total": 10,
+        "success": 10,
+        "failure": 0,
+        "needs_adjustment": 0
+      },
+      {
+        "action": "telegram.start_bot",
+        "total": 9,
+        "success": 9,
+        "failure": 0,
+        "needs_adjustment": 0
+      },
+      {
+        "action": "browser_describe_screen",
+        "total": 5,
+        "success": 5,
+        "failure": 0,
+        "needs_adjustment": 0
+      },
+      {
+        "action": "investment_memory_answer",
+        "total": 2,
+        "success": 2,
+        "failure": 0,
+        "needs_adjustment": 0
+      }
+    ],
+    "recent": [
+      {
+        "id": "eval-1780435507002439600",
+        "action": "telegram.start_bot",
+        "status": "success",
+        "source": "auto",
+        "note": "",
+        "result": "Telegram Bot: ativo. token configurado. 1 chat(s) autorizado(s). Offset: 0",
+        "error": "",
+        "metadata": {
+          "voice_mode": true,
+          "intent": "telegram.start_bot",
+          "agent": "system_agent",
+          "toolset": "sistema",
+          "model_policy": "local_first",
+          "risk_level": "read",
+          "response_mode": "execute_short",
+          "coordination_mode": "single_agent",
+          "handoff_agents": [
+            "system_agent"
+          ],
+          "tool_library_agents": [
+            "system_agent"
+          ],
+          "route_group": "system",
+          "route_detector": "detect_telegram_bridge_command",
+          "route_intent_level": "comando_direto",
+          "route_complexity": "simple_command",
+          "user_input": "ativar bot telegram",
+          "tool_name": "",
+          "category": "telegram",
+          "read_only": true,
+          "requires_confirmation": false,
+          "requires_strong_confirmation": false,
+          "sandbox_scope": "read_only",
+          "dry_run_recommended": false,
+          "action_class": "read",
+          "payload_hash": "22622c5d6c6233d3",
+          "reversible": true,
+          "target": "",
+          "decision": "allow_read",
+          "audit_required": false
+        },
+        "created_at": 1780435507.0024369,
+        "updated_at": 1780435507.0024369
+      },
+      {
+        "id": "eval-1780433321637335200",
+        "action": "telegram.start_bot",
+        "status": "success",
+        "source": "auto",
+        "note": "",
+        "result": "Telegram Bot: ativo. token configurado. 1 chat(s) autorizado(s). Offset: 0",
+        "error": "",
+        "metadata": {
+          "voice_mode": true,
+          "intent": "telegram.start_bot",
+          "agent": "system_agent",
+          "toolset": "sistema",
+          "model_policy": "local_first",
+          "risk_level": "read",
+          "response_mode": "execute_short",
+          "coordination_mode": "single_agent",
+          "handoff_agents": [
+            "system_agent"
+          ],
+          "tool_library_agents": [
+            "system_agent"
+          ],
+          "route_group": "system",
+          "route_detector": "detect_telegram_bridge_command",
+          "route_intent_level": "comando_direto",
+          "route_complexity": "simple_command",
+          "user_input": "ativar bot telegram",
+          "tool_name": "",
+          "category": "telegram",
+          "read_only": true,
+          "requires_confirmation": false,
+          "requires_strong_confirmation": false,
+          "sandbox_scope": "read_only",
+          "dry_run_recommended": false,
+          "action_class": "read",
+          "payload_hash": "22622c5d6c6233d3",
+          "reversible": true,
+          "target": "",
+          "decision": "allow_read",
+          "audit_required": false
+        },
+        "created_at": 1780433321.6373334,
+        "updated_at": 1780433321.6373334
+      },
+      {
+        "id": "eval-1780432538342041000",
+        "action": "telegram.start_bot",
+        "status": "success",
+        "source": "auto",
+        "note": "",
+        "result": "Telegram Bot: ativo. token configurado. 1 chat(s) autorizado(s). Offset: 0",
+        "error": "",
+        "metadata": {
+          "voice_mode": true,
+          "intent": "telegram.start_bot",
+          "agent": "system_agent",
+          "toolset": "sistema",
+          "model_policy": "local_first",
+          "risk_level": "read",
+          "response_mode": "execute_short",
+          "coordination_mode": "single_agent",
+          "handoff_agents": [
+            "system_agent"
+          ],
+          "tool_library_agents": [
+            "system_agent"
+          ],
+          "route_group": "system",
+          "route_detector": "detect_telegram_bridge_command",
+          "route_intent_level": "comando_direto",
+          "route_complexity": "simple_command",
+          "user_input": "iniciar bot telegram",
+          "tool_name": "",
+          "category": "telegram",
+          "read_only": true,
+          "requires_confirmation": false,
+          "requires_strong_confirmation": false,
+          "sandbox_scope": "read_only",
+          "dry_run_recommended": false,
+          "action_class": "read",
+          "payload_hash": "22622c5d6c6233d3",
+          "reversible": true,
+          "target": "",
+          "decision": "allow_read",
+          "audit_required": false
+        },
+        "created_at": 1780432538.3420389,
+        "updated_at": 1780432538.3420389
+      }
+    ]
+  },
+  "capability_ranking": {
+    "agents": [
+      {
+        "name": "system_agent",
+        "total": 11,
+        "success": 11,
+        "failure": 0,
+        "needs_adjustment": 0,
+        "success_rate": 1.0,
+        "error_rate": 0.0,
+        "utility": 24.485,
+        "last_seen": 1780435507.0024369,
+        "recent_actions": [
+          "telegram.start_bot",
+          "telegram.status",
+          "respond"
+        ]
+      },
+      {
+        "name": "voice_agent",
+        "total": 8,
+        "success": 8,
+        "failure": 0,
+        "needs_adjustment": 0,
+        "success_rate": 1.0,
+        "error_rate": 0.0,
+        "utility": 18.197,
+        "last_seen": 1780430913.294644,
+        "recent_actions": [
+          "respond",
+          "action_tool_execute"
+        ]
+      },
+      {
+        "name": "browser_agent",
+        "total": 5,
+        "success": 5,
+        "failure": 0,
+        "needs_adjustment": 0,
+        "success_rate": 1.0,
+        "error_rate": 0.0,
+        "utility": 11.792,
+        "last_seen": 1780430974.576594,
+        "recent_actions": [
+          "browser_describe_screen"
+        ]
+      }
+    ],
+    "toolsets": [
+      {
+        "name": "sistema",
+        "total": 11,
+        "success": 11,
+        "failure": 0,
+        "needs_adjustment": 0,
+        "success_rate": 1.0,
+        "error_rate": 0.0,
+        "utility": 24.485,
+        "last_seen": 1780435507.0024369,
+        "recent_actions": [
+          "telegram.start_bot",
+          "telegram.status",
+          "respond"
+        ]
+      },
+      {
+        "name": "voz_rapida",
+        "total": 8,
+        "success": 8,
+        "failure": 0,
+        "needs_adjustment": 0,
+        "success_rate": 1.0,
+        "error_rate": 0.0,
+        "utility": 18.197,
+        "last_seen": 1780430913.294644,
+        "recent_actions": [
+          "respond",
+          "action_tool_execute"
+        ]
+      },
+      {
+        "name": "navegador",
+        "total": 5,
+        "success": 5,
+        "failure": 0,
+        "needs_adjustment": 0,
+        "success_rate": 1.0,
+        "error_rate": 0.0,
+        "utility": 11.792,
+        "last_seen": 1780430974.576594,
+        "recent_actions": [
+          "browser_describe_screen"
+        ]
+      }
+    ],
+    "skills": [
+      {
+        "name": "estudos",
+        "total": 13,
+        "success": 13,
+        "failure": 0,
+        "needs_adjustment": 0,
+        "success_rate": 1.0,
+        "error_rate": 0.0,
+        "utility": 28.639,
+        "last_seen": 1780430974.576594,
+        "recent_actions": [
+          "browser_describe_screen",
+          "respond",
+          "action_tool_execute"
+        ]
+      },
+      {
+        "name": "visao",
+        "total": 8,
+        "success": 8,
+        "failure": 0,
+        "needs_adjustment": 0,
+        "success_rate": 1.0,
+        "error_rate": 0.0,
+        "utility": 18.197,
+        "last_seen": 1780430974.576594,
+        "recent_actions": [
+          "browser_describe_screen",
+          "action_tool_execute",
+          "respond"
+        ]
+      },
+      {
+        "name": "navegacao",
+        "total": 5,
+        "success": 5,
+        "failure": 0,
+        "needs_adjustment": 0,
+        "success_rate": 1.0,
+        "error_rate": 0.0,
+        "utility": 11.792,
+        "last_seen": 1780430974.576594,
+        "recent_actions": [
+          "browser_describe_screen"
+        ]
+      }
+    ]
+  },
+  "pending_reminders": [],
+  "active_bottlenecks": [],
+  "summary": "Axel acompanhando Pedro Henrique. Foco atual: Integrar o Axel a uma agenda/calendario real. Tickers recentes: PETR4. Preferencias operacionais: estilo jarvis, tratamento 'senhor', confirmacoes breves, humor jarvis nivel 2, modelo de chat qwen2.5:0.5b, voz piper/Microsoft Maria Desktop, hotword 'estagiario'. Preferencias salvas: em tarefas de código, teste os comandos antes de sugerir que está pronto; não precisa narrar demais quando a tarefa for simples; quando eu disser vamos evoluir, leia o projeto antes de propor mudanças. Assunto atual: Não, senhor. O PDF. Tarefas abertas: Continuar evoluindo a interface para algo ainda mais futurista e animado.; Redesenhar a interface como um command deck complexo, rico em informacoes e visualmente denso.. Ranking atual: agente system_agent, toolset sistema."
+}

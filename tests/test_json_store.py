@@ -77,6 +77,29 @@ class JsonStoreTests(unittest.TestCase):
             self.assertGreaterEqual(len(calls), 2)
             self.assertEqual(storage.read(path, {}), {"ok": True})
 
+    def test_local_json_storage_recreates_missing_tmp_on_replace(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "state.json"
+            storage = LocalJsonStorage()
+            calls = []
+            real_replace = __import__("os").replace
+
+            def missing_once(src, dst):
+                calls.append((src, dst))
+                if len(calls) == 1:
+                    Path(src).unlink(missing_ok=True)
+                    raise FileNotFoundError(str(src))
+                return real_replace(src, dst)
+
+            with (
+                patch("memory.json_store.os.replace", side_effect=missing_once),
+                patch("memory.json_store.time.sleep"),
+            ):
+                storage.write(path, {"ok": True})
+
+            self.assertGreaterEqual(len(calls), 2)
+            self.assertEqual(storage.read(path, {}), {"ok": True})
+
 
 if __name__ == "__main__":
     unittest.main()

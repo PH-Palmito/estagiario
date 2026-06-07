@@ -31,6 +31,10 @@ class RouterMediaTests(unittest.TestCase):
 
         self.assertEqual(result, {"intent": "volume_up", "target": None})
 
+    def test_mute_requires_whole_word(self):
+        self.assertEqual(detect_media_command("mudo"), {"intent": "volume_mute", "target": None})
+        self.assertIsNone(detect_media_command("o que mudou na carteira desde ontem"))
+
 
 if __name__ == "__main__":
     unittest.main()

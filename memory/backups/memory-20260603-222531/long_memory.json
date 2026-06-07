@@ -1,0 +1,55 @@
+{
+  "updated_at": 1778638582.3947551,
+  "items": [
+    {
+      "id": "650515cea022ae74",
+      "category": "project",
+      "fact": "Axel agora possui lembretes com avisos por hora enquanto o app estiver rodando",
+      "source": "seed-conversation",
+      "confidence": 0.85,
+      "created_at": 1778638582.3947551,
+      "updated_at": 1778638582.3947551,
+      "seen_count": 1
+    },
+    {
+      "id": "b274f1f6c84e3e16",
+      "category": "context",
+      "fact": "Axel esta conectado ao Obsidian e ao Supabase para espelhar e sincronizar memorias",
+      "source": "seed-conversation",
+      "confidence": 0.85,
+      "created_at": 1778638582.3480392,
+      "updated_at": 1778638582.3480392,
+      "seen_count": 1
+    },
+    {
+      "id": "dfbb7d421ce00867",
+      "category": "future",
+      "fact": "Integracao com WhatsApp e uma agenda/calendario real sao prioridades futuras do Axel",
+      "source": "seed-conversation",
+      "confidence": 0.85,
+      "created_at": 1778638582.3006213,
+      "updated_at": 1778638582.3006213,
+      "seen_count": 1
+    },
+    {
+      "id": "f4bfd3036d1f6a23",
+      "category": "decision",
+      "fact": "Axel deve ter memoria longa curada no Obsidian, separada da memoria operacional curta",
+      "source": "seed-conversation",
+      "confidence": 0.85,
+      "created_at": 1778638582.2536922,
+      "updated_at": 1778638582.2536922,
+      "seen_count": 1
+    },
+    {
+      "id": "e32b50b757217c32",
+      "category": "preference",
+      "fact": "Pedro quer que a memoria do Axel cresca de forma curada, sem encher o Obsidian com coisas desnecessarias",
+      "source": "seed-conversation",
+      "confidence": 0.85,
+      "created_at": 1778638582.2212675,
+      "updated_at": 1778638582.2212675,
+      "seen_count": 1
+    }
+  ]
+}

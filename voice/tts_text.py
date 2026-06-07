@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import re
@@ -446,7 +446,7 @@ def _normalize_tts_punctuation(text: str) -> str:
 
     text = _normalize_tts_quotes_and_brackets(text)
     text = re.sub(r"\s*(?:\.{3,}|\u2026)\s*", ellipsis_token, text)
-    text = re.sub(r"\s*[��-]\s*", ", ", text)
+    text = re.sub(r"\s*[\ufffd\x1c\x1d-]\s*", ", ", text)
     text = re.sub(r"\s*/\s*", ", ", text)
     text = re.sub(r"\s+", " ", text).strip()
     text = re.sub(r"\s+([,.!?;:])", r"\1", text)

@@ -9,15 +9,15 @@ def polish_assistant_response(message: str) -> str:
         return ""
 
     mojibake_replacements = {
-        "NÃ£o": "Não",
-        "nÃ£o": "não",
-        "AÃ§Ã£o": "Ação",
-        "aÃ§Ã£o": "ação",
-        "sessÃ£o": "sessão",
-        "hÃ¡": "há",
-        "serÃ¡": "será",
-        "entÃ£o": "então",
-        "precisÃ£o": "precisão",
+        "N\u00c3\u00a3o": "Não",
+        "n\u00c3\u00a3o": "não",
+        "A\u00c3\u00a7\u00c3\u00a3o": "Ação",
+        "a\u00c3\u00a7\u00c3\u00a3o": "ação",
+        "sess\u00c3\u00a3o": "sessão",
+        "h\u00c3\u00a1": "há",
+        "ser\u00c3\u00a1": "será",
+        "ent\u00c3\u00a3o": "então",
+        "precis\u00c3\u00a3o": "precisão",
     }
     for old, new in mojibake_replacements.items():
         text = text.replace(old, new)

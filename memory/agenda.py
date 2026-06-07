@@ -3,12 +3,14 @@ from __future__ import annotations
 import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 from memory.contextual_suggestions import agenda_contextual_suggestion, agenda_follow_up_prompt
 from memory.json_store import read_json_file, update_json_file, write_json_atomic
 from memory.reminders import parse_reminder_request
 
 AGENDA_PATH = Path("memory/agenda.json")
+AGENDA_ICS_EXPORT_PATH = Path("memory/axel_agenda.ics")
 
 
 def _load_agenda() -> dict:
@@ -36,6 +38,39 @@ def _today() -> date:
 
 def _date_key(target: date) -> str:
     return target.isoformat()
+
+
+def _escape_ics_text(text: str) -> str:
+    value = str(text or "")
+    value = value.replace("\\", "\\\\").replace("\n", "\\n")
+    value = value.replace(",", "\\,").replace(";", "\\;")
+    return value
+
+
+def _unescape_ics_text(text: str) -> str:
+    value = str(text or "")
+    value = value.replace("\\n", "\n").replace("\\;", ";").replace("\\,", ",")
+    return value.replace("\\\\", "\\").strip()
+
+
+def _format_ics_datetime(value: datetime) -> str:
+    return value.strftime("%Y%m%dT%H%M%S")
+
+
+def _parse_ics_datetime(value: str) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    raw = raw.rstrip("Z")
+    for fmt in ("%Y%m%dT%H%M%S", "%Y%m%dT%H%M", "%Y%m%d"):
+        try:
+            parsed = datetime.strptime(raw, fmt)
+            if fmt == "%Y%m%d":
+                return parsed.replace(hour=9, minute=0)
+            return parsed
+        except ValueError:
+            continue
+    return None
 
 
 def _parse_target_day_and_text(raw_text: str) -> tuple[date, str]:
@@ -182,6 +217,109 @@ def list_agenda_all() -> str:
     if not rows:
         return "Ainda nao ha compromissos salvos na agenda."
     return "Proximos compromissos: " + " | ".join(rows) + "."
+
+
+def calendar_sync_status() -> str:
+    total = 0
+    for items in _load_agenda().values():
+        if isinstance(items, list):
+            total += len([item for item in items if isinstance(item, dict)])
+    suffix = f" Ultima exportacao: {AGENDA_ICS_EXPORT_PATH}." if AGENDA_ICS_EXPORT_PATH.exists() else ""
+    return (
+        "Calendario externo: primeira camada via arquivo ICS. "
+        f"Agenda local tem {total} compromisso(s)."
+        f"{suffix}"
+    )
+
+
+def export_agenda_ics(path: str | Path | None = None) -> str:
+    target = Path(path) if path else AGENDA_ICS_EXPORT_PATH
+    agenda = _load_agenda()
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Axel//Local Agenda//PT-BR",
+        "CALSCALE:GREGORIAN",
+    ]
+    count = 0
+    now_stamp = _format_ics_datetime(datetime.now())
+    for day_key in sorted(agenda.keys()):
+        items = agenda.get(day_key) or []
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            text = str(item.get("text") or "").strip()
+            if not text:
+                continue
+            try:
+                start = datetime.fromisoformat(str(item.get("due_at") or ""))
+            except Exception:
+                try:
+                    start = datetime.fromisoformat(day_key).replace(hour=9, minute=0)
+                except Exception:
+                    continue
+            end = start + timedelta(minutes=30)
+            uid = str(item.get("uid") or f"axel-{day_key}-{count}-{uuid4().hex[:8]}")
+            lines.extend(
+                [
+                    "BEGIN:VEVENT",
+                    f"UID:{uid}",
+                    f"DTSTAMP:{now_stamp}",
+                    f"DTSTART:{_format_ics_datetime(start)}",
+                    f"DTEND:{_format_ics_datetime(end)}",
+                    f"SUMMARY:{_escape_ics_text(text)}",
+                    "END:VEVENT",
+                ]
+            )
+            count += 1
+    lines.append("END:VCALENDAR")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+    return f"Exportei {count} compromisso(s) para {target}."
+
+
+def import_agenda_ics(path: str | Path) -> str:
+    source = Path(str(path or "").strip().strip('"'))
+    if not source.exists():
+        return "Arquivo ICS nao encontrado."
+
+    content = source.read_text(encoding="utf-8", errors="ignore")
+    events = re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", content, flags=re.S | re.I)
+    imported = 0
+
+    def field(block: str, name: str) -> str:
+        match = re.search(rf"^{name}(?:;[^:]*)?:(.+)$", block, flags=re.M | re.I)
+        return match.group(1).strip() if match else ""
+
+    def add_events(agenda: dict) -> dict:
+        nonlocal imported
+        for block in events:
+            summary = _unescape_ics_text(field(block, "SUMMARY"))
+            start = _parse_ics_datetime(field(block, "DTSTART"))
+            if not summary or start is None:
+                continue
+            key = _date_key(start.date())
+            item = {
+                "text": summary,
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "source": "ics",
+                "uid": field(block, "UID") or f"ics-{uuid4().hex}",
+                "due_at": start.isoformat(timespec="minutes"),
+                "notified_at": "",
+            }
+            items = list(agenda.get(key) or [])
+            uid = str(item["uid"])
+            if any(str(existing.get("uid") or "") == uid for existing in items if isinstance(existing, dict)):
+                continue
+            items.append(item)
+            agenda[key] = items
+            imported += 1
+        return agenda
+
+    _update_agenda(add_events)
+    return f"Importei {imported} compromisso(s) de {source}."
 
 
 def remove_agenda_item(index_text: str, scope: str = "today") -> str:

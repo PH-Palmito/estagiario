@@ -193,6 +193,8 @@ def extract_xlsx(path: str, max_rows: int = 20, max_sheets: int = 5) -> dict:
 
 
 def _decode_pdf_literal(value: bytes) -> str:
+    if value.startswith(b"(") and value.endswith(b")"):
+        value = value[1:-1]
     value = value.replace(rb"\\(", b"\x00").replace(rb"\\)", b"\x01").replace(rb"\\\\", b"\\")
     try:
         text = value.decode("utf-8")
@@ -203,6 +205,64 @@ def _decode_pdf_literal(value: bytes) -> str:
 
 def _compact_pdf_text(text: str) -> str:
     return re.sub(r"\s+", " ", str(text or "").replace("\x00", "")).strip()
+
+
+def _repair_pdf_mojibake(text: str) -> str:
+    repaired = str(text or "")
+    replacements = {
+        "\x89": "a",
+        "\x99": "o",
+    }
+    for old, new in replacements.items():
+        repaired = repaired.replace(old, new)
+    repaired = re.sub(r"[\x80-\x9f]", "", repaired)
+    return repaired
+
+
+def _pdf_fragment_is_noise(text: str) -> bool:
+    fragment = _repair_pdf_mojibake(str(text or "")).replace("\x00", "")
+    stripped = fragment.strip()
+    if not stripped:
+        return False
+    if len(stripped) <= 3 and all(char in " .,:;!?()-/R$" for char in stripped):
+        return False
+
+    visible = re.sub(r"\s+", "", stripped)
+    if not visible:
+        return False
+    letters = sum(1 for char in visible if char.isalpha())
+    lowercase = sum(1 for char in visible if char.islower())
+    digits = sum(1 for char in visible if char.isdigit())
+    symbols = sum(1 for char in visible if not char.isalnum())
+    hard_symbols = len(re.findall(r"[#%&*+<=>@\\^_`{|}~]", visible))
+
+    if lowercase >= 3:
+        return False
+    if len(visible) >= 4 and letters == 0 and symbols >= 2:
+        return True
+    if len(visible) >= 5 and hard_symbols >= 2 and symbols > letters + digits:
+        return True
+    if re.search(r"[#%&*+<=>@\\^_`{|}~]{2,}", visible):
+        return True
+    return False
+
+
+def _clean_pdf_symbol_noise(text: str) -> str:
+    def replace_noise(match: re.Match) -> str:
+        value = match.group(0)
+        hard_symbols = len(re.findall(r"[#%&*+<=>@\\^_`{|}~]", value))
+        letters = sum(1 for char in value if char.isalpha())
+        lowercase = sum(1 for char in value if char.islower())
+        if hard_symbols >= 2 and lowercase == 0 and len(value) >= 8:
+            return " "
+        if hard_symbols >= 4 and letters <= 3 and len(value) >= 8:
+            return " "
+        return value
+
+    cleaned = re.sub(r"""[!"#$%&'\\()*,./+:;<=>?@\[\]^_`{|}~0-9-]{8,}""", replace_noise, _repair_pdf_mojibake(str(text or "")))
+    cleaned = re.sub(r"([a-z])([A-Z])", r"\1 \2", cleaned)
+    cleaned = re.sub(r"\s+([,.!?;:])", r"\1", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
 
 
 def _extract_pdf_text_basic(data: bytes) -> str:
@@ -220,16 +280,36 @@ def _extract_pdf_text_basic(data: bytes) -> str:
     if not chunks:
         chunks = [data]
 
+    return _extract_pdf_text_from_chunks(chunks)
+
+
+def _extract_pdf_text_from_chunks(chunks: list[bytes], cmap: dict[int, str] | None = None) -> str:
+    cmap = cmap or {}
     texts: list[str] = []
+    def append_fragment(fragment: str) -> None:
+        if not _pdf_fragment_is_noise(fragment):
+            texts.append(fragment)
+
     for chunk in chunks:
-        texts.extend(_decode_pdf_literal(item) for item in re.findall(rb"\((?:\\.|[^\\)])*\)", chunk))
+        if b"beginbfchar" in chunk or b"beginbfrange" in chunk:
+            continue
+        if cmap:
+            for item in re.findall(rb"\((?:\\.|[^\\)])*\)", chunk):
+                append_fragment(_decode_pdf_literal_with_cmap(item, cmap))
+        else:
+            for item in re.findall(rb"\((?:\\.|[^\\)])*\)", chunk):
+                append_fragment(_decode_pdf_literal(item))
         for hex_text in re.findall(rb"<([0-9A-Fa-f\s]{4,})>", chunk):
             clean = re.sub(rb"\s+", b"", hex_text)
             try:
-                texts.append(bytes.fromhex(clean.decode("ascii")).decode("utf-16-be", errors="ignore"))
+                raw = bytes.fromhex(clean.decode("ascii"))
             except Exception:
-                pass
-    return re.sub(r"\s+", " ", " ".join(texts)).strip()
+                continue
+            if cmap:
+                append_fragment("".join(cmap.get(byte, chr(byte)) for byte in raw))
+            else:
+                append_fragment(raw.decode("utf-16-be", errors="ignore"))
+    return _clean_pdf_symbol_noise(re.sub(r"\s+", " ", "".join(texts)).strip())
 
 
 def _pdf_stream_chunks(data: bytes) -> list[bytes]:
@@ -293,6 +373,8 @@ def _decode_pdf_literal_with_cmap(value: bytes, cmap: dict[int, str]) -> str:
     if not cmap:
         return _decode_pdf_literal(value)
 
+    if value.startswith(b"(") and value.endswith(b")"):
+        value = value[1:-1]
     output: list[str] = []
     index = 0
     while index < len(value):
@@ -311,19 +393,70 @@ def _extract_pdf_text_with_cmap(data: bytes) -> str:
     if not cmap:
         return ""
 
-    texts: list[str] = []
-    for chunk in chunks:
-        if b"beginbfchar" in chunk or b"beginbfrange" in chunk:
+    return _extract_pdf_text_from_chunks(chunks, cmap)
+
+
+def _pdf_objects(data: bytes) -> dict[int, bytes]:
+    objects: dict[int, bytes] = {}
+    for match in re.finditer(rb"(\d+)\s+\d+\s+obj\b(.*?)\bendobj\b", data, flags=re.S):
+        try:
+            objects[int(match.group(1))] = match.group(2)
+        except Exception:
             continue
-        texts.extend(_decode_pdf_literal_with_cmap(item, cmap) for item in re.findall(rb"\((?:\\.|[^\\)])*\)", chunk))
-        for hex_text in re.findall(rb"<([0-9A-Fa-f\s]{4,})>", chunk):
-            clean = re.sub(rb"\s+", b"", hex_text)
-            try:
-                raw = bytes.fromhex(clean.decode("ascii"))
-            except Exception:
-                continue
-            texts.append("".join(cmap.get(byte, chr(byte)) for byte in raw))
-    return re.sub(r"\s+", " ", " ".join(texts)).strip()
+    return objects
+
+
+def _pdf_stream_from_object(obj: bytes) -> bytes:
+    match = re.search(rb"stream\r?\n(.*?)\r?\nendstream", obj, flags=re.S)
+    if not match:
+        return b""
+    raw = match.group(1).strip(b"\r\n")
+    if b"FlateDecode" in obj:
+        try:
+            return zlib.decompress(raw)
+        except Exception:
+            return b""
+    return raw
+
+
+def _extract_pdf_pages_basic(data: bytes, *, max_chars: int = 4000) -> list[dict]:
+    objects = _pdf_objects(data)
+    if not objects:
+        return []
+    cmap = _parse_pdf_cmaps(_pdf_stream_chunks(data))
+    pages: list[dict] = []
+    for _obj_id, page_obj in objects.items():
+        if not re.search(rb"/Type\s*/Page\b", page_obj) or re.search(rb"/Type\s*/Pages\b", page_obj):
+            continue
+        refs: list[int] = []
+        direct = re.search(rb"/Contents\s+(\d+)\s+\d+\s+R", page_obj)
+        if direct:
+            refs.append(int(direct.group(1)))
+        array = re.search(rb"/Contents\s*\[(.*?)\]", page_obj, flags=re.S)
+        if array:
+            refs.extend(int(item) for item in re.findall(rb"(\d+)\s+\d+\s+R", array.group(1)))
+        chunks = [_pdf_stream_from_object(objects.get(ref, b"")) for ref in refs]
+        clean_chunks = [chunk for chunk in chunks if chunk]
+        page_text = _extract_pdf_text_from_chunks(clean_chunks, cmap)
+        if page_text.strip():
+            pages.append(
+                {
+                    "index": len(pages) + 1,
+                    "text": page_text[:max_chars],
+                    "needs_ocr": _pdf_chunks_need_page_ocr(clean_chunks, cmap),
+                }
+            )
+    return pages
+
+
+def _pdf_chunks_need_page_ocr(chunks: list[bytes], cmap: dict[int, str] | None = None) -> bool:
+    cmap = cmap or {}
+    for chunk in chunks:
+        for item in re.findall(rb"\((?:\\.|[^\\)])*\)", chunk):
+            fragment = _decode_pdf_literal_with_cmap(item, cmap) if cmap else _decode_pdf_literal(item)
+            if _pdf_page_needs_ocr(fragment):
+                return True
+    return False
 
 
 def _pdf_text_quality(text: str) -> float:
@@ -333,7 +466,7 @@ def _pdf_text_quality(text: str) -> float:
         return 0.0
     letters = sum(1 for char in compact if char.isalpha())
     common = len(re.findall(r"\b(?:de|da|do|que|para|com|uma|teste|quest[aã]o|software)\b", text or "", flags=re.I))
-    noise = sum(1 for char in compact if char in "♥�◄►♦♣♠")
+    noise = sum(1 for char in compact if char in "\u2665\ufffd\u25c4\u25ba\u2666\u2663\u2660")
     spaced_caps = len(re.findall(r"(?:\b[A-Z0-9]\s+){4,}", text or ""))
     tokens = re.findall(r"\b\w+\b", text or "")
     single_token_ratio = sum(1 for token in tokens if len(token) == 1) / max(1, len(tokens))
@@ -383,7 +516,7 @@ def _pdf_text_is_garbled(text: str) -> bool:
     compact = re.sub(r"\s+", "", text or "")
     tokens = re.findall(r"\b\w+\b", text or "")
     single_token_ratio = sum(1 for token in tokens if len(token) == 1) / max(1, len(tokens))
-    noise = sum(1 for char in compact if char in "♥�◄►♦♣♠")
+    noise = sum(1 for char in compact if char in "\u2665\ufffd\u25c4\u25ba\u2666\u2663\u2660")
     spaced_caps = len(re.findall(r"(?:\b[A-Z0-9]\s+){4,}", text or ""))
     common = len(re.findall(r"\b(?:de|da|do|que|para|com|uma|teste|quest[aã]o|software)\b", text or "", flags=re.I))
     substitution_score = _pdf_glyph_substitution_score(text)
@@ -401,7 +534,36 @@ def _pdf_text_is_garbled(text: str) -> bool:
     return False
 
 
-def _render_pdf_pages_with_qt(path: Path, *, max_pages: int = 3, scale: float = 2.0) -> list[Path]:
+def _pdf_page_needs_ocr(text: str) -> bool:
+    raw = str(text or "").replace("\x00", "")
+    c1_controls = len(re.findall(r"[\x80-\x9f]", raw))
+    compact = re.sub(r"\s+", "", raw)
+    if len(compact) < 12:
+        return False
+    if c1_controls >= 1 and len(compact) >= 15:
+        return True
+    hard_symbols = len(re.findall(r"[#%&*+<=>@\\^_`{|}~]", compact))
+    letters = sum(1 for char in compact if char.isalpha())
+    mixed_noise = len(re.findall(r"[A-Za-z][#%&*+<=>@\\^_`{|}~][A-Za-z0-9]|[#%&*+<=>@\\^_`{|}~][A-Za-z0-9][#%&*+<=>@\\^_`{|}~]", compact))
+    symbolic_runs = len(re.findall(r"[!\"#$%&'\\()*,./+:;<=>?@\[\]^_`{|}~0-9-]{8,}", compact))
+    if len(compact) >= 15 and letters >= 3 and hard_symbols >= 3 and mixed_noise >= 1:
+        return True
+    if len(compact) >= 20 and letters >= 3 and hard_symbols / max(1, len(compact)) >= 0.12:
+        return True
+    if hard_symbols >= 3 and symbolic_runs >= 1:
+        return True
+    if len(compact) >= 100 and hard_symbols / max(1, len(compact)) >= 0.08:
+        return True
+    return False
+
+
+def _render_pdf_pages_with_qt(
+    path: Path,
+    *,
+    max_pages: int = 3,
+    scale: float = 2.0,
+    page_numbers: list[int] | None = None,
+) -> list[Path]:
     try:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "0")
@@ -443,7 +605,12 @@ def _render_pdf_pages_with_qt(path: Path, *, max_pages: int = 3, scale: float = 
         image_paths: list[Path] = []
         temp_dir = Path(tempfile.mkdtemp(prefix="axel_pdf_ocr_"))
 
-        for page_index in range(min(max_pages, page_count)):
+        if page_numbers:
+            indexes = [number - 1 for number in page_numbers if 1 <= number <= page_count]
+        else:
+            indexes = list(range(min(max_pages, page_count)))
+
+        for page_index in indexes:
             page_size = document.pagePointSize(page_index)
             width = max(1, int(page_size.width() * scale))
             height = max(1, int(page_size.height() * scale))
@@ -525,6 +692,40 @@ def _extract_pdf_text_ocr(
     }
 
 
+def _extract_pdf_pages_ocr(
+    path: Path,
+    page_numbers: list[int],
+    *,
+    max_chars: int = 4000,
+    render_pages=_render_pdf_pages_with_qt,
+    ocr_image=_rapidocr_image_text,
+) -> dict[int, str]:
+    wanted = sorted({int(number) for number in page_numbers if int(number) > 0})
+    if not wanted:
+        return {}
+    image_paths = render_pages(path, max_pages=max(wanted), page_numbers=wanted)
+    if not image_paths:
+        return {}
+
+    output: dict[int, str] = {}
+    try:
+        for image_path in image_paths:
+            match = re.search(r"page_(\d+)", image_path.stem)
+            if not match:
+                continue
+            page_number = int(match.group(1))
+            page_text = _compact_pdf_text(ocr_image(image_path))
+            if page_text and not _pdf_text_is_garbled(page_text):
+                output[page_number] = page_text[:max_chars]
+    finally:
+        for directory in {image_path.parent for image_path in image_paths}:
+            try:
+                shutil.rmtree(directory, ignore_errors=True)
+            except Exception:
+                pass
+    return output
+
+
 def _extract_pdf_text_with_external_ocr(path: Path, *, max_chars: int = 4000) -> dict:
     try:
         from config import env_str
@@ -573,6 +774,20 @@ def _extract_pdf_text_with_external_ocr(path: Path, *, max_chars: int = 4000) ->
     }
 
 
+def _ocr_page_text_is_better(ocr_text: str, current_text: str) -> bool:
+    ocr_clean = _compact_pdf_text(ocr_text)
+    current_clean = _compact_pdf_text(current_text)
+    if not ocr_clean or _pdf_text_is_garbled(ocr_clean):
+        return False
+    if _pdf_text_quality(ocr_clean) >= _pdf_text_quality(current_clean):
+        return True
+    ocr_words = len(re.findall(r"\b\w{3,}\b", ocr_clean))
+    current_words = len(re.findall(r"\b\w{3,}\b", current_clean))
+    if len(ocr_clean) >= max(80, int(len(current_clean) * 1.35)) and ocr_words >= current_words + 3:
+        return True
+    return False
+
+
 def extract_pdf(path: str, max_chars: int = 4000) -> dict:
     file_path = Path(path)
     text = ""
@@ -594,6 +809,7 @@ def extract_pdf(path: str, max_chars: int = 4000) -> dict:
         engine = "pypdf"
     except Exception:
         data = file_path.read_bytes()
+        pages = _extract_pdf_pages_basic(data, max_chars=max_chars)
         mapped_text = _extract_pdf_text_with_cmap(data)
         basic_text = _extract_pdf_text_basic(data)
         if _pdf_text_quality(mapped_text) >= _pdf_text_quality(basic_text):
@@ -601,6 +817,27 @@ def extract_pdf(path: str, max_chars: int = 4000) -> dict:
             engine = "basic_cmap" if mapped_text else "basic"
         else:
             text = basic_text
+
+    noisy_page_numbers = [
+        int(page.get("index") or 0)
+        for page in pages
+        if isinstance(page, dict)
+        and (bool(page.get("needs_ocr")) or _pdf_page_needs_ocr(str(page.get("text") or "")))
+    ]
+    ocr_page_texts = _extract_pdf_pages_ocr(file_path, noisy_page_numbers, max_chars=max_chars) if noisy_page_numbers else {}
+    if ocr_page_texts:
+        replaced = 0
+        for page in pages:
+            if not isinstance(page, dict):
+                continue
+            page_index = int(page.get("index") or 0)
+            ocr_text = ocr_page_texts.get(page_index)
+            if ocr_text and _ocr_page_text_is_better(ocr_text, str(page.get("text") or "")):
+                page["text"] = ocr_text
+                replaced += 1
+        if replaced:
+            text = "\n".join(str(page.get("text") or "") for page in pages if isinstance(page, dict))
+            engine = f"{engine}+page_ocr"
 
     quality = _pdf_text_quality(text)
     note = "" if text else "Nao consegui extrair texto pesquisavel deste PDF."

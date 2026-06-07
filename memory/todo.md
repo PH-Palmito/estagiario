@@ -76,18 +76,18 @@
 - [x] Evoluir o briefing com alertas mais proativos, noticias e agenda mais inteligente.
 - [x] Reduzir a saudacao de startup no modo voz/painel para evitar texto colado antes do briefing.
 - [x] Criar modo de leitura visual por clipboard, tela, navegador e arquivo com historico das ultimas analises.
-- [ ] Continuar evoluindo a interface para algo ainda mais futurista e animado.
-- [ ] Redesenhar a interface como um command deck complexo, rico em informacoes e visualmente denso.
+- [x] Continuar evoluindo a interface para algo ainda mais futurista e animado, com primeira camada de command deck no HUD.
+- [x] Redesenhar a interface como um command deck complexo, rico em informacoes e visualmente denso, com busca, filtros e metricas de comandos.
 - [x] Ler texto selecionado na tela e traduzir quando eu pedir.
 - [x] Criar confirmacao inteligente para comandos provaveis quando a transcricao vier ruim.
 - [x] Criar memoria de correcoes automatica para o Axel aprender variacoes de voz sem mapear tudo manualmente.
 - [x] Evoluir modo musica com comandos como gostei dessa, nao gostei, mais desse estilo e menos triste agora.
-- [ ] Criar cache e fast path para Mercado Livre e sites frequentes, nos mesmos moldes do Spotify.
+- [x] Criar primeira camada de cache e fast path para Mercado Livre e sites frequentes, nos mesmos moldes do Spotify.
 - [x] Criar um canal remoto por Telegram Bot para falar com o Axel sem numero de celular, com allowlist por chat_id, polling local e bloqueio de acoes sensiveis fora do PC.
-- [ ] Manter Discord apenas como alternativa futura caso o Telegram nao cubra bem o uso remoto.
-- [ ] Integrar o Axel a uma agenda/calendario real para criar, consultar e sincronizar compromissos, avaliando Microsoft To Do, Google Agenda ou Samsung Calendar, usando isso no briefing e nos lembretes proativos.
-- [ ] Criar resumo diario do que mudou na carteira desde ontem: patrimonio, rentabilidade, ativos que mais variaram, dividendos novos, noticias relevantes e alertas de preco-teto.
-- [ ] Controlar os LEDs do teclado pelo Axel, com comandos de ligar/desligar, trocar cor/perfil e usar efeitos como feedback visual de escuta, alerta e foco.
+- [x] Manter Discord apenas como alternativa futura caso o Telegram nao cubra bem o uso remoto; decisao registrada, Telegram segue como canal remoto principal.
+- [x] Integrar o Axel a uma agenda/calendario real para criar, consultar e sincronizar compromissos, avaliando Microsoft To Do, Google Agenda ou Samsung Calendar, usando isso no briefing e nos lembretes proativos.
+- [x] Criar resumo diario do que mudou na carteira desde ontem: patrimonio, rentabilidade, ativos que mais variaram, dividendos novos, noticias relevantes e alertas de preco-teto.
+- [x] Controlar os LEDs do teclado pelo Axel, com comandos de ligar/desligar, trocar cor/perfil e usar efeitos como feedback visual de escuta, alerta e foco; primeira camada simulada/plugavel pronta.
 - [x] Aproveitar ideias do Hermes Agent no Axel: memoria curta curada, busca de sessoes, skills procedurais, toolsets por contexto e orquestrador central de decisao.
 - [x] Criar `memory/core_memory.md` e `memory/user_profile.md` como memoria curta prioritaria e consolidada.
 - [x] Criar busca local de sessoes antigas com SQLite/FTS5 para recuperar conversas por assunto.
@@ -132,13 +132,15 @@
 - [x] Evoluir confirmacao remota do Telegram com botoes inline de Confirmar/Cancelar.
 - [x] Desativar o modo remoto ampliado no Telegram apos teste pratico, mantendo AxelBrain 2.0 com leitura e midia leve confirmada.
 - [ ] Empacotar o Axel como app real no Windows, para abrir sem terminal, com atalho/menu iniciar/icone e logs acessiveis; deixar para fase final enquanto o projeto ainda muda com frequencia.
-- [ ] No Telegram Bot, aceitar audio/voice memo e transcrever como entrada remota do Axel.
-- [ ] Reavaliar futuramente niveis de permissao remota alem de midia/volume somente com modelo de seguranca mais forte.
-- [ ] Criar comandos compartilhados para terminal, HUD e Telegram: reset, retry, undo, stop, usage, insights, skills, status e troca de modelo.
-- [ ] Criar comandos `axel setup`, `axel doctor` e futuramente `axel update` para configuracao, diagnostico e atualizacao.
-- [ ] Avaliar MCP como camada futura para conectar ferramentas externas ao Axel sem acoplar tudo no nucleo.
-- [ ] Criar arquivos de contexto por workspace/projeto, inspirados em `AGENTS.md`, para orientar respostas e execucoes.
-- [ ] Criar scripts operacionais que chamem tools/actions por RPC local para fluxos repetidos e baratos em contexto.
+- [x] No Telegram Bot, aceitar audio/voice memo e transcrever como entrada remota do Axel.
+- [x] Reavaliar futuramente niveis de permissao remota alem de midia/volume somente com modelo de seguranca mais forte; politica atual documentada e centralizada como remoto limitado.
+- [x] Criar primeira camada de comandos compartilhados para terminal, HUD e Telegram: `/status`, `/usage`, `/insights`, `/skills` e `/help`, todos em modo leitura segura.
+- [x] Expandir comandos compartilhados com `/reset`, `/stop` e `/model`, com permissao diferente para local e Telegram.
+- [x] Expandir comandos compartilhados com retry e undo, com permissao diferente para local e Telegram.
+- [x] Criar comandos `axel setup`, `axel doctor` e `axel update` para configuracao, diagnostico e plano seguro de atualizacao.
+- [x] Avaliar MCP como camada futura para conectar ferramentas externas ao Axel sem acoplar tudo no nucleo.
+- [x] Criar primeira camada de arquivos de contexto por workspace/projeto, inspirados em `AGENTS.md`, para orientar respostas e execucoes.
+- [x] Criar primeira camada de scripts operacionais que chamem tools/actions por RPC local para fluxos repetidos e baratos em contexto.
 
 ## Prioridades atuais
 
@@ -166,12 +168,12 @@
 - [x] Extrair teclado/mouse para tools/windows_input.py.
 - [x] Extrair titulo, retangulos e hash de janela para tools/windows_window.py.
 - [x] Extrair automacao UI do navegador para tools/browser_ui_automation.py.
-- [ ] Continuar quebra de tools/browser_tools.py por dominios: controles, leitura de tela, carteira e musica.
+- [x] Continuar quebra de tools/browser_tools.py por dominios: controles, leitura de tela, carteira e musica.
 - [x] Atualizar README.md e corrigir encoding da documentacao principal.
 - [x] Criar politica de caches/artefatos em memory/ e ajustar .gitignore.
 - [x] Criar painel de saude do Axel.
 - [x] Implementar criador autonomo de skills do Axel, com comando direto como "crie uma skill para estudar slides" e validacao basica antes de salvar em `memory/skills/`.
-- [ ] Implementar skill/agente de estudos para ler PDF/PPTX/DOCX/TXT, resumir por slide/secao, extrair pontos-chave, gerar questoes, gabarito e plano de revisao.
+- [x] Implementar skill/agente de estudos para ler PDF/PPTX/DOCX/TXT, resumir por slide/secao, extrair pontos-chave, gerar questoes, gabarito e plano de revisao.
 - [x] Aplicar "confie, mas verifique" na analise de arquivos de estudo: validar a qualidade da extracao antes de resumir ou gerar questoes.
 - [x] Criar hook para OCR externo de PDF, incluindo provider estilo ClawHub/OpenClaw configuravel por `AXEL_PDF_OCR_COMMAND` ou `AXEL_CLAWHUB_PDF_OCR_COMMAND`.
 - [x] Evoluir skill de estudos com contexto do ultimo arquivo, respostas de follow-up, arguição, correcao simples, plano de revisao e limpeza de contexto.

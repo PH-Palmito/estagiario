@@ -56,9 +56,17 @@ def layered_memory_recall(
 
     semantic = []
     for item in long_matches:
+        source = str(item.get("source") or "sem fonte").strip()
+        confidence = float(item.get("confidence") or 0.0)
+        validity = str(item.get("validity") or "durable").strip()
+        reason = str(item.get("reason") or "").strip()
         semantic.append(
             {
                 "source": f"long_memory:{item.get('category', 'context')}",
+                "origin": source,
+                "confidence": confidence,
+                "validity": validity,
+                "reason": reason,
                 "summary": _compact(str(item.get("fact", "")), limit=280),
                 "score": float(item.get("score") or 0.0),
                 "matched_terms": list(item.get("matched_terms") or []),
@@ -79,7 +87,8 @@ def layered_memory_recall(
 
     expanded = []
     for item in semantic[:2]:
-        expanded.append(f"{item['source']} -> {item['summary']}")
+        meta = f"fonte {item.get('origin', 'sem fonte')}, conf {float(item.get('confidence') or 0):.2f}, validade {item.get('validity') or 'durable'}"
+        expanded.append(f"{item['source']} ({meta}) -> {item['summary']}")
     for item in sessions[:2]:
         expanded.append(f"{item['source']} {item.get('role', '')} -> {item['summary']}")
 
@@ -118,7 +127,16 @@ def format_layered_memory_recall(query: str, *, include_transcript: bool = False
 
     semantic = recall.get("semantic") or []
     if semantic:
-        rows = [f"{item['source']}({float(item.get('score') or 0):.2f}): {item['summary']}" for item in semantic[:3]]
+        rows = []
+        for item in semantic[:3]:
+            reason = str(item.get("reason") or "").strip()
+            reason_text = f", motivo {reason}" if reason else ""
+            rows.append(
+                f"{item['source']}({float(item.get('score') or 0):.2f}, "
+                f"fonte {item.get('origin') or 'sem fonte'}, "
+                f"conf {float(item.get('confidence') or 0):.2f}, "
+                f"validade {item.get('validity') or 'durable'}{reason_text}): {item['summary']}"
+            )
         parts.append("Busca semantica/local: " + " ; ".join(rows) + ".")
 
     expanded = recall.get("expanded_summary") or []

@@ -94,6 +94,7 @@ from memory.investment_reading import (
     format_position_reading,
 )
 from memory.investment_report import (
+    investment_daily_change_report,
     investment_financial_report,
     portfolio_monitor_digest,
 )
@@ -820,6 +821,25 @@ def format_investment_financial_report() -> str:
         portfolio_news_digest=_portfolio_news_digest,
         compact_report_news=_compact_report_news,
         filter_new_signal_texts=_filter_new_signal_texts,
+        format_percent=_format_percent,
+    )
+
+
+def format_investment_daily_change_report() -> str:
+    snapshot = load_investment_snapshot()
+    history_payload = _load_json(INVESTMENT_SNAPSHOT_PATH.with_name("investment_snapshot_history.json"))
+    history_items = history_payload.get("items") if isinstance(history_payload, dict) else []
+    if not isinstance(history_items, list):
+        history_items = []
+    return investment_daily_change_report(
+        snapshot,
+        history_items,
+        portfolio_items_above_ceiling=_portfolio_items_above_ceiling,
+        portfolio_dividend_schedule=_portfolio_dividend_schedule,
+        format_dividend_event_brief=_format_dividend_event_brief,
+        portfolio_news_digest=_portfolio_news_digest,
+        parse_percent_value=_parse_percent_value,
+        format_brl=_format_brl,
         format_percent=_format_percent,
     )
 

@@ -13,6 +13,7 @@ _LOCKS: dict[Path, threading.RLock] = {}
 _LOCKS_GUARD = threading.Lock()
 REPLACE_RETRY_ATTEMPTS = 8
 REPLACE_RETRY_DELAY_SECONDS = 0.025
+MISSING_TMP_RETRY_ATTEMPTS = 3
 
 
 def _lock_for(path: Path) -> threading.RLock:
@@ -83,9 +84,18 @@ class LocalJsonStorage:
             content = json.dumps(payload, ensure_ascii=False, indent=indent)
             if trailing_newline:
                 content += "\n"
-            tmp_path = path.with_name(f"{path.stem}.{time.time_ns()}.tmp")
-            tmp_path.write_text(content, encoding="utf-8")
-            self._replace_with_retry(tmp_path, path)
+            last_missing: FileNotFoundError | None = None
+            for attempt in range(MISSING_TMP_RETRY_ATTEMPTS):
+                tmp_path = path.with_name(f"{path.stem}.{time.time_ns()}.tmp")
+                tmp_path.write_text(content, encoding="utf-8")
+                try:
+                    self._replace_with_retry(tmp_path, path)
+                    return
+                except FileNotFoundError as exc:
+                    last_missing = exc
+                    time.sleep(REPLACE_RETRY_DELAY_SECONDS * (attempt + 1))
+            if last_missing:
+                raise last_missing
 
     def update(
         self,

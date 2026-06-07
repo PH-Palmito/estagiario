@@ -109,6 +109,35 @@ def detect_briefing_command(user_input: str):
 
 def detect_agenda_command(user_input: str):
     lower = normalize_text(user_input)
+    if lower in {
+        "status do calendario",
+        "status calendario",
+        "calendario externo",
+        "integracao calendario",
+        "integracao de calendario",
+        "sincronizacao calendario",
+        "sincronizacao de calendario",
+    }:
+        return {"intent": "agenda_calendar_status", "target": None}
+
+    if lower in {
+        "exportar agenda",
+        "exportar calendario",
+        "exportar agenda ics",
+        "exportar calendario ics",
+        "sincronizar agenda",
+        "sincronizar calendario",
+    }:
+        return {"intent": "agenda_export_ics", "target": None}
+
+    export_match = re.match(r"^(?:exportar|salvar)\s+(?:agenda|calendario)(?:\s+ics)?\s+(?:em|para)\s+(.+)$", user_input.strip(), flags=re.I)
+    if export_match:
+        return {"intent": "agenda_export_ics", "target": export_match.group(1).strip()}
+
+    import_match = re.match(r"^(?:importar|ler)\s+(?:agenda|calendario|arquivo\s+ics|ics)(?:\s+de|\s+do|\s+da|\s+em|\s+)?\s*(.+\.ics)$", user_input.strip(), flags=re.I)
+    if import_match:
+        return {"intent": "agenda_import_ics", "target": import_match.group(1).strip()}
+
     add_prefixes = (
         "adicionar na agenda ",
         "adicionar compromisso ",

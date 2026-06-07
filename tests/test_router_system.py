@@ -2,6 +2,7 @@ import unittest
 
 from core.router_system import (
     detect_background_status_command,
+    detect_keyboard_led_command,
     detect_run_script,
     detect_type_text,
     detect_whatsapp_bridge_command,
@@ -68,6 +69,18 @@ class RouterSystemTests(unittest.TestCase):
         self.assertEqual(
             detect_whatsapp_bridge_command("simular whatsapp briefing"),
             {"intent": "whatsapp.simulate_message", "target": "briefing"},
+        )
+
+    def test_keyboard_led_status(self):
+        self.assertEqual(
+            detect_keyboard_led_command("status do led do teclado"),
+            {"intent": "keyboard_led_status", "target": None},
+        )
+
+    def test_keyboard_led_color(self):
+        self.assertEqual(
+            detect_keyboard_led_command("ligar led do teclado azul perfil foco"),
+            {"intent": "keyboard_led_on", "target": {"color": "azul", "profile": "foco", "effect": "foco"}},
         )
 
     def test_type_text(self):

@@ -45,6 +45,23 @@ class MemoryCommandTests(unittest.TestCase):
 
         self.assertEqual(result, "Contexto operacional atualizado. Axel acompanhando operador.")
 
+    def test_workspace_context_command(self):
+        with patch("core.memory_commands.format_workspace_context", return_value="Contexto de workspace carregado."):
+            result = maybe_handle_operational_context_command("contexto do workspace")
+
+        self.assertEqual(result, "Contexto de workspace carregado.")
+
+    def test_product_cache_commands(self):
+        with patch("core.memory_commands.format_cached_products", return_value="Produtos recentes em cache: 1. Produto."):
+            result = maybe_handle_operational_context_command("produtos recentes")
+
+        self.assertEqual(result, "Produtos recentes em cache: 1. Produto.")
+
+        with patch("core.memory_commands.cheapest_cached_product", return_value="O mais barato no cache recente e o item 1: Produto."):
+            result = maybe_handle_operational_context_command("mais barato em cache")
+
+        self.assertEqual(result, "O mais barato no cache recente e o item 1: Produto.")
+
     def test_show_long_memory(self):
         with patch("core.memory_commands.format_long_memory", return_value="Memoria longa: project: Axel."):
             result = maybe_handle_long_memory_command("mostrar memoria longa")
@@ -142,6 +159,12 @@ class MemoryCommandTests(unittest.TestCase):
 
         self.assertEqual(result, "Ranking de agentes: research_agent.")
 
+    def test_latency_report_command(self):
+        with patch("core.memory_commands.format_latency_report", return_value="Latencia do Axel: 3 comandos medidos."):
+            result = maybe_handle_long_memory_command("gargalos do axel")
+
+        self.assertEqual(result, "Latencia do Axel: 3 comandos medidos.")
+
     def test_agent_tool_library_command(self):
         with patch("core.memory_commands.format_agent_tool_library", return_value="Biblioteca de ferramentas de dev_agent."):
             result = maybe_handle_long_memory_command("ferramentas do agente dev_agent")
@@ -193,6 +216,12 @@ class MemoryCommandTests(unittest.TestCase):
             result = maybe_handle_long_memory_command("curar memoria longa")
 
         self.assertEqual(result, "Memoria longa curada. Adicionei 2 item(ns) duraveis.")
+
+    def test_clean_long_memory_command(self):
+        with patch("core.memory_commands.format_clean_long_memory_report", return_value="Memoria longa limpa: 3 -> 1 itens."):
+            result = maybe_handle_long_memory_command("limpar memoria longa")
+
+        self.assertEqual(result, "Memoria longa limpa: 3 -> 1 itens.")
 
     def test_manual_long_memory_save(self):
         with (

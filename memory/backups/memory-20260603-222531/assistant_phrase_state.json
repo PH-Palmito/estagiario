@@ -1,0 +1,129 @@
+{
+  "recent": {
+    "style_ready_prompt_ellipsis": [
+      "Pode prosseguir, senhor.",
+      "Estou ouvindo, senhor.",
+      "Estou ouvindo.",
+      "Pode mandar.",
+      "Pode prosseguir."
+    ],
+    "style_jarvis_repeat": [
+      "Vamos tentar de novo. Pode repetir?",
+      "Pode repetir com calma?"
+    ],
+    "style_answer_prompt": [
+      "Pode responder, senhor.",
+      "Estou pronto para a resposta."
+    ],
+    "style_jarvis_unclear_command": [
+      "Não captei com precisão.",
+      "Esse comando não ficou claro para mim."
+    ],
+    "style_ready_prompt": [
+      "Estou ouvindo.",
+      "Pode mandar.",
+      "Pode prosseguir.",
+      "Estou ouvindo, senhor.",
+      "Pode falar, senhor."
+    ],
+    "style_jarvis_unclear": [
+      "Esse comando não ficou claro para mim.",
+      "Não consegui entender o comando com segurança."
+    ],
+    "style_jarvis_action_prefix": [
+      "Como desejar, senhor. Abrindo VS Code.",
+      "Certamente. Fechando VS Code."
+    ],
+    "contextual_startup:computer_startup": [
+      "Axel online, senhor. Monitoramento de agenda, carteira e lembretes ativo. Me diga o alvo de hoje e eu acompanho a execução.",
+      "Bem-vindo de volta, senhor. Pronto para consultas rápidas, código e automações. Podemos começar por uma tarefa pequena e fechar com progresso real.",
+      "Retomando operações, senhor. Pronto para consultas rápidas, código e automações. Podemos começar por uma tarefa pequena e fechar com progresso real.",
+      "Retomando operações, senhor. Pronto para consultas rápidas, código e automações. Podemos revisar, construir ou corrigir.",
+      "Retomando operações, senhor. Monitoramento de agenda, carteira e lembretes ativo. Podemos começar por uma tarefa pequena e fechar com progresso real.",
+      "Bem-vindo de volta, senhor. Monitoramento de agenda, carteira e lembretes ativo. Vamos transformar pendências em progresso concreto.",
+      "Bom dia, senhor. Rotinas operacionais carregadas. Podemos começar por uma tarefa pequena e fechar com progresso real.",
+      "Axel online, senhor. Pronto para consultas rápidas, código e automações. Podemos revisar, construir ou corrigir.",
+      "Bem-vindo de volta, senhor. Sistema estável e pronto para comandos. Me diga o alvo de hoje e eu acompanho a execução.",
+      "Retomando operações, senhor. Pronto para consultas rápidas, código e automações. O próximo avanço está a um comando de distância.",
+      "Retomando operações, senhor. Sistema estável e pronto para comandos. O próximo avanço está a um comando de distância.",
+      "Bem-vindo de volta, senhor. Sistema estável e pronto para comandos. Podemos revisar, construir ou corrigir.",
+      "Axel online, senhor. Rotinas operacionais carregadas. Vamos transformar pendências em progresso concreto.",
+      "Sistema iniciado, senhor. Monitoramento de agenda, carteira e lembretes ativo. Vamos transformar pendências em progresso concreto.",
+      "Boa tarde, senhor. Pronto para consultas rápidas, código e automações. Podemos começar por uma tarefa pequena e fechar com progresso real.",
+      "Sistema iniciado, senhor. Escuta disponível pelo F8. Podemos revisar, construir ou corrigir.",
+      "Axel online, senhor. Rotinas operacionais carregadas. Podemos começar por uma tarefa pequena e fechar com progresso real.",
+      "Boa noite, senhor. Monitoramento de agenda, carteira e lembretes ativo. Podemos revisar, construir ou corrigir.",
+      "Sistema iniciado, senhor. Rotinas operacionais carregadas. Vamos transformar pendências em progresso concreto.",
+      "Retomando operações, senhor. Monitoramento de agenda, carteira e lembretes ativo. Podemos revisar, construir ou corrigir."
+    ],
+    "startup_briefing_already_delivered": [
+      "Resumo do dia já entregue, chefe. Escuta disponível pelo F8.",
+      "Briefing de hoje já foi entregue. Estou em escuta e monitorando seus lembretes.",
+      "Panorama de hoje já foi enviado. Estou pronto para comandos, estudos e código.",
+      "Briefing já registrado para hoje. Seguimos em modo operacional."
+    ],
+    "contextual_startup:short_ready": [
+      "Retomando operações, senhor. Pronto para consultas rápidas, código e automações.",
+      "Axel online, senhor. Rotinas operacionais carregadas.",
+      "Retomando operações, senhor. Sistema estável e pronto para comandos.",
+      "Bom dia, senhor. Pronto para consultas rápidas, código e automações.",
+      "Sistema iniciado, senhor. Sistema estável e pronto para comandos.",
+      "Bom dia, senhor. Rotinas operacionais carregadas.",
+      "Bem-vindo de volta, senhor. Escuta disponível pelo F8.",
+      "Axel online, senhor. Sistema estável e pronto para comandos.",
+      "Boa tarde, senhor. Sistema estável e pronto para comandos.",
+      "Boa tarde, senhor. Sistema estável e pronto para comandos.",
+      "Bem-vindo de volta, senhor. Sistema estável e pronto para comandos.",
+      "Boa tarde, senhor. Escuta disponível pelo F8.",
+      "Retomando operações, senhor. Escuta disponível pelo F8.",
+      "Retomando operações, senhor. Monitoramento de agenda, carteira e lembretes ativo.",
+      "Bem-vindo de volta, senhor. Rotinas operacionais carregadas.",
+      "Boa tarde, senhor. Rotinas operacionais carregadas.",
+      "Boa tarde, senhor. Pronto para consultas rápidas, código e automações.",
+      "Sistema iniciado, senhor. Monitoramento de agenda, carteira e lembretes ativo.",
+      "Boa tarde, senhor. Pronto para consultas rápidas, código e automações.",
+      "Sistema iniciado, senhor. Pronto para consultas rápidas, código e automações."
+    ],
+    "style_jarvis_status_escuta_pausada": [
+      "Modo escuta pausado.",
+      "Escuta em pausa."
+    ],
+    "style_jarvis_status_escuta_retomada": [
+      "Escuta restabelecida.",
+      "Modo escuta retomado."
+    ],
+    "style_jarvis_status_acao_cancelada": [
+      "Tudo bem. Cancelei.",
+      "Cancelado."
+    ],
+    "style_jarvis_status_encerrando": [
+      "Encerrando a sessao.",
+      "Encerrando por agora."
+    ],
+    "progress_weather_summary": [
+      "Verificando a previsão..."
+    ],
+    "style_jarvis_open_app_spotify": [
+      "Entendido. Abrindo Spotify.",
+      "Certamente. Abrindo Spotify."
+    ],
+    "progress_browser_summarize_screen": [
+      "Resumindo a tela..."
+    ],
+    "progress_browser_describe_screen": [
+      "Fazendo uma leitura rápida da tela...",
+      "Lendo a tela..."
+    ],
+    "progress_browser_search_site": [
+      "Pesquisando no site..."
+    ],
+    "progress_vision_answer_question": [
+      "Consultando a última análise salva...",
+      "Puxando o contexto visual salvo..."
+    ],
+    "progress_investment_memory_answer": [
+      "Verificando sua carteira...",
+      "Cruzando sua carteira com a memória salva..."
+    ]
+  }
+}

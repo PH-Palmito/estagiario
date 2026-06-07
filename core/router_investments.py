@@ -105,6 +105,24 @@ def detect_investment_question_command(user_input: str):
     if any(
         phrase in lower
         for phrase in {
+            "o que mudou na carteira desde ontem",
+            "oque mudou na carteira desde ontem",
+            "resumo diario da carteira",
+            "resumo diário da carteira",
+            "mudancas da carteira desde ontem",
+            "mudanças da carteira desde ontem",
+            "mudou na carteira desde ontem",
+            "carteira desde ontem",
+            "relatorio diario da carteira",
+            "relatório diário da carteira",
+            "resumo de ontem da carteira",
+        }
+    ):
+        return {"intent": "investment_daily_report", "target": None}
+
+    if any(
+        phrase in lower
+        for phrase in {
             "relatorio financeiro",
             "relatorio da carteira",
             "relatorio consolidado",

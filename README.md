@@ -15,6 +15,8 @@ Opcionalmente, o projeto também pode usar Gemini API como cérebro principal de
 - Memória local de atalhos, preferências e contexto operacional
 - Snapshot local da carteira para consultas rápidas de investimentos
 - Interface opcional com `--ui`, HUD em PySide6/WebEngine e paineis internos
+- Canal remoto por Telegram Bot com allowlist, polling local e confirmacao segura para midia leve
+- AxelBrain 2.0 para decisao, seguranca por canal, historico e diagnosticos
 - Modo de performance para reduzir polling, animacoes e custo em notebook medio/fraco
 - Logs locais para diagnosticar startup, HUD, voz, actions e tarefas em segundo plano
 
@@ -207,6 +209,13 @@ Comandos uteis:
 - `iniciar bot telegram`
 - `simular telegram briefing`
 
+Audio no Telegram:
+
+- O bot reconhece mensagens `voice` e `audio`.
+- Quando iniciado pelo polling, ele baixa o arquivo do Telegram e tenta transcrever com Faster-Whisper.
+- O texto transcrito entra no mesmo fluxo remoto seguro, com os mesmos bloqueios e confirmacoes.
+- Se a transcricao nao estiver disponivel no ambiente, o bot responde explicitamente em vez de tratar audio como mensagem vazia.
+
 Perfil de seguranca atual:
 
 - consultas de leitura podem responder direto no Telegram
@@ -358,6 +367,43 @@ Comandos uteis para comecar o dia:
 - `comecar meu dia`
 - `saude do Axel`
 
+Calendario:
+
+- `status do calendario`: mostra a ponte externa atual.
+- `exportar calendario`: gera `memory/axel_agenda.ics` para importar no Google Agenda, Outlook ou Samsung Calendar.
+- `importar calendario C:\caminho\agenda.ics`: importa eventos simples de um arquivo ICS para a agenda local.
+
+Comandos operacionais:
+
+- `python main.py --setup`: revisar configuracao inicial, chaves, Telegram, voz e dependencias
+- `python main.py --doctor`: diagnosticar problemas de Telegram, modelos, memoria, HUD, voz e logs
+- `python main.py --backup-memory`: criar snapshot dos arquivos criticos de memoria antes de refatoracoes
+- `python main.py --update` ou `axel update`: mostrar plano seguro de atualizacao com backup, doctor, git status e testes; ainda nao executa update automatico
+
+Contexto por workspace:
+
+- O Axel carrega instrucoes locais se encontrar `AGENTS.md`, `AXEL.md`, `.agents/AGENTS.md`, `.agents/AXEL.md` ou `.axel/context.md` na raiz do projeto.
+- Use [workspace-context-template.md](C:\Users\almei\Documents\estudos_Programacao\estagiario\docs\workspace-context-template.md) como modelo.
+- Pergunte `contexto do workspace` para conferir o que foi carregado.
+
+Scripts operacionais:
+
+- `python scripts/axel_action.py --list`: listar actions registradas em JSON.
+- `python scripts/axel_action.py memory.backup.list --arg limit=3`: executar action de leitura sem abrir o chat.
+- Actions de escrita ficam bloqueadas por padrao; veja [action-rpc.md](C:\Users\almei\Documents\estudos_Programacao\estagiario\docs\action-rpc.md).
+- MCP fica reservado como camada futura para ferramentas externas via actions registradas; veja [mcp-integration-plan.md](C:\Users\almei\Documents\estudos_Programacao\estagiario\docs\mcp-integration-plan.md).
+
+Mercado Livre e produtos:
+
+- Quando o Axel lê produtos listados no navegador, ele salva um cache curto em `memory/browser_product_cache.json`.
+- Comandos como `produtos recentes`, `mais barato em cache` e `browser_products_cache` reaproveitam esse snapshot sem reler a tela.
+
+Contrato de comandos:
+
+- Os 20 fluxos principais ficam em [golden-commands.md](C:\Users\almei\Documents\estudos_Programacao\estagiario\docs\golden-commands.md).
+- A suite `tests/test_golden_commands_v1.py` garante roteamento, normalizacao, validacao e confirmacao esperada para essa lista.
+- A suite `tests/test_golden_ui_commands_v2.py` cobre HUD, painel de saude e modos de performance.
+
 Observacao: `rotina diaria` e `comecar meu dia` chamam o briefing/resumo textual. O painel visual `Dia` foi removido temporariamente porque estava causando instabilidade no HUD.
 
 ## Interface, HUD e performance
@@ -432,6 +478,9 @@ O Axel trabalha com dois modos para investimentos:
 2. Consulta rápida local.
    Depois disso, perguntas como `modo investimentos`, `valor investido`, `quanto rendeu?` e `qual meu patrimônio?` são respondidas usando a memória local salva.
 
+3. Resumo diario desde o ultimo snapshot.
+   Comandos como `o que mudou na carteira desde ontem`, `resumo diario da carteira` e `mudancas da carteira desde ontem` comparam o historico local salvo em `memory/investment_snapshot_history.json` com o snapshot atual. Quando ainda nao ha dia anterior salvo, o Axel explica a limitacao e usa o snapshot atual para ativos que mais variaram, dividendos, preco-teto e noticias relevantes.
+
 Isso deixa a resposta mais rápida, mas os dados podem estar desatualizados até uma nova atualização.
 
 Também existe um modo híbrido por ticker:
@@ -444,8 +493,11 @@ Também existe um modo híbrido por ticker:
 ## Estrutura do projeto
 
 - `main.py`: loop principal, voz, UI e execução
-- `core/`: roteamento, normalização e validação
-- `tools/`: automações e integrações
+- `core/`: roteamento, AxelBrain 2.0, contrato de seguranca, normalizacao e validacao
+- `actions/`: catalogo de acoes registradas, risco e confirmacao
+- `services/`: briefing, carteira, Telegram, visao e fluxos de dominio
+- `tools/`: automacoes e integracoes
+- `ui/`: HUD local, painel web e ponte com estado de runtime
 - `llm/`: clientes e prompts dos modelos
 - `memory/`: estado local e snapshots
 - `voice/`: captura de áudio e TTS

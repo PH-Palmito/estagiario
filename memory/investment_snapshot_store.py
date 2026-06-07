@@ -5,6 +5,8 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+INVESTMENT_HISTORY_LIMIT = 260
+
 
 def save_json(path: Path, payload: dict):
     content = json.dumps(payload, ensure_ascii=False, indent=2)
@@ -18,6 +20,91 @@ def load_json(path: Path):
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def _parse_currency_value(text: str) -> float | None:
+    cleaned = str(text or "").strip().lower().replace("r$", "").replace(" ", "")
+    if not cleaned:
+        return None
+    cleaned = cleaned.replace(".", "").replace(",", ".")
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _parse_percent_value(text: str) -> float | None:
+    cleaned = str(text or "").strip().replace("%", "").replace(" ", "")
+    if not cleaned:
+        return None
+    cleaned = cleaned.replace(".", "").replace(",", ".")
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _crypto_balance_value(payload: dict) -> float | None:
+    positions = payload.get("asset_positions")
+    if not isinstance(positions, dict):
+        return None
+    total = 0.0
+    found = False
+    for position in positions.values():
+        if not isinstance(position, dict):
+            continue
+        category = str(position.get("category") or "").strip().lower()
+        if not category.startswith("cript"):
+            continue
+        value = _parse_currency_value(position.get("balance"))
+        if value is None:
+            continue
+        total += value
+        found = True
+    return total if found else None
+
+
+def _history_sample(payload: dict) -> dict | None:
+    metric_map = payload.get("metric_map")
+    if not isinstance(metric_map, dict):
+        return None
+    updated_at = float(payload.get("updated_at") or time.time())
+    patrimonio = _parse_currency_value(metric_map.get("patrimonio"))
+    rentabilidade = _parse_percent_value(metric_map.get("rentabilidade"))
+    variacao = _parse_percent_value(metric_map.get("variacao"))
+    crypto_balance = _crypto_balance_value(payload)
+    if patrimonio is None and rentabilidade is None and crypto_balance is None:
+        return None
+    sample = {
+        "date": time.strftime("%Y-%m-%d", time.localtime(updated_at)),
+        "updated_at": updated_at,
+    }
+    if patrimonio is not None:
+        sample["patrimonio_value"] = patrimonio
+        sample["patrimonio"] = metric_map.get("patrimonio")
+    if rentabilidade is not None:
+        sample["rentabilidade_percent"] = rentabilidade
+    if variacao is not None:
+        sample["variacao_percent"] = variacao
+    if crypto_balance is not None:
+        sample["crypto_balance_value"] = crypto_balance
+    return sample
+
+
+def append_investment_snapshot_history(path: Path, payload: dict) -> None:
+    sample = _history_sample(payload)
+    if not sample:
+        return
+    history_path = path.with_name("investment_snapshot_history.json")
+    current = load_json(history_path)
+    items = current.get("items") if isinstance(current, dict) else None
+    history = [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
+    sample_date = str(sample.get("date") or "")
+    history = [item for item in history if str(item.get("date") or "") != sample_date]
+    history.append(sample)
+    history.sort(key=lambda item: (str(item.get("date") or ""), float(item.get("updated_at") or 0)))
+    history = history[-INVESTMENT_HISTORY_LIMIT:]
+    save_json(history_path, {"items": history})
 
 
 def save_investment_snapshot_payload(
@@ -73,6 +160,7 @@ def save_investment_snapshot_payload(
                     f"e atualizou {new_count} posições capturadas agora."
                 )
     save_json(path, payload)
+    append_investment_snapshot_history(path, payload)
     sync_portfolio_snapshot_note(payload)
     return payload
 

@@ -339,6 +339,7 @@ class MainTurnFlowTests(unittest.TestCase):
         previous_brief = main.app_runtime.runtime_state.axel_brain_brief
         previous_contract = main.app_runtime.runtime_state.axel_brain_contract
         previous_history = main.app_runtime.runtime_state.axel_brain_history
+        previous_timeline = main.app_runtime.runtime_state.axel_brain_timeline
         previous_route = main.app_runtime.runtime_state.last_route_trace
         try:
             main.app_runtime.runtime_state.axel_brain_plan = {
@@ -360,6 +361,9 @@ class MainTurnFlowTests(unittest.TestCase):
             main.app_runtime.runtime_state.axel_brain_history = [
                 {"intent": "respond", "agent": "conversation_agent", "channel": "remote", "safety_profile": "remote_blocked"}
             ]
+            main.app_runtime.runtime_state.axel_brain_timeline = [
+                {"intent": "respond", "action": "respond", "result": "Oi."}
+            ]
             main.app_runtime.runtime_state.last_route_trace = {
                 "group": "conversation",
                 "detector": "detect_ollama_chat",
@@ -377,6 +381,7 @@ class MainTurnFlowTests(unittest.TestCase):
             self.assertEqual(payload["axel_brain_brief"]["mission"], "Ajudar com codigo.")
             self.assertEqual(payload["axel_brain_contract"]["version"], "2.0")
             self.assertEqual(payload["axel_brain_history"][0]["intent"], "respond")
+            self.assertEqual(payload["axel_brain_timeline"][0]["result"], "Oi.")
             self.assertEqual(payload["axel_brain_history_summary"]["total"], 1)
             self.assertEqual(payload["axel_brain_history_summary"]["remote_blocked"], 1)
             self.assertIn("recommendations", payload["axel_brain_history_summary"])
@@ -387,6 +392,7 @@ class MainTurnFlowTests(unittest.TestCase):
             main.app_runtime.runtime_state.axel_brain_brief = previous_brief
             main.app_runtime.runtime_state.axel_brain_contract = previous_contract
             main.app_runtime.runtime_state.axel_brain_history = previous_history
+            main.app_runtime.runtime_state.axel_brain_timeline = previous_timeline
             main.app_runtime.runtime_state.last_route_trace = previous_route
 
     def test_route_user_input_defers_routine_learning_for_turn_source(self):

@@ -54,6 +54,20 @@ class RouterDailyTests(unittest.TestCase):
 
         self.assertEqual(result, {"intent": "agenda_list_today", "target": None})
 
+    def test_detects_calendar_sync_commands(self):
+        self.assertEqual(
+            detect_agenda_command("status do calendario"),
+            {"intent": "agenda_calendar_status", "target": None},
+        )
+        self.assertEqual(
+            detect_agenda_command("exportar calendario"),
+            {"intent": "agenda_export_ics", "target": None},
+        )
+        self.assertEqual(
+            detect_agenda_command(r"importar calendario C:\tmp\agenda.ics"),
+            {"intent": "agenda_import_ics", "target": r"C:\tmp\agenda.ics"},
+        )
+
     def test_detects_reminder_add(self):
         result = detect_reminder_command("lembre de testar briefing amanha")
 
