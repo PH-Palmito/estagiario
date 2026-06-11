@@ -66,7 +66,7 @@ LOCAL_STEP_PATTERN = re.compile(
     r"\s*(?:,|\be depois\b|\bdepois\b|\bem seguida\b|\bentao\b|\bentão\b|\be\b)\s+"
     r"(?=(?:abra|abre|abrir|abri|abriu|abrei|inicie|iniciar|feche|fechar|fecha|encerre|encerrar|"
     r"termine|terminar|play|pausa|pausar|pause|continua|continuar|toca|tocar|liga|ligar|ligue|ativa|ativar|ative|desliga|desligar|desligue|desativa|desativar|desative|pesquisa|pesquise|pesquisar|procura|procurar|buscar|busca|crie|escreva|leia|rode|execute|executar|troca|troque|vai|"
-    r"foca|focar|minimiza|minimize|maximiza|maximize|restaura|restaure)\b)",
+    r"foca|focar|minimiza|minimize|maximiza|maximize|restaura|restaure|guarde|guardar|salve|salvar|memorize|registre|anote)\b)",
     flags=re.IGNORECASE,
 )
 
@@ -241,6 +241,13 @@ def looks_like_multi_step_request(user_input: str):
         "liste",
         "mostrar",
         "mostre",
+        "guarde",
+        "guardar",
+        "salve",
+        "salvar",
+        "memorize",
+        "registre",
+        "anote",
     ]
 
     has_action_word = any(word in text for word in action_words)

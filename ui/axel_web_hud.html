@@ -2263,6 +2263,7 @@
       let pendingPanelRequest = null;
       let panelSwitchFrame = 0;
       let attachedStudyFiles = [];
+      let queuedPanelCommands = [];
       let coreAnimationFrame = 0;
       let panelSwitchingUntil = 0;
       let panelSwitchTimeout = 0;
@@ -2712,10 +2713,33 @@
         }
       }
 
+      function flushQueuedPanelCommands() {
+        if (!bridge || !queuedPanelCommands.length) return;
+        const pending = queuedPanelCommands.splice(0, queuedPanelCommands.length);
+        pending.forEach((command) => {
+          try {
+            bridge.sendCommand(command);
+          } catch (_error) {
+            queuedPanelCommands.unshift(command);
+          }
+        });
+      }
+
       function sendCommand(text) {
         const value = String(text || "").trim();
-        if (!value) return;
-        if (bridge) bridge.sendCommand(value);
+        if (!value) return false;
+        if (!bridge) {
+          queuedPanelCommands.push(value);
+          return true;
+        }
+        try {
+          bridge.sendCommand(value);
+          flushQueuedPanelCommands();
+          return true;
+        } catch (_error) {
+          queuedPanelCommands.push(value);
+          return true;
+        }
       }
 
       function updateAttachButton() {
@@ -3628,10 +3652,11 @@
       document.getElementById("sendCommand").addEventListener("click", () => {
         const input = document.getElementById("commandInput");
         const command = attachedStudyFiles.length ? buildAttachedFileCommand(input.value) : input.value;
-        sendCommand(command);
-        input.value = "";
-        attachedStudyFiles = [];
-        updateAttachButton();
+        if (sendCommand(command)) {
+          input.value = "";
+          attachedStudyFiles = [];
+          updateAttachButton();
+        }
       });
       document.getElementById("attachFiles").addEventListener("click", selectStudyFiles);
       document.getElementById("commandInput").addEventListener("keydown", (event) => {
@@ -3659,6 +3684,7 @@
       startCoreAnimation();
       new QWebChannel(qt.webChannelTransport, (channel) => {
         bridge = channel.objects.axelBridge;
+        flushQueuedPanelCommands();
         bridge.requestRefresh();
       });
     </script>

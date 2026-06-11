@@ -1,11 +1,15 @@
 import unittest
+import tempfile
 from datetime import datetime
+from pathlib import Path
+from unittest.mock import patch
 
 from core.startup_voice import (
     common_tts_cache_phrases,
     startup_greeting_message,
     warm_common_tts_cache_async,
 )
+from memory.assistant_phrases import contextual_startup_phrase
 
 
 class StartupVoiceTests(unittest.TestCase):
@@ -38,6 +42,19 @@ class StartupVoiceTests(unittest.TestCase):
         self.assertEqual(result, "contextual")
         self.assertEqual(calls[0][0], "short_ready")
         self.assertEqual(calls[0][1]["greeting"], "Boa tarde")
+
+    def test_computer_startup_context_stays_operational_without_nudge(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("memory.assistant_phrases.PHRASE_STATE_PATH", Path(tmpdir) / "phrases.json"):
+                result = contextual_startup_phrase(
+                    "computer_startup",
+                    address_user="senhor",
+                    greeting="Bom dia",
+                )
+
+        self.assertNotIn("próximo avanço", result.lower())
+        self.assertNotIn("progresso concreto", result.lower())
+        self.assertNotIn("tarefa pequena", result.lower())
 
     def test_falls_back_to_next_phrase_when_contextual_is_empty(self):
         result = startup_greeting_message(

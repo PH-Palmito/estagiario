@@ -384,6 +384,28 @@ class InvestmentSnapshotTests(unittest.TestCase):
         self.assertIn("Alocação atual", result)
         self.assertIn("Preço-teto", result)
 
+    def test_active_radar_brief_keeps_seen_state_untouched(self):
+        snapshot = fake_snapshot()
+
+        with (
+            patch.object(inv, "load_investment_snapshot", return_value=snapshot),
+            patch.object(inv, "get_asset_strategy", side_effect=fake_strategy),
+            patch.object(inv, "_material_price_ceiling_items", side_effect=lambda items, **_kwargs: items),
+            patch.object(inv, "_portfolio_news_digest", return_value=["BBAS3: Resultado forte."]) as news_digest,
+            patch.object(inv, "_save_news_seen_state") as save_news,
+            patch.object(inv, "_save_signal_seen_state") as save_signals,
+        ):
+            result = inv.format_investment_active_radar_brief()
+
+        self.assertIn("alertas ativos", result)
+        self.assertIn("atenção", result)
+        self.assertIn("acima do teto", result)
+        self.assertIn("notícia relevante", result)
+        self.assertEqual(news_digest.call_args.kwargs["only_new"], False)
+        self.assertEqual(news_digest.call_args.kwargs["mark_seen"], False)
+        save_news.assert_not_called()
+        save_signals.assert_not_called()
+
     def test_monitor_digest_returns_compact_signal_sections(self):
         snapshot = fake_snapshot()
 

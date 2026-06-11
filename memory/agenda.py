@@ -135,6 +135,10 @@ def _parse_agenda_request(raw_text: str) -> tuple[date, str, datetime | None]:
     due_at, reminder_text = parse_reminder_request(raw_text)
     if due_at is not None:
         text = reminder_text.strip() or str(raw_text or "").strip()
+        lowered = str(raw_text or "").lower()
+        if re.search(r"\b(?:hoje|hj|amanh[ãa]|dia\s+\d{1,2})\b", lowered):
+            target_day, _cleaned_text = _parse_target_day_and_text(raw_text)
+            due_at = due_at.replace(year=target_day.year, month=target_day.month, day=target_day.day)
         return due_at.date(), text, due_at
 
     target_day, text = _parse_target_day_and_text(raw_text)

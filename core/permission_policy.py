@@ -9,6 +9,7 @@ STRONG_CONFIRMATION_ACTIONS = {
     "close_app",
     "smart_close_app",
     "run_script",
+    "system_shutdown",
     "type_text",
     "windows_startup_enable",
     "windows_startup_disable",
@@ -46,6 +47,7 @@ STRONG_CONFIRMATION_TOOL_NAMES = set(STRONG_CONFIRMATION_ACTIONS)
 STRONG_CONFIRMATION_CATEGORIES = {"files", "system", "browser", "automation", "investments"}
 CRITICAL_ACTIONS = {
     "run_script",
+    "system_shutdown",
     "type_text",
     "windows_startup_enable",
     "windows_startup_disable",

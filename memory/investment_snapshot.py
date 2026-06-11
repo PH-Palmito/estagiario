@@ -95,6 +95,7 @@ from memory.investment_reading import (
 )
 from memory.investment_report import (
     investment_daily_change_report,
+    investment_active_radar_brief,
     investment_financial_report,
     portfolio_monitor_digest,
 )
@@ -821,6 +822,22 @@ def format_investment_financial_report() -> str:
         portfolio_news_digest=_portfolio_news_digest,
         compact_report_news=_compact_report_news,
         filter_new_signal_texts=_filter_new_signal_texts,
+        format_percent=_format_percent,
+    )
+
+
+def format_investment_active_radar_brief() -> str:
+    snapshot = load_investment_snapshot()
+    return investment_active_radar_brief(
+        snapshot,
+        portfolio_attention_items=_portfolio_attention_items,
+        portfolio_items_above_ceiling=_portfolio_items_above_ceiling,
+        material_price_ceiling_items=lambda items: _material_price_ceiling_items(items, threshold_percent=2.0),
+        volatility_alert_items=_volatility_alert_items,
+        portfolio_dividend_schedule=_portfolio_dividend_schedule,
+        format_dividend_event_brief=_format_dividend_event_brief,
+        portfolio_news_digest=_portfolio_news_digest,
+        compact_report_news=_compact_report_news,
         format_percent=_format_percent,
     )
 

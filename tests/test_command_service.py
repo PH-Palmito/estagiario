@@ -9,6 +9,7 @@ from core.action_result import ActionResult
 class FakeRuntimeState:
     def __init__(self):
         self.updated = []
+        self.last_route_trace = {}
 
     def update(self, command, result):
         self.updated.append((command, result))
@@ -36,12 +37,51 @@ class CommandServiceTests(unittest.TestCase):
         self.assertEqual(result.action, "weather_summary")
         self.assertEqual(result.params, {"location": "Salvador"})
         self.assertIn("action_processed", [event for event, _payload in events])
-        processed_payload = events[-1][1]
+        processed_payload = next(payload for event, payload in events if event == "action_processed")
         self.assertEqual(processed_payload["risk_level"], "read")
         self.assertTrue(processed_payload["read_only"])
         self.assertEqual(processed_payload["action_class"], "read")
         self.assertEqual(processed_payload["decision"], "allow_read")
         self.assertEqual(processed_payload["target"], "Salvador")
+
+    def test_process_raw_action_blocks_mismatched_investment_route(self):
+        events = []
+        state = FakeRuntimeState()
+        state.last_route_trace = {"input": 'axel guarde a ideia de projeto "criar um aplicativo de devocional"'}
+
+        result = process_raw_action(
+            {"intent": "investment_refresh_public_wallet", "target": None},
+            state,
+            lambda event, **payload: events.append((event, payload)),
+        )
+
+        self.assertIn("Interpretação insegura", result)
+        self.assertIn("intent_judge", [event for event, _payload in events])
+
+    def test_process_raw_action_uses_llm_intent_judge_when_enabled(self):
+        events = []
+        state = FakeRuntimeState()
+        state.last_route_trace = {"input": "fecha isso", "group": "apps"}
+        state.axel_brain_plan = {"confidence": 0.5}
+
+        with (
+            patch("core.command_service.should_request_llm_intent_review", return_value=True),
+            patch("core.command_service.review_intent_with_llm") as review,
+        ):
+            review.return_value = type(
+                "Review",
+                (),
+                {"verdict": "confirm", "reason": "alvo implicito", "message": "Confirmo fechar?"},
+            )()
+            result = process_raw_action(
+                {"intent": "close_app", "target": "chrome"},
+                state,
+                lambda event, **payload: events.append((event, payload)),
+            )
+
+        self.assertIsInstance(result, Command)
+        self.assertTrue(result.requires_confirmation)
+        self.assertIn("intent_llm_judge", [event for event, _payload in events])
 
     def test_execute_processed_command_updates_state_and_logs(self):
         state = FakeRuntimeState()

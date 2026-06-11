@@ -7,6 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from threading import Thread
 
+INTERACTIVE_STARTUP_BRIEFING_DELAY_SECONDS = 2.0
+WINDOWS_STARTUP_BRIEFING_DELAY_SECONDS = 20.0
+
 
 def send_startup_briefing_once(
     *,
@@ -24,6 +27,7 @@ def send_startup_briefing_once(
         return False
     if not bool(voice_preferences.get("startup_briefing_enabled", True)):
         return False
+    force = "--force-startup-briefing" in args
 
     now = now or datetime.now()
     today_key = now.date().isoformat()
@@ -33,7 +37,7 @@ def send_startup_briefing_once(
     except Exception:
         state = {}
 
-    if state.get("last_briefing_date") == today_key:
+    if state.get("last_briefing_date") == today_key and not force:
         already_delivered = next_phrase(
             "startup_briefing_already_delivered",
             greeting_variants["briefing_already_delivered"],
@@ -49,11 +53,23 @@ def send_startup_briefing_once(
 
     try:
         briefing = daily_briefing()
-    except Exception:
+    except Exception as exc:
+        output_response(
+            f"Nao consegui gerar o briefing automatico agora: {exc}",
+            voice_mode,
+            interrupt_current_tts=True,
+            wait_for_tts=True,
+        )
         return False
 
     briefing = str(briefing or "").strip()
     if not briefing:
+        output_response(
+            "O briefing automatico veio vazio agora. Posso tentar de novo quando voce pedir.",
+            voice_mode,
+            interrupt_current_tts=True,
+            wait_for_tts=True,
+        )
         return False
 
     output_response(
@@ -86,10 +102,16 @@ def schedule_startup_briefing_worker(
     args: Sequence[str],
     voice_mode: bool,
     send_startup_briefing: Callable[[bool], bool],
-    delay_seconds: float = 2.0,
+    delay_seconds: float | None = None,
 ) -> bool:
     if "--no-startup-briefing" in args:
         return False
+    if delay_seconds is None:
+        delay_seconds = (
+            WINDOWS_STARTUP_BRIEFING_DELAY_SECONDS
+            if "--startup" in args
+            else INTERACTIVE_STARTUP_BRIEFING_DELAY_SECONDS
+        )
 
     try:
         def worker():

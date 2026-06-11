@@ -58,6 +58,27 @@ def detect_run_script(user_input: str):
     return None
 
 
+def detect_power_command(user_input: str):
+    lower = normalize_text(user_input)
+    lower = re.sub(r"^\s*axel\s+", "", lower).strip(" .")
+
+    if lower in {
+        "cancelar desligamento",
+        "cancela desligamento",
+        "abortar desligamento",
+        "aborte desligamento",
+        "nao desligue o pc",
+        "nao desligar o pc",
+    }:
+        return {"intent": "system_shutdown_cancel", "target": None}
+
+    device_terms = ("pc", "computador", "windows", "maquina")
+    shutdown_terms = ("desligue", "desligar", "desliga", "apague", "apagar")
+    if any(term in lower for term in shutdown_terms) and any(term in lower for term in device_terms):
+        return {"intent": "system_shutdown", "target": None}
+    return None
+
+
 def detect_background_status_command(user_input: str):
     lower = normalize_text(user_input)
     notification_terms = (
@@ -223,6 +244,7 @@ SYSTEM_INPUT_DETECTORS = (
 
 SYSTEM_DETECTORS = (
     detect_windows_startup_command,
+    detect_power_command,
     detect_background_status_command,
     detect_telegram_bridge_command,
     detect_keyboard_led_command,

@@ -177,3 +177,6 @@
 - [x] Aplicar "confie, mas verifique" na analise de arquivos de estudo: validar a qualidade da extracao antes de resumir ou gerar questoes.
 - [x] Criar hook para OCR externo de PDF, incluindo provider estilo ClawHub/OpenClaw configuravel por `AXEL_PDF_OCR_COMMAND` ou `AXEL_CLAWHUB_PDF_OCR_COMMAND`.
 - [x] Evoluir skill de estudos com contexto do ultimo arquivo, respostas de follow-up, arguição, correcao simples, plano de revisao e limpeza de contexto.
+- [x] Implementar juiz de intencao deterministico para bloquear rotas incoerentes antes da execucao, especialmente carteira/app/tela quando o texto do usuario nao combina.
+- [x] Criar primeira camada de duplo agente opcional com LLM para pedidos novos, mistos ou ambiguos: um propositor sugere resposta/acao, um critico compara interpretacao, risco e alternativa antes de executar.
+- [ ] Expor comando/configuracao no HUD para ligar/desligar `AXEL_LLM_INTENT_JUDGE_ENABLED` sem editar `.env`.

@@ -452,6 +452,52 @@ def run_script(script_name: str):
         return f"Erro ao executar script: {e}"
 
 
+def schedule_system_shutdown(delay_seconds: int = 60):
+    try:
+        delay = int(delay_seconds or 60)
+    except (TypeError, ValueError):
+        delay = 60
+    delay = max(10, min(delay, 600))
+
+    try:
+        result = subprocess.run(
+            ["shutdown", "/s", "/t", str(delay)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+        )
+    except Exception as e:
+        return f"Nao consegui agendar o desligamento: {e}"
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        return f"Nao consegui agendar o desligamento: {detail or 'comando recusado pelo sistema'}."
+
+    return f"Desligamento do PC agendado para daqui a {delay} segundos. Para cancelar, diga: cancelar desligamento."
+
+
+def cancel_system_shutdown():
+    try:
+        result = subprocess.run(
+            ["shutdown", "/a"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+        )
+    except Exception as e:
+        return f"Nao consegui cancelar o desligamento: {e}"
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        return f"Nao havia um desligamento agendado ou nao consegui cancelar: {detail or 'sem detalhes'}."
+
+    return "Desligamento cancelado."
+
+
 def open_url(url: str):
     try:
         webbrowser.open(url)
@@ -505,6 +551,10 @@ def _startup_output_log_path() -> Path:
     return _startup_log_path().with_name("axel-startup-output.log")
 
 
+def _startup_briefing_state_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "memory" / "startup_briefing_state.json"
+
+
 def _read_startup_tail(path: Path, limit: int = 12) -> list[str]:
     if not path.exists():
         return []
@@ -518,6 +568,16 @@ def _startup_recent_errors() -> list[str]:
     markers = ("Falha fatal", "Traceback", "PermissionError", "Error:", "Exception")
     lines = _read_startup_tail(_startup_log_path()) + _read_startup_tail(_startup_output_log_path())
     return [line for line in lines if any(marker in line for marker in markers)][-3:]
+
+
+def _startup_briefing_state() -> dict:
+    try:
+        import json
+
+        data = json.loads(_startup_briefing_state_path().read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
 
 
 def _startup_entry_content() -> str:
@@ -551,6 +611,8 @@ def windows_startup_diagnostics() -> dict:
             "expected_command": " ".join(_quote_cmd_arg(arg) for arg in _startup_command_args()),
             "log_path": str(log_path),
             "output_log_path": str(output_log_path),
+            "briefing_state_path": str(_startup_briefing_state_path()),
+            "briefing_state": _startup_briefing_state(),
             "diagnostic_log_exists": log_path.exists(),
             "output_log_exists": output_log_path.exists(),
             "recent_errors": _startup_recent_errors(),
@@ -566,6 +628,8 @@ def windows_startup_diagnostics() -> dict:
         "expected_command": " ".join(_quote_cmd_arg(arg) for arg in _startup_command_args()),
         "log_path": str(log_path),
         "output_log_path": str(output_log_path),
+        "briefing_state_path": str(_startup_briefing_state_path()),
+        "briefing_state": _startup_briefing_state(),
         "diagnostic_log_exists": log_path.exists(),
         "output_log_exists": output_log_path.exists(),
         "recent_errors": _startup_recent_errors(),
@@ -637,6 +701,12 @@ def windows_startup_status() -> str:
 
     log_status = "log encontrado" if diagnostics.get("diagnostic_log_exists") else "log ainda nao encontrado"
     output_status = "saida encontrada" if diagnostics.get("output_log_exists") else "saida ainda nao encontrada"
+    briefing_state = diagnostics.get("briefing_state") or {}
+    briefing_status = (
+        f"briefing marcado em {briefing_state.get('last_briefing_at')}"
+        if briefing_state.get("last_briefing_at")
+        else "briefing ainda nao marcado"
+    )
     errors = diagnostics.get("recent_errors") or []
     if errors:
         return (
@@ -645,5 +715,5 @@ def windows_startup_status() -> str:
         )
     return (
         "Inicializacao com o Windows esta ativada e o atalho esta atualizado. "
-        f"Diagnostico: {log_status}; {output_status}. Log: {diagnostics.get('log_path')}"
+        f"Diagnostico: {log_status}; {output_status}; {briefing_status}. Log: {diagnostics.get('log_path')}"
     )

@@ -32,6 +32,14 @@ def append_multi_step_result(results: list[str], result: str) -> None:
     results.append(result)
 
 
+def _attach_step_input(raw_action, step: str):
+    if not isinstance(raw_action, dict):
+        return raw_action
+    payload = dict(raw_action)
+    payload.setdefault("__user_input", step)
+    return payload
+
+
 def routine_dry_run_block_message(command, *, prefix: str) -> str | None:
     if command_requires_confirmation(command):
         return f"{prefix}: {command.action} {getattr(command, 'params', {})}"
@@ -60,7 +68,7 @@ def dry_run_routine_plan(
             if not step.strip():
                 dry_run.append(RoutineDryRunStep(None, invalid_message, False))
                 continue
-            raw_action = route_step(step)
+            raw_action = _attach_step_input(route_step(step), step)
         elif isinstance(step, dict):
             raw_action = step
         else:
@@ -95,7 +103,7 @@ def handle_multi_step_request(
     plan = None
 
     if len(local_steps) > 1:
-        plan = [route_step(step) for step in local_steps]
+        plan = [_attach_step_input(route_step(step), step) for step in local_steps]
     elif "," in user_input:
         return None
     else:

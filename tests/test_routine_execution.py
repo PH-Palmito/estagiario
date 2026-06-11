@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from actions import ActionSpec, register_action
+from core.planner import split_local_steps
 from core.routine_execution import append_multi_step_result, dry_run_routine_plan, execute_routine_steps, handle_multi_step_request
 
 
@@ -43,6 +44,32 @@ class RoutineExecutionTests(unittest.TestCase):
         )
 
         self.assertEqual(result, "executed:abrir chrome\nexecuted:abrir spotify")
+
+    def test_local_split_handles_memory_then_shutdown(self):
+        self.assertEqual(
+            split_local_steps('axel guarde a ideia de projeto "criar um aplicativo de devocional" e desligue o pc'),
+            ['axel guarde a ideia de projeto "criar um aplicativo de devocional"', "desligue o pc"],
+        )
+
+    def test_multi_step_can_execute_memory_but_blocks_shutdown(self):
+        def process_action(raw_action):
+            if raw_action["target"].startswith("guarde"):
+                return SimpleNamespace(action="action_memory_remember", params={"key": "x"}, requires_confirmation=False)
+            return SimpleNamespace(action="system_shutdown", params={}, requires_confirmation=True)
+
+        result = handle_multi_step_request(
+            "guarde ideia e desligue o pc",
+            split_local_steps=lambda _text: ["guarde ideia", "desligue o pc"],
+            plan_actions=lambda _text: [],
+            route_step=route_step,
+            process_action=process_action,
+            execute_command=execute_command,
+        )
+
+        self.assertEqual(
+            result,
+            "executed:action_memory_remember\nAcao sensivel no plano bloqueada: system_shutdown {}",
+        )
 
     def test_multi_step_blocks_sensitive_command(self):
         def process_action(raw_action):

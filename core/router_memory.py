@@ -9,6 +9,7 @@ from memory.docs_context import docs_plan_answer
 
 def _memory_key_from_text(text: str) -> str:
     normalized = normalize_text(text)
+    normalized = re.sub(r"[^\w\s]", " ", normalized, flags=re.UNICODE)
     normalized = re.sub(
         r"^(?:que\s+)?(?:eu\s+)?(?:prefiro|gosto|uso|quero|costumo|minha\s+preferencia\s+e|minha\s+preferencia\s+eh)\s+",
         "",
@@ -38,7 +39,8 @@ def _memory_namespace_from_text(text: str, default: str = "general") -> str:
 
 
 def detect_memory_command(user_input: str):
-    lower = normalize_text(user_input)
+    cleaned_input = re.sub(r"^\s*axel[\s,;:.-]+", "", user_input.strip(), flags=re.I)
+    lower = normalize_text(cleaned_input)
     if lower in {"o que voce sabe fazer", "o que voce consegue fazer"}:
         return None
 
@@ -77,19 +79,30 @@ def detect_memory_command(user_input: str):
 
     explicit_memory_match = re.match(
         r"^(?:lembre|lembra|memorize|salve|guarde|registre|anote)\s+(?:na\s+)?(?:memoria|memória|contexto)\s+(?:que\s+)?(.+)$",
-        user_input.strip(),
+        cleaned_input,
         flags=re.I,
     )
     preference_match = re.match(
         r"^(?:lembre|lembra|memorize|salve|guarde|registre|anote)\s+que\s+(?:eu\s+)?(?:prefiro|gosto|uso|quero|costumo)\s+(.+)$",
-        user_input.strip(),
+        cleaned_input,
         flags=re.I,
     )
-    memory_match = explicit_memory_match or preference_match
+    project_idea_match = re.match(
+        r"^(?:lembre|lembra|memorize|salve|guarde|registre|anote)\s+"
+        r"(?:a\s+)?(?:ideia|idéia)\s+de\s+projeto\s*(?:[:=-]|\s+)?\s*[\"'“”‘’]?(.+?)[\"'“”‘’]?$",
+        cleaned_input,
+        flags=re.I,
+    )
+    memory_match = explicit_memory_match or preference_match or project_idea_match
     if memory_match:
         fact = memory_match.group(1).strip(" .")
         if fact:
-            namespace = _memory_namespace_from_text(fact, default="preferences" if preference_match else "general")
+            if project_idea_match:
+                namespace = "projects"
+                if "projeto" not in normalize_text(fact):
+                    fact = f"ideia de projeto: {fact}"
+            else:
+                namespace = _memory_namespace_from_text(fact, default="preferences" if preference_match else "general")
             return {
                 "intent": "action_memory_remember",
                 "target": {

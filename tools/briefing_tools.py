@@ -11,6 +11,7 @@ from memory.agenda import agenda_brief_summary
 from memory.auto_advances import load_auto_advances
 from memory.investment_formatting import format_percent, parse_currency_value, parse_percent_value
 from memory.investment_snapshot import (
+    format_investment_active_radar_brief,
     format_investment_financial_report,
     format_upcoming_dividend_brief,
     load_investment_snapshot,
@@ -22,7 +23,7 @@ TODO_PATH = Path("memory/todo.md")
 BRIEFING_CACHE_PATH = BRIEFING_CACHE_POLICY.path
 INVESTMENT_HISTORY_PATH = Path("memory/investment_snapshot_history.json")
 DEFAULT_BRIEFING_CACHE_TTL_SECONDS = BRIEFING_CACHE_POLICY.ttl_seconds
-BRIEFING_CONTENT_VERSION = 3
+BRIEFING_CONTENT_VERSION = 5
 
 B3_HOLIDAYS_2026 = {
     "2026-01-01",
@@ -122,6 +123,7 @@ def focus_brief_summary() -> str:
     summary = todo_brief_summary(limit=1).strip()
     if not summary or summary == "Sem tarefas em aberto de destaque.":
         return "Foco do dia: escolha uma prioridade curta e finalize antes de abrir novas frentes."
+    summary = re.sub(r"^Pr[oó]ximos?\s+avan[cç]os?\s+sugeridos?:\s*", "", summary, flags=re.I).strip()
     return "Foco do dia: " + summary[0].lower() + summary[1:]
 
 
@@ -299,6 +301,39 @@ def _format_market_change_sentence(change: float, *, weekly: bool = False) -> st
     return f"Sua carteira vem {direction} desde o ultimo fechamento, {value}."
 
 
+def _investment_position_fallback_brief(snapshot: dict) -> str:
+    metrics = snapshot.get("metric_map") or {}
+    patrimonio = parse_currency_value(metrics.get("patrimonio"))
+    invested = parse_currency_value(metrics.get("valor investido"))
+    variation = parse_percent_value(metrics.get("variacao"))
+    profitability = parse_percent_value(metrics.get("rentabilidade"))
+
+    if variation is not None:
+        direction = "acima" if variation > 0 else "abaixo" if variation < 0 else "em linha"
+        if direction == "em linha":
+            return "Carteira está em linha com o valor investido; ainda falta histórico diário para comparar com ontem."
+        return (
+            f"Carteira está {direction} do valor investido em "
+            f"{format_percent(abs(variation), digits=1)}; ainda falta histórico diário para comparar com ontem."
+        )
+
+    if patrimonio is not None and invested not in (None, 0):
+        change = _percent_change(patrimonio, invested)
+        if change is not None:
+            direction = "acima" if change > 0 else "abaixo" if change < 0 else "em linha"
+            if direction == "em linha":
+                return "Carteira está em linha com o valor investido; ainda falta histórico diário para comparar com ontem."
+            return (
+                f"Carteira está {direction} do valor investido em "
+                f"{format_percent(abs(change), digits=1)}; ainda falta histórico diário para comparar com ontem."
+            )
+
+    if profitability is not None:
+        return f"Carteira monitorada com rentabilidade acumulada de {format_percent(profitability, digits=1)}; ainda falta histórico diário para comparar com ontem."
+
+    return "Carteira monitorada, mas ainda sem historico suficiente para comparar alta ou queda."
+
+
 def _crypto_closed_market_brief(snapshot: dict) -> str:
     current = _current_investment_sample(snapshot)
     current_value = current.get("crypto_balance_value")
@@ -338,10 +373,15 @@ def _investment_brief() -> str:
             return f"Carteira ficou estavel em rentabilidade {period}."
         return f"Carteira {direction} {format_percent(abs(delta), digits=1)} ponto percentual em rentabilidade {period}."
 
-    return "Carteira monitorada, mas ainda sem historico suficiente para comparar alta ou queda."
+    return _investment_position_fallback_brief(snapshot)
 
 
 def _portfolio_radar_brief() -> str:
+    try:
+        return _polish_pt_br(format_investment_active_radar_brief())
+    except Exception:
+        pass
+
     try:
         report = format_investment_financial_report()
     except Exception:

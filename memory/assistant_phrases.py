@@ -93,7 +93,7 @@ def contextual_startup_phrase(category: str, address_user: str = "chefe", greeti
             address_user=address_user,
         )
 
-        if category == "short_ready":
+        if category in {"short_ready", "computer_startup"}:
             operation = next_phrase("startup_fragment_operations_short", STARTUP_GREETING_FRAGMENTS["operations"])
             phrase = f"{opener} {operation}"
         else:

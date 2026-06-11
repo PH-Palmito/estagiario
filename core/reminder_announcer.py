@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 
 @dataclass
@@ -12,7 +13,9 @@ class ReminderAnnouncer:
     output_response: Callable[..., None]
     now_fn: Callable[[], float] = time.time
     min_interval_seconds: float = 20.0
+    night_sleep_prompt_hour: int = 23
     last_check_at: float = 0.0
+    last_night_sleep_prompt_key: str = ""
 
     def maybe_announce_due_reminders(self, voice_mode: bool) -> bool:
         now = self.now_fn()
@@ -37,9 +40,27 @@ class ReminderAnnouncer:
 
         message = reminder_message(due)
         if not message:
-            return False
+            return self.maybe_announce_night_sleep_prompt(voice_mode)
 
         self._announce(message, voice_mode)
+        return True
+
+    def maybe_announce_night_sleep_prompt(self, voice_mode: bool) -> bool:
+        current = datetime.fromtimestamp(self.now_fn())
+        if 5 <= current.hour < self.night_sleep_prompt_hour:
+            return False
+
+        prompt_key = current.strftime("%Y-%m-%d")
+        if current.hour < 5:
+            prompt_key = f"{prompt_key}-madrugada"
+        if self.last_night_sleep_prompt_key == prompt_key:
+            return False
+
+        self.last_night_sleep_prompt_key = prompt_key
+        self._announce(
+            "Ja esta tarde. Se voce ainda estiver usando o PC sem urgencia, vale salvar o progresso e dormir.",
+            voice_mode,
+        )
         return True
 
     def _announce(self, message: str, voice_mode: bool) -> None:

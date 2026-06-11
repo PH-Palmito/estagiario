@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime
 
 from core.reminder_announcer import ReminderAnnouncer, reminder_message
 
@@ -102,6 +103,38 @@ class ReminderAnnouncerTests(unittest.TestCase):
         )
 
         self.assertFalse(announcer.maybe_announce_due_reminders(True))
+
+    def test_announces_night_sleep_prompt_once(self):
+        calls = []
+        timestamp = datetime(2026, 6, 10, 23, 30).timestamp()
+        announcer = ReminderAnnouncer(
+            consume_due_training_reminder=lambda: {},
+            consume_due_reminders=lambda: [],
+            output_response=lambda *args, **kwargs: calls.append((args, kwargs)),
+            now_fn=lambda: timestamp,
+            min_interval_seconds=0,
+        )
+
+        first = announcer.maybe_announce_due_reminders(False)
+        second = announcer.maybe_announce_due_reminders(False)
+
+        self.assertTrue(first)
+        self.assertFalse(second)
+        self.assertIn("dormir", calls[0][0][0])
+
+    def test_does_not_announce_night_sleep_prompt_during_day(self):
+        calls = []
+        timestamp = datetime(2026, 6, 10, 15, 0).timestamp()
+        announcer = ReminderAnnouncer(
+            consume_due_training_reminder=lambda: {},
+            consume_due_reminders=lambda: [],
+            output_response=lambda *args, **kwargs: calls.append(args),
+            now_fn=lambda: timestamp,
+            min_interval_seconds=0,
+        )
+
+        self.assertFalse(announcer.maybe_announce_due_reminders(False))
+        self.assertEqual(calls, [])
 
 
 if __name__ == "__main__":

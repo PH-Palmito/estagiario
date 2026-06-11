@@ -3,6 +3,7 @@ import unittest
 from core.router_system import (
     detect_background_status_command,
     detect_keyboard_led_command,
+    detect_power_command,
     detect_run_script,
     detect_type_text,
     detect_whatsapp_bridge_command,
@@ -33,6 +34,18 @@ class RouterSystemTests(unittest.TestCase):
         self.assertEqual(
             detect_run_script("execute script scripts/teste.py"),
             {"intent": "run_script", "target": "scripts/teste.py"},
+        )
+
+    def test_shutdown_route(self):
+        self.assertEqual(
+            detect_power_command("axel desligue o pc"),
+            {"intent": "system_shutdown", "target": None},
+        )
+
+    def test_shutdown_cancel_route(self):
+        self.assertEqual(
+            detect_power_command("cancelar desligamento"),
+            {"intent": "system_shutdown_cancel", "target": None},
         )
 
     def test_background_status(self):

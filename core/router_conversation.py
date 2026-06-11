@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from core.router_utils import normalize_text
 from llm.action_selector import select_read_action
 from llm.chat import chat_response
@@ -72,6 +74,54 @@ def detect_builtin_general_answer(user_input: str):
             "intent": "respond",
             "target": None,
             "response": "Sim. Se a pergunta for aleatoria, eu tento responder pelo chat geral; se ela parecer sobre arquivo, tela, agenda ou comando, eu tento encaminhar para a funcao certa.",
+        }
+
+    if "estagiario noturno" in text:
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": (
+                "O estagiario noturno e so um modo de tom mais quieto para a noite: respostas mais curtas, "
+                "menos barulho e lembrete amigavel para salvar o progresso e dormir quando ficar tarde. "
+                "Ele nao muda permissoes nem executa tarefas sozinho."
+            ),
+        }
+
+    if any(term in text for term in {"rinite", "espirrando", "espirro", "nariz escorrendo", "nariz entupido", "alergia atacada"}):
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": (
+                "Parece desconfortavel. Nao consigo diagnosticar, mas se for algo tipo rinite ou alergia, "
+                "pode ajudar se afastar de poeira ou cheiro forte, beber agua e lavar o nariz com soro. "
+                "Se tiver falta de ar, febre forte, dor no peito ou piora importante, e melhor procurar atendimento."
+            ),
+        }
+
+    if any(term in text for term in {"dor de barriga", "barriga doendo", "dor no estomago", "enjoo", "enjoado", "nausea"}):
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": (
+                "Poxa, dor de barriga derruba qualquer foco. Nao consigo diagnosticar, mas pode ser boa ideia "
+                "beber agua, comer leve e descansar um pouco. Se a dor for forte, persistente, vier com febre, "
+                "vomitos repetidos, sangue ou piora rapida, procure atendimento."
+            ),
+        }
+
+    if (
+        re.search(r"\b(?:estou|to|tô|tou|estou com|to com|tô com)\s+(?:muito\s+)?sono\b", text)
+        or "vontade de dormir" in text
+        or "quero dormir" in text
+        or "preciso dormir" in text
+    ):
+        return {
+            "intent": "respond",
+            "target": None,
+            "response": (
+                "Seu corpo esta pedindo pausa. Se nao for algo urgente, vale salvar o que estiver aberto, "
+                "reduzir a luz da tela e ir dormir. Posso te lembrar de encerrar quando ficar tarde usando o PC."
+            ),
         }
 
     return None

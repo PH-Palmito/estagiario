@@ -77,6 +77,8 @@ GOLDEN_COMMANDS = [
     ("fecha spotify", "close_app", {"target": "spotify"}),
     ("foca no chrome", "focus_app", {"target": "chrome"}),
     ("minimize o chrome", "minimize_app", {"target": "chrome"}),
+    ("desligue o pc", "system_shutdown", {}),
+    ("cancelar desligamento", "system_shutdown_cancel", {}),
     ("abre https://example.com", "open_url", {"target": "https://example.com"}),
     ("clima em Salvador", "weather_summary", {"location": "Salvador"}),
     ("adicionar na agenda revisar Axel hoje", "agenda_add", {"text": "revisar Axel hoje"}),
@@ -95,6 +97,22 @@ GOLDEN_COMMANDS = [
         "lembre que eu prefiro respostas curtas",
         "action_memory_remember",
         {"namespace": "preferences", "key": "respostas_curtas", "value": "respostas curtas"},
+    ),
+    (
+        'axel guarde a ideia de projeto "criar um aplicativo de devocional"',
+        "action_memory_remember",
+        {
+            "namespace": "projects",
+            "key": "ideia_projeto_criar_aplicativo_devocional",
+            "value": "ideia de projeto: criar um aplicativo de devocional",
+        },
+    ),
+    (
+        "oq faz o estagiario noturno?",
+        "respond",
+        {
+            "message": "O estagiario noturno e so um modo de tom mais quieto para a noite: respostas mais curtas, menos barulho e lembrete amigavel para salvar o progresso e dormir quando ficar tarde. Ele nao muda permissoes nem executa tarefas sozinho."
+        },
     ),
     (
         "o que voce sabe sobre briefing deve ser curto",
@@ -297,7 +315,6 @@ class GoldenCommandTests(unittest.TestCase):
             "keyboard_led_on",
             "keyboard_led_off",
             "keyboard_led_set",
-            "action_memory_remember",
             "memory.backup.restore_file",
         }
 

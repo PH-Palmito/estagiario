@@ -130,6 +130,21 @@ def normalize_action(old_action: dict) -> Command:
             requires_confirmation=True,
         )
 
+    if intent == "system_shutdown":
+        return Command(
+            action="system_shutdown",
+            params={},
+            source="router",
+            requires_confirmation=True,
+        )
+
+    if intent == "system_shutdown_cancel":
+        return Command(
+            action="system_shutdown_cancel",
+            params={},
+            source="router",
+        )
+
     if intent == "type_text":
         return Command(
             action="type_text",
@@ -600,7 +615,6 @@ def normalize_action(old_action: dict) -> Command:
                 "value": payload.get("value"),
             },
             source="router",
-            requires_confirmation=True,
         )
 
     if intent == "action_memory_recall":

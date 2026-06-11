@@ -27,13 +27,23 @@ class SystemStartupTests(unittest.TestCase):
     def test_windows_startup_status_reports_current_entry_and_log_path(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             log_path = Path(tmpdir) / ".tmp" / "axel-startup.log"
-            with patch.dict(os.environ, {"APPDATA": tmpdir}), patch("tools.system_tools.startup_log_path", return_value=log_path):
+            briefing_state_path = Path(tmpdir) / "startup_briefing_state.json"
+            briefing_state_path.write_text(
+                '{"last_briefing_date":"2026-06-08","last_briefing_at":"2026-06-08T07:55:14"}',
+                encoding="utf-8",
+            )
+            with (
+                patch.dict(os.environ, {"APPDATA": tmpdir}),
+                patch("tools.system_tools.startup_log_path", return_value=log_path),
+                patch("tools.system_tools._startup_briefing_state_path", return_value=briefing_state_path),
+            ):
                 enable_windows_startup()
                 result = windows_startup_status()
 
         self.assertIn("esta ativada", result)
         self.assertIn("atalho esta atualizado", result)
         self.assertIn("axel-startup.log", result)
+        self.assertIn("briefing marcado em 2026-06-08T07:55:14", result)
 
     def test_windows_startup_status_reports_outdated_entry(self):
         with tempfile.TemporaryDirectory() as tmpdir:

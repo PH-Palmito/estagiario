@@ -1012,6 +1012,7 @@ def run_startup(*, flags, voice_mode: bool, hotword_mode: bool, ui_mode: bool) -
             initialize_runtime_services=initialize_runtime_services,
             announce_voice_startup=announce_voice_startup,
             refresh_ui_runtime_state=refresh_ui_runtime_state,
+            send_startup_briefing=maybe_send_startup_briefing,
         ),
     )
 

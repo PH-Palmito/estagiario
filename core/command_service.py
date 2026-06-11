@@ -7,6 +7,8 @@ from core.action_result import normalize_action_result
 from core.action_governance import command_audit_required, command_governance_payload
 from core.command_schema import Command
 from core.context_resolver import resolve_params
+from core.intent_judge import judge_command_interpretation
+from core.intent_llm_judge import llm_review_to_judge_result, review_intent_with_llm, should_request_llm_intent_review
 from core.latency_metrics import log_latency_stage
 from core.normalizer import normalize_action
 from core.permission_policy import permission_decision
@@ -170,6 +172,46 @@ def process_raw_action(raw_action: dict, runtime_state, log_event: LogEvent) -> 
             error=error,
         )
         return error
+
+    route_trace = getattr(runtime_state, "last_route_trace", {}) or {}
+    user_input = str(raw_action.get("__user_input") or route_trace.get("input") or "")
+    judge = judge_command_interpretation(user_input, command, route_trace=route_trace)
+    if judge.allowed and should_request_llm_intent_review(
+        user_input,
+        command,
+        route_trace=route_trace,
+        decision_plan=getattr(runtime_state, "axel_brain_plan", {}) or {},
+    ):
+        review = review_intent_with_llm(
+            user_input,
+            command,
+            route_trace=route_trace,
+            decision_plan=getattr(runtime_state, "axel_brain_plan", {}) or {},
+        )
+        llm_judge = llm_review_to_judge_result(review)
+        log_event(
+            "intent_llm_judge",
+            action=getattr(command, "action", ""),
+            params=getattr(command, "params", {}),
+            verdict=getattr(review, "verdict", "") if review else "",
+            allowed=llm_judge.allowed,
+            requires_confirmation=llm_judge.requires_confirmation,
+            reason=llm_judge.reason,
+        )
+        if not llm_judge.allowed or llm_judge.requires_confirmation:
+            judge = llm_judge
+    log_event(
+        "intent_judge",
+        action=getattr(command, "action", ""),
+        params=getattr(command, "params", {}),
+        allowed=judge.allowed,
+        requires_confirmation=judge.requires_confirmation,
+        reason=judge.reason,
+    )
+    if not judge.allowed:
+        return judge.message or "Interpretação insegura. Reformule o pedido ou confirme com mais detalhes."
+    if judge.requires_confirmation:
+        command.requires_confirmation = True
 
     return command
 

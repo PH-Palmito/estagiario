@@ -311,3 +311,55 @@ def investment_financial_report(
         report_parts.append("Leitura geral: sem alerta crítico novo salvo agora.")
 
     return "Relatório financeiro. " + " ".join(part for part in report_parts if part)
+
+
+def investment_active_radar_brief(
+    snapshot: dict,
+    *,
+    portfolio_attention_items: Callable[[dict], list[dict]],
+    portfolio_items_above_ceiling: Callable[[dict], list[dict]],
+    material_price_ceiling_items: Callable[[list[dict]], list[dict]],
+    volatility_alert_items: Callable[[dict], list[str]],
+    portfolio_dividend_schedule: Callable[..., list[dict]],
+    format_dividend_event_brief: Callable[[str, dict], str],
+    portfolio_news_digest: Callable[..., list[str]],
+    compact_report_news: Callable[[str], str],
+    format_percent: Callable[..., str],
+) -> str:
+    updated_at = float(snapshot.get("updated_at") or 0)
+    if not updated_at and not snapshot.get("summary"):
+        return "Radar da carteira: atualize a carteira para eu cruzar alertas financeiros."
+
+    signals: list[str] = []
+
+    attention_items = portfolio_attention_items(snapshot)[:2]
+    attention_parts = _attention_text(attention_items, limit=2, include_opinion=False) if attention_items else []
+    attention_tickers = [str(item).split(":", 1)[0].strip() for item in attention_parts if str(item).strip()]
+    if attention_tickers:
+        signals.append("atenção em " + ", ".join(dict.fromkeys(attention_tickers[:2])))
+
+    ceiling_items = portfolio_items_above_ceiling(snapshot)[:2]
+    ceiling_parts = _ceiling_text(ceiling_items, format_percent=format_percent) if ceiling_items else []
+    ceiling_tickers = [str(item).split(" ", 1)[0].strip() for item in ceiling_parts if str(item).strip()]
+    if ceiling_tickers:
+        signals.append("acima do teto: " + ", ".join(dict.fromkeys(ceiling_tickers[:2])))
+
+    volatility_parts = volatility_alert_items(snapshot)[:2]
+    if volatility_parts:
+        signals.append("volatilidade: " + ", ".join(str(item).strip() for item in volatility_parts if str(item).strip()))
+
+    dividend_events = portfolio_dividend_schedule(snapshot, limit=1)
+    if dividend_events:
+        dividend_parts = [format_dividend_event_brief(item["ticker"], item["event"]) for item in dividend_events]
+        if dividend_parts:
+            signals.append(str(dividend_parts[0]).strip("."))
+
+    news_items = portfolio_news_digest(snapshot, limit_assets=5, limit_summaries=1, only_new=False, mark_seen=False)
+    if news_items:
+        compact_news = compact_report_news(news_items[0])
+        if compact_news:
+            signals.append("notícia relevante: " + compact_news.strip("."))
+
+    if signals:
+        return "Radar da carteira: alertas ativos: " + "; ".join(signals[:4]) + "."
+    return "Radar da carteira: sem alerta ativo relevante agora."

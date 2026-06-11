@@ -30,7 +30,10 @@ def parse_percent_value(text: str) -> float | None:
     cleaned = str(text or "").strip().replace("%", "").replace(" ", "")
     if not cleaned:
         return None
-    cleaned = cleaned.replace(".", "").replace(",", ".")
+    if "." in cleaned and "," in cleaned:
+        cleaned = cleaned.replace(".", "").replace(",", ".")
+    elif "," in cleaned:
+        cleaned = cleaned.replace(",", ".")
     try:
         return float(cleaned)
     except ValueError:

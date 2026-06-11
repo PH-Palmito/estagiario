@@ -15,6 +15,7 @@ HELP_TEXT = (
     "  --update     mostra plano seguro de atualizacao e encerra\n"
     "  --backup-memory  cria snapshot dos arquivos criticos de memoria e encerra\n"
     "  --audio-test [segundos]  roda diagnostico de audio\n"
+    "  --force-startup-briefing  forca o briefing automatico mesmo se ja rodou hoje\n"
 )
 
 

@@ -82,4 +82,5 @@ def register_legacy_write_actions() -> None:
             "value": {"type": "string", "description": "Valor a salvar.", "required": True},
         },
         category="memory",
+        requires_confirmation=False,
     )

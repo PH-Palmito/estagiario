@@ -79,7 +79,7 @@ class BriefingCacheTests(unittest.TestCase):
         ):
             result = briefing_tools.daily_briefing(use_cache=False)
 
-        self.assertIn("Foco do dia: proximo avanco sugerido: revisar agenda.", result)
+        self.assertIn("Foco do dia: revisar agenda.", result)
 
     def test_focus_brief_summary_has_fallback_when_no_task_exists(self):
         with patch.object(briefing_tools, "todo_brief_summary", return_value="Sem tarefas em aberto de destaque."):
@@ -134,6 +134,29 @@ class BriefingCacheTests(unittest.TestCase):
             result = briefing_tools._investment_brief()
 
         self.assertEqual(result, "Carteira fechou a semana em alta, 7,0%.")
+
+    def test_investment_brief_uses_visible_variation_when_history_is_missing(self):
+        snapshot = {
+            "metric_map": {
+                "patrimonio": "R$ 7.983,36",
+                "valor investido": "R$ 8.981,00",
+                "variacao": "-11.11%",
+                "rentabilidade": "11,94%",
+            }
+        }
+
+        with (
+            patch.object(briefing_tools, "_today", return_value=date(2026, 6, 10)),
+            patch.object(briefing_tools, "_current_hour", return_value=18),
+            patch.object(briefing_tools, "load_investment_snapshot", return_value=snapshot),
+            patch.object(briefing_tools, "_load_investment_history", return_value=[]),
+        ):
+            result = briefing_tools._investment_brief()
+
+        self.assertEqual(
+            result,
+            "Carteira está abaixo do valor investido em 11,1%; ainda falta histórico diário para comparar com ontem.",
+        )
 
     def test_closed_market_brief_skips_dividends_and_radar(self):
         with (

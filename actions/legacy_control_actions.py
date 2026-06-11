@@ -15,7 +15,16 @@ from tools.media_tools import (
     volume_mute,
     volume_up,
 )
-from tools.system_tools import focus_app, maximize_app, minimize_app, open_app, open_url, restore_app
+from tools.system_tools import (
+    cancel_system_shutdown,
+    focus_app,
+    maximize_app,
+    minimize_app,
+    open_app,
+    open_url,
+    restore_app,
+    schedule_system_shutdown,
+)
 
 
 def _register(
@@ -48,6 +57,8 @@ def register_legacy_control_actions() -> None:
     _register("minimize_app", "Minimiza janela de aplicativo permitido.", lambda args: minimize_app(args.get("target", "")), target_param, category="system")
     _register("maximize_app", "Maximiza janela de aplicativo permitido.", lambda args: maximize_app(args.get("target", "")), target_param, category="system")
     _register("restore_app", "Restaura janela de aplicativo permitido.", lambda args: restore_app(args.get("target", "")), target_param, category="system")
+    _register("system_shutdown", "Agenda o desligamento do PC.", lambda _args: schedule_system_shutdown(), category="system", read_only=False, requires_confirmation=True)
+    _register("system_shutdown_cancel", "Cancela desligamento do PC agendado.", lambda _args: cancel_system_shutdown(), category="system", read_only=False)
     _register("open_url", "Abre URL no navegador padrao.", lambda args: open_url(args.get("target", "")), target_param, category="browser")
     _register("media_play_pause", "Alterna play/pause da midia.", lambda _args: media_play_pause(), category="media")
     _register("media_next", "Avanca para a proxima midia.", lambda _args: media_next(), category="media")

@@ -22,6 +22,7 @@ PROCESS_ACTIONS = {
     "close_app",
     "smart_close_app",
     "run_script",
+    "system_shutdown",
     "windows_startup_enable",
     "windows_startup_disable",
 }

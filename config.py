@@ -104,6 +104,11 @@ NVIDIA_TEXT_FALLBACK_ENABLED = env_str(
     default="1",
     aliases=("NVIDIA_TEXT_FALLBACK_ENABLED",),
 ).strip().lower() not in {"0", "false", "no", "off"}
+LLM_INTENT_JUDGE_ENABLED = env_str(
+    "AXEL_LLM_INTENT_JUDGE_ENABLED",
+    default="0",
+    aliases=("LLM_INTENT_JUDGE_ENABLED",),
+).strip().lower() not in {"0", "false", "no", "off"}
 GEMINI_TTS_MODEL = env_str(
     "AXEL_GEMINI_TTS_MODEL",
     default="gemini-3.1-flash-tts-preview",

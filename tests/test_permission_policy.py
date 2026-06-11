@@ -29,6 +29,14 @@ class PermissionPolicyTests(unittest.TestCase):
         self.assertFalse(execution_permission(command).allowed)
         self.assertTrue(execution_permission(command, confirmed=True).allowed)
 
+    def test_shutdown_is_critical_confirmation(self):
+        command = Command(action="system_shutdown", params={}, requires_confirmation=True)
+
+        self.assertTrue(command_requires_confirmation(command))
+        self.assertTrue(command_requires_strong_confirmation(command))
+        self.assertEqual(command_risk_level(command), RiskLevel.CRITICAL)
+        self.assertFalse(execution_permission(command).allowed)
+
     def test_tool_command_inherits_registered_confirmation(self):
         register_action(
             ActionSpec(

@@ -38,6 +38,30 @@ class RouterConversationTests(unittest.TestCase):
         self.assertIn("Nikola Tesla", detect_builtin_general_answer("oq e tesla?")["response"])
         self.assertIn("caso base", detect_builtin_general_answer("me explique recursao em python")["response"])
 
+    def test_builtin_general_answers_night_intern_mode(self):
+        result = detect_builtin_general_answer("oq faz o estagiario noturno?")
+
+        self.assertEqual(result["intent"], "respond")
+        self.assertIn("noite", result["response"])
+
+    def test_builtin_general_answers_minor_symptom_statement(self):
+        result = detect_builtin_general_answer("axel minha rinite esta atacada")
+        self.assertEqual(result["intent"], "respond")
+        self.assertIn("Nao consigo diagnosticar", result["response"])
+        self.assertIn("soro", result["response"])
+        self.assertIsNotNone(detect_builtin_general_answer("estou espirrando muitp"))
+        self.assertIsNotNone(detect_builtin_general_answer("estou espirrando muito"))
+
+    def test_builtin_general_answers_sleep_and_stomach_statements(self):
+        stomach = detect_builtin_general_answer("to com dor de barriga")
+        self.assertEqual(stomach["intent"], "respond")
+        self.assertIn("Nao consigo diagnosticar", stomach["response"])
+
+        sleepy = detect_builtin_general_answer("estou com vontade de dormir")
+        self.assertEqual(sleepy["intent"], "respond")
+        self.assertIn("salvar", sleepy["response"])
+        self.assertIn("lembrar", sleepy["response"])
+
     @patch("core.router_conversation.select_read_action", return_value={"name": "background.run_action", "arguments": {"name": "recursao"}})
     def test_explanation_request_does_not_become_action(self, _select):
         self.assertIsNone(detect_llm_action_command("me explique recursao em python"))
