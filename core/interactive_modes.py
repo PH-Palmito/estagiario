@@ -2,8 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import unicodedata
 
 from core.conversation_reply import conversation_reply
+from core.router_registry import (
+    INTENT_LEVEL_COMPOSITE_TASK,
+    INTENT_LEVEL_DIRECT_COMMAND,
+    INTENT_LEVEL_QUESTION,
+)
 from core.voice_modes import (
     format_dictation_text,
     is_conversation_stop,
@@ -26,6 +32,44 @@ class InteractiveModesResult:
     state: InteractiveModesState
     message: str = ""
     voice_mode: bool | None = None
+
+
+def _conversation_input_should_route(user_input: str) -> bool:
+    """Let clear commands leave conversation mode without turning it off."""
+    normalized = unicodedata.normalize("NFD", user_input.lower())
+    normalized = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+    compact = " ".join(normalized.replace(",", " ").replace(".", " ").split())
+    if compact in {
+        "bom dia",
+        "boa tarde",
+        "boa noite",
+        "oi",
+        "ola",
+        "olá",
+        "e ai",
+        "eae",
+        "tudo bem",
+    }:
+        return False
+
+    try:
+        from core.router import route_match
+
+        match = route_match(user_input)
+    except Exception:
+        return False
+
+    if not match:
+        return False
+
+    if match.group_name in {"conversation", "general_questions"}:
+        return False
+
+    return match.intent_level in {
+        INTENT_LEVEL_DIRECT_COMMAND,
+        INTENT_LEVEL_COMPOSITE_TASK,
+        INTENT_LEVEL_QUESTION,
+    }
 
 
 def handle_interactive_modes(
@@ -85,6 +129,8 @@ def handle_interactive_modes(
         return InteractiveModesResult(True, next_state, "Modo conversa encerrado. Voltei para comandos.", voice_mode)
 
     if state.conversation_mode and not waiting_for_direct_response():
+        if _conversation_input_should_route(user_input):
+            return InteractiveModesResult(False, state)
         return InteractiveModesResult(True, state, conversation_reply(user_input, chat_response), voice_mode)
 
     return InteractiveModesResult(False, state)

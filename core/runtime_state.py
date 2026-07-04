@@ -1,3 +1,6 @@
+from core.response_provenance import response_provenance_snapshot
+
+
 class RuntimeState:
     def __init__(self):
         self.last_file = None
@@ -153,6 +156,7 @@ class RuntimeState:
         }
         response = {
             "final": str(result or "")[:500],
+            "provenance": response_provenance_snapshot(),
         }
 
         entry = {

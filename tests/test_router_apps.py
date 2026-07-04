@@ -20,6 +20,12 @@ class RouterAppsTests(unittest.TestCase):
 
         self.assertEqual(result, {"intent": "smart_open", "target": "android studio"})
 
+    def test_vague_open_target_asks_for_clarification(self):
+        result = detect_open_app("abre isso")
+
+        self.assertEqual(result["intent"], "respond")
+        self.assertIn("alvo ficou vago", result["response"])
+
     def test_detects_close_known_app(self):
         result = detect_close_app("feche o spotify")
 

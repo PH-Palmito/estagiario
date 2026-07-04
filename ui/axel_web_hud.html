@@ -240,6 +240,25 @@
         background: rgba(37, 99, 235, 0.16);
       }
 
+      .settings-menu button.state-toggle {
+        justify-content: space-between;
+      }
+
+      .settings-menu button.state-toggle.active {
+        color: var(--text);
+        background: rgba(34, 197, 94, 0.1);
+      }
+
+      .settings-menu button.state-toggle span {
+        color: var(--dim);
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+
+      .settings-menu button.state-toggle.active span {
+        color: var(--cyan);
+      }
+
       .core {
         position: absolute;
         left: 50%;
@@ -425,6 +444,30 @@
       .stage.page-mode .quick-command {
         display: flex;
         backdrop-filter: none;
+      }
+
+      .command-feedback {
+        position: absolute;
+        left: 50%;
+        bottom: 76px;
+        width: min(560px, calc(100vw - 48px));
+        min-height: 18px;
+        transform: translateX(-50%);
+        color: var(--dim);
+        font-size: 12px;
+        text-align: center;
+        z-index: 3;
+      }
+
+      .command-feedback[data-status="processing"],
+      .command-feedback[data-status="queued"] { color: var(--cyan); }
+      .command-feedback[data-status="success"] { color: #34d399; }
+      .command-feedback[data-status="error"] { color: #fb7185; }
+      .command-feedback[data-status="waiting_confirmation"] { color: #facc15; }
+
+      button.command-pending {
+        opacity: 0.58;
+        cursor: wait;
       }
 
       .dock {
@@ -1469,16 +1512,6 @@
         line-height: 1;
       }
 
-      .finance-line-chart {
-        height: 150px;
-        margin-top: 14px;
-        border-bottom: 1px solid rgba(148, 204, 231, 0.08);
-        background:
-          linear-gradient(180deg, transparent, rgba(45, 212, 191, 0.08)),
-          linear-gradient(90deg, transparent 24%, rgba(148, 204, 231, 0.06) 24% 24.2%, transparent 24.2% 49%, rgba(148, 204, 231, 0.06) 49% 49.2%, transparent 49.2% 74%, rgba(148, 204, 231, 0.06) 74% 74.2%, transparent 74.2%);
-        clip-path: polygon(0 78%, 14% 72%, 28% 74%, 42% 44%, 55% 58%, 68% 36%, 82% 24%, 100% 12%, 100% 100%, 0 100%);
-      }
-
       .finance-calendar,
       .task-calendar {
         display: grid;
@@ -1618,16 +1651,6 @@
         text-align: center;
       }
 
-      .habit-chart {
-        height: 116px;
-        margin-top: 14px;
-        border-bottom: 1px solid rgba(148, 204, 231, 0.08);
-        background:
-          linear-gradient(180deg, transparent, rgba(34, 211, 238, 0.08)),
-          linear-gradient(90deg, transparent 19%, rgba(148, 204, 231, 0.055) 19% 19.2%, transparent 19.2% 39%, rgba(148, 204, 231, 0.055) 39% 39.2%, transparent 39.2% 59%, rgba(148, 204, 231, 0.055) 59% 59.2%, transparent 59.2% 79%, rgba(148, 204, 231, 0.055) 79% 79.2%, transparent 79.2%);
-        clip-path: polygon(0 76%, 8% 68%, 16% 72%, 24% 56%, 32% 64%, 40% 44%, 48% 62%, 56% 34%, 64% 48%, 72% 29%, 80% 42%, 88% 24%, 100% 18%, 100% 100%, 0 100%);
-      }
-
       .habit-pills {
         display: grid;
         grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1703,6 +1726,10 @@
           <button type="button" data-panel="sessao">◷ Sessão</button>
           <button type="button" data-panel="contexto">⌘ Contexto</button>
           <button type="button" data-panel="comandos">⌨ Comandos</button>
+          <button type="button" data-command="autoteste do axel">✓ Autoteste</button>
+          <button type="button" id="intentJudgeToggle" class="state-toggle" data-command="alternar juiz llm" aria-pressed="false">Juiz LLM <span id="intentJudgeStatus">--</span></button>
+          <button type="button" id="personalityToggle" class="state-toggle" data-command="personalidade" aria-pressed="false">Personalidade <span id="personalityStatus">--</span></button>
+          <button type="button" id="proactivityToggle" class="state-toggle" data-command="proatividade" aria-pressed="false">Proatividade <span id="proactivityStatus">--</span></button>
           <button type="button" id="resetLayoutButton">↻ Restaurar layout</button>
         </div>
       </div>
@@ -1744,11 +1771,12 @@
         <input id="commandInput" placeholder="Pergunte ou peça algo ao Axel" />
         <button id="sendCommand" class="primary" type="button">Enviar</button>
       </form>
+      <div class="command-feedback" id="commandFeedback" data-status="idle" role="status" aria-live="polite">Pronto para comandos.</div>
 
       <nav class="dock">
         <button type="button" data-panel="midia" title="Mídia" aria-label="Mídia">♪<span>Mídia</span></button>
         <button type="button" data-panel="tempo" title="Tempo" aria-label="Tempo">☁<span>Tempo</span></button>
-        <button type="button" data-panel="carteira" title="Finanças" aria-label="Finanças">↗<span>Finanças</span></button>
+        <button type="button" data-panel="carteira" title="Carteira" aria-label="Carteira">↗<span>Carteira</span></button>
         <button type="button" data-panel="tarefas" title="Tarefas" aria-label="Tarefas">✓<span>Tarefas</span></button>
         <button type="button" data-panel="habitos" title="Hábitos" aria-label="Hábitos">◎<span>Hábitos</span></button>
         <button type="button" data-panel="noticias" title="Notícias" aria-label="Notícias">◫<span>Notícias</span></button>
@@ -2040,31 +2068,24 @@
               <div class="metric"><span>Sensação</span><strong id="weatherFeels">--</strong></div>
               <div class="metric"><span>Chuva</span><strong id="weatherRain">--</strong></div>
               <div class="metric"><span>Vento</span><strong id="weatherWind">--</strong></div>
-              <div class="metric"><span>Fonte</span><strong>local</strong></div>
+              <div class="metric"><span>Origem</span><strong>snapshot</strong></div>
             </div>
           </div>
         </div>
       </section>
       <section class="panel-window" data-window="carteira">
         <div class="panel-head">
-          <div><p class="eyebrow">Finanças</p><h2>Visão geral</h2></div>
+          <div><p class="eyebrow">Carteira</p><h2>Posições e rendimentos</h2></div>
           <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
         </div>
         <div class="panel-body">
           <div class="section-page">
             <div class="section-toolbar">
-              <div class="segmented">
-                <button class="active" type="button">Todos</button>
-                <button type="button">Bancos</button>
-                <button type="button">Cartões</button>
-                <button type="button">Investimentos</button>
-                <button type="button" title="Futuro">Open Finance</button>
-              </div>
-              <div class="media-note">Open Finance entra depois, sem integração ativa agora.</div>
+              <div class="media-note">Snapshot local da carteira. Bancos, cartões e Open Finance não estão integrados.</div>
             </div>
             <div class="dashboard-grid">
               <div class="wide-card">
-                <p class="eyebrow">Saldo consolidado</p>
+                <p class="eyebrow">Patrimônio salvo</p>
                 <div class="hero-number" id="investTotal">--</div>
                 <div class="metric-grid" style="margin-top:14px">
                   <div class="metric"><span>Rentabilidade</span><strong id="investReturn">--</strong></div>
@@ -2072,23 +2093,23 @@
                   <div class="metric"><span>Atualização</span><strong id="investUpdated">--</strong></div>
                   <div class="metric"><span>Conexões</span><strong>Manual</strong></div>
                 </div>
-                <div class="finance-line-chart" aria-hidden="true"></div>
+                <div class="media-note" style="margin-top:10px">Sem gráfico histórico enquanto não houver série real.</div>
               </div>
               <div class="wide-card">
-                <p class="eyebrow">Contas e cartões</p>
+                <p class="eyebrow">Cobertura dos dados</p>
                 <div class="finance-rows" id="financeAccounts"></div>
               </div>
             </div>
             <div class="dashboard-grid">
               <div class="wide-card">
                 <div class="section-toolbar">
-                  <div><p class="eyebrow">Abril</p><h2>Calendário financeiro</h2></div>
-                  <div class="media-note">previsto / realizado</div>
+                  <div><p class="eyebrow">Agenda</p><h2>Eventos financeiros</h2></div>
+                  <div class="media-note">somente eventos reais</div>
                 </div>
                 <div class="finance-calendar" id="financeCalendar"></div>
               </div>
               <div class="wide-card">
-                <p class="eyebrow">Categorias</p>
+                <p class="eyebrow">Métricas disponíveis</p>
                 <div class="category-bars" id="financeCategories"></div>
                 <p class="eyebrow" style="margin-top:16px">Movimentos</p>
                 <div class="finance-rows" id="investLines"></div>
@@ -2099,36 +2120,26 @@
       </section>
       <section class="panel-window" data-window="tarefas">
         <div class="panel-head">
-          <div><p class="eyebrow">Tarefas</p><h2>Rotina e agenda</h2></div>
+          <div><p class="eyebrow">Tarefas · primeira camada</p><h2>Sem integração estruturada</h2></div>
           <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
         </div>
         <div class="panel-body">
           <div class="section-page">
             <div class="section-toolbar">
-              <div class="segmented">
-                <button class="active" type="button">Todas</button>
-                <button type="button">Normais</button>
-                <button type="button">Recorrentes</button>
-              </div>
-              <div class="segmented">
-                <button type="button">Casa</button>
-                <button type="button">Pessoal</button>
-                <button type="button">Saúde</button>
-                <button type="button">Trabalho</button>
-              </div>
+              <div class="media-note" id="tasksDataStatus">Sem integração de tarefas estruturadas.</div>
             </div>
             <div class="dashboard-grid">
               <div class="wide-card">
                 <p class="eyebrow">Saúde da rotina</p>
-                <div class="hero-number" id="tasksScore">88</div>
+                <div class="hero-number" id="tasksScore">--</div>
                 <div class="metric-grid" style="margin-top:14px">
-                  <div class="metric"><span>Total</span><strong id="tasksTotal">29</strong></div>
-                  <div class="metric"><span>Atrasadas</span><strong id="tasksLate">2</strong></div>
-                  <div class="metric"><span>Pendentes</span><strong id="tasksPending">14</strong></div>
-                  <div class="metric"><span>Hoje</span><strong id="tasksToday">4</strong></div>
+                  <div class="metric"><span>Total</span><strong id="tasksTotal">0</strong></div>
+                  <div class="metric"><span>Atrasadas</span><strong id="tasksLate">0</strong></div>
+                  <div class="metric"><span>Pendentes</span><strong id="tasksPending">0</strong></div>
+                  <div class="metric"><span>Hoje</span><strong id="tasksToday">0</strong></div>
                 </div>
-                <div class="bar-track" style="margin-top:14px"><span style="--value:48%"></span></div>
-                <div class="media-note" style="margin-top:10px">Ritmo moderado · quinta mais produtivo</div>
+                <div class="bar-track" style="margin-top:14px"><span id="tasksProgress" style="--value:0%"></span></div>
+                <div class="media-note" style="margin-top:10px">Métricas aparecem somente com histórico real.</div>
               </div>
               <div class="wide-card">
                 <p class="eyebrow">Últimos 7 dias</p>
@@ -2144,14 +2155,14 @@
                 <div class="task-list" id="tasksList"></div>
               </div>
               <div class="wide-card">
-                <p class="eyebrow">Abril 2026</p>
+                <p class="eyebrow">Período disponível</p>
                 <div class="task-calendar" id="tasksCalendar"></div>
               </div>
             </div>
             <div class="wide-card">
               <div class="section-toolbar">
                 <div><p class="eyebrow">Kanban</p><h2>Fluxo</h2></div>
-                <div class="media-note">rascunho visual</div>
+                <div class="media-note">sem estados estruturados</div>
               </div>
               <div class="task-board" id="tasksBoard"></div>
             </div>
@@ -2160,32 +2171,27 @@
       </section>
       <section class="panel-window" data-window="habitos">
         <div class="panel-head">
-          <div><p class="eyebrow">Hábitos</p><h2>Consistência e rotina</h2></div>
+          <div><p class="eyebrow">Hábitos · primeira camada</p><h2>Sem integração estruturada</h2></div>
           <div class="actions"><button type="button" data-refresh>Atualizar</button><button data-close>Fechar</button></div>
         </div>
         <div class="panel-body">
           <div class="section-page">
             <div class="section-toolbar">
-              <div class="segmented">
-                <button class="active" type="button">Hoje</button>
-                <button type="button">Semana</button>
-                <button type="button">Mês</button>
-                <button type="button">Sequência</button>
-              </div>
+              <div class="media-note">Painel aguardando uma fonte real de hábitos.</div>
               <div class="media-note" id="habitsTrend">--</div>
             </div>
             <div class="dashboard-grid">
               <div class="wide-card">
                 <div class="habit-overview">
-                  <div class="habit-score" id="habitsScoreRing" style="--score:51%">
-                    <div><strong id="habitsScore">51</strong><span>pontos</span></div>
+                  <div class="habit-score" id="habitsScoreRing" style="--score:0%">
+                    <div><strong id="habitsScore">--</strong><span>pontos</span></div>
                   </div>
                   <div>
                     <p class="eyebrow">Status</p>
-                    <div class="hero-number" id="habitsStatus">Bom</div>
+                    <div class="hero-number" id="habitsStatus">Sem dados</div>
                     <div class="metric-grid" style="margin-top:14px">
-                      <div class="metric"><span>Hoje</span><strong id="habitsTodayMetric">4 de 7</strong></div>
-                      <div class="metric"><span>Sequência</span><strong id="habitsStreak">4 dias</strong></div>
+                      <div class="metric"><span>Hoje</span><strong id="habitsTodayMetric">0 de 0</strong></div>
+                      <div class="metric"><span>Sequência</span><strong id="habitsStreak">--</strong></div>
                     </div>
                   </div>
                 </div>
@@ -2193,15 +2199,14 @@
               </div>
               <div class="wide-card">
                 <p class="eyebrow">Consistência</p>
-                <div class="hero-number" id="habitsAverage">29%</div>
-                <div class="habit-chart" aria-hidden="true"></div>
-                <div class="media-note" style="margin-top:10px">janela dos últimos 90 dias</div>
+                <div class="hero-number" id="habitsAverage">--</div>
+                <div class="media-note" style="margin-top:10px">Sem janela histórica integrada.</div>
               </div>
             </div>
             <div class="dashboard-grid">
               <div class="wide-card">
                 <div class="section-toolbar">
-                  <div><p class="eyebrow">Abril 2026</p><h2>Calendário de hábitos</h2></div>
+                  <div><p class="eyebrow">Período disponível</p><h2>Calendário de hábitos</h2></div>
                   <div class="media-note">concluídos / total</div>
                 </div>
                 <div class="task-calendar" id="habitsCalendar"></div>
@@ -2275,6 +2280,7 @@
       let dragState = null;
       let commandDeckFilter = "todos";
       let commandDeckSearch = "";
+      const pendingCommandButtons = new Set();
 
       const commandGroups = [
         ["Favoritos", [
@@ -2725,19 +2731,54 @@
         });
       }
 
-      function sendCommand(text) {
+      function parseBridgeFeedback(payload, fallbackStatus = "queued") {
+        try {
+          const parsed = JSON.parse(String(payload || "{}"));
+          if (parsed && typeof parsed === "object") return parsed;
+        } catch (_error) {}
+        return { status: fallbackStatus, message: String(payload || "Comando enviado.") };
+      }
+
+      function setCommandFeedback(feedback = {}) {
+        const status = String(feedback.status || "idle");
+        const message = String(feedback.message || "Pronto para comandos.");
+        const element = document.getElementById("commandFeedback");
+        if (element) {
+          element.dataset.status = status;
+          element.textContent = message;
+        }
+        if (["success", "error", "waiting_confirmation", "idle"].includes(status)) {
+          pendingCommandButtons.forEach((button) => {
+            button.disabled = false;
+            button.classList.remove("command-pending");
+          });
+          pendingCommandButtons.clear();
+        }
+      }
+
+      function markCommandButtonPending(button) {
+        if (!button) return;
+        button.disabled = true;
+        button.classList.add("command-pending");
+        pendingCommandButtons.add(button);
+      }
+
+      function sendCommand(text, sourceButton = null) {
         const value = String(text || "").trim();
         if (!value) return false;
+        markCommandButtonPending(sourceButton);
+        setCommandFeedback({ status: "queued", message: `Na fila: ${value}` });
         if (!bridge) {
           queuedPanelCommands.push(value);
           return true;
         }
         try {
-          bridge.sendCommand(value);
+          bridge.sendCommand(value, (payload) => setCommandFeedback(parseBridgeFeedback(payload)));
           flushQueuedPanelCommands();
           return true;
         } catch (_error) {
           queuedPanelCommands.push(value);
+          setCommandFeedback({ status: "error", message: "Não foi possível enviar o comando ao backend." });
           return true;
         }
       }
@@ -2805,8 +2846,9 @@
             return;
           }
         }
-        sendCommand(`executar action ${name} ${normalizedArgs}`);
-        if (status) status.textContent = `Enviado: ${name}`;
+        const button = document.getElementById("sendActionCommand");
+        sendCommand(`executar action ${name} ${normalizedArgs}`, button);
+        if (status) status.textContent = `Na fila: ${name}`;
       }
 
       function setText(id, value) {
@@ -2902,7 +2944,7 @@
         const updated = investment?.updated_at ? new Date(investment.updated_at * 1000).toLocaleString("pt-BR") : "--";
         setText("investUpdated", updated);
         const lines = Array.isArray(investment?.lines) ? investment.lines.slice(0, 10) : [];
-        const rows = lines.length ? lines : ["Carteira manual aguardando Open Finance", "Gastos e bancos serão conectados futuramente"];
+        const rows = lines.length ? lines : ["Nenhum dado de carteira carregado."];
         setHtml("investLines", rows.map((line, index) => `
           <div class="finance-row">
             <span class="finance-dot"></span>
@@ -2911,9 +2953,8 @@
           </div>
         `).join(""));
         setHtml("financeAccounts", [
-          ["Investimentos", total, returnValue],
-          ["Bancos", "Futuro", "Open Finance"],
-          ["Cartões", "Futuro", "Gastos"],
+          ["Carteira local", total, returnValue],
+          ["Bancos e cartões", "Não integrados", "Sem dados exibidos"],
         ].map(([name, value, note]) => `
           <div class="finance-row">
             <span class="finance-dot"></span>
@@ -2922,57 +2963,50 @@
           </div>
         `).join(""));
         setHtml("financeCategories", [
-          ["Investimentos", "72%", total],
-          ["Renda", "42%", income],
-          ["Gastos", "18%", "futuro"],
-        ].map(([name, value, amount]) => `
-          <div class="bar-row" style="--value:${value}">
+          ["Patrimônio", total],
+          ["Rentabilidade", returnValue],
+          ["Proventos 12M", income],
+        ].map(([name, amount]) => `
+          <div class="finance-row">
             <span>${name}</span><strong>${amount}</strong>
-            <div class="bar-track"><span></span></div>
           </div>
         `).join(""));
-        setHtml("financeCalendar", Array.from({ length: 30 }, (_, index) => {
-          const day = index + 1;
-          const active = [9, 16, 28].includes(day);
-          const amount = day === 16 ? "+R$" : day === 9 ? "-R$" : day === 28 ? "-R$" : "";
-          return `<div class="calendar-day ${active ? "active" : ""}">${day}${amount ? `<strong>${amount}</strong>` : ""}</div>`;
-        }).join(""));
+        const events = Array.isArray(investment?.events) ? investment.events : [];
+        setHtml("financeCalendar", events.length
+          ? events.map((item) => `<div class="finance-row"><span>${escapeHtml(item.date || "--")}</span><strong>${escapeHtml(item.text || item.type || "Evento")}</strong></div>`).join("")
+          : `<div class="media-note">Nenhum evento financeiro estruturado no snapshot.</div>`);
       }
 
       function renderTasks(payload = {}) {
         const rawTasks = Array.isArray(payload?.tasks) ? payload.tasks : [];
-        const fallback = [
-          { text: "Finalizar apresentação", tag: "Trabalho", date: "20/04, 18:00", state: "Para Fazer" },
-          { text: "Ligar para seguradora", tag: "Pessoal", date: "23/04, 18:00", state: "Para Fazer" },
-          { text: "Meditar 15 minutos", tag: "Saúde", date: "Hoje", state: "Fazendo" },
-          { text: "Revisar carteira", tag: "Finanças", date: "Sexta", state: "Feito" },
-        ];
-        const tasks = rawTasks.length ? rawTasks : fallback;
-        const total = tasks.length || 29;
-        const done = tasks.filter((item) => String(item.state || "").toLowerCase().includes("feito")).length || 4;
+        const tasks = rawTasks;
+        const total = tasks.length;
+        const done = tasks.filter((item) => String(item.state || "").toLowerCase().includes("feito")).length;
         const pending = Math.max(0, total - done);
+        const today = tasks.filter((item) => item.today || String(item.date || "").toLowerCase() === "hoje").length;
+        const score = total ? Math.round((done / total) * 100) : 0;
+        setText("tasksDataStatus", total ? "Dados estruturados carregados." : "Sem integração de tarefas estruturadas.");
+        setText("tasksScore", total ? String(score) : "--");
+        document.getElementById("tasksProgress")?.style.setProperty("--value", `${score}%`);
         setText("tasksTotal", String(total));
         setText("tasksPending", String(pending));
-        setText("tasksToday", String(Math.min(4, pending)));
-        setText("tasksLate", String(tasks.filter((item) => item.late).length || 2));
-        setHtml("tasksWeek", ["Sex", "Sáb", "Dom", "Seg", "Ter", "Qua", "Qui"].map((day, index) => `
-          <div class="bar-row" style="--value:${[54, 8, 28, 32, 6, 4, 82][index]}%">
-            <span>${day}</span><strong>${index === 6 ? `${done} concluídas` : ""}</strong>
-            <div class="bar-track"><span></span></div>
-          </div>
-        `).join(""));
-        setHtml("tasksList", tasks.map((item, index) => `
+        setText("tasksToday", String(today));
+        setText("tasksLate", String(tasks.filter((item) => item.late).length));
+        const week = Array.isArray(payload?.week) ? payload.week : [];
+        setHtml("tasksWeek", week.length ? week.map((item) => `
+          <div class="finance-row"><span>${escapeHtml(item.day || item.date || "--")}</span><strong>${Number(item.done || 0)} concluídas</strong></div>
+        `).join("") : `<div class="media-note">Sem histórico semanal real.</div>`);
+        setHtml("tasksList", tasks.length ? tasks.map((item, index) => `
           <div class="task-row">
             <span class="task-dot"></span>
             <span>${item.text || item.title || "Tarefa"}<br><small>${item.tag || "Geral"}</small></span>
             <strong>${item.date || item.due_at || (index === 0 ? "Hoje" : "--")}</strong>
           </div>
-        `).join(""));
-        setHtml("tasksCalendar", Array.from({ length: 30 }, (_, index) => {
-          const day = index + 1;
-          const active = [13, 16, 20, 24].includes(day);
-          return `<div class="calendar-day ${active ? "active" : ""}">${day}${active ? "<strong>itens</strong>" : ""}</div>`;
-        }).join(""));
+        `).join("") : `<div class="media-note">Nenhuma tarefa estruturada carregada.</div>`);
+        const calendar = Array.isArray(payload?.calendar) ? payload.calendar : [];
+        setHtml("tasksCalendar", calendar.length
+          ? calendar.map((item) => `<div class="calendar-day ${item.count ? "active" : ""}">${escapeHtml(item.day || item.date || "--")}<strong>${Number(item.count || 0)}</strong></div>`).join("")
+          : `<div class="media-note">Sem calendário de tarefas integrado.</div>`);
         const groups = ["Para Fazer", "Fazendo", "Feito"];
         setHtml("tasksBoard", groups.map((group) => `
           <div class="task-column">
@@ -2985,30 +3019,21 @@
       }
 
       function renderHabits(payload = {}) {
-        const fallbackHabits = [
-          { name: "Caminhar", period: "Manhã", done: true },
-          { name: "Meditar", period: "Manhã", done: true },
-          { name: "Vitaminas", period: "Manhã", done: true },
-          { name: "Leitura", period: "Noite", done: false },
-          { name: "Diário", period: "Noite", done: false },
-          { name: "Academia", period: "Sem horário", done: false },
-          { name: "Beber água", period: "Sem horário", done: true },
-        ];
-        const habits = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload?.habits) ? payload.habits : fallbackHabits;
+        const habits = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload?.habits) ? payload.habits : [];
         const done = habits.filter((item) => Boolean(item.done || item.completed)).length;
-        const total = habits.length || 7;
-        const score = Number(payload?.score ?? Math.round((done / total) * 90)) || 51;
-        const streak = Number(payload?.streak_days ?? payload?.streak ?? 4) || 4;
-        const average = Number(payload?.average_percent ?? payload?.consistency ?? 29) || 29;
-        const completed = Number(payload?.completed_total ?? payload?.completed ?? 57) || 57;
-        const status = payload?.status || (score >= 70 ? "Ótimo" : score >= 45 ? "Bom" : "Atenção");
-        setText("habitsScore", String(score));
+        const total = habits.length;
+        const score = total ? Number(payload?.score ?? Math.round((done / total) * 100)) : 0;
+        const streak = total ? Number(payload?.streak_days ?? payload?.streak ?? 0) : 0;
+        const average = total ? Number(payload?.average_percent ?? payload?.consistency ?? 0) : 0;
+        const completed = total ? Number(payload?.completed_total ?? payload?.completed ?? done) : 0;
+        const status = total ? (payload?.status || (score >= 70 ? "Ótimo" : score >= 45 ? "Bom" : "Atenção")) : "Sem dados";
+        setText("habitsScore", total ? String(score) : "--");
         setText("habitsStatus", status);
         setText("habitsTodayMetric", `${done} de ${total}`);
-        setText("habitsStreak", `${streak} dias`);
-        setText("habitsAverage", `${average}%`);
+        setText("habitsStreak", total ? `${streak} dias` : "--");
+        setText("habitsAverage", total ? `${average}%` : "--");
         setText("habitsTodayTitle", `${done}/${total}`);
-        setText("habitsTrend", payload?.trend || "-6% vs semana anterior");
+        setText("habitsTrend", total ? (payload?.trend || "Sem tendência calculada") : "Sem fonte integrada");
         document.getElementById("habitsScoreRing")?.style.setProperty("--score", `${Math.max(0, Math.min(100, score))}%`);
         setHtml("habitsPills", [
           ["Pontuação", `${score}%`],
@@ -3017,17 +3042,13 @@
           ["Sequência", `${streak} dias`],
           ["Completados", String(completed)],
         ].map(([label, value]) => `<div class="habit-pill"><span>${label}</span><strong>${value}</strong></div>`).join(""));
-        const calendar = Array.isArray(payload?.calendar) ? payload.calendar : Array.from({ length: 30 }, (_, index) => {
-          const day = index + 1;
-          const values = [2, 4, 5, 1, 3, 0, 4, 4, 6, 2, 5, 3, 4, 7, 2, 1, 5, 6, 4, 3, 0, 5, 4, 4, 6, 3, 5, 2, 4, 7];
-          return { day, done: values[index], total: 7 };
-        });
-        setHtml("habitsCalendar", calendar.map((item) => {
+        const calendar = Array.isArray(payload?.calendar) ? payload.calendar : [];
+        setHtml("habitsCalendar", calendar.length ? calendar.map((item) => {
           const day = item.day ?? item.date ?? "";
           const count = Number(item.done ?? item.completed ?? 0);
           const dayTotal = Number(item.total ?? total);
           return `<div class="calendar-day habit-day ${count ? "active" : ""}">${day}<strong>${count}/${dayTotal}</strong></div>`;
-        }).join(""));
+        }).join("") : `<div class="media-note">Sem calendário real de hábitos.</div>`);
         const periods = ["Manhã", "Noite", "Sem horário"];
         setHtml("habitsToday", periods.map((period) => {
           const rows = habits.filter((item) => (item.period || item.time || "Sem horário") === period);
@@ -3042,14 +3063,10 @@
             `).join("")}
           </div>`;
         }).join(""));
-        const analysis = Array.isArray(payload?.analysis) ? payload.analysis : [
-          "Manhã está puxando sua consistência para cima.",
-          "Noite concentra os hábitos que mais escapam.",
-          "Academia e leitura são bons candidatos para lembrete leve.",
-        ];
-        setHtml("habitsAnalysis", analysis.map((item) => `
+        const analysis = Array.isArray(payload?.analysis) ? payload.analysis : [];
+        setHtml("habitsAnalysis", analysis.length ? analysis.map((item) => `
           <div class="task-row"><span class="task-dot"></span><span>${item}</span><strong></strong></div>
-        `).join(""));
+        `).join("") : `<div class="media-note">Sem análise: ainda não há histórico real de hábitos.</div>`);
       }
 
       function renderNews(news) {
@@ -3136,43 +3153,6 @@
         }).join("") : "<li>Sem dominios operacionais recentes.</li>");
       }
 
-      function listFromText(text) {
-        const clean = String(text || "").trim();
-        if (!clean) return [];
-        return clean
-          .replace(/^(Agenda de hoje:|Agenda de amanha:|Lembretes pendentes:)/i, "")
-          .replace(/\.$/, "")
-          .split(/\s;\s|\s\|\s/)
-          .map((item) => item.trim())
-          .filter(Boolean);
-      }
-
-      function renderRoutineDisabled(routine, weather, investment, health, study) {
-        setText("routineFocus", routine?.focus || routine?.agenda_today || "Sem foco registrado.");
-        const weatherText = weather?.weather_label
-          ? `${weather.weather_label}${Number.isFinite(weather.temperature_c) ? `, ${Math.round(weather.temperature_c)}C` : ""}`
-          : "--";
-        setText("routineWeather", weatherText);
-        setText("routineStudyMetric", `${study?.minutes_today || 0}/${study?.daily_minutes || 60} min`);
-        setText("routineInvestmentMetric", metricValue(investment, ["rentabilidade", "patrimonio", "patrimônio"]));
-        setText("routineHealthMetric", health?.status || "--");
-
-        const agendaItems = [
-          ...listFromText(routine?.agenda_today),
-          ...listFromText(routine?.agenda_tomorrow),
-        ].slice(0, 6);
-        setHtml("routineAgenda", agendaItems.length ? agendaItems.map((item) => `<li>${item}</li>`).join("") : "<li>Agenda sem itens relevantes agora.</li>");
-
-        const reminders = listFromText(routine?.reminders).slice(0, 5);
-        setHtml("routineReminders", reminders.length ? reminders.map((item) => `<li>${item}</li>`).join("") : "<li>Sem lembretes pendentes.</li>");
-
-        const highlights = [
-          ...(Array.isArray(routine?.study_highlights) ? routine.study_highlights : []),
-          ...(Array.isArray(routine?.investment_highlights) ? routine.investment_highlights : []),
-        ].slice(0, 8);
-        setHtml("routineHighlights", highlights.length ? highlights.map((item) => `<li>${item}</li>`).join("") : "<li>Sem destaques carregados.</li>");
-      }
-
       function modeLabel(ui) {
         if (ui.conversation_mode) return "conversa";
         if (ui.dictation_mode) return "ditado";
@@ -3223,8 +3203,38 @@
       function renderSystemPanels(ui) {
         const hotword = ui.hotword_enabled ? "ativa" : "manual";
         const channel = ui.visible ? "painel + voz" : "voz";
+        const intentJudgeEnabled = Boolean(ui.llm_intent_judge_enabled);
+        const intentJudge = intentJudgeEnabled ? "ligado" : "desligado";
+        const personalityEnabled = ui.assistant_personality_enabled !== false;
+        const personality = personalityEnabled ? "ligada" : "desligada";
+        const proactivityEnabled = ui.assistant_proactivity_enabled !== false;
+        const proactivity = proactivityEnabled ? "ligada" : "desligada";
         const now = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
+        setText("intentJudgeStatus", intentJudge);
+        const intentToggle = document.getElementById("intentJudgeToggle");
+        if (intentToggle) {
+          intentToggle.dataset.command = intentJudgeEnabled ? "desligar juiz llm" : "ligar juiz llm";
+          intentToggle.classList.toggle("active", intentJudgeEnabled);
+          intentToggle.setAttribute("aria-pressed", intentJudgeEnabled ? "true" : "false");
+          intentToggle.title = intentJudgeEnabled ? "Desligar juiz LLM de intenção" : "Ligar juiz LLM de intenção";
+        }
+        setText("personalityStatus", personality);
+        const personalityToggle = document.getElementById("personalityToggle");
+        if (personalityToggle) {
+          personalityToggle.dataset.command = personalityEnabled ? "desligar personalidade" : "ligar personalidade";
+          personalityToggle.classList.toggle("active", personalityEnabled);
+          personalityToggle.setAttribute("aria-pressed", personalityEnabled ? "true" : "false");
+          personalityToggle.title = personalityEnabled ? "Desligar personalidade do Axel" : "Ligar personalidade do Axel";
+        }
+        setText("proactivityStatus", proactivity);
+        const proactivityToggle = document.getElementById("proactivityToggle");
+        if (proactivityToggle) {
+          proactivityToggle.dataset.command = proactivityEnabled ? "desligar proatividade" : "ligar proatividade";
+          proactivityToggle.classList.toggle("active", proactivityEnabled);
+          proactivityToggle.setAttribute("aria-pressed", proactivityEnabled ? "true" : "false");
+          proactivityToggle.title = proactivityEnabled ? "Desligar proatividade do Axel" : "Ligar proatividade do Axel";
+        }
         setText("audioMic", ui.microphone || "--");
         setText("audioProfile", ui.voice_profile || "--");
         setText("audioHotword", hotword);
@@ -3275,6 +3285,7 @@
 
         setText("commandsVoice", hotword);
         setText("commandsMode", modeLabel(ui));
+        setCommandFeedback(ui.command_feedback || {});
       }
 
       function renderCommands() {
@@ -3628,13 +3639,19 @@
       });
       document.querySelectorAll("[data-refresh]").forEach((button) => {
         button.addEventListener("click", () => {
-          if (bridge) bridge.refreshData();
+          markCommandButtonPending(button);
+          setCommandFeedback({ status: "processing", message: "Atualizando dados do painel." });
+          if (bridge) {
+            bridge.refreshData((payload) => setCommandFeedback(parseBridgeFeedback(payload, "success")));
+          } else {
+            setCommandFeedback({ status: "error", message: "Backend do HUD indisponível." });
+          }
         });
       });
       document.addEventListener("click", (event) => {
         const button = event.target?.closest?.("[data-command]");
         if (!button) return;
-        sendCommand(button.dataset.command);
+        sendCommand(button.dataset.command, button);
       });
       document.addEventListener("click", (event) => {
         const button = event.target?.closest?.("[data-command-filter]");
@@ -3652,7 +3669,7 @@
       document.getElementById("sendCommand").addEventListener("click", () => {
         const input = document.getElementById("commandInput");
         const command = attachedStudyFiles.length ? buildAttachedFileCommand(input.value) : input.value;
-        if (sendCommand(command)) {
+        if (sendCommand(command, document.getElementById("sendCommand"))) {
           input.value = "";
           attachedStudyFiles = [];
           updateAttachButton();

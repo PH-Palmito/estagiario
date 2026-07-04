@@ -7,6 +7,7 @@ from core.router_utils import normalize_text
 from core.study_file_analysis import (
     analyze_study_files,
     answer_study_followup,
+    current_study_context_matches_study_panel,
     parse_study_file_command,
     polish_study_response,
     request_is_study_or_practice,
@@ -29,6 +30,11 @@ def _refresh_study_snapshot(open_panel: bool = False) -> None:
     if open_panel:
         patch.update({"active_panel": "estudos", "open_panels": ["estudos"]})
     update_ui_state(patch)
+
+
+def _refresh_study_snapshot_for_current_file(request: str) -> None:
+    if current_study_context_matches_study_panel(request=request):
+        _refresh_study_snapshot(open_panel=False)
 
 
 def _study_response_has_corrupted_text(response: str) -> bool:
@@ -66,8 +72,47 @@ def _block_corrupted_study_response(response: str) -> str:
     )
 
 
+def _is_general_study_help_request(normalized: str) -> bool:
+    if not normalized:
+        return False
+    if any(
+        term in normalized
+        for term in {
+            "arquivo",
+            "documento",
+            "pdf",
+            "slide",
+            "slides",
+            "anexo",
+            "pagina",
+            "página",
+            "questao",
+            "questão",
+            "exercicio",
+            "exercício",
+        }
+    ):
+        return False
+    return any(
+        pattern in normalized
+        for pattern in {
+            "pode me ajudar a estudar",
+            "pode me ajudar estudar",
+            "consegue me ajudar a estudar",
+            "consegue me ajudar estudar",
+            "me ajuda a estudar",
+            "me ajude a estudar",
+            "quero estudar",
+            "preciso estudar",
+        }
+    )
+
+
 def maybe_handle_study_command(user_input: str, show_hud: Callable[[], str]) -> str | None:
     normalized = normalize_text(user_input)
+
+    if _is_general_study_help_request(normalized):
+        return None
 
     file_request = parse_study_file_command(user_input)
     if file_request:
@@ -88,12 +133,12 @@ def maybe_handle_study_command(user_input: str, show_hud: Callable[[], str]) -> 
 
     self_test_response = run_study_file_self_test(user_input)
     if self_test_response:
-        _refresh_study_snapshot(open_panel=False)
+        _refresh_study_snapshot_for_current_file(user_input)
         return polish_study_response(self_test_response)
 
     followup_response = answer_study_followup(user_input)
     if followup_response:
-        _refresh_study_snapshot(open_panel=False)
+        _refresh_study_snapshot_for_current_file(user_input)
         return polish_study_response(followup_response)
 
     if normalized in {

@@ -24,6 +24,11 @@ AGENT_TOOL_PROFILES = {
         categories=("web", "browser", "actions", "memory"),
         notes=("buscar fontes", "separar fato de leitura"),
     ),
+    "study_agent": AgentToolProfile(
+        agent="study_agent",
+        categories=("study", "files", "memory", "actions", "conversation"),
+        notes=("validar extração de arquivo", "separar resumo, questões e gabarito"),
+    ),
     "investment_agent": AgentToolProfile(
         agent="investment_agent",
         categories=("investments", "web", "browser", "memory", "actions"),
@@ -36,7 +41,7 @@ AGENT_TOOL_PROFILES = {
     ),
     "system_agent": AgentToolProfile(
         agent="system_agent",
-        categories=("system", "media", "automation", "actions"),
+        categories=("system", "media", "automation", "actions", "briefing", "agenda", "weather", "investments", "telegram"),
         notes=("preferir comandos locais", "confirmar risco alto"),
     ),
     "memory_agent": AgentToolProfile(

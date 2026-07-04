@@ -11,7 +11,7 @@ from core.intent_llm_judge import (
 
 class IntentLlmJudgeTests(unittest.TestCase):
     def test_disabled_by_default(self):
-        with patch("core.intent_llm_judge.LLM_INTENT_JUDGE_ENABLED", False):
+        with patch("core.intent_llm_judge.load_ui_state", return_value={"llm_intent_judge_enabled": False}):
             self.assertFalse(
                 should_request_llm_intent_review(
                     "abra chrome",
@@ -20,11 +20,20 @@ class IntentLlmJudgeTests(unittest.TestCase):
             )
 
     def test_enabled_reviews_risky_action(self):
-        with patch("core.intent_llm_judge.LLM_INTENT_JUDGE_ENABLED", True):
+        with patch("core.intent_llm_judge.load_ui_state", return_value={"llm_intent_judge_enabled": True}):
             self.assertTrue(
                 should_request_llm_intent_review(
                     "abra chrome",
                     Command(action="open_app", params={"target": "chrome"}),
+                )
+            )
+
+    def test_enabled_skips_clear_read_only_investment_answer(self):
+        with patch("core.intent_llm_judge.load_ui_state", return_value={"llm_intent_judge_enabled": True}):
+            self.assertFalse(
+                should_request_llm_intent_review(
+                    "como o el nino afeta o VGIA11?",
+                    Command(action="investment_memory_answer", params={"question": "como o el nino afeta o VGIA11?"}),
                 )
             )
 

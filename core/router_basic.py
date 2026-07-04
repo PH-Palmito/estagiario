@@ -69,6 +69,8 @@ CHATTER_PATTERNS = {
     "nome do projeto": "O projeto se chama Axel.",
     "o que voce sabe fazer": "Posso abrir aplicativos e sites, controlar janelas, navegar no navegador, controlar midia, lembrar atalhos e responder comandos por voz.",
     "o que voce consegue fazer": "Posso abrir aplicativos e sites, controlar janelas, navegar no navegador, controlar midia, lembrar atalhos e responder comandos por voz.",
+    "oq faz o estagiario noturno": "O estagiario noturno e so um modo de tom mais quieto para a noite: respostas mais curtas, menos barulho e lembrete amigavel para salvar o progresso e dormir quando ficar tarde. Ele nao muda permissoes nem executa tarefas sozinho.",
+    "o que faz o estagiario noturno": "O estagiario noturno e so um modo de tom mais quieto para a noite: respostas mais curtas, menos barulho e lembrete amigavel para salvar o progresso e dormir quando ficar tarde. Ele nao muda permissoes nem executa tarefas sozinho.",
     "me conta uma coisa interessante": "Uma coisa interessante: quase toda automacao boa nasce de uma frase irritante repetida muitas vezes. A gente esta transformando irritacao em botao invisivel.",
     "fala uma coisa interessante": "Uma coisa interessante: quase toda automacao boa nasce de uma frase irritante repetida muitas vezes. A gente esta transformando irritacao em botao invisivel.",
 }

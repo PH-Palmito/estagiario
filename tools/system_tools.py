@@ -23,6 +23,7 @@ PROGRAM_FILES_X86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)
 LOCAL_APPDATA = os.environ.get("LOCALAPPDATA", "")
 APPDATA = os.environ.get("APPDATA", "")
 STARTUP_ENTRY_NAME = "Axel Assistant.cmd"
+WINDOWS_APP_SHORTCUT_NAME = "Axel.lnk"
 
 ALLOWED_APPS = {
     "bloco de notas": ["notepad.exe"],
@@ -553,6 +554,152 @@ def _startup_output_log_path() -> Path:
 
 def _startup_briefing_state_path() -> Path:
     return Path(__file__).resolve().parents[1] / "memory" / "startup_briefing_state.json"
+
+
+def _repo_dir() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _windows_app_launcher_path() -> Path:
+    return _repo_dir() / "scripts" / "axel_app_launcher.py"
+
+
+def _windows_app_log_path() -> Path:
+    return _repo_dir() / ".tmp" / "axel-app.log"
+
+
+def _pythonw_path() -> Path:
+    executable = Path(sys.executable)
+    candidate = executable.with_name("pythonw.exe")
+    return candidate if candidate.exists() else executable
+
+
+def _start_menu_programs_folder() -> Path | None:
+    appdata = os.environ.get("APPDATA", "")
+    if not appdata:
+        return None
+    return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
+
+
+def _desktop_folder() -> Path | None:
+    userprofile = os.environ.get("USERPROFILE", "")
+    if not userprofile:
+        return None
+    return Path(userprofile) / "Desktop"
+
+
+def _windows_app_shortcut_paths() -> list[Path]:
+    paths: list[Path] = []
+    start_menu = _start_menu_programs_folder()
+    if start_menu is not None:
+        paths.append(start_menu / "Axel" / WINDOWS_APP_SHORTCUT_NAME)
+    desktop = _desktop_folder()
+    if desktop is not None:
+        paths.append(desktop / WINDOWS_APP_SHORTCUT_NAME)
+    return paths
+
+
+def _ps_single_quoted(value: str) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _create_windows_shortcut(path: Path, *, target: Path, arguments: str, working_dir: Path, description: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    script = f"""
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut({_ps_single_quoted(str(path))})
+$shortcut.TargetPath = {_ps_single_quoted(str(target))}
+$shortcut.Arguments = {_ps_single_quoted(arguments)}
+$shortcut.WorkingDirectory = {_ps_single_quoted(str(working_dir))}
+$shortcut.Description = {_ps_single_quoted(description)}
+$shortcut.Save()
+"""
+    subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        check=True,
+    )
+
+
+def windows_app_diagnostics() -> dict:
+    paths = _windows_app_shortcut_paths()
+    launcher = _windows_app_launcher_path()
+    return {
+        "available": bool(paths),
+        "launcher_path": str(launcher),
+        "launcher_exists": launcher.exists(),
+        "target": str(_pythonw_path()),
+        "arguments": _quote_cmd_arg(str(launcher)),
+        "working_dir": str(_repo_dir()),
+        "log_path": str(_windows_app_log_path()),
+        "shortcuts": [{"path": str(path), "exists": path.exists()} for path in paths],
+        "installed": bool(paths) and all(path.exists() for path in paths),
+    }
+
+
+def install_windows_app_shortcuts() -> str:
+    diagnostics = windows_app_diagnostics()
+    if not diagnostics.get("available"):
+        return "Nao encontrei Menu Iniciar ou Area de Trabalho para criar os atalhos do Axel."
+    if not diagnostics.get("launcher_exists"):
+        return f"Launcher do app nao encontrado: {diagnostics.get('launcher_path')}"
+
+    created = []
+    try:
+        _windows_app_log_path().parent.mkdir(parents=True, exist_ok=True)
+        for path in _windows_app_shortcut_paths():
+            _create_windows_shortcut(
+                path,
+                target=_pythonw_path(),
+                arguments=_quote_cmd_arg(str(_windows_app_launcher_path())),
+                working_dir=_repo_dir(),
+                description="Abrir Axel em modo voz, hotword e painel.",
+            )
+            created.append(str(path))
+    except Exception as exc:
+        return f"Nao consegui instalar o app do Axel: {exc}"
+
+    return "App do Axel instalado. Atalhos: " + "; ".join(created) + f". Log: {_windows_app_log_path()}"
+
+
+def uninstall_windows_app_shortcuts() -> str:
+    paths = _windows_app_shortcut_paths()
+    if not paths:
+        return "Nao encontrei atalhos configuraveis do Axel neste ambiente."
+
+    removed = []
+    for path in paths:
+        try:
+            if path.exists():
+                path.unlink()
+                removed.append(str(path))
+        except Exception as exc:
+            return f"Nao consegui remover o atalho {path}: {exc}"
+
+    if removed:
+        return "Atalhos do app do Axel removidos: " + "; ".join(removed) + "."
+    return "O app do Axel ja estava sem atalhos instalados."
+
+
+def windows_app_status() -> str:
+    diagnostics = windows_app_diagnostics()
+    if not diagnostics.get("available"):
+        return "App do Axel: Menu Iniciar ou Area de Trabalho indisponivel neste ambiente."
+    status = "instalado" if diagnostics.get("installed") else "nao instalado"
+    shortcuts = diagnostics.get("shortcuts") or []
+    existing = [item.get("path") for item in shortcuts if item.get("exists")]
+    missing = [item.get("path") for item in shortcuts if not item.get("exists")]
+    parts = [f"App do Axel: {status}."]
+    if existing:
+        parts.append("Atalhos ativos: " + "; ".join(str(path) for path in existing) + ".")
+    if missing:
+        parts.append("Atalhos ausentes: " + "; ".join(str(path) for path in missing) + ".")
+    parts.append(f"Launcher: {diagnostics.get('launcher_path')}. Log: {diagnostics.get('log_path')}.")
+    return " ".join(parts)
 
 
 def _read_startup_tail(path: Path, limit: int = 12) -> list[str]:

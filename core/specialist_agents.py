@@ -35,6 +35,15 @@ AGENTS = (
         triggers=("pesquisar", "noticia", "fonte", "comparar", "atual", "mercado", "governo"),
     ),
     SpecialistAgent(
+        name="study_agent",
+        title="Agente de Estudos",
+        toolset="estudos",
+        model_policy="nvidia_or_gemini_for_reasoning",
+        mission="Analisar materiais de estudo, resumir, gerar questões, corrigir respostas e manter contexto do arquivo atual.",
+        handoff_rules=("validar extração antes de resumir", "separar resumo de gabarito", "registrar contexto de estudo útil"),
+        triggers=("estudo", "estudar", "pdf", "slide", "slides", "arquivo", "questoes", "questões", "revisao", "revisão"),
+    ),
+    SpecialistAgent(
         name="investment_agent",
         title="Agente de Investimentos",
         toolset="carteira",
@@ -64,7 +73,7 @@ AGENTS = (
     SpecialistAgent(
         name="memory_agent",
         title="Agente de Memoria",
-        toolset="pesquisa",
+        toolset="memoria",
         model_policy="local_first",
         mission="Organizar memoria curta, sessoes antigas, preferencias, skills e contexto operacional.",
         handoff_rules=("nao salvar dado passageiro como permanente", "deduplicar fatos", "preservar privacidade"),
@@ -150,3 +159,23 @@ def format_relevant_agents(query: str, *, toolset: str = "", limit: int = 2) -> 
         rules = ", ".join(str(rule) for rule in item.get("handoff_rules", [])[:2])
         rows.append(f"{item['title']} ({item['name']}): {item['mission']} Regras: {rules}.")
     return "Agentes especialistas relevantes: " + " | ".join(rows)
+
+
+def find_agent(name_or_title: str) -> dict | None:
+    normalized = str(name_or_title or "").strip().lower()
+    if not normalized:
+        return None
+    compact = re.sub(r"[^a-z0-9]+", "", normalized)
+    for agent in list_agents():
+        candidates = {
+            str(agent.get("name") or "").lower(),
+            str(agent.get("title") or "").lower(),
+            str(agent.get("toolset") or "").lower(),
+        }
+        compact_candidates = {re.sub(r"[^a-z0-9]+", "", value) for value in candidates}
+        if normalized in candidates or compact in compact_candidates:
+            return agent
+        if normalized.replace("agente de ", "") in candidates:
+            return agent
+    matches = select_agents(name_or_title, limit=1)
+    return matches[0] if matches else None

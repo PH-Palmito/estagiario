@@ -58,6 +58,12 @@ ASSISTENTE_OPEN_TEMPLATES = (
     "Certo. Abrindo {target}.",
 )
 
+AXEL_OPEN_TEMPLATES = (
+    "Na mao. Abrindo {target}.",
+    "Certo. Abrindo {target}.",
+    "Abrindo {target}.",
+)
+
 JARVIS_OPEN_TEMPLATES = (
     "Certamente. Abrindo {target}.",
     "Abrindo {target}.",
@@ -85,6 +91,30 @@ ASSISTENTE_STATUS_VARIANTS = {
         "Acao cancelada.",
         "Cancelado.",
         "Tudo bem. Cancelei.",
+    ),
+}
+
+AXEL_STATUS_VARIANTS = {
+    **ASSISTENTE_STATUS_VARIANTS,
+    "Encerrando.": (
+        "Encerrando por agora.",
+        "Vou ficar em espera.",
+        "Fechando a sessao por aqui.",
+    ),
+    "Ok, nao abri.": (
+        "Certo. Mantive fechado.",
+        "Sem abrir, entao.",
+        "Beleza. Deixei como estava.",
+    ),
+    "Nada para repetir.": (
+        "Ainda nao tenho algo recente para repetir.",
+        "Nada recente ficou guardado para repetir.",
+        "Sem resposta recente no bolso.",
+    ),
+    "Passo adicionado.": (
+        "Passo registrado.",
+        "Etapa adicionada.",
+        "Anotei esse passo.",
     ),
 }
 
@@ -205,17 +235,124 @@ def style_response(
 ) -> str:
     assistant_style = str(preferences.get("assistant_style", "")).strip().lower()
     address_user = str(preferences.get("assistant_address_user", "senhor")).strip() or "senhor"
-    if assistant_style not in {"jarvis", "assistente", "elegante"}:
+    if assistant_style not in {"axel", "jarvis", "assistente", "elegante"}:
         humor_style = str(preferences.get("assistant_humor_style", "")).strip().lower()
         if bool(preferences.get("assistant_humor_enabled", True)) and humor_style == "jarvis":
             assistant_style = "jarvis"
-    if assistant_style not in {"jarvis", "assistente", "elegante"}:
+    if assistant_style not in {"axel", "jarvis", "assistente", "elegante"}:
         return avoid_repeating_response(message, state=state)
 
     if not bool(preferences.get("assistant_brief_confirmations", True)):
         return avoid_repeating_response(message, state=state)
 
     if not should_style_response(message):
+        return avoid_repeating_response(message, state=state)
+
+    if assistant_style == "axel":
+        target_response = _target_action_response(
+            message,
+            style="axel",
+            action="open_app",
+            targets=OPEN_APP_TARGETS,
+            templates=AXEL_OPEN_TEMPLATES,
+            next_phrase=next_phrase,
+        )
+        if target_response:
+            return avoid_repeating_response(target_response, state=state)
+
+        target_response = _target_action_response(
+            message,
+            style="axel",
+            action="close_app",
+            targets=CLOSE_APP_TARGETS,
+            templates=CLOSE_TEMPLATES,
+            next_phrase=next_phrase,
+        )
+        if target_response:
+            return avoid_repeating_response(target_response, state=state)
+
+        status_response = _status_response(
+            message,
+            style="axel",
+            variants=AXEL_STATUS_VARIANTS,
+            next_phrase=next_phrase,
+        )
+        if status_response:
+            return avoid_repeating_response(status_response, state=state)
+
+        replacements = {
+            "Abrindo spotify.": "Na mao. Abrindo Spotify.",
+            "Abrindo chrome.": "Na mao. Abrindo Chrome.",
+            "Abrindo code.": "Na mao. Abrindo VS Code.",
+            "Fechando spotify.": "Encerrando Spotify.",
+            "Fechando code.": "Encerrando VS Code.",
+            "Nao entendi.": next_phrase("style_axel_unclear", variants["unclear_command"]),
+            "Pode repetir?": next_phrase("style_axel_repeat", variants["repeat_prompt"]),
+            "Nao identifiquei o comando.": next_phrase("style_axel_unclear_command", variants["unclear_command"]),
+            "Escuta pausada.": "Escuta em pausa.",
+            "Escuta retomada.": "Voltei a ouvir.",
+            "Acao cancelada.": "Cancelado.",
+            "Pode falar.": next_phrase(
+                "style_axel_ready_prompt",
+                (
+                    "Estou ouvindo.",
+                    "Pode mandar.",
+                    "Manda o alvo.",
+                ),
+            ),
+            "Pode falar...": next_phrase(
+                "style_axel_ready_prompt_ellipsis",
+                (
+                    "Estou ouvindo.",
+                    "Pode mandar.",
+                    "Manda o alvo.",
+                ),
+            ),
+            "Pode responder...": next_phrase(
+                "style_axel_answer_prompt",
+                (
+                    "Pode responder.",
+                    "Estou pronto para a resposta.",
+                    "Manda com calma.",
+                ),
+            ),
+            "Encerrando.": "Encerrando por agora.",
+            "Modo conversa encerrado. Voltei para comandos.": "Modo conversa encerrado. Voltei aos comandos.",
+            "Responda com sim ou nao.": "Preciso so de sim ou nao.",
+            "Responda com 'sim' ou 'nao'.": "Preciso so de sim ou nao.",
+            "Ok, nao abri.": "Certo. Mantive fechado.",
+            "Nada para repetir.": "Ainda nao tenho algo recente para repetir.",
+            "Passo adicionado.": "Passo registrado.",
+        }
+        if message in replacements:
+            return avoid_repeating_response(replacements[message], state=state)
+
+        if message in GENERIC_CONFIRMATION_MESSAGES:
+            return avoid_repeating_response(
+                next_phrase(
+                    "style_axel_generic_confirmation",
+                    (
+                        "Feito.",
+                        "Tudo certo.",
+                        "Na mao.",
+                    ),
+                ),
+                state=state,
+            )
+
+        if message.startswith(ACTION_PREFIXES):
+            return avoid_repeating_response(
+                next_phrase(
+                    "style_axel_action_prefix",
+                    (
+                        f"Na mao. {message}",
+                        f"Certo. {message}",
+                        f"Fechado. {message}",
+                    ),
+                ),
+                state=state,
+            )
+
         return avoid_repeating_response(message, state=state)
 
     if assistant_style in {"assistente", "elegante"}:

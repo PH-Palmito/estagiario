@@ -32,6 +32,14 @@ class RouterMemoryTests(unittest.TestCase):
         self.assertEqual(result["target"]["key"], "ideia_projeto_criar_aplicativo_devocional")
         self.assertEqual(result["target"]["value"], "ideia de projeto: criar um aplicativo de devocional")
 
+    def test_detects_generic_idea_memory(self):
+        result = detect_memory_command("axel guarde uma ideia sobre estudos")
+
+        self.assertEqual(result["intent"], "action_memory_remember")
+        self.assertEqual(result["target"]["namespace"], "projects")
+        self.assertEqual(result["target"]["key"], "ideia_sobre_estudos")
+        self.assertEqual(result["target"]["value"], "ideia sobre estudos")
+
     def test_detects_memory_recall(self):
         result = detect_memory_command("o que voce sabe sobre briefing deve ser curto")
 

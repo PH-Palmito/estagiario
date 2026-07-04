@@ -23,5 +23,5 @@
 
 ## Comandos relacionados
 - ler pagina
-- resumir tela
+- resumir pagina
 - clicar no item

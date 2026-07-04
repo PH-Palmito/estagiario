@@ -1,7 +1,12 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from core.humor_commands import current_humor_description, humor_test_response, maybe_handle_humor_command
+from core.humor_commands import (
+    current_humor_description,
+    current_personality_description,
+    humor_test_response,
+    maybe_handle_humor_command,
+)
 
 
 class HumorCommandTests(unittest.TestCase):
@@ -13,6 +18,20 @@ class HumorCommandTests(unittest.TestCase):
         }
 
         self.assertEqual(current_humor_description(preferences), "Humor atual: reflexivo, intensidade 2 de 3.")
+
+    def test_current_personality_description_includes_proactivity_and_humor(self):
+        preferences = {
+            "assistant_personality_enabled": True,
+            "assistant_proactivity_enabled": False,
+            "assistant_humor_enabled": True,
+            "assistant_humor_style": "seco",
+            "assistant_humor_level": 2,
+        }
+
+        self.assertEqual(
+            current_personality_description(preferences),
+            "Personalidade do Axel: ligada. Proatividade: desligada. Humor atual: seco, intensidade 2 de 3.",
+        )
 
     def test_humor_test_neutral(self):
         preferences = {
@@ -59,12 +78,54 @@ class HumorCommandTests(unittest.TestCase):
         self.assertEqual(preferences["assistant_humor_enabled"], False)
         self.assertEqual(preferences["assistant_humor_level"], 0)
 
+    def test_personality_command_updates_preferences_and_refreshes(self):
+        preferences = {
+            "assistant_personality_enabled": True,
+            "assistant_proactivity_enabled": True,
+            "assistant_humor_enabled": True,
+            "assistant_humor_style": "seco",
+            "assistant_humor_level": 2,
+        }
+        refresh = Mock()
+        with patch("core.humor_commands.update_voice_preferences") as update:
+            result = maybe_handle_humor_command("desligar personalidade", preferences, refresh)
+
+        self.assertIn("Personalidade do Axel: desligada.", result)
+        update.assert_called_once_with({"assistant_personality_enabled": False})
+        refresh.assert_called_once_with()
+        self.assertFalse(preferences["assistant_personality_enabled"])
+
+    def test_proactivity_command_updates_preferences_and_refreshes(self):
+        preferences = {
+            "assistant_personality_enabled": True,
+            "assistant_proactivity_enabled": False,
+            "assistant_humor_enabled": False,
+            "assistant_humor_style": "neutro",
+            "assistant_humor_level": 0,
+        }
+        refresh = Mock()
+        with patch("core.humor_commands.update_voice_preferences") as update:
+            result = maybe_handle_humor_command("ligar proatividade", preferences, refresh)
+
+        self.assertIn("Proatividade: ligada.", result)
+        update.assert_called_once_with({"assistant_proactivity_enabled": True})
+        refresh.assert_called_once_with()
+        self.assertTrue(preferences["assistant_proactivity_enabled"])
+
     def test_unknown_humor_command_suggests_options(self):
         result = maybe_handle_humor_command("humor espacial", {}, Mock())
 
         self.assertEqual(
             result,
             "Nao identifiquei o humor. Tente: humor jarvis, humor seco, humor reflexivo, humor leve ou humor neutro.",
+        )
+
+    def test_unknown_personality_command_suggests_options(self):
+        result = maybe_handle_humor_command("personalidade espacial", {}, Mock())
+
+        self.assertEqual(
+            result,
+            "Nao identifiquei a configuracao. Tente: personalidade atual, ligar personalidade, desligar personalidade, ligar proatividade ou desligar proatividade.",
         )
 
     def test_unrelated_command_returns_none(self):

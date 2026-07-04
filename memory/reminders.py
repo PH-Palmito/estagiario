@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import time
+import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -41,6 +42,11 @@ def _update_reminders(updater) -> dict:
 
 def _compact(text: str) -> str:
     return re.sub(r"\s+", " ", str(text or "")).strip(" .,:;-")
+
+
+def _ascii_lower(text: str) -> str:
+    normalized = unicodedata.normalize("NFKD", str(text or ""))
+    return "".join(char for char in normalized if not unicodedata.combining(char)).lower()
 
 
 def _load_pending_reminder() -> str:
@@ -99,6 +105,67 @@ def _strip_schedule_text(text: str) -> str:
     )
     cleaned = re.sub(r"\b(?:da\s+manha|da\s+manhã|da\s+tarde|da\s+noite)\b", " ", cleaned, flags=re.I)
     return _compact(cleaned)
+
+
+MONTH_NAMES = {
+    "janeiro": 1,
+    "fevereiro": 2,
+    "marco": 3,
+    "abril": 4,
+    "maio": 5,
+    "junho": 6,
+    "julho": 7,
+    "agosto": 8,
+    "setembro": 9,
+    "outubro": 10,
+    "novembro": 11,
+    "dezembro": 12,
+}
+
+
+def _next_annual_datetime(day: int, month: int, now: datetime, hour: int = 9, minute: int = 0) -> datetime | None:
+    try:
+        candidate = datetime(now.year, month, day, hour, minute)
+    except ValueError:
+        return None
+    if candidate <= now:
+        try:
+            candidate = datetime(now.year + 1, month, day, hour, minute)
+        except ValueError:
+            return None
+    return candidate
+
+
+def _strip_annual_schedule_text(text: str, start: int, end: int) -> str:
+    cleaned = _compact(f"{text[:start]} {text[end:]}")
+    cleaned = re.sub(r"^(?:de|do|da|dos|das|sobre)\s+", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\b(?:dia\s+)?\d{1,2}/\d{1,2}(?:/\d{2,4})?\b", " ", cleaned, flags=re.I)
+    return _compact(cleaned)
+
+
+def parse_reminder_details(raw_text: str, now: datetime | None = None) -> tuple[datetime | None, str, str]:
+    now = now or datetime.now()
+    text = _compact(raw_text)
+    ascii_lowered = _ascii_lower(text)
+    if not text:
+        return None, "", ""
+
+    annual_match = re.search(
+        r"\b(?:todo\s+(?:ano\s+)?(?:dia\s+)?|anualmente\s+(?:no\s+dia\s+)?)"
+        r"(\d{1,2})\s+de\s+"
+        r"(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b",
+        ascii_lowered,
+        flags=re.I,
+    )
+    if annual_match:
+        month = MONTH_NAMES.get(annual_match.group(2))
+        due_at = _next_annual_datetime(int(annual_match.group(1)), int(month or 0), now) if month else None
+        if due_at is None:
+            return None, _strip_schedule_text(text), ""
+        return due_at, _strip_annual_schedule_text(text, annual_match.start(), annual_match.end()), "yearly"
+
+    due_at, clean_text = parse_reminder_request(raw_text, now=now)
+    return due_at, clean_text, ""
 
 
 def parse_reminder_request(raw_text: str, now: datetime | None = None) -> tuple[datetime | None, str]:
@@ -191,9 +258,9 @@ def _resolve_deictic_text(text: str) -> str:
 
 def add_reminder(raw_text: str) -> str:
     pending_text = _load_pending_reminder()
-    due_at, text = parse_reminder_request(raw_text)
+    due_at, text, repeat = parse_reminder_details(raw_text)
     if pending_text and due_at is not None and not text:
-        due_at, text = parse_reminder_request(f"{pending_text} {raw_text}")
+        due_at, text, repeat = parse_reminder_details(f"{pending_text} {raw_text}")
         _clear_pending_reminder()
     text = _apply_reminder_text_corrections(text)
     text = _resolve_deictic_text(text)
@@ -210,9 +277,12 @@ def add_reminder(raw_text: str) -> str:
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "notified_at": "",
     }
+    if repeat:
+        reminder["repeat"] = repeat
     _update_reminders(lambda data: {"items": sorted([*(data.get("items") or []), reminder], key=lambda item: str(item.get("due_at", "")))})
     _clear_pending_reminder()
-    return f"Combinado. Vou lembrar { _format_due_at(due_at) }: {text}."
+    recurrence = " todo ano" if repeat == "yearly" else ""
+    return f"Combinado. Vou lembrar{recurrence} { _format_due_at(due_at) }: {text}."
 
 
 def list_reminders(include_notified: bool = False, limit: int = 8) -> str:
@@ -252,6 +322,13 @@ def remove_reminder(index_text: str) -> str:
     return f"Removi o lembrete: {removed.get('text', 'item sem titulo')}."
 
 
+def _add_years(value: datetime, years: int = 1) -> datetime:
+    try:
+        return value.replace(year=value.year + years)
+    except ValueError:
+        return value.replace(month=3, day=1, year=value.year + years)
+
+
 def consume_due_reminders(now: datetime | None = None, limit: int = 3) -> list[dict]:
     now = now or datetime.now()
     due = []
@@ -266,8 +343,15 @@ def consume_due_reminders(now: datetime | None = None, limit: int = 3) -> list[d
             except Exception:
                 continue
             if due_at <= now:
-                item["notified_at"] = now.isoformat(timespec="seconds")
                 due.append(dict(item))
+                if item.get("repeat") == "yearly":
+                    next_due = due_at
+                    while next_due <= now:
+                        next_due = _add_years(next_due, 1)
+                    item["due_at"] = next_due.isoformat(timespec="minutes")
+                    item["notified_at"] = ""
+                else:
+                    item["notified_at"] = now.isoformat(timespec="seconds")
             if len(due) >= limit:
                 break
         return {"items": items}

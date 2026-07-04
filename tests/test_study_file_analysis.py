@@ -85,6 +85,28 @@ class StudyFileAnalysisTests(unittest.TestCase):
 
         self.assertEqual(result, ([str(path)], "explique"))
 
+    def test_parse_file_command_strips_conversation_tail_and_uses_tail_request(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "README_CineRadar.md"
+            path.write_text("# CineRadar", encoding="utf-8")
+
+            with patch("core.study_file_analysis._candidate_file_search_roots", return_value=[root]):
+                result = parse_study_file_command("analise README_CineRadar.md e depois me explique")
+
+        self.assertEqual(result, ([str(path)], "explique"))
+
+    def test_parse_natural_file_question_strips_conversation_tail(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "cv Pedro Henrique.txt"
+            path.write_text("Curriculo Pedro", encoding="utf-8")
+
+            with patch("core.study_file_analysis._candidate_file_search_roots", return_value=[root]):
+                result = parse_study_file_command("oq tem no arquivo cv Pedro e depois me resuma")
+
+        self.assertEqual(result, ([str(path)], "resuma"))
+
     def test_parse_file_command_accepts_casual_variations(self):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -231,6 +253,9 @@ class StudyFileAnalysisTests(unittest.TestCase):
         self.assertIn("tema.txt", result)
         self.assertIn("Questões para praticar", result)
         self.assertIn("mitose", result.lower())
+        context = load_study_context()
+        self.assertEqual(context.get("current_file_path"), str(path))
+        self.assertEqual(context.get("last_file_path"), str(path))
 
     def test_analyze_study_files_answers_about_request_without_practice_questions(self):
         with TemporaryDirectory() as temp_dir:
@@ -864,6 +889,26 @@ endstream endobj
         self.assertIn("FinTrack", result)
         self.assertIn("Axel Study", result)
 
+    def test_answer_study_followup_project_name_natural_memory_phrase(self):
+        fake_context = {
+            "files": [
+                {
+                    "name": "portfolio.html",
+                    "text": "Projetos: FinTrack - dashboard financeiro. Axel Study - assistente de estudos. Tecnologias: React Native.",
+                    "topic": "portfÃ³lio",
+                    "questions": {},
+                }
+            ]
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context), patch(
+            "core.study_file_analysis.save_study_context"
+        ):
+            result = answer_study_followup("qual era o projeto mesmo?")
+
+        self.assertIn("FinTrack", result)
+        self.assertIn("Axel Study", result)
+
     def test_answer_study_followup_project_name_does_not_invent(self):
         fake_context = {
             "files": [
@@ -978,6 +1023,30 @@ endstream endobj
         self.assertIn("não encontrei menção clara a bananas", result.lower())
         self.assertIn("Redes de Computadores", result)
 
+    def test_answer_study_followup_reuses_cached_identical_file_question(self):
+        fake_context = {
+            "request": "o arquivo fala sobre bananas?",
+            "last_response": "Resposta salva sobre bananas.",
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "raw_text": "Redes de Computadores Comunicacao Digital",
+                    "text": "Redes de Computadores Comunicacao Digital",
+                    "topic": "Redes de Computadores",
+                    "questions": {},
+                }
+            ],
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context), patch(
+            "core.study_file_analysis.save_study_context"
+        ) as save_context:
+            result = answer_study_followup("o arquivo fala sobre bananas?")
+
+        self.assertEqual(result, "Resposta salva sobre bananas.")
+        save_context.assert_not_called()
+
     def test_answer_study_followup_answers_page_when_page_text_is_available(self):
         fake_context = {
             "files": [
@@ -1002,6 +1071,97 @@ endstream endobj
 
         self.assertIn("página 2", result)
         self.assertIn("Comunicacao Digital", result)
+
+    def test_answer_study_followup_understands_relative_page_sequence(self):
+        fake_context = {
+            "request": "oq fala na pagina 2?",
+            "last_page_number": 2,
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "kind": "pdf",
+                    "raw_text": "Pagina 1\nPagina 2\nPagina 3",
+                    "text": "Pagina 1 Pagina 2 Pagina 3",
+                    "topic": "Redes de Computadores",
+                    "pages": [
+                        {"index": 1, "text": "Capa da aula"},
+                        {"index": 2, "text": "Agenda da aula"},
+                        {"index": 3, "text": "Comunicacao Digital e informacao binaria"},
+                    ],
+                    "questions": {},
+                }
+            ],
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context), patch(
+            "core.study_file_analysis.save_study_context"
+        ) as save_context:
+            result = answer_study_followup("e a próxima?")
+
+        self.assertIn("página 3", result)
+        self.assertIn("Comunicacao Digital", result)
+        self.assertEqual(save_context.call_args.args[0]["last_page_number"], 3)
+
+    def test_answer_study_followup_understands_previous_page_sequence(self):
+        fake_context = {
+            "last_page_number": 3,
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "kind": "pdf",
+                    "raw_text": "Pagina 2\nPagina 3",
+                    "text": "Pagina 2 Pagina 3",
+                    "topic": "Redes de Computadores",
+                    "pages": [
+                        {"index": 2, "text": "Agenda da aula"},
+                        {"index": 3, "text": "Comunicacao Digital"},
+                    ],
+                    "questions": {},
+                }
+            ],
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context), patch(
+            "core.study_file_analysis.save_study_context"
+        ) as save_context:
+            result = answer_study_followup("e a anterior?")
+
+        self.assertIn("página 2", result)
+        self.assertIn("Agenda", result)
+        self.assertEqual(save_context.call_args.args[0]["last_page_number"], 2)
+
+    def test_answer_study_followup_repeated_relative_page_keeps_advancing(self):
+        fake_context = {
+            "request": "e a próxima?",
+            "last_response": "Resposta antiga da página 3.",
+            "last_page_number": 3,
+            "files": [
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "kind": "pdf",
+                    "raw_text": "Pagina 3\nPagina 4",
+                    "text": "Pagina 3 Pagina 4",
+                    "topic": "Redes de Computadores",
+                    "pages": [
+                        {"index": 3, "text": "Comunicacao Digital"},
+                        {"index": 4, "text": "Conceitos Basicos de hardware e software"},
+                    ],
+                    "questions": {},
+                }
+            ],
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context), patch(
+            "core.study_file_analysis.save_study_context"
+        ) as save_context:
+            result = answer_study_followup("e a próxima?")
+
+        self.assertIn("página 4", result)
+        self.assertIn("Conceitos Basicos", result)
+        self.assertEqual(save_context.call_args.args[0]["last_page_number"], 4)
 
     def test_answer_study_followup_warns_when_page_text_is_partial_agenda(self):
         fake_context = {
@@ -1097,6 +1257,65 @@ endstream endobj
 
         self.assertIn("não veio separado por páginas", result.lower())
         self.assertIn("RedesBasico.pdf", result)
+
+    def test_answer_study_followup_uses_current_file_path_over_first_file(self):
+        fake_context = {
+            "current_file_path": "C:/fake/RedesBasico.pdf",
+            "files": [
+                {
+                    "path": "C:/fake/tema.txt",
+                    "name": "tema.txt",
+                    "kind": "text",
+                    "raw_text": "Ecossistemas e ciclos da materia",
+                    "text": "Ecossistemas e ciclos da materia",
+                    "topic": "Ecossistemas",
+                    "pages": [{"index": 2, "text": "Fluxo de energia"}],
+                },
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "kind": "pdf",
+                    "raw_text": "Redes de Computadores Comunicacao Digital",
+                    "text": "Redes de Computadores Comunicacao Digital",
+                    "topic": "Redes de Computadores",
+                    "pages": [{"index": 2, "text": "Agenda de Redes de Computadores"}],
+                },
+            ],
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context):
+            result = answer_study_followup("oq tem na pagina 2?")
+
+        self.assertIn("RedesBasico.pdf", result)
+        self.assertIn("Agenda de Redes", result)
+        self.assertNotIn("tema.txt", result)
+
+    def test_answer_study_followup_defaults_to_last_file_when_current_path_missing(self):
+        fake_context = {
+            "files": [
+                {
+                    "path": "C:/fake/tema.txt",
+                    "name": "tema.txt",
+                    "raw_text": "Ecossistemas",
+                    "text": "Ecossistemas",
+                    "topic": "Ecossistemas",
+                },
+                {
+                    "path": "C:/fake/RedesBasico.pdf",
+                    "name": "RedesBasico.pdf",
+                    "raw_text": "Redes de Computadores",
+                    "text": "Redes de Computadores",
+                    "topic": "Redes de Computadores",
+                },
+            ],
+        }
+
+        with patch("core.study_file_analysis.load_study_context", return_value=fake_context):
+            result = answer_study_followup("o arquivo fala sobre bananas?")
+
+        self.assertIn("RedesBasico.pdf", result)
+        self.assertIn("bananas", result)
+        self.assertNotIn("tema.txt", result)
 
     def test_answer_study_followup_main_concepts_from_last_file(self):
         fake_context = {

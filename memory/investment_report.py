@@ -1,4 +1,7 @@
 from collections.abc import Callable
+from datetime import date, datetime
+
+from memory.investment_dividends import filter_dividend_events_by_payment_window
 
 FilterSignals = Callable[[str, list[str]], list[str]]
 
@@ -241,6 +244,8 @@ def investment_financial_report(
     compact_report_news: Callable[[str], str],
     filter_new_signal_texts: Callable[..., list[str]],
     format_percent: Callable[..., str],
+    max_days_until_dividend: int | None = None,
+    today: date | None = None,
 ) -> str:
     updated_at = float(snapshot.get("updated_at") or 0)
     metric_map = snapshot.get("metric_map") or {}
@@ -292,7 +297,13 @@ def investment_financial_report(
     if volatility_parts:
         report_parts.append("Volatilidade: " + "; ".join(volatility_parts) + ".")
 
-    dividend_events = portfolio_dividend_schedule(snapshot, limit=1)
+    dividend_limit = 5 if max_days_until_dividend is not None else 1
+    dividend_events = portfolio_dividend_schedule(snapshot, limit=dividend_limit)
+    dividend_events = filter_dividend_events_by_payment_window(
+        dividend_events,
+        max_days_until_payment=max_days_until_dividend,
+        today=today or datetime.now().date(),
+    )
     if dividend_events:
         dividend_parts = [format_dividend_event_brief(item["ticker"], item["event"]) for item in dividend_events]
         dividend_parts = filter_new_signal_texts("dividend", dividend_parts, only_new=True, mark_seen=True)
@@ -325,6 +336,8 @@ def investment_active_radar_brief(
     portfolio_news_digest: Callable[..., list[str]],
     compact_report_news: Callable[[str], str],
     format_percent: Callable[..., str],
+    max_days_until_dividend: int | None = None,
+    today: date | None = None,
 ) -> str:
     updated_at = float(snapshot.get("updated_at") or 0)
     if not updated_at and not snapshot.get("summary"):
@@ -348,7 +361,13 @@ def investment_active_radar_brief(
     if volatility_parts:
         signals.append("volatilidade: " + ", ".join(str(item).strip() for item in volatility_parts if str(item).strip()))
 
-    dividend_events = portfolio_dividend_schedule(snapshot, limit=1)
+    dividend_limit = 5 if max_days_until_dividend is not None else 1
+    dividend_events = portfolio_dividend_schedule(snapshot, limit=dividend_limit)
+    dividend_events = filter_dividend_events_by_payment_window(
+        dividend_events,
+        max_days_until_payment=max_days_until_dividend,
+        today=today or datetime.now().date(),
+    )
     if dividend_events:
         dividend_parts = [format_dividend_event_brief(item["ticker"], item["event"]) for item in dividend_events]
         if dividend_parts:

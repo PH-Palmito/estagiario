@@ -8,7 +8,7 @@ from pathlib import Path
 from threading import Thread
 
 INTERACTIVE_STARTUP_BRIEFING_DELAY_SECONDS = 2.0
-WINDOWS_STARTUP_BRIEFING_DELAY_SECONDS = 20.0
+WINDOWS_STARTUP_BRIEFING_DELAY_SECONDS = 8.0
 
 
 def send_startup_briefing_once(
@@ -38,17 +38,6 @@ def send_startup_briefing_once(
         state = {}
 
     if state.get("last_briefing_date") == today_key and not force:
-        already_delivered = next_phrase(
-            "startup_briefing_already_delivered",
-            greeting_variants["briefing_already_delivered"],
-            "Briefing de hoje ja foi entregue. Estou em escuta e monitorando seus lembretes.",
-        )
-        output_response(
-            already_delivered,
-            voice_mode,
-            interrupt_current_tts=True,
-            wait_for_tts=True,
-        )
         return True
 
     try:
@@ -107,11 +96,12 @@ def schedule_startup_briefing_worker(
     if "--no-startup-briefing" in args:
         return False
     if delay_seconds is None:
-        delay_seconds = (
-            WINDOWS_STARTUP_BRIEFING_DELAY_SECONDS
-            if "--startup" in args
-            else INTERACTIVE_STARTUP_BRIEFING_DELAY_SECONDS
-        )
+        if "--force-startup-briefing" in args:
+            delay_seconds = INTERACTIVE_STARTUP_BRIEFING_DELAY_SECONDS
+        elif "--startup" in args:
+            delay_seconds = WINDOWS_STARTUP_BRIEFING_DELAY_SECONDS
+        else:
+            delay_seconds = INTERACTIVE_STARTUP_BRIEFING_DELAY_SECONDS
 
     try:
         def worker():

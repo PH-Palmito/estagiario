@@ -7,6 +7,7 @@ from core.axel_brain_commands import (
     format_axel_brain_insights,
     format_axel_brain_runtime_decision,
     format_axel_brain_timeline,
+    format_last_response_reality,
     format_axel_route_trace,
     maybe_handle_axel_brain_runtime_command,
 )
@@ -102,6 +103,65 @@ class AxelBrainCommandTests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertIn("system_agent", result)
         self.assertIn("sistema", result)
+
+    def test_reports_real_brain_effects(self):
+        runtime_state = SimpleNamespace(
+            axel_brain_plan={
+                "agent": "study_agent",
+                "toolset": "estudos",
+                "model_policy": "nvidia_or_gemini_for_reasoning",
+                "needs_confirmation": False,
+                "response_mode": "answer_with_context",
+                "tool_libraries": [{"actions": [{"name": "study.analyze_files"}]}],
+            },
+            axel_brain_brief={"memory_layers": [{"name": "skills_procedurais"}]},
+            axel_brain_contract={"channel": "local"},
+        )
+
+        result = maybe_handle_axel_brain_runtime_command("efeitos do axelbrain", runtime_state)
+
+        self.assertIn("Efeitos reais do AxelBrain", result)
+        self.assertIn("study_agent", result)
+
+    def test_audits_last_response_without_sensitive_details(self):
+        timeline = [
+            {
+                "action": "study.analyze_files",
+                "context": {"memory_layers": ["skills_procedurais", "sessoes_relevantes"]},
+                "execution": {"action": "study.analyze_files"},
+                "response": {
+                    "provenance": {
+                        "models": [{"provider": "cloud", "model": "nvidia/model", "success": True}],
+                        "tools": ["study.analyze_files"],
+                        "files": ["RedesBasico.pdf"],
+                    }
+                },
+            }
+        ]
+
+        text = format_last_response_reality(timeline)
+
+        self.assertIn("cloud/nvidia/model", text)
+        self.assertIn("study.analyze_files", text)
+        self.assertIn("RedesBasico.pdf", text)
+        self.assertIn("skills_procedurais", text)
+        self.assertNotIn("C:\\Users", text)
+
+    def test_handles_response_reality_command(self):
+        runtime_state = SimpleNamespace(
+            axel_brain_timeline=[
+                {
+                    "action": "respond",
+                    "context": {"memory_layers": ["memoria_curta"]},
+                    "response": {"provenance": {"models": [], "tools": [], "files": []}},
+                }
+            ]
+        )
+
+        result = maybe_handle_axel_brain_runtime_command("o que foi real nessa resposta?", runtime_state)
+
+        self.assertIn("Auditoria da", result)
+        self.assertIn("nenhum modelo registrado", result)
 
     def test_formats_brain_history(self):
         text = format_axel_brain_history([

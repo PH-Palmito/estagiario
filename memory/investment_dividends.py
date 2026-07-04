@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime
 
 from memory.investment_formatting import (
     format_brl,
@@ -65,6 +65,34 @@ def format_dividend_event_brief(ticker: str, event: dict) -> str:
     if label:
         return f"{ticker} tem {label} no radar"
     return ticker
+
+
+def dividend_payment_day(event: dict) -> date | None:
+    payment_date = parse_iso_datetime(event.get("payment_date"))
+    if payment_date:
+        return payment_date.date()
+    return None
+
+
+def filter_dividend_events_by_payment_window(
+    events: list[dict],
+    *,
+    max_days_until_payment: int | None = None,
+    today: date | None = None,
+) -> list[dict]:
+    if max_days_until_payment is None:
+        return events
+    current = today or datetime.now().date()
+    filtered: list[dict] = []
+    for item in events:
+        event = item.get("event") if isinstance(item, dict) else {}
+        payment_day = dividend_payment_day(event if isinstance(event, dict) else {})
+        if payment_day is None:
+            continue
+        days_until_payment = (payment_day - current).days
+        if 0 <= days_until_payment <= int(max_days_until_payment):
+            filtered.append(item)
+    return filtered
 
 
 def portfolio_dividend_schedule(
@@ -148,12 +176,19 @@ def upcoming_dividend_brief(
     rank_portfolio_positions: RankPositions,
     ensure_asset_fundamentals: EnsureFundamentals,
     limit: int = 2,
+    max_days_until_payment: int | None = None,
+    today: date | None = None,
 ) -> str:
     events = portfolio_dividend_schedule(
         snapshot,
         rank_portfolio_positions=rank_portfolio_positions,
         ensure_asset_fundamentals=ensure_asset_fundamentals,
         limit=max(1, int(limit)),
+    )
+    events = filter_dividend_events_by_payment_window(
+        events,
+        max_days_until_payment=max_days_until_payment,
+        today=today,
     )
     if not events:
         return ""

@@ -38,6 +38,20 @@ class RouterInvestmentsTests(unittest.TestCase):
             {"intent": "investment_memory_answer", "target": "qual a cotacao de BBAS3"},
         )
 
+    def test_detects_macro_climate_investment_questions(self):
+        self.assertEqual(
+            detect_investment_question_command("como o el nino afeta meus investimentos"),
+            {"intent": "investment_memory_answer", "target": "como o el nino afeta meus investimentos"},
+        )
+        self.assertEqual(
+            detect_investment_question_command("como o el nino afeta o VGIA11?"),
+            {"intent": "investment_memory_answer", "target": "como o el nino afeta o VGIA11?"},
+        )
+        self.assertEqual(
+            detect_investment_question_command("e o vgia como é afetado?"),
+            {"intent": "investment_memory_answer", "target": "e o vgia como é afetado?"},
+        )
+
     def test_detects_financial_report(self):
         self.assertEqual(
             detect_investment_question_command("relatorio financeiro"),

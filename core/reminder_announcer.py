@@ -4,6 +4,33 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+
+from memory.assistant_phrases import contextual_assistant_phrase
+from memory.json_store import read_json_file, update_json_file
+
+REMINDER_ANNOUNCER_STATE_PATH = Path("memory") / "reminder_announcer_state.json"
+
+
+def _load_announcer_state() -> dict:
+    return read_json_file(REMINDER_ANNOUNCER_STATE_PATH, {}, validator=lambda value: isinstance(value, dict))
+
+
+def _save_night_sleep_prompt_key(prompt_key: str) -> None:
+    def update(data: dict) -> dict:
+        data = dict(data or {})
+        data["last_night_sleep_prompt_key"] = prompt_key
+        data["last_night_sleep_prompt_at"] = time.time()
+        return data
+
+    update_json_file(
+        REMINDER_ANNOUNCER_STATE_PATH,
+        {},
+        update,
+        validator=lambda value: isinstance(value, dict),
+        indent=2,
+        trailing_newline=True,
+    )
 
 
 @dataclass
@@ -55,12 +82,14 @@ class ReminderAnnouncer:
             prompt_key = f"{prompt_key}-madrugada"
         if self.last_night_sleep_prompt_key == prompt_key:
             return False
+        persisted_key = str(_load_announcer_state().get("last_night_sleep_prompt_key", "")).strip()
+        if persisted_key == prompt_key:
+            self.last_night_sleep_prompt_key = prompt_key
+            return False
 
         self.last_night_sleep_prompt_key = prompt_key
-        self._announce(
-            "Ja esta tarde. Se voce ainda estiver usando o PC sem urgencia, vale salvar o progresso e dormir.",
-            voice_mode,
-        )
+        _save_night_sleep_prompt_key(prompt_key)
+        self._announce(contextual_assistant_phrase("night_sleep_prompt"), voice_mode)
         return True
 
     def _announce(self, message: str, voice_mode: bool) -> None:

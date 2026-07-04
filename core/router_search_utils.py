@@ -26,3 +26,16 @@ def cleanup_site_query(query: str) -> str:
     cleaned = re.sub(SEARCH_STOP_WORD_PATTERN, " ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
     return cleaned
+
+
+def strip_search_conversation_tail(text: str) -> str:
+    raw = str(text or "").strip()
+    normalized = normalize_text(raw)
+    for pattern in (
+        r"\s+(?:e\s+depois|e|ai|aí|depois)\s+(?:me\s+)?(?:da|dá|de|dê|fala|explique|explica|mostra|mostre|resume|resuma|recomenda|recomende)\b",
+        r"\s+(?:e\s+depois|e|ai|aí|depois)\s+(?:abre|abra|toca|toque|coloca|coloque|foca|foque|lembre|lembra)\b",
+    ):
+        match = re.search(pattern, normalized)
+        if match:
+            return raw[: match.start()].strip(" .,:;-")
+    return raw

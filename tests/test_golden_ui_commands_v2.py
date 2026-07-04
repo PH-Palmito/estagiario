@@ -37,6 +37,60 @@ class GoldenUICommandsV2Tests(unittest.TestCase):
         self.assertIn('id="commandDeckFilters"', html)
         self.assertIn('id="commandsVisibleCount"', html)
         self.assertIn("data-command-filter", html)
+        self.assertIn('data-command="autoteste do axel"', html)
+
+    def test_hud_has_single_intent_judge_toggle(self):
+        html = Path("ui/axel_web_hud.html").read_text(encoding="utf-8")
+
+        self.assertIn('id="intentJudgeToggle"', html)
+        self.assertIn('data-command="alternar juiz llm"', html)
+        self.assertIn('intentToggle.dataset.command = intentJudgeEnabled ? "desligar juiz llm" : "ligar juiz llm"', html)
+        self.assertEqual(html.count('id="intentJudgeToggle"'), 1)
+        self.assertEqual(html.count('id="intentJudgeStatus"'), 1)
+
+    def test_hud_contains_personality_and_proactivity_toggles(self):
+        html = Path("ui/axel_web_hud.html").read_text(encoding="utf-8")
+
+        self.assertIn('id="personalityToggle"', html)
+        self.assertIn('id="proactivityToggle"', html)
+        self.assertIn('personalityToggle.dataset.command = personalityEnabled ? "desligar personalidade" : "ligar personalidade"', html)
+        self.assertIn('proactivityToggle.dataset.command = proactivityEnabled ? "desligar proatividade" : "ligar proatividade"', html)
+        self.assertEqual(html.count('id="personalityStatus"'), 1)
+        self.assertEqual(html.count('id="proactivityStatus"'), 1)
+
+    def test_hud_buttons_expose_backend_feedback_states(self):
+        html = Path("ui/axel_web_hud.html").read_text(encoding="utf-8")
+
+        self.assertIn('id="commandFeedback"', html)
+        self.assertIn('aria-live="polite"', html)
+        self.assertIn("bridge.sendCommand(value, (payload)", html)
+        self.assertIn("bridge.refreshData((payload)", html)
+        self.assertIn('"waiting_confirmation"', html)
+        self.assertIn("command-pending", html)
+
+    def test_hud_does_not_present_synthetic_task_habit_or_finance_data(self):
+        html = Path("ui/axel_web_hud.html").read_text(encoding="utf-8")
+
+        forbidden = [
+            "Finalizar apresenta\u00e7\u00e3o",
+            "Ligar para seguradora",
+            "Meditar 15 minutos",
+            "-6% vs semana anterior",
+            "Ritmo moderado",
+            '["Investimentos", "72%"',
+            "[9, 16, 28]",
+            "[13, 16, 20, 24]",
+        ]
+        for text in forbidden:
+            with self.subTest(text=text):
+                self.assertNotIn(text, html)
+
+        self.assertIn("Sem integra\u00e7\u00e3o de tarefas estruturadas", html)
+        self.assertIn("Painel aguardando uma fonte real de h\u00e1bitos", html)
+        self.assertIn("Bancos, cart\u00f5es e Open Finance n\u00e3o est\u00e3o integrados", html)
+        self.assertIn("Tarefas \u00b7 primeira camada", html)
+        self.assertIn("H\u00e1bitos \u00b7 primeira camada", html)
+        self.assertIn('title="Carteira" aria-label="Carteira"', html)
 
     @patch("core.ui_bridge.build_project_health_snapshot", return_value={"status": "saudavel"})
     @patch("core.ui_bridge.subprocess.Popen")

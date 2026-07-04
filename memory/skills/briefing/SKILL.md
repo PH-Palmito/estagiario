@@ -5,6 +5,7 @@
 - resumo do dia
 - agenda clima carteira
 - bom dia
+- atualizar contexto operacional
 
 ## Objetivo
 - Montar uma visao curta do dia com agenda, clima, carteira, lembretes e alertas importantes.

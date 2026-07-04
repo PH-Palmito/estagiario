@@ -6,6 +6,9 @@
 - gerar questoes sobre um tema
 - gerar questoes a partir dos slides
 - corrigir respostas e montar revisao
+- aprender ingles
+- praticar ingles
+- estudar um tema
 
 ## Procedimento
 - Identificar o material de entrada: tema livre, PDF, PPTX, DOCX, TXT, imagem ou texto selecionado.

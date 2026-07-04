@@ -1,3 +1,4 @@
+import re
 from collections.abc import Callable
 
 from memory.investment_formatting import format_brl, parse_currency_value
@@ -82,6 +83,91 @@ def format_position_reading(
     return " ".join(parts)
 
 
+def _climate_investment_reading(
+    normalized_question: str,
+    ticker: str,
+    position: dict,
+    fundamentals: dict,
+) -> str | None:
+    climate_terms = {
+        "el nino",
+        "la nina",
+        "clima",
+        "seca",
+        "chuva",
+        "safra",
+        "estiagem",
+        "fenomeno climatico",
+        "fenomeno climático",
+    }
+    if not any(term in normalized_question for term in climate_terms):
+        return None
+
+    asset_name = ticker or "seus investimentos"
+    company_name = str(fundamentals.get("company_name") or "").lower()
+    is_fii_like = ticker.endswith("11") if ticker else False
+    is_agro_like = any(term in company_name for term in {"agro", "agr", "cra", "rural"}) or any(
+        term in normalized_question for term in {"vgia", "fiagro", "fii agro", "agronegocio", "agronegócio"}
+    )
+
+    parts = [
+        f"El Niño pode afetar {asset_name} por três caminhos: clima sobre safras, preços de commodities e juros/inflação.",
+    ]
+    if ticker and (is_fii_like or is_agro_like):
+        parts.append(
+            f"No caso de {ticker}, eu olharia especialmente exposição ao agro, qualidade dos devedores, garantias, "
+            "inadimplência, renegociações e estabilidade dos dividendos."
+        )
+    elif ticker:
+        parts.append(
+            f"Para {ticker}, o impacto depende do setor: empresas ligadas a agro, energia, seguros, alimentos ou commodities "
+            "tendem a sentir mais do que negócios pouco expostos ao clima."
+        )
+    else:
+        parts.append(
+            "Na carteira inteira, o ponto é mapear quais ativos dependem de agro, energia, commodities, inflação ou crédito rural."
+        )
+
+    if position:
+        if position.get("portfolio_percentage"):
+            parts.append(f"Como o peso salvo é {position['portfolio_percentage']} da carteira, vale medir se esse risco é relevante no conjunto.")
+        if position.get("rentability"):
+            parts.append(f"A rentabilidade salva está em {position['rentability']}, mas isso não substitui olhar qualidade e recorrência da renda.")
+
+    parts.append("Isso é leitura de risco, não recomendação de compra ou venda.")
+    return " ".join(parts)
+
+
+def _partial_ticker_from_question(question: str, positions: dict, fundamentals: dict) -> str:
+    aliases = {
+        str(code or "").upper()[:4]: str(code or "").upper()
+        for code in [*positions.keys(), *fundamentals.keys()]
+        if re.match(r"^[A-Z]{4}\d{1,2}$", str(code or "").upper())
+    }
+    if not aliases:
+        return ""
+    ignored = {
+        "como",
+        "meus",
+        "suas",
+        "seus",
+        "esse",
+        "essa",
+        "pelo",
+        "pela",
+        "para",
+        "sobre",
+        "risco",
+    }
+    for token in re.findall(r"\b[A-Za-z]{4,5}\b", str(question or "")):
+        key = token.upper()[:4]
+        if token.lower() in ignored:
+            continue
+        if key in aliases:
+            return aliases[key]
+    return ""
+
+
 def build_local_investment_reading(
     question: str,
     snapshot: dict,
@@ -97,18 +183,27 @@ def build_local_investment_reading(
     mentions_price_ceiling: MentionsPriceCeiling,
     effective_price_ceiling: EffectiveCeiling,
 ) -> str:
+    normalized_question = normalize(question)
+    positions = asset_positions(snapshot)
+    fundamentals_map = asset_fundamentals(snapshot)
+    explicit_ticker = extract_question_ticker(question)
+    partial_ticker = _partial_ticker_from_question(question, positions, fundamentals_map)
+    climate_question = _climate_investment_reading(normalized_question, "", {}, {}) is not None
+    ticker = explicit_ticker or partial_ticker or ("" if climate_question else extract_ticker(snapshot))
     metric_map = snapshot.get("metric_map") or {}
-    ticker = extract_question_ticker(question) or extract_ticker(snapshot)
     direction = extract_snapshot_direction(snapshot)
     summary = str(snapshot.get("summary", "")).strip()
-    normalized_question = normalize(question)
     strategy = get_asset_strategy(ticker) if ticker else {}
     price_ceiling = strategy.get("price_ceiling")
     thesis = str(strategy.get("thesis", "")).strip()
     in_watchlist = bool(strategy.get("in_watchlist"))
     current_price = extract_current_price(snapshot)
-    position = asset_positions(snapshot).get(ticker, {}) if ticker else {}
-    fundamentals = asset_fundamentals(snapshot).get(ticker, {}) if ticker else {}
+    position = positions.get(ticker, {}) if ticker else {}
+    fundamentals = fundamentals_map.get(ticker, {}) if ticker else {}
+
+    climate_answer = _climate_investment_reading(normalized_question, ticker, position, fundamentals)
+    if climate_answer:
+        return climate_answer
 
     asset_name = ticker or str(snapshot.get("page_title", "")).strip() or "esse ativo"
     parts = [f"Sobre {asset_name}, eu tenho um contexto recente de cotação, rentabilidade e proventos na sua carteira."]

@@ -7,6 +7,7 @@ from core.router_system import (
     detect_run_script,
     detect_type_text,
     detect_whatsapp_bridge_command,
+    detect_windows_app_command,
     detect_windows_startup_command,
 )
 
@@ -28,6 +29,24 @@ class RouterSystemTests(unittest.TestCase):
         self.assertEqual(
             detect_windows_startup_command("status iniciar junto com o Windows"),
             {"intent": "windows_startup_status", "target": None},
+        )
+
+    def test_windows_app_install(self):
+        self.assertEqual(
+            detect_windows_app_command("instalar app do Axel"),
+            {"intent": "windows_app_install", "target": None},
+        )
+
+    def test_windows_app_status(self):
+        self.assertEqual(
+            detect_windows_app_command("status do app do Axel"),
+            {"intent": "windows_app_status", "target": None},
+        )
+
+    def test_windows_app_uninstall(self):
+        self.assertEqual(
+            detect_windows_app_command("remover app do Axel"),
+            {"intent": "windows_app_uninstall", "target": None},
         )
 
     def test_run_script(self):

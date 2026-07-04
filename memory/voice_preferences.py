@@ -42,6 +42,8 @@ DEFAULTS = {
     "assistant_humor_enabled": True,
     "assistant_humor_level": 2,
     "assistant_humor_style": "jarvis",
+    "assistant_personality_enabled": True,
+    "assistant_proactivity_enabled": True,
     "assistant_style": "jarvis",
     "assistant_address_user": "senhor",
     "assistant_brief_confirmations": True,

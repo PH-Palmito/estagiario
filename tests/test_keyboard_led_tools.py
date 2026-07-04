@@ -16,8 +16,10 @@ class KeyboardLedToolsTests(unittest.TestCase):
                 disabled = keyboard_led_tools.keyboard_led_off()
 
         self.assertIn("LED do teclado ligado", enabled)
+        self.assertIn("Primeira camada plugável", enabled)
         self.assertIn("cor azul", status)
         self.assertIn("perfil foco", status)
+        self.assertIn("modo simulado", status)
         self.assertIn("LED do teclado desligado", disabled)
 
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from core.router_utils import normalize_text
+from core.axel_brain_effects import format_axel_brain_effects
+from core.response_polish import polish_assistant_response
 
 
 AXEL_BRAIN_DECISION_COMMANDS = {
@@ -70,6 +72,61 @@ AXEL_BRAIN_TIMELINE_COMMANDS = {
     "ultima auditoria do axelbrain",
     "ultima auditoria do axel brain",
 }
+
+AXEL_BRAIN_EFFECT_COMMANDS = {
+    "efeitos do axelbrain",
+    "efeitos do axel brain",
+    "como o axelbrain influenciou",
+    "como o axel brain influenciou",
+    "o que o axelbrain fez de verdade",
+    "o que o axel brain fez de verdade",
+}
+
+RESPONSE_REALITY_COMMANDS = {
+    "o que foi real nessa resposta",
+    "o que foi real nesta resposta",
+    "auditar ultima resposta",
+    "auditar a ultima resposta",
+    "como essa resposta foi feita",
+    "como esta resposta foi feita",
+    "proveniencia da ultima resposta",
+}
+
+
+def format_last_response_reality(timeline: list | tuple | None) -> str:
+    items = [item for item in list(timeline or []) if isinstance(item, dict)]
+    if not items:
+        return "Ainda nao ha uma resposta executada nesta sessao para auditar."
+    latest = items[-1]
+    response = latest.get("response") if isinstance(latest.get("response"), dict) else {}
+    provenance = response.get("provenance") if isinstance(response.get("provenance"), dict) else {}
+    tools = [str(item) for item in provenance.get("tools", []) if str(item).strip()]
+    files = [str(item) for item in provenance.get("files", []) if str(item).strip()]
+    models = [item for item in provenance.get("models", []) if isinstance(item, dict)]
+    context = latest.get("context") if isinstance(latest.get("context"), dict) else {}
+    memories = [str(item) for item in context.get("memory_layers", []) if str(item).strip()]
+
+    if models:
+        model = models[-1]
+        model_text = f"{model.get('provider', 'unknown')}/{model.get('model', 'unknown')}"
+        if model.get("fallback_used"):
+            model_text += " com fallback"
+        if not model.get("success", True):
+            model_text += " sem resposta valida"
+    else:
+        model_text = "nenhum modelo registrado"
+
+    action = str((latest.get("execution") or {}).get("action") or latest.get("action") or "").strip()
+    if action and action != "respond" and action not in tools:
+        tools.insert(0, action)
+    return polish_assistant_response(
+        "Auditoria da ultima resposta: "
+        f"modelo usado: {model_text}; "
+        f"ferramentas executadas: {', '.join(tools) if tools else 'nenhuma'}; "
+        f"arquivos envolvidos: {', '.join(files) if files else 'nenhum'}; "
+        f"memorias consultadas: {', '.join(memories) if memories else 'nenhuma camada registrada'}. "
+        "Nao foram exibidos prompts, chaves, caminhos completos ou parametros sensiveis."
+    )
 
 
 def format_axel_brain_runtime_decision(
@@ -186,6 +243,14 @@ def format_axel_brain_runtime_decision(
 
 def maybe_handle_axel_brain_runtime_command(user_input: str, runtime_state) -> str | None:
     normalized = normalize_text(user_input)
+    if normalized in RESPONSE_REALITY_COMMANDS:
+        return format_last_response_reality(getattr(runtime_state, "axel_brain_timeline", None))
+    if normalized in AXEL_BRAIN_EFFECT_COMMANDS:
+        return format_axel_brain_effects(
+            getattr(runtime_state, "axel_brain_plan", None),
+            getattr(runtime_state, "axel_brain_brief", None),
+            getattr(runtime_state, "axel_brain_contract", None),
+        )
     if normalized in AXEL_BRAIN_INSIGHT_COMMANDS:
         return format_axel_brain_insights(getattr(runtime_state, "axel_brain_history", None))
 

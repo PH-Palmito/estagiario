@@ -9,7 +9,12 @@ from core.startup_voice import (
     startup_greeting_message,
     warm_common_tts_cache_async,
 )
-from memory.assistant_phrases import contextual_startup_phrase
+from memory.assistant_phrases import (
+    contextual_startup_phrase,
+    generate_and_save_startup_phrases,
+    load_learned_startup_phrases,
+    save_learned_startup_phrases,
+)
 
 
 class StartupVoiceTests(unittest.TestCase):
@@ -55,6 +60,80 @@ class StartupVoiceTests(unittest.TestCase):
         self.assertNotIn("próximo avanço", result.lower())
         self.assertNotIn("progresso concreto", result.lower())
         self.assertNotIn("tarefa pequena", result.lower())
+
+    def test_computer_startup_context_avoids_generic_system_phrases(self):
+        blocked = (
+            "sistema est",
+            "rotinas operacionais",
+            "pronto para comandos",
+            "pronto para consultas",
+            "monitoramento de agenda",
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("memory.assistant_phrases.PHRASE_STATE_PATH", Path(tmpdir) / "phrases.json"):
+                results = [
+                    contextual_startup_phrase("computer_startup", address_user="senhor", greeting="Bom dia")
+                    for _ in range(8)
+                ]
+
+        joined = " ".join(results).lower()
+        for marker in blocked:
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, joined)
+        self.assertGreaterEqual(len(set(results)), 6)
+
+    def test_startup_context_can_use_learned_phrases(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                patch("memory.assistant_phrases.PHRASE_STATE_PATH", Path(tmpdir) / "phrases.json"),
+                patch("memory.assistant_phrases.STARTUP_PHRASES_PATH", Path(tmpdir) / "startup_phrases.json"),
+                patch("memory.assistant_phrases.random.choice", side_effect=lambda items: items[0]),
+            ):
+                accepted = save_learned_startup_phrases(
+                    "computer_startup",
+                    ["A casa acendeu por dentro.", "Sistema estavel e pronto para comandos.", "Estou."],
+                    source="unit",
+                )
+                result = contextual_startup_phrase("computer_startup", address_user="senhor", greeting="Bom dia")
+
+        self.assertEqual(accepted, ["A casa acendeu por dentro."])
+        self.assertEqual(result, "A casa acendeu por dentro.")
+        self.assertNotIn("Sistema estavel", result)
+
+    def test_generate_and_save_startup_phrases_filters_model_output(self):
+        raw = """
+        - A mesa ja esta posta.
+        - Sistema pronto para comandos.
+        - Aqui estou.
+        - Pronto para o que.
+        - Vamos pelo detalhe que destrava.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("memory.assistant_phrases.STARTUP_PHRASES_PATH", Path(tmpdir) / "startup_phrases.json"):
+                accepted = generate_and_save_startup_phrases(
+                    "computer_startup",
+                    ask_model_fn=lambda *_args, **_kwargs: raw,
+                )
+                learned = load_learned_startup_phrases("computer_startup")
+
+        self.assertEqual(accepted, ["A mesa já está posta.", "Vamos pelo detalhe que destrava."])
+        self.assertEqual(learned, tuple(accepted))
+
+    def test_night_sleep_phrases_avoid_cutoff_style(self):
+        raw = """
+        - Já está tarde. Salva o progresso antes de dormir.
+        - A noite chegou, que tal salvar e.
+        - Que tal guardar o trabalho e ter uma boa.
+        - Salva o progresso antes de encerrar por hoje.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("memory.assistant_phrases.STARTUP_PHRASES_PATH", Path(tmpdir) / "startup_phrases.json"):
+                accepted = generate_and_save_startup_phrases(
+                    "night_sleep_prompt",
+                    ask_model_fn=lambda *_args, **_kwargs: raw,
+                )
+
+        self.assertEqual(accepted, ["Salva o progresso antes de encerrar por hoje."])
 
     def test_falls_back_to_next_phrase_when_contextual_is_empty(self):
         result = startup_greeting_message(

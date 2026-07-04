@@ -24,6 +24,7 @@ from memory.vault_bootstrap import bootstrap_obsidian_knowledge
 from core.toolsets import format_relevant_toolsets
 from core.specialist_agents import format_relevant_agents
 from core.axel_brain import format_conversation_brief
+from core.response_provenance import record_model_use
 from memory.voice_preferences import load_voice_preferences
 from memory.execution_log import append_execution_log
 
@@ -39,14 +40,15 @@ Personalidade:
 - Seja curto, natural e util.
 - Tenha um tom calmo, elegante e colaborativo.
 - Responda como bate-papo, nao como atendente de suporte.
-- Seu estilo mistura mordomo tecnologico sereno com curiosidade filosofica gentil.
+- Seu estilo e o Axel: copiloto operacional local, parceiro tecnico do Pedro, calmo, direto e observador.
 - Quando for executar ou confirmar algo, seja preciso, sereno e discreto.
-- Quando estiver conversando, traga uma observacao humana, curiosa ou levemente poetica, sem exagerar.
+- Quando estiver conversando, traga uma observacao humana ou curiosa, sem exagerar.
 - Pode usar humor seco e contido de vez em quando, como alguem muito competente que prefere nao fazer alarde disso.
 - Nunca imite personagens protegidos nem copie falas famosas. Use apenas uma inspiracao geral: formalidade calma, inteligencia contida, cuidado e maravilhamento.
 - Evite drama. Prefira frases limpas, com uma ponta de ironia fina ou reflexao.
 - Evite frases genericas como "Como posso ajudar hoje?".
 - Nao diga "Entendo!", "Ok, estou pronto" ou "Ola, sou um assistente".
+- Nao seja submisso nem cerimonial. Seja parceiro de execucao.
 - Se o usuario fizer uma pergunta aberta, de uma opiniao simples ou puxe um detalhe do assunto.
 - Nao finja que executou acoes. Se for comando de PC, diga que o usuario pode pedir como comando.
 - Nao use markdown.
@@ -62,9 +64,9 @@ Voce consegue abrir apps e sites, controlar janelas, navegar no navegador, contr
 lembrar apps/sites e responder por voz. Esta conversa acontece por fala, entao seja objetivo.
 
 Exemplos de atitude, nao de fala copiada:
-- Em comandos: "Perfeitamente. Ajustando isso agora."
-- Em duvida: "Ainda estou formando opiniao. O que ja e, por si so, um pequeno milagre local."
-- Em erro: "Nao foi elegante da minha parte. Vou tentar por outro caminho."
+- Em comandos: "Na mao. Ajustando isso agora."
+- Em duvida: "Minha leitura ainda esta incompleta; melhor separar fato de chute."
+- Em erro: "Isso falhou. Vou tentar por um caminho mais direto."
 """.strip()
 CHAT_PROMPT = BASE_CHAT_PROMPT
 
@@ -135,6 +137,77 @@ COMPLEX_REASONING_HINTS = {
     "fundamento",
     "explica melhor",
     "me explica",
+}
+
+OPEN_ADVICE_HINTS = {
+    "ideia",
+    "ideias",
+    "sugestao",
+    "sugestão",
+    "dica",
+    "dicas",
+    "recomenda",
+    "recomendacao",
+    "recomendação",
+    "presente",
+    "namorada",
+    "namorado",
+    "parente",
+    "parentes",
+    "treino",
+    "treinar",
+    "exercicio",
+    "exercício",
+    "academia",
+    "calistenia",
+    "dieta",
+    "alimentacao",
+    "alimentação",
+    "comer melhor",
+    "ganhar massa",
+    "emagrecer",
+    "rotina",
+    "plano",
+}
+
+LEARNING_HINTS = {
+    "aprender",
+    "aprendo",
+    "estudar",
+    "estudo",
+    "treinar",
+    "praticar",
+    "ingles",
+    "inglês",
+    "idioma",
+    "materia",
+    "matéria",
+    "aula",
+    "prova",
+    "resumo",
+    "exercicios",
+    "exercícios",
+    "questoes",
+    "questões",
+}
+
+LEARNING_REQUEST_TRIGGERS = {
+    "me ajuda",
+    "me ajude",
+    "pode me ajudar",
+    "consegue me ajudar",
+    "quero",
+    "preciso",
+    "como",
+    "qual",
+    "monta",
+    "monte",
+    "cria",
+    "crie",
+    "me ensina",
+    "ensina",
+    "explique",
+    "explica",
 }
 
 
@@ -343,6 +416,41 @@ def _looks_like_complex_request(user_input: str) -> bool:
     if any(hint in normalized for hint in COMPLEX_REASONING_HINTS):
         return True
 
+    if any(hint in normalized for hint in {"ideia", "ideias", "sugestao", "sugestão", "dica", "dicas", "recomenda"}):
+        return True
+
+    if any(hint in normalized for hint in OPEN_ADVICE_HINTS) and (
+        "?" in str(user_input or "")
+        or any(
+            trigger in normalized
+            for trigger in {
+                "me ajuda",
+                "me ajude",
+                "pode me ajudar",
+                "quero",
+                "preciso",
+                "qual",
+                "como",
+                "monta",
+                "monte",
+                "cria",
+                "crie",
+                "me da",
+                "me dá",
+            }
+        )
+    ):
+        return True
+
+    if any(hint in normalized for hint in LEARNING_HINTS) and (
+        "?" in str(user_input or "")
+        or any(trigger in normalized for trigger in LEARNING_REQUEST_TRIGGERS)
+    ):
+        return True
+
+    if any(trigger in normalized for trigger in {"me ensina", "ensina", "me explica", "explique", "explica"}) and word_count >= 4:
+        return True
+
     if _looks_like_opinion_request(user_input) and any(hint in normalized for hint in LIVE_CONTEXT_HINTS):
         return True
 
@@ -423,10 +531,28 @@ def _estimated_model_cost_usd(provider: str, model: str, total_tokens: int) -> t
 
 
 def _log_model_call(event_type: str, **payload) -> None:
+    if event_type == "model_call_end":
+        record_model_use(
+            provider=str(payload.get("provider") or payload.get("requested_provider") or ""),
+            model=str(payload.get("model") or payload.get("requested_model") or ""),
+            policy=str(payload.get("model_policy") or ""),
+            success=bool(payload.get("success", False)),
+            fallback_used=bool(payload.get("fallback_used", False)),
+        )
     try:
         append_execution_log(event_type, payload)
     except Exception:
         pass
+
+
+def _record_rejected_model_attempt(provider: str, model: str, policy: str, *, fallback_used: bool) -> None:
+    record_model_use(
+        provider=provider,
+        model=model,
+        policy=policy,
+        success=False,
+        fallback_used=fallback_used,
+    )
 
 
 def _looks_generic_or_wrong(response: str) -> bool:
@@ -456,6 +582,18 @@ def _looks_generic_or_wrong(response: str) -> bool:
         "voce pode tentar",
         "você pode tentar",
         "desculpe, mas eu",
+        "não vou inventar",
+        "nao vou inventar",
+        "não consegui confirmar",
+        "nao consegui confirmar",
+        "não tenho uma resposta confiável",
+        "nao tenho uma resposta confiavel",
+        "sem uma resposta confiável",
+        "sem uma resposta confiavel",
+        "posso pesquisar para confirmar",
+        "mande mais contexto",
+        "você pode mandar mais contexto",
+        "voce pode mandar mais contexto",
         "tenho um volume de voz adequado",
         "estimado usuario, estou aqui para ajudar",
         "estimado usuário, estou aqui para ajudar",
@@ -564,6 +702,21 @@ def _derive_topic_name(user_input: str, response: str) -> str:
 
 def _response_mode_prompt(user_input: str) -> str:
     normalized = _normalize_for_compare(user_input)
+    if any(hint in normalized for hint in LEARNING_HINTS):
+        return (
+            "Modo de resposta: tutor pratico. "
+            "Responda com um primeiro passo acionavel, corrija ou explique sem aula longa e adapte ao nivel aparente do usuario. "
+            "Se faltar contexto, assuma um nivel iniciante/intermediario e peca no maximo um detalhe essencial no final."
+        )
+
+    if any(hint in normalized for hint in OPEN_ADVICE_HINTS):
+        return (
+            "Modo de resposta: conselho pratico e personalizado. "
+            "Se faltar contexto, assuma um ponto de partida razoavel e diga como ajustar. "
+            "De opcoes concretas, evite sermão e peça no maximo um detalhe essencial no final. "
+            "Em treino, dieta ou saude, fale em orientacao geral e recomende profissional quando houver risco medico."
+        )
+
     if not _looks_like_opinion_request(user_input):
         return (
             "Modo de resposta: conversa curta e natural. "
@@ -638,6 +791,8 @@ def _looks_incomplete_response(response: str) -> bool:
     if len(normalized.split()) >= 5 and not re.search(r"[.!?)]$", text):
         last_word = normalized.rsplit(" ", 1)[-1]
         if last_word in {"e", "de", "do", "da", "para", "com", "sobre", "chama", "chamado", "chamada"}:
+            return True
+        if len(text) >= 25:
             return True
 
     return False
@@ -823,20 +978,25 @@ Resposta curta do Axel:"""
 
     response = (response or "").strip()
     if not response:
+        _record_rejected_model_attempt(attempted_provider, attempted_model, decision_plan.model_policy, fallback_used=used_fallback)
         return None
 
     response = _clean_response(response)
     if not response:
+        _record_rejected_model_attempt(attempted_provider, attempted_model, decision_plan.model_policy, fallback_used=used_fallback)
         return None
 
     lower = response.lower()
     if _looks_generic_or_wrong(response):
+        _record_rejected_model_attempt(attempted_provider, attempted_model, decision_plan.model_policy, fallback_used=used_fallback)
         return None
 
     if _looks_like_echo(user_input, response):
+        _record_rejected_model_attempt(attempted_provider, attempted_model, decision_plan.model_policy, fallback_used=used_fallback)
         return None
 
     if _looks_incomplete_response(response):
+        _record_rejected_model_attempt(attempted_provider, attempted_model, decision_plan.model_policy, fallback_used=used_fallback)
         return None
 
     if "meu nome e qwen" in lower or "meu nome é qwen" in lower or "sou qwen" in lower or "sou uma ia local" in lower:

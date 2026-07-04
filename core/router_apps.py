@@ -65,6 +65,18 @@ TARGET_CORRECTIONS = {
     "android estudio": "android studio",
 }
 
+VAGUE_OPEN_TARGETS = {
+    "isso",
+    "isto",
+    "aquilo",
+    "esse",
+    "essa",
+    "esse negocio",
+    "essa coisa",
+    "aquele negocio",
+    "aquela coisa",
+}
+
 OPEN_PREFIXES = (
     "abra ",
     "abre ",
@@ -215,6 +227,28 @@ def _extract_after_prefix(text: str, prefixes):
     return None
 
 
+def _command_target_segment(text: str) -> str:
+    phrase = normalize_text(text).strip(" .,:;-")
+    if not re.search(
+        r"\b(?:abra|abre|abrir|abri|inicie|iniciar|feche|fechar|fecha|encerre|encerrar|foca|focar|troca|troque|vai|volta|minimiza|minimizar|minimize|maximiza|maximizar|maximize|restaura|restaurar|restaure)\b",
+        phrase,
+    ):
+        return phrase
+
+    for pattern in (
+        r"\s+(?:e\s+depois|e|ai|aí|depois)\s+(?:me\s+)?(?:da|dá|de|dê|fala|explique|explica|mostra|mostre|toque|toca|coloca|coloque)\b",
+        r"\s+(?:para|pra)\s+(?:eu\s+)?(?:estudar|treinar|trabalhar|focar|ver)\b",
+    ):
+        match = re.search(pattern, phrase)
+        if match:
+            return phrase[: match.start()].strip(" .,:;-")
+    return phrase
+
+
+def command_target_segment(text: str) -> str:
+    return _command_target_segment(text)
+
+
 def _extract_after_fuzzy_prefix(text: str, prefixes, cutoff: float = 0.74):
     extracted = _extract_after_prefix(text, prefixes)
     if extracted is not None:
@@ -328,11 +362,12 @@ def detect_open_chatgpt(user_input: str):
 
 
 def detect_open_url(user_input: str):
-    lower = normalize_text(user_input)
+    lower = _command_target_segment(user_input)
     sites = _site_options()
 
     direct_url = re.search(r"\b(?:https?://|www\.)\S+", user_input.strip(), flags=re.I)
-    if direct_url and any(lower.startswith(prefix.strip()) for prefix in OPEN_PREFIXES):
+    original_lower = normalize_text(user_input)
+    if direct_url and any(original_lower.startswith(prefix.strip()) for prefix in OPEN_PREFIXES):
         url = direct_url.group(0).strip(" .,")
         if url.startswith("www."):
             url = "https://" + url
@@ -370,7 +405,7 @@ def detect_open_url(user_input: str):
 
 
 def detect_window_command(user_input: str):
-    lower = normalize_text(user_input)
+    lower = _command_target_segment(user_input)
 
     if lower in CONTEXT_FOCUS_PATTERNS:
         return {"intent": "focus_app", "target": None}
@@ -416,7 +451,7 @@ def detect_window_command(user_input: str):
 
 
 def detect_close_app(user_input: str):
-    lower = normalize_text(user_input)
+    lower = _command_target_segment(user_input)
     close_target = _extract_after_prefix(lower, CLOSE_PREFIXES)
     sites = _site_options()
 
@@ -440,7 +475,7 @@ def detect_close_app(user_input: str):
 
 
 def detect_open_app(user_input: str):
-    lower = normalize_text(user_input)
+    lower = _command_target_segment(user_input)
     open_target = _extract_after_prefix(lower, OPEN_PREFIXES)
     sites = _site_options()
 
@@ -449,6 +484,12 @@ def detect_open_app(user_input: str):
 
     if open_target:
         open_target = _normalize_target_phrase(open_target)
+        if open_target in VAGUE_OPEN_TARGETS:
+            return {
+                "intent": "respond",
+                "target": None,
+                "response": "O alvo ficou vago. Diga o nome do app ou site que voce quer abrir.",
+            }
 
         if _best_fuzzy_match(open_target, sites, cutoff=0.7):
             return None

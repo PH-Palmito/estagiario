@@ -7,6 +7,8 @@ from dataclasses import dataclass
 
 from core.command_feedback import action_progress_message
 from core.command_service import execute_processed_command
+from core.axel_brain_effects import personality_allowed_for_plan
+from core.axel_personality import apply_personality_layer
 from core.latency_metrics import log_latency_stage
 from core.response_polish import polish_assistant_response
 from core.response_style import style_response
@@ -145,11 +147,19 @@ class ResponsePipeline:
         )
 
     def style_response(self, message: str) -> str:
-        return style_response(
+        styled = style_response(
             message,
             preferences=self.preferences,
             variants=self.style_variants,
             next_phrase=self.next_phrase,
+            state=self.style_state,
+        )
+        plan = getattr(self.runtime_state, "axel_brain_plan", {}) or {}
+        if not personality_allowed_for_plan(plan):
+            return styled
+        return apply_personality_layer(
+            styled,
+            preferences=self.preferences,
             state=self.style_state,
         )
 

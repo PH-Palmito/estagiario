@@ -72,7 +72,7 @@ class UIRuntimeServiceTests(unittest.TestCase):
         history = []
         runtime = []
         service = self._service(
-            queued_items=[{"text": " briefing ", "silent": True}],
+            queued_items=[{"id": "cmd-1", "text": " briefing ", "silent": True}],
             history=history,
         )
 
@@ -82,7 +82,22 @@ class UIRuntimeServiceTests(unittest.TestCase):
         self.assertTrue(service.silent_command_active)
         self.assertEqual(history[0][0], ("user", "briefing"))
         self.assertEqual(history[0][1], {"max_items": 7})
-        self.assertEqual(runtime, [{"last_heard": "briefing"}])
+        self.assertEqual(runtime[0]["last_heard"], "briefing")
+        self.assertEqual(runtime[0]["command_feedback"]["id"], "cmd-1")
+        self.assertEqual(runtime[0]["command_feedback"]["status"], "processing")
+        self.assertEqual(service.active_command_id, "cmd-1")
+
+    def test_complete_active_command_publishes_result_and_clears_active_id(self):
+        service = self._service(queued_items=[{"id": "cmd-2", "text": "status", "silent": False}])
+        runtime = []
+        service.poll_text_command(refresh_runtime_state=runtime.append)
+        service.refresh_runtime_state = runtime.append
+
+        service.complete_active_command("Tudo certo.", status="success")
+
+        self.assertEqual(runtime[-1]["command_feedback"]["status"], "success")
+        self.assertEqual(runtime[-1]["command_feedback"]["message"], "Tudo certo.")
+        self.assertEqual(service.active_command_id, "")
 
     def test_poll_text_command_clears_silent_flag_when_empty(self):
         service = self._service(queued_items=[{"text": "", "silent": True}])

@@ -76,6 +76,24 @@ class TerminalVoiceIOTests(unittest.TestCase):
         self.assertEqual(history[0][0], ("user", "abrir chrome"))
         self.assertEqual(runtime, [{"last_heard": "abrir chrome"}])
 
+    def test_read_voice_assistant_messages_are_polished(self):
+        printed = []
+        io = TerminalVoiceIO(
+            print_fn=lambda *args, **kwargs: printed.append(args[0]),
+            input_fn=lambda _prompt: "",
+        )
+
+        io.read_user_input(
+            True,
+            append_ui_history=lambda *args, **kwargs: None,
+            refresh_ui_runtime_state=lambda _patch: None,
+            listen_once=lambda: SimpleNamespace(ok=False, text="", error="Nao detectei fala no microfone"),
+            ready_message="Pode falar",
+        )
+
+        self.assertEqual(printed[0], "IA: Pode falar.")
+        self.assertEqual(printed[1], "IA: Não detectei fala no microfone.")
+
     def test_wait_for_hotword_returns_queued_panel_command(self):
         io = TerminalVoiceIO(print_fn=lambda *args, **kwargs: None)
         refreshes = []

@@ -2,6 +2,7 @@
 
 ## Preferencias de resposta
 - Responder em portugues do Brasil.
+- Usar acentuacao e pontuacao corretas nas respostas.
 - Ser direto, natural e util, especialmente no modo voz.
 
 ## Preferencias operacionais

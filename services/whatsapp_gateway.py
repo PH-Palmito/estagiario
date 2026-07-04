@@ -7,6 +7,8 @@ from typing import Any
 from core.action_result import normalize_action_result
 from core.normalizer import normalize_action
 from core.permission_policy import permission_decision
+from core.response_polish import polish_assistant_response
+from core.shared_commands import maybe_handle_shared_command
 
 
 @dataclass(frozen=True)
@@ -22,6 +24,9 @@ class WhatsAppResponse:
     text: str
     status: str = "ok"
     action: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "text", polish_assistant_response(self.text))
 
 
 def normalize_phone(value: str) -> str:
@@ -70,6 +75,10 @@ def handle_whatsapp_text(text: str) -> WhatsAppResponse:
     clean = str(text or "").strip()
     if not clean:
         return WhatsAppResponse(False, "Envie uma mensagem para o Axel.", status="empty")
+
+    shared_response = maybe_handle_shared_command(clean)
+    if shared_response:
+        return WhatsAppResponse(True, shared_response, action="shared_command")
 
     raw_action = route_text(clean)
     if raw_action.get("intent") == "respond":

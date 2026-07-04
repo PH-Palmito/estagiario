@@ -8,6 +8,8 @@
 - falar
 - escuta
 - perfil de voz
+- diagnostico de audio
+- trocar perfil de voz
 
 ## Objetivo
 - Manter interacoes por voz rapidas, naturais e tolerantes a transcricao imperfeita.

@@ -6,6 +6,8 @@ from typing import Callable
 
 import requests
 
+from core.response_polish import polish_assistant_response
+
 TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
 
 
@@ -29,7 +31,7 @@ def send_telegram_message(
 ) -> None:
     if not token:
         raise RuntimeError("Token do Telegram nao configurado.")
-    payload = {"chat_id": chat_id, "text": text}
+    payload = {"chat_id": chat_id, "text": polish_assistant_response(text)}
     if reply_markup:
         payload["reply_markup"] = reply_markup
     requests.post(

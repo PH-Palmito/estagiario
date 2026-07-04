@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from core.startup_briefing import (
+    INTERACTIVE_STARTUP_BRIEFING_DELAY_SECONDS,
     WINDOWS_STARTUP_BRIEFING_DELAY_SECONDS,
     schedule_startup_briefing_worker,
     send_startup_briefing_once,
@@ -47,7 +48,7 @@ class StartupBriefingTests(unittest.TestCase):
         result, calls, saved = self._send(state={"last_briefing_date": "2026-05-18"})
 
         self.assertTrue(result)
-        self.assertEqual(calls[0][0][:2], ("ja foi", True))
+        self.assertEqual(calls, [])
         self.assertEqual(saved["last_briefing_date"], "2026-05-18")
 
     def test_force_flag_ignores_already_delivered_state(self):
@@ -112,6 +113,31 @@ class StartupBriefingTests(unittest.TestCase):
 
         self.assertTrue(result)
         self.assertEqual(calls, [("sleep", WINDOWS_STARTUP_BRIEFING_DELAY_SECONDS), ("send", True)])
+
+    def test_force_startup_briefing_uses_interactive_delay(self):
+        calls = []
+
+        class FakeThread:
+            def __init__(self, *, target, name, daemon):
+                self.target = target
+                self.name = name
+                self.daemon = daemon
+
+            def start(self):
+                self.target()
+
+        with (
+            patch("core.startup_briefing.time.sleep", side_effect=lambda delay: calls.append(("sleep", delay))),
+            patch("core.startup_briefing.Thread", FakeThread),
+        ):
+            result = schedule_startup_briefing_worker(
+                args=["main.py", "--startup", "--force-startup-briefing"],
+                voice_mode=True,
+                send_startup_briefing=lambda voice_mode: calls.append(("send", voice_mode)) or True,
+            )
+
+        self.assertTrue(result)
+        self.assertEqual(calls, [("sleep", INTERACTIVE_STARTUP_BRIEFING_DELAY_SECONDS), ("send", True)])
 
 
 if __name__ == "__main__":

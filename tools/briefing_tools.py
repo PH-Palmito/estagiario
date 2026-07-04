@@ -23,7 +23,8 @@ TODO_PATH = Path("memory/todo.md")
 BRIEFING_CACHE_PATH = BRIEFING_CACHE_POLICY.path
 INVESTMENT_HISTORY_PATH = Path("memory/investment_snapshot_history.json")
 DEFAULT_BRIEFING_CACHE_TTL_SECONDS = BRIEFING_CACHE_POLICY.ttl_seconds
-BRIEFING_CONTENT_VERSION = 5
+BRIEFING_CONTENT_VERSION = 8
+DIVIDEND_BRIEF_LOOKAHEAD_DAYS = 7
 
 B3_HOLIDAYS_2026 = {
     "2026-01-01",
@@ -338,14 +339,14 @@ def _crypto_closed_market_brief(snapshot: dict) -> str:
     current = _current_investment_sample(snapshot)
     current_value = current.get("crypto_balance_value")
     if current_value is None:
-        return "Mercado fechado hoje; tirei bolsa, FIIs e agenda da carteira do briefing."
+        return ""
 
     previous = _latest_sample_before(_load_investment_history(), _today())
     previous_value = previous.get("crypto_balance_value") if previous else None
     change = _percent_change(current_value, previous_value)
     if change is None:
-        return "Mercado fechado hoje; tirei bolsa e FIIs do briefing. Cripto segue no radar, sem comparativo salvo."
-    return "Mercado fechado hoje; bolsa e FIIs ficam fora. " + _format_change_sentence("Cripto na carteira", change, "desde o ultimo snapshot")
+        return "Cripto segue no radar, sem comparativo salvo para o fim de semana."
+    return _format_change_sentence("Cripto na carteira", change, "desde o ultimo snapshot")
 
 
 def _investment_brief() -> str:
@@ -378,12 +379,20 @@ def _investment_brief() -> str:
 
 def _portfolio_radar_brief() -> str:
     try:
-        return _polish_pt_br(format_investment_active_radar_brief())
+        return _polish_pt_br(
+            format_investment_active_radar_brief(
+                max_days_until_dividend=DIVIDEND_BRIEF_LOOKAHEAD_DAYS,
+                today=_today(),
+            )
+        )
     except Exception:
         pass
 
     try:
-        report = format_investment_financial_report()
+        report = format_investment_financial_report(
+            max_days_until_dividend=DIVIDEND_BRIEF_LOOKAHEAD_DAYS,
+            today=_today(),
+        )
     except Exception:
         return "Radar da carteira indisponível agora."
 
@@ -441,7 +450,13 @@ def _short_agenda_brief() -> str:
 
 def _dividend_agenda_brief() -> str:
     try:
-        return _polish_pt_br(format_upcoming_dividend_brief(limit=2))
+        return _polish_pt_br(
+            format_upcoming_dividend_brief(
+                limit=2,
+                max_days_until_payment=DIVIDEND_BRIEF_LOOKAHEAD_DAYS,
+                today=_today(),
+            )
+        )
     except Exception:
         return ""
 
@@ -488,14 +503,16 @@ def _write_briefing_cache(path: Path, text: str) -> None:
         return
 
 
-def _build_daily_briefing() -> str:
+def _build_daily_briefing(*, include_greeting: bool = True) -> str:
     market_day = _is_b3_market_day()
-    sections = [
-        _time_greeting(),
+    sections = []
+    if include_greeting:
+        sections.append(_time_greeting())
+    sections.extend([
         _climate_brief(),
         _short_agenda_brief(),
         _investment_brief(),
-    ]
+    ])
     if market_day:
         sections.extend([
             _dividend_agenda_brief(),
@@ -508,13 +525,19 @@ def _build_daily_briefing() -> str:
     return _polish_pt_br(" ".join(part.strip() for part in sections if str(part or "").strip()))
 
 
-def daily_briefing(*, use_cache: bool = True, ttl_seconds: int = DEFAULT_BRIEFING_CACHE_TTL_SECONDS) -> str:
-    if use_cache:
+def daily_briefing(
+    *,
+    use_cache: bool = True,
+    ttl_seconds: int = DEFAULT_BRIEFING_CACHE_TTL_SECONDS,
+    include_greeting: bool = True,
+) -> str:
+    cache_enabled = bool(use_cache and include_greeting)
+    if cache_enabled:
         cached = _read_briefing_cache(BRIEFING_CACHE_PATH, ttl_seconds)
         if cached:
             return cached
-    briefing = _build_daily_briefing()
-    if use_cache:
+    briefing = _build_daily_briefing() if include_greeting else _build_daily_briefing(include_greeting=False)
+    if cache_enabled:
         _write_briefing_cache(BRIEFING_CACHE_PATH, briefing)
     return briefing
 

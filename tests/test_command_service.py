@@ -44,6 +44,23 @@ class CommandServiceTests(unittest.TestCase):
         self.assertEqual(processed_payload["decision"], "allow_read")
         self.assertEqual(processed_payload["target"], "Salvador")
 
+    def test_process_raw_action_applies_axel_brain_confirmation(self):
+        events = []
+        state = FakeRuntimeState()
+        state.axel_brain_plan = {"needs_confirmation": True, "confidence": 0.64, "agent": "system_agent"}
+
+        result = process_raw_action(
+            {"intent": "weather_summary", "target": "Salvador"},
+            state,
+            lambda event, **payload: events.append((event, payload)),
+        )
+
+        self.assertIsInstance(result, Command)
+        self.assertTrue(result.requires_confirmation)
+        self.assertEqual(result.confidence, 0.64)
+        effect = next(payload for event, payload in events if event == "axel_brain_command_effects")
+        self.assertTrue(effect["confirmation_applied"])
+
     def test_process_raw_action_blocks_mismatched_investment_route(self):
         events = []
         state = FakeRuntimeState()
@@ -55,7 +72,7 @@ class CommandServiceTests(unittest.TestCase):
             lambda event, **payload: events.append((event, payload)),
         )
 
-        self.assertIn("Interpretação insegura", result)
+        self.assertIn("Segurei essa ação", result)
         self.assertIn("intent_judge", [event for event, _payload in events])
 
     def test_process_raw_action_uses_llm_intent_judge_when_enabled(self):

@@ -51,6 +51,21 @@ GOLDEN_COMMANDS = [
         "investment_memory_answer",
         {"question": "qual a cotacao de BBAS3"},
     ),
+    (
+        "como o el nino afeta meus investimentos",
+        "investment_memory_answer",
+        {"question": "como o el nino afeta meus investimentos"},
+    ),
+    (
+        "como o el nino afeta o VGIA11?",
+        "investment_memory_answer",
+        {"question": "como o el nino afeta o VGIA11?"},
+    ),
+    (
+        "e o vgia como é afetado?",
+        "investment_memory_answer",
+        {"question": "e o vgia como é afetado?"},
+    ),
     ("monitoramento da carteira", "investment_memory_answer", {"question": "monitoramento da carteira"}),
     ("atualizar carteira em segundo plano", "background_investment_refresh", {}),
     ("relatorio financeiro em segundo plano", "background_investment_report", {}),
@@ -134,6 +149,11 @@ GOLDEN_COMMANDS = [
     ),
     ("crie arquivo teste.txt", "file_create", {"path": "teste.txt"}),
     ("leia arquivo teste.txt", "file_read", {"path": "teste.txt"}),
+    (
+        'analisar arquivos anexados: ["C:/fake/RedesBasico.pdf"] :: oq tem na pagina 2?',
+        "study.analyze_files",
+        {"paths": ["C:/fake/RedesBasico.pdf"], "request": "oq tem na pagina 2?"},
+    ),
     ("listar arquivos", "list_files", {"path": ""}),
     ("liste arquivos", "list_files", {"path": ""}),
     ("crie pasta relatórios", "folder_create", {"path": "relatórios"}),
@@ -310,7 +330,6 @@ class GoldenCommandTests(unittest.TestCase):
         write_names = {
             "agenda_add",
             "agenda_remove",
-            "reminder_add",
             "reminder_remove",
             "keyboard_led_on",
             "keyboard_led_off",
@@ -324,6 +343,14 @@ class GoldenCommandTests(unittest.TestCase):
                 self.assertIsNotNone(spec)
                 self.assertFalse(spec.read_only)
                 self.assertTrue(spec.requires_confirmation)
+
+    def test_reminder_add_is_low_friction(self):
+        ensure_default_actions()
+        spec = get_action("reminder_add")
+
+        self.assertIsNotNone(spec)
+        self.assertFalse(spec.read_only)
+        self.assertFalse(spec.requires_confirmation)
 
     def test_legacy_write_action_params_are_validated(self):
         ok, error = validate_command(

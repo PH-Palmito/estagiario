@@ -16,6 +16,7 @@ from core.axel_brain_contract import (
 from core.command_schema import Command
 from core.intent_complexity import classify_intent_complexity
 from core.normalizer import normalize_action
+from core.response_polish import polish_assistant_response
 from core.router import route_trace
 from core.router_utils import normalize_text
 from core.shared_commands import maybe_handle_shared_command
@@ -93,6 +94,9 @@ class TelegramResponse:
     contract: dict | None = None
     reply_markup: dict | None = None
     callback_query_id: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "text", polish_assistant_response(self.text))
 
 
 def parse_allowed_chat_ids(raw: str) -> set[str]:

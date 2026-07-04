@@ -131,7 +131,7 @@
 - [x] Permitir confirmacao remota segura no Telegram para acoes leves de midia/volume, com acao pendente por chat, expiração curta e log de auditoria.
 - [x] Evoluir confirmacao remota do Telegram com botoes inline de Confirmar/Cancelar.
 - [x] Desativar o modo remoto ampliado no Telegram apos teste pratico, mantendo AxelBrain 2.0 com leitura e midia leve confirmada.
-- [ ] Empacotar o Axel como app real no Windows, para abrir sem terminal, com atalho/menu iniciar/icone e logs acessiveis; deixar para fase final enquanto o projeto ainda muda com frequencia.
+- [x] Empacotar o Axel como app real no Windows, para abrir sem terminal, com atalho/menu iniciar/icone e logs acessiveis; primeira camada por atalhos `Axel.lnk`, `pythonw` e `.tmp/axel-app.log`.
 - [x] No Telegram Bot, aceitar audio/voice memo e transcrever como entrada remota do Axel.
 - [x] Reavaliar futuramente niveis de permissao remota alem de midia/volume somente com modelo de seguranca mais forte; politica atual documentada e centralizada como remoto limitado.
 - [x] Criar primeira camada de comandos compartilhados para terminal, HUD e Telegram: `/status`, `/usage`, `/insights`, `/skills` e `/help`, todos em modo leitura segura.
@@ -179,4 +179,93 @@
 - [x] Evoluir skill de estudos com contexto do ultimo arquivo, respostas de follow-up, arguição, correcao simples, plano de revisao e limpeza de contexto.
 - [x] Implementar juiz de intencao deterministico para bloquear rotas incoerentes antes da execucao, especialmente carteira/app/tela quando o texto do usuario nao combina.
 - [x] Criar primeira camada de duplo agente opcional com LLM para pedidos novos, mistos ou ambiguos: um propositor sugere resposta/acao, um critico compara interpretacao, risco e alternativa antes de executar.
-- [ ] Expor comando/configuracao no HUD para ligar/desligar `AXEL_LLM_INTENT_JUDGE_ENABLED` sem editar `.env`.
+- [x] Expor comando/configuracao no HUD para ligar/desligar `AXEL_LLM_INTENT_JUDGE_ENABLED` sem editar `.env`.
+- [x] Polir UX de startup e respostas de estudo, reduzindo frases repetidas e removendo "Pedido considerado" da fala final.
+- [x] Rodar estabilizacao pratica ampla apos os ajustes de HUD, UX, briefing, lembretes e arquivos.
+
+## Nova fase de prioridade
+
+- [x] Estabilizacao pratica ampla: testar e corrigir rotas erradas, repeticoes, respostas truncadas, contexto esquecido e comandos reais de voz, painel e Telegram.
+  - [x] Evitar saudacao duplicada no startup: a saudacao inicial continua, mas o briefing automatico pos-startup nao abre com outro "bom dia/boa tarde/boa noite".
+  - [x] Proteger perguntas simples de presenca, como "esta ai?" e "axel?", para responderem localmente sem cair em leitura de tela.
+  - [x] Aplicar polimento final tambem nas respostas do Telegram e no envio do polling, para manter acentuacao, pontuacao e texto limpo fora do pipeline local principal.
+  - [x] Aplicar polimento final em mensagens diretas de escuta no terminal, como "Pode falar" e erros de microfone, sem alterar comandos digitados pelo usuario.
+  - [x] Aplicar polimento final tambem nas respostas do WhatsApp local/simulado, mantendo canais remotos com a mesma acentuacao e pontuacao do painel.
+  - [x] Expor `saude do axel`, `check-up do axel` e `diagnostico geral` como comandos compartilhados de leitura, facilitando autoteste em painel, voz e canais remotos.
+  - [x] Trocar fallback de pergunta geral sem chat por resposta acionavel, evitando tela/carteira e sugerindo pesquisa ou mais contexto sem inventar resposta.
+  - [x] Substituir mensagens tecnicas de "interpretacao insegura" por bloqueios mais naturais do juiz, como "segurei essa acao", mantendo a protecao.
+  - [x] Criar `autoteste do axel`/`teste rapido do axel`, validando rotas essenciais de presenca, pergunta geral, tela, investimento e arquivo anexado sem executar actions.
+  - [x] Incluir rota de briefing no autoteste rapido, cobrindo o fluxo diario sem executar o briefing de fato.
+  - [x] Incluir lembrete natural/anual no autoteste rapido, cobrindo uma rota critica do uso diario sem salvar lembrete.
+  - [x] Adicionar atalho visual do autoteste no HUD para rodar o check rapido sem digitar o comando.
+  - [x] Adicionar aliases naturais para o autoteste, como `check rapido do axel` e `verificar axel`.
+  - [x] Incluir comando compartilhado `/status` no autoteste rapido, cobrindo a base usada por painel, voz e canais remotos.
+  - [x] Incluir comando compartilhado `personalidade` no autoteste rapido, cobrindo a camada de tom/proatividade sem alterar preferencias.
+  - [x] Incluir `/model` no autoteste rapido, cobrindo status de provedor/modelo sem alterar configuracao.
+  - [x] Incluir `/skills` no autoteste rapido, cobrindo catalogo de capacidades sem alterar memoria.
+  - [x] Incluir `/usage` no autoteste rapido, cobrindo latencia/uso sem alterar estado.
+  - [x] Validar a estabilizacao acumulada com suite completa: 1505 testes OK.
+  - [x] Adicionar alias `/autoteste` para o check rapido, alinhando com os demais comandos compartilhados.
+  - [x] Incluir `/help` no autoteste rapido, cobrindo descoberta de comandos.
+  - [x] Atualizar `/help` para exibir `/autoteste` como comando compartilhado principal.
+  - [x] Cobrir em teste que `/help` menciona `/autoteste`, evitando regressao na descoberta do check rapido.
+  - [x] Cobrir `/autoteste` no Telegram como comando compartilhado, sem cair no roteamento normal nem executar action.
+  - [x] Plugar comandos compartilhados no WhatsApp e cobrir `/autoteste` sem cair no roteamento normal nem executar action.
+  - [x] Validar suite completa apos Telegram/WhatsApp/autoteste: 1508 testes OK.
+- [x] Arquivos e estudos 2.0: tornar perguntas sobre PDF, slide, pagina, arquivo atual e arquivos anexados mais naturais, com cache por pagina e respostas mais diretas.
+  - [x] Permitir follow-up natural de paginas do arquivo atual, como "e a proxima?", "e a anterior?" e "qual era o projeto mesmo?", mantendo memoria da ultima pagina consultada.
+  - [x] Reusar resposta salva quando a mesma pergunta explicita sobre o arquivo atual for repetida, sem travar sequencias relativas como "e a proxima?".
+  - [x] Criar rota/action explicita para `analisar arquivos anexados: [...] :: pedido`, evitando que comandos de arquivo enviados pelo painel caiam em conversa geral.
+  - [x] Preferir `current_file_path`/ultimo arquivo no contexto de estudo para perguntas como "pagina 2" e "o arquivo fala sobre bananas?", evitando responder por arquivo antigo.
+  - [x] Impedir que follow-ups de arquivo comum, como curriculo ou README, atualizem o card de estudos; apenas material de aula/lista/slide ou pedido explicito de estudo sincroniza esse painel.
+- [x] Memoria e contexto conversacional: lembrar melhor arquivo atual, projeto discutido, ultima pergunta e assunto ativo sem confundir com tela, navegador ou outro arquivo.
+  - [x] Responder "qual foi minha ultima pergunta?" e "qual foi sua ultima resposta?" usando a memoria curta da sessao, ignorando o proprio comando meta.
+  - [x] Adicionar guarda de perguntas gerais antes de tela/carteira, para "quem e X", "o que e X" e "me explique X" ficarem em conversa geral salvo contexto explicito.
+  - [x] Corrigir perguntas financeiras educativas com contexto macro ou ticker, como "como o el nino afeta meus investimentos/VGIA11?", para nao cairem em resposta vazia nem bloqueio falso do juiz.
+  - [x] Fazer "meus investimentos" escapar da conversa geral e ir para a rota financeira correta, incluindo perguntas macro sem ticker.
+  - [x] Resolver follow-up financeiro com ticker abreviado, como "e o vgia como e afetado?", herdando o assunto recente quando a pergunta anterior era sobre El Nino.
+- [x] Briefing e lembretes inteligentes: ajustar antecedencia por tipo de evento, evitar alertas obvios e criar lembretes com menos confirmacao quando o pedido ja tiver data clara.
+  - [x] Melhorar lembrete anual natural, como "todo dia 2 de junho do presente do dia dos namorados dia 12/06", salvando o aviso para 02/06 todo ano sem pedir data de novo e sem guardar a data contextual no texto.
+  - [x] Aplicar janela de 7 dias tambem no fallback do radar financeiro do briefing e buscar mais eventos antes de filtrar, evitando citar proventos distantes enquanto ainda captura pagamentos proximos.
+  - [x] Silenciar a secao financeira do briefing em mercado fechado quando nao houver dado util de cripto ou alerta novo, evitando avisos obvios so para preencher fala.
+- [x] Melhorias de UI/HUD: lapidar layout, controles, cards, estados visuais, historico e botoes uteis sem poluir a tela.
+  - [x] Adicionar comando compartilhado `/personalidade` para consultar status em canais comuns e permitir mudancas apenas no canal local.
+  - [x] Trocar os botoes separados do juiz LLM por um unico controle de estado no HUD, alternando ligar/desligar conforme a configuracao atual.
+  - [x] Adicionar controles visuais de personalidade e proatividade no HUD, refletindo `voice_preferences` sem duplicar a fonte de verdade.
+- [x] Personalidade do Axel: dar mais liberdade controlada para frases naturais, tom proprio, variacao de respostas e presenca menos generica, mantendo acentuacao, pontuacao e seguranca.
+  - [x] Criar camada final de personalidade contextual, com proatividade curta, humor seco opcional e bloqueios para erro critico, frustracao, financas, medicina, juridico e seguranca.
+  - [x] Expor comandos naturais para consultar, ligar e desligar personalidade e proatividade sem editar arquivos de configuracao.
+  - [x] Reforcar polimento final de fala para termos financeiros/macroeconomicos comuns, evitando respostas sem acentuacao como "precos", "inflacao" e "recomendacao".
+
+## Transformar fachada em capacidade real
+
+- [x] Criar inventario honesto de capacidades do Axel, separando `funcional`, `parcial`, `visual/organizacional` e `planejado`.
+- [x] Criar comando `capacidades reais do axel` para mostrar ao usuario o que executa de verdade, o que apenas orienta comportamento e o que ainda esta em construcao.
+- [x] Transformar metas/lista de afazeres em sistema operacional util: consultar prioridade, atualizar status por comando, relacionar meta a arquivos/testes e sugerir proximo passo concreto.
+  - [x] Criar leitura estruturada de `memory/todo.md`, com secao, linha, status e progresso geral.
+  - [x] Criar comandos naturais para consultar prioridades e proximo passo, como `como estamos na lista de prioridades` e `qual o proximo passo`.
+  - [x] Criar comando para atualizar status de metas sem editar o arquivo manualmente.
+  - [x] Relacionar metas a evidencias, arquivos alterados e testes executados.
+- [x] Fazer as metas deixarem rastros verificaveis: cada item importante deve ter evidencia de implementacao, comando relacionado, teste ou motivo claro para continuar parcial.
+- [x] Evoluir agentes especialistas de perfis de roteamento para unidades uteis: cada agente deve ter comandos, responsabilidades praticas, historico de uso e metricas de sucesso.
+- [x] Criar handoff pratico entre agentes quando uma tarefa cruzar dominios, por exemplo arquivo + estudo + memoria ou investimento + pesquisa + briefing.
+- [x] Transformar skills procedurais em capacidades acionaveis: cada skill relevante deve ter gatilhos naturais, exemplos testados, actions ou funcoes ligadas quando fizer sentido.
+- [x] Criar validacao de skills: comando para testar uma skill com exemplos reais e indicar se ela esta pronta, parcial ou apenas documentada.
+- [x] Evoluir AxelBrain para sair de painel de diagnostico e influenciar mais claramente execucao, escolha de modelo, memoria, confirmacao e resposta final.
+- [x] Criar modo de auditoria `o que foi real nessa resposta?`, explicando quais ferramentas, memorias, arquivos ou modelos foram usados sem expor detalhes desnecessarios.
+- [x] Revisar cards do HUD e remover ou renomear qualquer card que prometa algo alem do que o backend realmente entrega.
+- [x] Fazer botoes do HUD que hoje apenas enviam texto virarem controles com estado, resultado e erro visivel quando a funcao permitir.
+- [x] Transformar rankings de skills, toolsets e agentes em feedback util: mostrar o que mais funciona, o que falha e o que precisa de melhoria.
+- [x] Garantir que recursos parcialmente simulados, como LED plugavel ou app Windows por atalho, sejam rotulados como primeira camada ate virarem integracao completa.
+- [x] Adicionar ao autoteste uma checagem de fachada: detectar capacidades anunciadas sem comando real, sem teste ou sem efeito pratico.
+
+## Auditoria final Axel 99%
+
+- [x] Corrigir aceite de respostas truncadas de modelo em conversa aberta, como presente/treino cortados no meio da frase.
+  - Evidencia: `llm/chat.py` rejeita respostas sem pontuacao final quando parecem cortadas; `tests/test_chat_prompt_axel_brain.py` cobre "Um presente generico raramente ac" e "Para treino em casa, focar".
+  - Testes: `python -m unittest tests.test_chat_prompt_axel_brain tests.test_chat_open_advice tests.test_router_conversation tests.test_mixed_conversation_commands tests.test_interactive_modes tests.test_model_selection tests.test_axel_self_check tests.test_conversation_reply tests.test_response_pipeline` = 107 OK.
+- [x] Confirmar por sonda local que perguntas abertas comuns respondem com fallback util quando o modelo falha ou corta resposta.
+  - Evidencia: `pode me ajudar a aprender ingles?`, `"I am doing well" oq significa?`, `ideia de presente para minha namorada` e `dicas de treino em casa` retornaram respostas completas, acentuadas e uteis via `core.router.route`.
+- [x] Confirmar politica de modelo para respostas abertas complexas.
+  - Evidencia: sonda local mostrou `ideia de presente`, `dicas de treino`, `aprender ingles` e pergunta macro de investimentos roteando para `cloud` com modelo `nvidia/llama-3.1-nemotron-ultra-253b-v1` quando nuvem esta disponivel, com fallback local.
+- [ ] Rodada final de experiencia com Axel em execucao real: voz/painel/Telegram, conversa aberta, comandos misturados, arquivos, briefing, lembretes e auditoria "o que foi real nessa resposta?".

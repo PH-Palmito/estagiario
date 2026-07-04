@@ -157,6 +157,7 @@ def detect_investment_question_command(user_input: str):
         "investimentos",
         "rendeu",
         "retorno",
+        "vgia",
         "watchlist",
         "ativo",
         "ativos",
@@ -196,6 +197,10 @@ def detect_investment_question_command(user_input: str):
         "opiniao",
         "risco",
         "riscos",
+        "afeta",
+        "afetado",
+        "afetada",
+        "impacto",
         "tese",
         "comprar",
         "vender",
@@ -208,6 +213,8 @@ def detect_investment_question_command(user_input: str):
         "quanto ",
         "quais ",
         "como ",
+        "e o ",
+        "e a ",
         "me diga ",
         "me fala ",
         "me fale ",
@@ -223,6 +230,7 @@ def detect_investment_question_command(user_input: str):
         "houve ",
     )
     has_ticker = bool(re.search(r"\b[a-z]{4}\d{1,2}\b", lower))
+    has_asset_prefix = bool(re.search(r"\b(?:vgia|bbas|bbse|petr|isae|bbdc|xpml|kncr|cpts|gg rc|ggrc|btci|trbl|pmll)\b", lower))
 
     if "carteira" in lower and any(term in lower for term in {"noticia", "noticias", "fato relevante", "fatos relevantes"}):
         return {"intent": "investment_memory_answer", "target": user_input.strip()}
@@ -236,6 +244,13 @@ def detect_investment_question_command(user_input: str):
         return {"intent": "investment_memory_answer", "target": user_input.strip()}
 
     if has_ticker and (
+        lower.startswith(question_starters)
+        or any(term in lower for term in investment_opinion_terms)
+        or "?" in user_input
+    ):
+        return {"intent": "investment_memory_answer", "target": user_input.strip()}
+
+    if has_asset_prefix and (
         lower.startswith(question_starters)
         or any(term in lower for term in investment_opinion_terms)
         or "?" in user_input

@@ -7,7 +7,11 @@ from core.router_utils import normalize_text
 from core.toolsets import format_relevant_toolsets, format_toolset_catalog
 from core.specialist_agents import format_agent_catalog, format_relevant_agents
 from core.agent_tool_library import format_agent_tool_library
+from core.agent_handoff import format_handoff_plan_for_task
+from core.agent_operations import format_agent_operations_detail, format_agent_operations_overview
+from core.skill_operations import format_actionable_skill_detail, format_actionable_skills_overview
 from memory.long_memory import curate_recent_ui_history, format_clean_long_memory_report, format_long_memory, maybe_remember_from_user_text
+from memory.session import recent_turns
 from memory.operational_context import (
     forget_operational_preference,
     format_operational_context,
@@ -33,6 +37,14 @@ from memory.task_evaluation import (
     format_task_evaluation_summary,
     update_latest_task_evaluation,
 )
+from memory.todo_status import (
+    format_todo_evidence_audit,
+    format_current_priority_evidence,
+    format_next_todo_step,
+    format_todo_priorities,
+    parse_and_add_current_priority_evidence,
+    update_current_priority_status,
+)
 from memory.capability_ranking import format_capability_rankings
 from memory.workflow_planner import (
     close_workflow_plan,
@@ -43,10 +55,74 @@ from memory.workflow_planner import (
 )
 
 
+def _recent_turn_text(role: str, *, skip_meta: bool = False) -> str:
+    for item in reversed(recent_turns(limit=24)):
+        if str(item.get("role") or "").strip() != role:
+            continue
+        text = str(item.get("text") or "").strip()
+        if not text:
+            continue
+        if skip_meta:
+            normalized = normalize_text(text)
+            if any(
+                phrase in normalized
+                for phrase in {
+                    "qual foi minha ultima pergunta",
+                    "qual foi a minha ultima pergunta",
+                    "minha ultima pergunta",
+                    "qual foi sua ultima resposta",
+                    "qual foi a sua ultima resposta",
+                    "sua ultima resposta",
+                    "repita a ultima resposta",
+                    "repetir ultima resposta",
+                }
+            ):
+                continue
+        return text
+    return ""
+
+
+def _format_recent_turn_question(user_input: str) -> str | None:
+    normalized = normalize_text(user_input)
+    if normalized in {
+        "qual foi minha ultima pergunta",
+        "qual foi a minha ultima pergunta",
+        "qual foi minha pergunta anterior",
+        "qual foi a minha pergunta anterior",
+        "minha ultima pergunta",
+        "ultima pergunta que eu fiz",
+        "ultima coisa que eu perguntei",
+    }:
+        question = _recent_turn_text("user", skip_meta=True)
+        if question:
+            return f"Sua ultima pergunta foi: {question}"
+        return "Ainda nao tenho uma pergunta anterior guardada nesta sessao."
+
+    if normalized in {
+        "qual foi sua ultima resposta",
+        "qual foi a sua ultima resposta",
+        "qual foi tua ultima resposta",
+        "sua ultima resposta",
+        "ultima resposta do axel",
+        "repita a ultima resposta",
+        "repetir ultima resposta",
+    }:
+        response = _recent_turn_text("assistant", skip_meta=True)
+        if response:
+            return f"Minha ultima resposta foi: {response}"
+        return "Ainda nao tenho uma resposta anterior guardada nesta sessao."
+
+    return None
+
+
 def maybe_handle_operational_context_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
     compact = re.sub(r"\s+", " ", normalized).strip()
     raw = str(user_input or "").strip()
+
+    recent_turn_answer = _format_recent_turn_question(user_input)
+    if recent_turn_answer:
+        return recent_turn_answer
 
     remember_match = re.match(
         r"^(?:lembre|lembra|memorize|salve|guarde)\s+(?:na\s+)?"
@@ -208,6 +284,85 @@ def maybe_handle_long_memory_command(user_input: str) -> str | None:
         if normalize_text(kind) in {"capacidades", "axel"}:
             kind = "all"
         return format_capability_rankings(kind)
+
+    if normalized in {
+        "prioridades do axel",
+        "prioridade do axel",
+        "lista de prioridades",
+        "lista de afazeres do axel",
+        "afazeres do axel",
+        "metas do axel",
+        "status das metas",
+        "status das metas do axel",
+        "como estamos nas prioridades",
+        "como estamos na lista de prioridades",
+        "como esta a lista de prioridades",
+        "como está a lista de prioridades",
+    }:
+        return format_todo_priorities()
+
+    if normalized in {
+        "auditar evidencias das metas",
+        "auditar evidências das metas",
+        "auditoria de evidencias das metas",
+        "auditoria de evidências das metas",
+        "metas sem evidencia",
+        "metas sem evidência",
+        "quais metas nao tem evidencia",
+        "quais metas não têm evidência",
+        "quais metas nao tem evidencias",
+        "quais metas não têm evidências",
+    }:
+        return format_todo_evidence_audit()
+
+    if normalized in {
+        "proximo passo",
+        "próximo passo",
+        "proximo passo do axel",
+        "próximo passo do axel",
+        "qual o proximo passo",
+        "qual o próximo passo",
+        "qual proximo passo",
+        "qual próximo passo",
+        "o que falta fazer no axel",
+        "oq falta fazer no axel",
+        "o que falta no axel",
+        "oq falta no axel",
+    }:
+        return format_next_todo_step()
+
+    todo_update_match = re.match(
+        r"^(?P<action>concluir|conclua|finalizar|finalize|marcar|marque)\s+"
+        r"(?:a\s+)?(?:meta|tarefa|prioridade|item)\s+(?P<index>\d+)"
+        r"(?:\s+(?:como\s+)?(?P<state>concluida|concluída|feita|feito|ok))?$",
+        raw,
+        flags=re.I,
+    )
+    if todo_update_match:
+        return update_current_priority_status(int(todo_update_match.group("index")), done=True)
+
+    todo_evidence_show_match = re.match(
+        r"^(?:mostrar|mostre|ver|consultar|consulte)\s+"
+        r"(?:a\s+)?(?:evidencia|evidência|evidencias|evidências)\s+"
+        r"(?:da\s+)?(?:meta|tarefa|prioridade|item)\s+(?P<index>\d+)$",
+        raw,
+        flags=re.I,
+    )
+    if todo_evidence_show_match:
+        return format_current_priority_evidence(int(todo_evidence_show_match.group("index")))
+
+    todo_evidence_add_match = re.match(
+        r"^(?:registrar|registre|adicionar|adicione|salvar|salve)\s+"
+        r"(?:a\s+)?(?:evidencia|evidência|evidencias|evidências)\s+"
+        r"(?:da\s+)?(?:meta|tarefa|prioridade|item)\s+(?P<index>\d+)\s*(?::|-)?\s*(?P<evidence>.+)$",
+        raw,
+        flags=re.I,
+    )
+    if todo_evidence_add_match:
+        return parse_and_add_current_priority_evidence(
+            int(todo_evidence_add_match.group("index")),
+            todo_evidence_add_match.group("evidence"),
+        )
 
     if normalized in {
         "autoavaliacao de tarefas",
@@ -373,6 +528,25 @@ def maybe_handle_long_memory_command(user_input: str) -> str | None:
         return format_skill_catalog()
 
     if normalized in {
+        "skills acionaveis",
+        "skills acionáveis",
+        "skills funcionais",
+        "status das skills",
+        "status das skills do axel",
+        "capacidades das skills",
+    }:
+        return format_actionable_skills_overview()
+
+    actionable_skill_match = re.match(
+        r"^(?:detalhar|detalhe|mostrar|mostre|status|validar|valide)\s+"
+        r"(?:a\s+)?(?:skill|procedimento)\s+(?P<skill>.+)$",
+        raw,
+        flags=re.I,
+    )
+    if actionable_skill_match:
+        return format_actionable_skill_detail(actionable_skill_match.group("skill"))
+
+    if normalized in {
         "sugestoes de skills",
         "sugestoes de skill",
         "skills sugeridas",
@@ -445,6 +619,34 @@ def maybe_handle_long_memory_command(user_input: str) -> str | None:
     )
     if toolset_match:
         return format_relevant_toolsets(toolset_match.group(1), limit=3)
+
+    if normalized in {
+        "agentes operacionais",
+        "agentes operacionais do axel",
+        "status dos agentes",
+        "status dos agentes do axel",
+        "painel dos agentes",
+        "painel de agentes",
+    }:
+        return format_agent_operations_overview()
+
+    agent_detail_match = re.match(
+        r"^(?:detalhar|detalhe|mostrar|mostre|status|painel)\s+"
+        r"(?:do\s+)?(?:agente\s+)?(?P<agent>[a-zA-Z0-9_-]+(?:_agent)?|programacao|programação|pesquisa|investimentos|navegacao|navegação|sistema|memoria|memória|voz)$",
+        raw,
+        flags=re.I,
+    )
+    if agent_detail_match:
+        return format_agent_operations_detail(agent_detail_match.group("agent"))
+
+    handoff_match = re.match(
+        r"^(?:handoff|planejar agentes|planeje agentes|quais agentes|cadeia de agentes|orquestrar agentes)\s+"
+        r"(?:para|pra|sobre|de)?\s*(?P<task>.+)$",
+        raw,
+        flags=re.I,
+    )
+    if handoff_match:
+        return format_handoff_plan_for_task(handoff_match.group("task"))
 
     if normalized in {
         "listar agentes",

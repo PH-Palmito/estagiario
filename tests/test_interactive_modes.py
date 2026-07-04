@@ -85,6 +85,79 @@ class InteractiveModesTests(unittest.TestCase):
         self.assertTrue(result.handled)
         self.assertEqual(result.message, "Bom dia, chefe.")
 
+    def test_conversation_mode_lets_clear_commands_route_normally(self):
+        result = handle_interactive_modes(
+            "abrir youtube",
+            self._state(conversation_mode=True),
+            voice_mode=True,
+            hotword_mode=False,
+            hotkey_name="F8",
+            waiting_for_direct_response=lambda: False,
+            set_voice_status=lambda status: None,
+            type_text=lambda text: "",
+            chat_response=lambda text: self.fail("chat should not run for commands"),
+        )
+
+        self.assertFalse(result.handled)
+        self.assertTrue(result.state.conversation_mode)
+
+    def test_conversation_mode_lets_operational_questions_route_normally(self):
+        result = handle_interactive_modes(
+            "agenda de hoje",
+            self._state(conversation_mode=True),
+            voice_mode=True,
+            hotword_mode=False,
+            hotkey_name="F8",
+            waiting_for_direct_response=lambda: False,
+            set_voice_status=lambda status: None,
+            type_text=lambda text: "",
+            chat_response=lambda text: self.fail("chat should not run for routed questions"),
+        )
+
+        self.assertFalse(result.handled)
+        self.assertTrue(result.state.conversation_mode)
+
+    def test_conversation_mode_lets_trailing_commands_route_normally(self):
+        examples = [
+            "me explica redes e abre youtube",
+            "me explica redes e toca musica para estudar",
+            "me explica redes e pesquise tcp no youtube",
+        ]
+
+        for phrase in examples:
+            with self.subTest(phrase=phrase):
+                result = handle_interactive_modes(
+                    phrase,
+                    self._state(conversation_mode=True),
+                    voice_mode=True,
+                    hotword_mode=False,
+                    hotkey_name="F8",
+                    waiting_for_direct_response=lambda: False,
+                    set_voice_status=lambda status: None,
+                    type_text=lambda text: "",
+                    chat_response=lambda text: self.fail("chat should not run for trailing commands"),
+                )
+
+                self.assertFalse(result.handled)
+                self.assertTrue(result.state.conversation_mode)
+
+    def test_conversation_mode_keeps_open_chat_inside_mode(self):
+        result = handle_interactive_modes(
+            "pode me ajudar a aprender inglês?",
+            self._state(conversation_mode=True),
+            voice_mode=True,
+            hotword_mode=False,
+            hotkey_name="F8",
+            waiting_for_direct_response=lambda: False,
+            set_voice_status=lambda status: None,
+            type_text=lambda text: "",
+            chat_response=lambda text: "",
+        )
+
+        self.assertTrue(result.handled)
+        self.assertIn("inglês", result.message.lower())
+        self.assertIn("misturar português e inglês", result.message.lower())
+
     def test_conversation_waits_for_direct_response(self):
         result = handle_interactive_modes(
             "sim",

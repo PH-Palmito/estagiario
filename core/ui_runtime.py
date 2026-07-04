@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -34,6 +35,8 @@ class UIRuntimeService:
         self.python_executable = python_executable or sys.executable
         self._bridge: UIBridge | None = None
         self.silent_command_active = False
+        self.active_command_id = ""
+        self.active_command_text = ""
 
     def bridge(self) -> UIBridge:
         if self._bridge is None:
@@ -84,6 +87,32 @@ class UIRuntimeService:
             return ""
 
         self.silent_command_active = bool(queued_item.get("silent", False))
+        self.active_command_id = str(queued_item.get("id") or "").strip()
+        self.active_command_text = queued
         self.append_ui_history("user", queued, max_items=self.history_max_items)
-        refresh_runtime_state({"last_heard": queued})
+        refresh_runtime_state({
+            "last_heard": queued,
+            "command_feedback": {
+                "id": self.active_command_id,
+                "command": queued,
+                "status": "processing",
+                "message": "Comando em processamento.",
+                "at": time.time(),
+            },
+        })
         return queued
+
+    def complete_active_command(self, message: str, *, status: str = "success") -> None:
+        if not self.active_command_id:
+            return
+        self.refresh_runtime_state({
+            "command_feedback": {
+                "id": self.active_command_id,
+                "command": self.active_command_text,
+                "status": str(status or "success"),
+                "message": str(message or "").strip()[:500],
+                "at": time.time(),
+            }
+        })
+        self.active_command_id = ""
+        self.active_command_text = ""

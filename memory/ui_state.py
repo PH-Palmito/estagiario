@@ -1,6 +1,7 @@
 import time
 from pathlib import Path
 
+from config import LLM_INTENT_JUDGE_ENABLED
 from core.performance_mode import configured_performance_mode, performance_settings
 from memory.json_store import read_json_file, update_json_file, write_json_atomic
 from memory.supabase_sync import sync_memory_state_safely
@@ -19,6 +20,9 @@ DEFAULT_UI_STATE = {
     "assistant_style": "jarvis",
     "performance_mode": configured_performance_mode(),
     "performance_settings": performance_settings().as_dict(),
+    "llm_intent_judge_enabled": LLM_INTENT_JUDGE_ENABLED,
+    "assistant_personality_enabled": True,
+    "assistant_proactivity_enabled": True,
     "voice_profile": "",
     "hotword_enabled": False,
     "conversation_mode": False,
@@ -32,6 +36,7 @@ DEFAULT_UI_STATE = {
     "last_route_trace": {},
     "skill_suggestions": [],
     "observability": {},
+    "command_feedback": {},
     "active_panel": "",
     "open_panels": [],
     "map_panel_open": False,

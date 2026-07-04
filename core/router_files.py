@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import re
+
 from core.router_utils import normalize_text
+from core.study_file_analysis import parse_study_file_command
 
 FILE_CONTEXT_WORDS = {
     "arquivo",
@@ -32,11 +35,24 @@ def _has_file_context(lower: str) -> bool:
     return any(word in lower for word in FILE_CONTEXT_WORDS)
 
 
+def _strip_file_conversation_tail(text: str) -> str:
+    raw = str(text or "").strip()
+    normalized = normalize_text(raw)
+    for pattern in (
+        r"\s+(?:e\s+depois|e|ai|aí|depois)\s+(?:me\s+)?(?:da|dá|de|dê|fala|explique|explica|mostra|mostre|resume|resuma|recomenda|recomende|avisa|avise)\b",
+        r"\s+(?:e\s+depois|e|ai|aí|depois)\s+(?:abre|abra|toca|toque|coloca|coloque|foca|foque|lembre|lembra)\b",
+    ):
+        match = re.search(pattern, normalized)
+        if match:
+            return raw[: match.start()].strip(" .,:;-")
+    return raw
+
+
 def detect_create_file(user_input: str):
     lower = normalize_text(user_input)
     for prefix in ["crie um arquivo ", "crie arquivo ", "criar arquivo "]:
         if lower.startswith(prefix):
-            name = user_input[len(prefix):].strip()
+            name = _strip_file_conversation_tail(user_input[len(prefix):])
             if name:
                 return {"intent": "create_file", "target": name}
     return None
@@ -72,11 +88,21 @@ def detect_read_file(user_input: str):
     lower = normalize_text(user_input)
     for prefix in ["leia o arquivo ", "leia arquivo ", "leia "]:
         if lower.startswith(prefix):
-            name = user_input[len(prefix):].strip()
+            name = _strip_file_conversation_tail(user_input[len(prefix):])
             return {"intent": "read_file", "target": name if name else None}
     if lower == "leia":
         return {"intent": "read_file", "target": None}
     return None
+
+
+def detect_study_file_analysis(user_input: str):
+    parsed = parse_study_file_command(user_input)
+    if not parsed:
+        return None
+    paths, request = parsed
+    if not paths:
+        return None
+    return {"intent": "study_analyze_files", "target": {"paths": paths, "request": request}}
 
 
 def detect_delete_file(user_input: str):
@@ -91,7 +117,7 @@ def detect_delete_file(user_input: str):
     ]
     for prefix in prefixes:
         if lower.startswith(prefix):
-            name = user_input[len(prefix):].strip()
+            name = _strip_file_conversation_tail(user_input[len(prefix):])
             return {"intent": "delete_file", "target": name if name else None}
     if lower in {"delete", "apague", "remova"}:
         return {"intent": "delete_file", "target": None}
@@ -170,6 +196,7 @@ def detect_create_folder(user_input: str):
 
 
 FILE_DETECTORS = [
+    detect_study_file_analysis,
     detect_create_file,
     detect_write_file,
     detect_append_file,

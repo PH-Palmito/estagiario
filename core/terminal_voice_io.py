@@ -4,6 +4,8 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from core.response_polish import polish_assistant_response
+
 
 @dataclass
 class TerminalVoiceIO:
@@ -89,7 +91,7 @@ class TerminalVoiceIO:
             return typed
 
         if announce_ready:
-            self.terminal_print(f"IA: {ready_message}")
+            self.terminal_print(f"IA: {polish_assistant_response(ready_message)}")
         listen = listener or listen_once
         heard = listen()
 
@@ -108,7 +110,7 @@ class TerminalVoiceIO:
         }:
             return ""
 
-        self.terminal_print(f"IA: {heard.error}")
+        self.terminal_print(f"IA: {polish_assistant_response(heard.error)}")
 
         if not fallback_to_text:
             return ""

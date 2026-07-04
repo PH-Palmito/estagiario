@@ -23,6 +23,17 @@ def normalize_action(old_action: dict) -> Command:
             source="router",
         )
 
+    if intent == "study_analyze_files":
+        payload = target if isinstance(target, dict) else {}
+        return Command(
+            action="study.analyze_files",
+            params={
+                "paths": payload.get("paths") or [],
+                "request": payload.get("request", ""),
+            },
+            source="router",
+        )
+
     if intent == "open_app":
         return Command(
             action="open_app",
@@ -200,6 +211,7 @@ def normalize_action(old_action: dict) -> Command:
         "windows_startup_enable",
         "windows_startup_disable",
         "windows_startup_status",
+        "windows_app_status",
         "background_status",
         "background_latest_result",
         "background_notifications",
@@ -215,6 +227,17 @@ def normalize_action(old_action: dict) -> Command:
             action=intent,
             params={},
             source="router",
+        )
+
+    if intent in {
+        "windows_app_install",
+        "windows_app_uninstall",
+    }:
+        return Command(
+            action=intent,
+            params={},
+            source="router",
+            requires_confirmation=True,
         )
 
     if intent in {"keyboard_led_on", "keyboard_led_set"}:

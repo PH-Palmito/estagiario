@@ -122,6 +122,81 @@ class StudyFileCommandTests(unittest.TestCase):
         show_hud.assert_not_called()
         update_ui.assert_called_once_with({"study_snapshot": {}})
 
+    def test_general_file_followup_does_not_refresh_study_panel(self):
+        save_study_context(
+            {
+                "files": [
+                    {
+                        "path": "C:/fake/cv Pedro.docx",
+                        "name": "cv Pedro.docx",
+                        "kind": "docx",
+                        "text": "Pedro Henrique Objetivo Academico Engenharia de Software React Native Supabase Git.",
+                        "raw_text": "Pedro Henrique Objetivo Academico Engenharia de Software React Native Supabase Git.",
+                        "topic": "curriculo profissional",
+                    }
+                ],
+                "current_file_path": "C:/fake/cv Pedro.docx",
+                "last_file_path": "C:/fake/cv Pedro.docx",
+            }
+        )
+
+        with patch("core.study_commands.update_ui_state") as update_ui:
+            result = maybe_handle_study_command("o arquivo fala sobre React?", Mock(return_value="hud"))
+
+        self.assertIn("react", result.lower())
+        update_ui.assert_not_called()
+
+    def test_study_file_followup_refreshes_study_snapshot_without_opening_panel(self):
+        save_study_context(
+            {
+                "files": [
+                    {
+                        "path": "C:/fake/RedesBasico.pdf",
+                        "name": "RedesBasico.pdf",
+                        "kind": "pdf",
+                        "text": "Redes de Computadores Comunicacao Digital Conceitos Basicos Professor Marco Antonio.",
+                        "raw_text": "Redes de Computadores Comunicacao Digital Conceitos Basicos Professor Marco Antonio.",
+                        "topic": "Redes de Computadores",
+                    }
+                ],
+                "current_file_path": "C:/fake/RedesBasico.pdf",
+                "last_file_path": "C:/fake/RedesBasico.pdf",
+            }
+        )
+
+        with patch("core.study_commands.study_snapshot", return_value={}), patch(
+            "core.study_commands.update_ui_state"
+        ) as update_ui:
+            result = maybe_handle_study_command("o arquivo fala sobre bananas?", Mock(return_value="hud"))
+
+        self.assertIn("bananas", result)
+        update_ui.assert_called_once_with({"study_snapshot": {}})
+
+    def test_general_file_self_test_does_not_refresh_study_panel(self):
+        save_study_context(
+            {
+                "files": [
+                    {
+                        "path": "C:/fake/README_CineRadar.md",
+                        "name": "README_CineRadar.md",
+                        "kind": "text",
+                        "text": "Sobre o projeto CineRadar. Como executar o projeto. Tecnologias utilizadas.",
+                        "raw_text": "Sobre o projeto CineRadar. Como executar o projeto. Tecnologias utilizadas.",
+                        "topic": "projeto CineRadar",
+                        "pages": [],
+                    }
+                ],
+                "current_file_path": "C:/fake/README_CineRadar.md",
+                "last_file_path": "C:/fake/README_CineRadar.md",
+            }
+        )
+
+        with patch("core.study_commands.update_ui_state") as update_ui:
+            result = maybe_handle_study_command("testar arquivo atual", Mock(return_value="hud"))
+
+        self.assertIn("Auto teste do arquivo atual: README_CineRadar.md", result)
+        update_ui.assert_not_called()
+
     def test_file_context_does_not_steal_general_background_commands(self):
         save_study_context(
             {
@@ -142,6 +217,23 @@ class StudyFileCommandTests(unittest.TestCase):
         self.assertIsNone(maybe_handle_study_command("o que tem na tela?", Mock(return_value="hud")))
         self.assertIsNone(maybe_handle_study_command("analisar grafico", Mock(return_value="hud")))
         self.assertIsNone(maybe_handle_study_command("leia arquivo teste.txt", Mock(return_value="hud")))
+
+    def test_file_context_does_not_steal_general_study_help_request(self):
+        save_study_context(
+            {
+                "files": [
+                    {
+                        "path": "C:/fake/clinicas.html",
+                        "name": "clinicas.html",
+                        "text": "Cadastro de clinicas e pacientes.",
+                        "raw_text": "Cadastro de clinicas e pacientes.",
+                        "topic": "clinicas",
+                    }
+                ]
+            }
+        )
+
+        self.assertIsNone(maybe_handle_study_command("pode me ajudar a estudar redes?", Mock(return_value="hud")))
 
     def test_file_context_still_answers_file_followups(self):
         save_study_context(

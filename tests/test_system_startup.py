@@ -4,7 +4,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tools.system_tools import enable_windows_startup, windows_startup_diagnostics, windows_startup_status
+from tools.system_tools import (
+    enable_windows_startup,
+    install_windows_app_shortcuts,
+    uninstall_windows_app_shortcuts,
+    windows_app_status,
+    windows_startup_diagnostics,
+    windows_startup_status,
+)
 
 
 class SystemStartupTests(unittest.TestCase):
@@ -73,6 +80,50 @@ class SystemStartupTests(unittest.TestCase):
         self.assertFalse(diagnostics["outdated"])
         self.assertIn("--startup", diagnostics["expected_command"])
         self.assertIn("axel-startup.log", diagnostics["log_path"])
+
+    def test_install_windows_app_shortcuts_creates_start_menu_and_desktop_entries(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            user = Path(tmpdir) / "user"
+            appdata = user / "AppData" / "Roaming"
+            desktop = user / "Desktop"
+            desktop.mkdir(parents=True)
+
+            def fake_shortcut(path, **_kwargs):
+                Path(path).parent.mkdir(parents=True, exist_ok=True)
+                Path(path).write_text("shortcut", encoding="utf-8")
+
+            with (
+                patch.dict(os.environ, {"APPDATA": str(appdata), "USERPROFILE": str(user)}),
+                patch("tools.system_tools._create_windows_shortcut", side_effect=fake_shortcut),
+            ):
+                result = install_windows_app_shortcuts()
+                status = windows_app_status()
+                start_exists = (appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Axel" / "Axel.lnk").exists()
+                desktop_exists = (desktop / "Axel.lnk").exists()
+
+        self.assertIn("App do Axel instalado", result)
+        self.assertIn("App do Axel: instalado", status)
+        self.assertTrue(start_exists)
+        self.assertTrue(desktop_exists)
+
+    def test_uninstall_windows_app_shortcuts_removes_entries(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            user = Path(tmpdir) / "user"
+            appdata = user / "AppData" / "Roaming"
+            desktop = user / "Desktop"
+            start_shortcut = appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Axel" / "Axel.lnk"
+            desktop_shortcut = desktop / "Axel.lnk"
+            start_shortcut.parent.mkdir(parents=True)
+            desktop_shortcut.parent.mkdir(parents=True)
+            start_shortcut.write_text("shortcut", encoding="utf-8")
+            desktop_shortcut.write_text("shortcut", encoding="utf-8")
+
+            with patch.dict(os.environ, {"APPDATA": str(appdata), "USERPROFILE": str(user)}):
+                result = uninstall_windows_app_shortcuts()
+
+        self.assertIn("removidos", result)
+        self.assertFalse(start_shortcut.exists())
+        self.assertFalse(desktop_shortcut.exists())
 
     def _startup_entry(self, appdata: str) -> Path:
         return (

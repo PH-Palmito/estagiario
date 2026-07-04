@@ -4,6 +4,13 @@ import difflib
 from collections.abc import Callable
 
 from memory.assistant_customization import get_axel_introduction
+from core.router_conversation import (
+    _looks_like_weak_open_response,
+    detect_builtin_general_answer,
+    practical_question_response,
+    remember_useful_conversation_topic,
+    useful_conversation_response,
+)
 from core.router_utils import normalize_text
 
 ChatResponse = Callable[[str], str]
@@ -25,7 +32,7 @@ def conversation_reply(user_input: str, chat_response: ChatResponse) -> str:
 
     if "tudo bem" in normalized or "como voce" in normalized or "como vc" in normalized:
         response = chat_response(user_input)
-        return response or "Tudo bem por aqui. E voce?"
+        return response or "Tudo bem por aqui. E você?"
 
     if "bom dia" in normalized:
         response = chat_response(user_input)
@@ -55,16 +62,30 @@ def conversation_reply(user_input: str, chat_response: ChatResponse) -> str:
         return get_axel_introduction()
 
     if difflib.SequenceMatcher(None, normalized, "qual o seu nome").ratio() >= 0.78:
-        return "Meu nome e Axel."
+        return "Meu nome é Axel."
 
     if any(phrase in normalized for phrase in {"quantos anos voce tem", "voce nasceu quando", "voce e novo"}):
-        return "Bem, eu nasci ontem. Metaforicamente, pelo menos. Ainda estou aprendendo a ser util sem tropeçar nos cadarços."
+        return "Bem, eu nasci ontem. Metaforicamente, pelo menos. Ainda estou aprendendo a ser útil sem tropeçar nos cadarços."
 
     if any(phrase in normalized for phrase in {"voce pensa", "voce sente", "voce e consciente"}):
-        return "Ainda nao chamaria isso de consciencia. Por enquanto, sou mais uma colecao organizada de impulsos tentando ser prestativa."
+        return "Ainda não chamaria isso de consciência. Por enquanto, sou mais uma coleção organizada de impulsos tentando ser prestativa."
+
+    builtin = detect_builtin_general_answer(user_input)
+    if builtin:
+        response = str(builtin.get("response") or "").strip()
+        if response:
+            return response
+
+    useful = useful_conversation_response(user_input)
+    practical = practical_question_response(user_input)
+    fallback = useful or practical
 
     response = chat_response(user_input)
-    if response:
+    if response and not (fallback and _looks_like_weak_open_response(response)):
         return response
+
+    if fallback:
+        remember_useful_conversation_topic(user_input, fallback)
+        return fallback
 
     return "Acho que eu ouvi meio torto. Repete de outro jeito?"

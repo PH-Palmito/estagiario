@@ -32,6 +32,7 @@ from core.pronunciation_commands import maybe_handle_pronunciation_command as ma
 from core.project_health import format_project_health_panel
 from core.reminder_announcer import ReminderAnnouncer
 from core.response_pipeline import ResponsePipeline
+from core.response_provenance import begin_response_provenance
 from core.router import route, route_trace
 from core.router_utils import normalize_text
 from core.routine_execution import (
@@ -184,6 +185,7 @@ def process_action(raw_action: dict):
 
 def route_user_input(user_input: str, *, source: str = "turn") -> dict:
     started_at = time.perf_counter()
+    begin_response_provenance()
     trace = route_trace(user_input)
     raw_action = (
         trace.match.result
@@ -353,6 +355,18 @@ def output_response(
     if result.repeat_listen_until is not None:
         assistant_state.repeat_listen_until = result.repeat_listen_until
     assistant_state.direct_response_ready_announced = result.direct_response_ready_announced
+    ui_runtime = get_ui_runtime()
+    if ui_runtime.active_command_id:
+        normalized = normalize_text(result.styled_message)
+        failure = any(
+            marker in normalized
+            for marker in ("nao consegui", "erro", "falha", "invalido", "indisponivel")
+        )
+        if assistant_state.pending_command is not None:
+            feedback_status = "waiting_confirmation"
+        else:
+            feedback_status = "error" if failure else "success"
+        ui_runtime.complete_active_command(result.styled_message, status=feedback_status)
 
 
 def get_response_pipeline() -> ResponsePipeline:
@@ -424,7 +438,7 @@ def maybe_send_startup_briefing(voice_mode: bool):
         state_path=STARTUP_BRIEFING_STATE_PATH,
         greeting_variants=STARTUP_GREETING_VARIANTS,
         next_phrase=next_phrase,
-        daily_briefing=daily_briefing,
+        daily_briefing=lambda: daily_briefing(use_cache=False, include_greeting=False),
         output_response=output_response,
     )
 

@@ -27,6 +27,14 @@ class TtsTextTests(unittest.TestCase):
         self.assertIn("cinco mil miliampere hora", result)
         self.assertIn("cento e vinte e oito gigabytes", result)
 
+    def test_prepare_tts_text_does_not_spell_common_uppercase_words(self):
+        result = prepare_tts_text("UM JOGO COM OS AMIGOS.")
+
+        self.assertIn("um", result)
+        self.assertIn("com", result)
+        self.assertNotIn("u eme", result)
+        self.assertNotIn("cê ó eme", result)
+
     def test_prepare_tts_text_applies_custom_pronunciations(self):
         result = prepare_tts_text("Codex abriu.", {"Codex": "Codecs"})
 

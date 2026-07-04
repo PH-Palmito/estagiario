@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from actions.registry import ActionSpec, register_action
+from core.study_file_analysis import analyze_study_files
 from memory.study import (
     add_study_goal,
     add_study_review,
@@ -27,8 +28,18 @@ def _register(name: str, description: str, handler, parameters: dict | None = No
 def register_study_actions() -> None:
     text_param = {"text": {"type": "string", "description": "Texto informado pelo usuario.", "required": True}}
     index_param = {"index": {"type": "string", "description": "Numero da revisao.", "required": True}}
+    file_analysis_params = {
+        "paths": {"type": "array", "description": "Arquivos a analisar.", "required": True},
+        "request": {"type": "string", "description": "Pedido do usuario sobre os arquivos.", "required": False},
+    }
     _register("study.status", "Mostra metas, revisoes e progresso de estudos.", lambda _args: format_study_panel())
     _register("study.snapshot", "Retorna snapshot estruturado dos estudos.", lambda _args: study_snapshot())
+    _register(
+        "study.analyze_files",
+        "Analisa arquivos anexados ou informados pelo usuario.",
+        lambda args: analyze_study_files(args.get("paths") or [], request=args.get("request", "")),
+        file_analysis_params,
+    )
     _register("study.add_goal", "Adiciona meta de estudo.", lambda args: add_study_goal(args.get("text", "")), text_param, read_only=False)
     _register("study.add_review", "Adiciona revisao de estudo.", lambda args: add_study_review(args.get("text", "")), text_param, read_only=False)
     _register("study.complete_review", "Conclui revisao pendente.", lambda args: complete_study_review(args.get("index", "1")), index_param, read_only=False)

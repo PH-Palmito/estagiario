@@ -40,6 +40,70 @@ class TelegramGatewayTests(unittest.TestCase):
         self.assertEqual(result.text, "Oi.")
         self.assertEqual(result.contract["channel"], "remote")
 
+    def test_direct_response_is_polished(self):
+        fake_trace = Mock()
+        fake_trace.match = Mock(
+            result={"intent": "respond", "response": "Nao encontrei precos claros. O que voce quer?"},
+            intent_level="conversa",
+            group_name="conversation",
+            detector_name="detect_test",
+        )
+        fake_trace.checked_detectors = 1
+        fake_trace.checked_groups = ["conversation"]
+        with patch.object(gateway, "route_trace", return_value=fake_trace):
+            result = gateway.handle_telegram_update(
+                {"message": {"chat": {"id": 123}, "text": "oi"}},
+                allowed_chat_ids={"123"},
+            )
+
+        self.assertEqual(result.text, "Não encontrei preços claros. O que você quer?")
+
+    @patch("core.router_conversation.chat_response", return_value=None)
+    def test_open_conversation_uses_real_useful_fallback(self, _chat):
+        result = gateway.handle_telegram_update(
+            {"message": {"chat": {"id": 123}, "text": "ideia de presente para minha namorada"}},
+            allowed_chat_ids={"123"},
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.action, "respond")
+        self.assertIn("presente", result.text)
+        self.assertNotIn("Não vou inventar", result.text)
+
+    @patch("core.router_conversation.chat_response", return_value=None)
+    def test_practical_question_uses_real_practical_fallback(self, _chat):
+        result = gateway.handle_telegram_update(
+            {"message": {"chat": {"id": 123}, "text": "qual a receita de bolo de cenoura?"}},
+            allowed_chat_ids={"123"},
+        )
+
+        self.assertTrue(result.ok)
+        self.assertIn("bolo de cenoura", result.text)
+        self.assertNotIn("Não vou inventar", result.text)
+
+    @patch("core.router_conversation.chat_response", return_value=None)
+    def test_learning_conversation_uses_real_useful_fallback(self, _chat):
+        result = gateway.handle_telegram_update(
+            {"message": {"chat": {"id": 123}, "text": "me ajuda a estudar redes"}},
+            allowed_chat_ids={"123"},
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.action, "respond")
+        self.assertIn("perguntas de fixação", result.text)
+        self.assertNotIn("Não vou inventar", result.text)
+
+    def test_mixed_conversation_search_routes_to_action_remotely(self):
+        result = gateway.handle_telegram_update(
+            {"message": {"chat": {"id": 123}, "text": "me explica redes e pesquise tcp no youtube"}},
+            allowed_chat_ids={"123"},
+        )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.contract["route"]["intent"], "browser_search_site")
+        self.assertNotEqual(result.contract["route"]["intent"], "respond")
+
     def test_parse_voice_message_metadata(self):
         request = gateway.parse_inbound_update(
             {
@@ -64,7 +128,7 @@ class TelegramGatewayTests(unittest.TestCase):
 
         self.assertFalse(result.ok)
         self.assertEqual(result.status, "audio_transcription_unavailable")
-        self.assertIn("Recebi o audio", result.text)
+        self.assertIn("Recebi o áudio", result.text)
 
     def test_voice_message_transcription_reuses_text_flow(self):
         fake_trace = Mock()
@@ -119,6 +183,20 @@ class TelegramGatewayTests(unittest.TestCase):
         self.assertIn("undo_last", shared.call_args.kwargs)
         route_trace.assert_not_called()
 
+    @patch.object(gateway, "maybe_handle_shared_command", return_value="Autoteste rápido do Axel: 13/13 rotas essenciais OK.")
+    def test_shared_self_check_command_returns_without_routing_action(self, shared):
+        with patch.object(gateway, "route_trace") as route_trace:
+            result = gateway.handle_telegram_update(
+                {"message": {"chat": {"id": 123}, "text": "/autoteste"}},
+                allowed_chat_ids={"123"},
+            )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.action, "shared_command")
+        self.assertIn("13/13", result.text)
+        self.assertEqual(shared.call_args.args, ("/autoteste",))
+        route_trace.assert_not_called()
+
     def test_allows_read_command(self):
         fake_trace = Mock()
         fake_trace.match = Mock(
@@ -139,9 +217,30 @@ class TelegramGatewayTests(unittest.TestCase):
             )
 
         self.assertTrue(result.ok)
-        self.assertEqual(result.text, "Briefing do dia")
+        self.assertEqual(result.text, "Briefing do dia.")
         self.assertEqual(result.action, "daily_briefing")
         self.assertTrue(result.contract["remote_policy"]["can_execute"])
+
+    def test_action_response_is_polished(self):
+        fake_trace = Mock()
+        fake_trace.match = Mock(
+            result={"intent": "investment_memory_answer", "target": "teste"},
+            intent_level="pergunta",
+            group_name="investment_questions",
+            detector_name="detect_investment_question_command",
+        )
+        fake_trace.checked_detectors = 2
+        fake_trace.checked_groups = ["investment_questions"]
+        with (
+            patch.object(gateway, "route_trace", return_value=fake_trace),
+            patch.object(gateway, "execute_telegram_command", return_value="Juros/inflacao afetam precos. Nao e recomendacao."),
+        ):
+            result = gateway.handle_telegram_update(
+                {"message": {"chat": {"id": 123}, "text": "teste"}},
+                allowed_chat_ids={"123"},
+            )
+
+        self.assertEqual(result.text, "Juros/inflação afetam preços. Não é recomendação.")
 
     def test_blocks_write_command_even_from_allowed_chat(self):
         fake_trace = Mock()
@@ -160,7 +259,7 @@ class TelegramGatewayTests(unittest.TestCase):
             )
 
         self.assertFalse(result.ok)
-        self.assertIn("confirmacao no PC", result.text)
+        self.assertIn("confirmação no PC", result.text)
         self.assertFalse(result.contract["remote_policy"]["can_execute"])
 
     def test_confirmation_help_after_pending_remote_action_is_explicit(self):
@@ -187,7 +286,7 @@ class TelegramGatewayTests(unittest.TestCase):
         self.assertFalse(blocked.ok)
         self.assertEqual(blocked.status, "confirmation_required")
         self.assertTrue(help_response.ok)
-        self.assertIn("Confirmar acao remota", help_response.text)
+        self.assertIn("Confirmar ação remota", help_response.text)
         self.assertIn("confirmar/cancelar", help_response.text)
         self.assertIn("inline_keyboard", help_response.reply_markup)
 
@@ -325,7 +424,7 @@ class TelegramGatewayTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual(result.status, "remote_mode_disabled")
         self.assertIn("leitura segura", result.text)
-        self.assertIn("midia/volume", result.text)
+        self.assertIn("mídia/volume", result.text)
         self.assertIn("Bloqueado", result.text)
 
     def test_retry_reuses_last_non_conversation_command(self):

@@ -3,7 +3,7 @@ from core.router_basic import BASIC_EARLY_DETECTORS, BASIC_LATE_DETECTORS
 from core.router_browser import BROWSER_DETECTORS
 from core.router_browser_controls import BROWSER_CONTROL_DETECTORS
 from core.router_code import CODE_DETECTORS
-from core.router_conversation import CONVERSATION_DETECTORS
+from core.router_conversation import CONVERSATION_DETECTORS, GENERAL_QUESTION_DETECTORS
 from core.router_daily import DAILY_DETECTORS
 from core.router_fast_path import FAST_PATH_DETECTORS
 from core.router_files import FILE_DETECTORS
@@ -41,6 +41,7 @@ ROUTER_GROUP_DEFINITIONS = [
     ("investment_strategy", INVESTMENT_STRATEGY_DETECTORS, INTENT_LEVEL_DIRECT_COMMAND),
     ("system_input", SYSTEM_INPUT_DETECTORS, INTENT_LEVEL_DIRECT_COMMAND),
     ("basic_early", BASIC_EARLY_DETECTORS, INTENT_LEVEL_DIRECT_COMMAND),
+    ("general_questions", GENERAL_QUESTION_DETECTORS, INTENT_LEVEL_CONVERSATION),
     ("memory", MEMORY_DETECTORS, INTENT_LEVEL_QUESTION),
     ("voice", VOICE_DETECTORS, INTENT_LEVEL_DIRECT_COMMAND),
     ("code", CODE_DETECTORS, INTENT_LEVEL_DIRECT_COMMAND),

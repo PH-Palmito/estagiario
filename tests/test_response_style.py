@@ -61,6 +61,26 @@ class ResponseStyleTests(unittest.TestCase):
 
         self.assertEqual(result, "Perfeitamente. Abrindo Chrome.")
 
+    def test_axel_replacement(self):
+        result = style_response(
+            "Abrindo chrome.",
+            preferences={"assistant_style": "axel"},
+            variants=VARIANTS,
+            next_phrase=first_phrase,
+        )
+
+        self.assertEqual(result, "Na mao. Abrindo Chrome.")
+
+    def test_axel_ready_prompt_uses_direct_variant(self):
+        result = style_response(
+            "Pode falar.",
+            preferences={"assistant_style": "axel", "assistant_address_user": "chefe"},
+            variants=VARIANTS,
+            next_phrase=first_phrase,
+        )
+
+        self.assertEqual(result, "Estou ouvindo.")
+
     def test_jarvis_ready_prompt_uses_addressed_variant(self):
         result = style_response(
             "Pode falar.",

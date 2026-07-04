@@ -6,6 +6,7 @@ from core.ui_runtime_labels import assistant_style_label, ui_mode_label, voice_p
 class UIRuntimeLabelTests(unittest.TestCase):
     def test_assistant_style_label_prefers_explicit_style(self):
         self.assertEqual(assistant_style_label({"assistant_style": "jarvis", "assistant_humor_style": "seco"}), "jarvis")
+        self.assertEqual(assistant_style_label({"assistant_style": "axel", "assistant_humor_style": "jarvis"}), "axel")
 
     def test_assistant_style_label_falls_back_to_humor(self):
         self.assertEqual(assistant_style_label({"assistant_humor_enabled": True, "assistant_humor_style": "seco"}), "seco")

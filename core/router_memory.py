@@ -93,8 +93,28 @@ def detect_memory_command(user_input: str):
         cleaned_input,
         flags=re.I,
     )
-    memory_match = explicit_memory_match or preference_match or project_idea_match
+    generic_idea_match = re.match(
+        r"^(?:lembre|lembra|memorize|salve|guarde|registre|anote)\s+"
+        r"(?:uma\s+|a\s+)?(?:ideia|idéia)(?:\s+(?:sobre|de|para)\s+(.+))?$",
+        cleaned_input,
+        flags=re.I,
+    )
+    memory_match = explicit_memory_match or preference_match or project_idea_match or generic_idea_match
     if memory_match:
+        if generic_idea_match and not project_idea_match:
+            subject = (generic_idea_match.group(1) or "").strip(" .")
+            namespace = _memory_namespace_from_text(subject, default="general")
+            if namespace == "general" and subject:
+                namespace = "projects"
+            fact = f"ideia sobre {subject}" if subject else "ideia sem detalhes"
+            return {
+                "intent": "action_memory_remember",
+                "target": {
+                    "namespace": namespace,
+                    "key": _memory_key_from_text(fact),
+                    "value": fact,
+                },
+            }
         fact = memory_match.group(1).strip(" .")
         if fact:
             if project_idea_match:

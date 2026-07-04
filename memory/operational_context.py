@@ -60,6 +60,8 @@ PREFERENCE_KEYS = (
     "assistant_humor_enabled",
     "assistant_humor_style",
     "assistant_humor_level",
+    "assistant_personality_enabled",
+    "assistant_proactivity_enabled",
     "chat_enabled",
     "chat_model",
     "tts_enabled",
@@ -388,6 +390,14 @@ def _format_preference_summary(preferences: dict) -> str:
             parts.append(f"humor {humor_style} nivel {humor_level}")
         else:
             parts.append("humor desligado")
+
+    if "assistant_personality_enabled" in preferences:
+        personality = "personalidade ligada" if bool(preferences.get("assistant_personality_enabled")) else "personalidade desligada"
+        parts.append(personality)
+
+    if "assistant_proactivity_enabled" in preferences:
+        proactivity = "proatividade ligada" if bool(preferences.get("assistant_proactivity_enabled")) else "proatividade desligada"
+        parts.append(proactivity)
 
     if "chat_model" in preferences:
         parts.append(f"modelo de chat {preferences.get('chat_model')}")

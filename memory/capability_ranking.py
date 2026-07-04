@@ -63,7 +63,51 @@ def _finalize(stats: dict) -> dict:
     stats["error_rate"] = round((failure + adjustment) / total, 3) if total else 0.0
     stats["utility"] = round(utility, 3)
     stats["recent_actions"] = list(stats.get("recent_actions") or [])[:5]
+    status, reason, next_step = _capability_feedback(stats)
+    stats["feedback_status"] = status
+    stats["feedback_reason"] = reason
+    stats["recommended_next_step"] = next_step
     return stats
+
+
+def _capability_feedback(stats: dict) -> tuple[str, str, str]:
+    total = int(stats.get("total") or 0)
+    success = int(stats.get("success") or 0)
+    failure = int(stats.get("failure") or 0)
+    adjustment = int(stats.get("needs_adjustment") or 0)
+    error_rate = (failure + adjustment) / total if total else 0.0
+    recent_actions = [str(item) for item in (stats.get("recent_actions") or [])[:3] if str(item).strip()]
+    action_hint = ", ".join(recent_actions) if recent_actions else "sem action recente registrada"
+
+    if not total:
+        return (
+            "sem dados",
+            "ainda não há avaliações suficientes",
+            "usar em tarefas reais antes de decidir se vale promover ou ajustar",
+        )
+    if failure and error_rate >= 0.5:
+        return (
+            "precisa de correção",
+            f"{failure} falha(s) e {adjustment} ajuste(s) em {total} uso(s)",
+            f"revisar rota, exemplos e testes ligados a {action_hint}",
+        )
+    if failure or adjustment:
+        return (
+            "observar",
+            f"{failure} falha(s) e {adjustment} ajuste(s) em {total} uso(s)",
+            f"acompanhar próximas execuções e ajustar se repetir em {action_hint}",
+        )
+    if success >= 3:
+        return (
+            "confiável",
+            f"{success} sucesso(s) sem falhas registradas",
+            "manter como rota preferencial quando o contexto combinar",
+        )
+    return (
+        "promissor",
+        f"{success} sucesso(s), mas pouca amostra",
+        "coletar mais avaliações antes de tratar como padrão forte",
+    )
 
 
 def capability_rankings(limit: int = 8, *, path: Path | None = None) -> dict:
@@ -108,12 +152,80 @@ def _format_rows(title: str, rows: list[dict]) -> str:
         return f"{title}: sem dados suficientes."
     parts = []
     for index, item in enumerate(rows[:5], start=1):
+        actions = ", ".join(str(value) for value in (item.get("recent_actions") or [])[:3]) or "sem ação recente"
         parts.append(
-            f"{index}. {item['name']} utilidade {item['utility']}; "
+            f"{index}. {item['name']}: {item.get('feedback_status', 'sem diagnóstico')}; "
             f"{item['success']} sucesso(s), {item['failure']} falha(s), "
-            f"{item['needs_adjustment']} ajuste(s), uso {item['total']}"
+            f"{item['needs_adjustment']} ajuste(s), uso {item['total']}; "
+            f"motivo: {item.get('feedback_reason', 'sem motivo registrado')}; "
+            f"ações recentes: {actions}; próximo passo: {item.get('recommended_next_step', 'continuar observando')}"
         )
     return f"{title}: " + " | ".join(parts) + "."
+
+
+def _weak_rows(rows: list[dict], limit: int = 3) -> list[dict]:
+    candidates = [
+        row
+        for row in rows
+        if int(row.get("failure") or 0) or int(row.get("needs_adjustment") or 0)
+    ]
+    candidates.sort(
+        key=lambda row: (
+            float(row.get("error_rate") or 0.0),
+            int(row.get("total") or 0),
+            float(row.get("last_seen") or 0.0),
+        ),
+        reverse=True,
+    )
+    return candidates[:limit]
+
+
+def format_capability_feedback(kind: str = "all", *, limit: int = 5) -> str:
+    rankings = capability_rankings(limit=max(limit, 8))
+    normalized = _clean(kind).lower()
+    aliases = {
+        "skills": "skill",
+        "skill": "skill",
+        "toolsets": "toolset",
+        "toolset": "toolset",
+        "agentes": "agent",
+        "agente": "agent",
+        "agents": "agent",
+        "agent": "agent",
+        "acoes": "action",
+        "ações": "action",
+        "actions": "action",
+        "action": "action",
+    }
+    labels = {
+        "skill": "skills",
+        "toolset": "toolsets",
+        "agent": "agentes",
+        "action": "actions",
+    }
+    selected = aliases.get(normalized)
+    dimensions = [selected] if selected else ["agent", "toolset", "skill"]
+    sections: list[str] = []
+    next_steps: list[str] = []
+    for dimension in dimensions:
+        rows = rankings.get(dimension) or []
+        label = labels.get(dimension, dimension)
+        if not rows:
+            sections.append(f"{label}: sem dados suficientes")
+            continue
+        best = rows[0]
+        weak = _weak_rows(rows, limit=2)
+        sections.append(
+            f"{label}: melhor sinal é {best.get('name')} ({best.get('feedback_status')}, "
+            f"{best.get('success')} sucesso(s) em {best.get('total')} uso(s))"
+        )
+        for row in weak:
+            next_steps.append(
+                f"{label}/{row.get('name')}: {row.get('recommended_next_step')}"
+            )
+    if next_steps:
+        return "Feedback de capacidades: " + "; ".join(sections) + ". Atenção prática: " + "; ".join(next_steps[:4]) + "."
+    return "Feedback de capacidades: " + "; ".join(sections) + ". Sem correção prioritária registrada agora."
 
 
 def format_capability_rankings(kind: str = "all", *, limit: int = 5) -> str:

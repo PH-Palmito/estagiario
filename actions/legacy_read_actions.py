@@ -13,7 +13,7 @@ from services import briefing_service, investment_service, vision_service
 from tools.bluetooth_tools import bluetooth_status
 from tools.file_tools import list_files, read_file
 from tools.smart_open_tools import list_smart_memory
-from tools.system_tools import windows_startup_status
+from tools.system_tools import windows_app_status, windows_startup_status
 from tools.weather_tools import weather_summary
 
 
@@ -86,6 +86,12 @@ def register_legacy_read_actions() -> None:
         "windows_startup_status",
         "Mostra se o Axel esta configurado para iniciar com o Windows.",
         lambda _args: windows_startup_status(),
+        category="system",
+    )
+    _register(
+        "windows_app_status",
+        "Mostra se o app do Axel esta instalado no Windows.",
+        lambda _args: windows_app_status(),
         category="system",
     )
     _register("list_smart_memory", "Lista atalhos inteligentes salvos.", lambda _args: list_smart_memory(), category="system")

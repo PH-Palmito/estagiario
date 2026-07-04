@@ -50,6 +50,12 @@ def current_humor_description(preferences: MutableMapping[str, object]) -> str:
     return f"Humor atual: {display}, intensidade {max(0, min(3, level))} de 3."
 
 
+def current_personality_description(preferences: MutableMapping[str, object]) -> str:
+    personality = "ligada" if bool(preferences.get("assistant_personality_enabled", True)) else "desligada"
+    proactivity = "ligada" if bool(preferences.get("assistant_proactivity_enabled", True)) else "desligada"
+    return f"Personalidade do Axel: {personality}. Proatividade: {proactivity}. {current_humor_description(preferences)}"
+
+
 def apply_humor_settings(
     preferences: MutableMapping[str, object],
     refresh_preferences: Callable[[], None],
@@ -86,6 +92,27 @@ def apply_humor_settings(
     return current_humor_description(preferences)
 
 
+def apply_personality_settings(
+    preferences: MutableMapping[str, object],
+    refresh_preferences: Callable[[], None],
+    *,
+    personality_enabled: bool | None = None,
+    proactivity_enabled: bool | None = None,
+) -> str:
+    changes = {}
+    if personality_enabled is not None:
+        changes["assistant_personality_enabled"] = bool(personality_enabled)
+    if proactivity_enabled is not None:
+        changes["assistant_proactivity_enabled"] = bool(proactivity_enabled)
+    if not changes:
+        return current_personality_description(preferences)
+
+    update_voice_preferences(changes)
+    preferences.update(changes)
+    refresh_preferences()
+    return current_personality_description(preferences)
+
+
 def humor_test_response(preferences: MutableMapping[str, object]) -> str:
     style = str(preferences.get("assistant_humor_style", "seco")).strip().lower()
     enabled = bool(preferences.get("assistant_humor_enabled", True))
@@ -118,6 +145,40 @@ def maybe_handle_humor_command(
 
     if normalized in {"testar humor", "teste de humor", "testar personalidade", "teste de personalidade"}:
         return humor_test_response(preferences)
+
+    if normalized in {
+        "personalidade atual",
+        "personalidade do axel",
+        "modo personalidade",
+        "status da personalidade",
+        "qual personalidade",
+        "qual a personalidade",
+    }:
+        return current_personality_description(preferences)
+
+    if normalized in {"ligar personalidade", "liga personalidade", "ativar personalidade", "ativa personalidade"}:
+        return apply_personality_settings(preferences, refresh_preferences, personality_enabled=True)
+
+    if normalized in {
+        "desligar personalidade",
+        "desliga personalidade",
+        "desativar personalidade",
+        "desativa personalidade",
+        "sem personalidade",
+    }:
+        return apply_personality_settings(preferences, refresh_preferences, personality_enabled=False)
+
+    if normalized in {"ligar proatividade", "liga proatividade", "ativar proatividade", "ativa proatividade"}:
+        return apply_personality_settings(preferences, refresh_preferences, proactivity_enabled=True)
+
+    if normalized in {
+        "desligar proatividade",
+        "desliga proatividade",
+        "desativar proatividade",
+        "desativa proatividade",
+        "sem proatividade",
+    }:
+        return apply_personality_settings(preferences, refresh_preferences, proactivity_enabled=False)
 
     if normalized in {"humor atual", "qual humor", "qual o humor", "modo humor"}:
         return current_humor_description(preferences)
@@ -153,5 +214,8 @@ def maybe_handle_humor_command(
     if level_match:
         level = int(level_match.group(1))
         return apply_humor_settings(preferences, refresh_preferences, level=level)
+
+    if "personalidade" in normalized or "proatividade" in normalized:
+        return "Nao identifiquei a configuracao. Tente: personalidade atual, ligar personalidade, desligar personalidade, ligar proatividade ou desligar proatividade."
 
     return "Nao identifiquei o humor. Tente: humor jarvis, humor seco, humor reflexivo, humor leve ou humor neutro."

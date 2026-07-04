@@ -10,7 +10,8 @@ from core.router_registry import (
     INTENT_LEVEL_DIRECT_COMMAND,
     INTENT_LEVEL_QUESTION,
 )
-from core.specialist_agents import agent_for_toolset, select_agents
+from core.skill_operations import match_actionable_skill
+from core.specialist_agents import agent_for_toolset, find_agent, select_agents
 from core.toolsets import select_toolsets
 
 HIGH_RISK_INTENTS = {
@@ -110,16 +111,25 @@ def build_decision_plan(
     action = raw_action or {}
     intent = str(action.get("intent") or "respond").strip() or "respond"
     level = str(intent_level or INTENT_LEVEL_CONVERSATION).strip() or INTENT_LEVEL_CONVERSATION
+    skill_match = match_actionable_skill(user_input) if intent == "respond" else None
     selected = select_toolsets(f"{user_input} {intent}", limit=1)
-    if selected:
+    if skill_match:
+        toolset = str(skill_match["toolset"])
+        skill_agent = find_agent(str(skill_match["agent"])) or {}
+        model_policy = str(skill_agent.get("model_policy") or "local_first")
+        toolset_reason = f"skill {skill_match['name']} por gatilho {skill_match['matched_trigger']}"
+    elif selected:
         toolset = str(selected[0]["name"])
         model_policy = str(selected[0]["default_model_policy"])
         toolset_reason = "toolset por gatilho"
     else:
         toolset, model_policy = _fallback_toolset(intent, level)
         toolset_reason = "toolset por fallback de intent"
-    selected_agents = select_agents(f"{user_input} {intent}", toolset=toolset, limit=1)
-    agent = str((selected_agents[0] if selected_agents else agent_for_toolset(toolset)).get("name") or "dev_agent")
+    if skill_match:
+        agent = str(skill_match["agent"])
+    else:
+        selected_agents = select_agents(f"{user_input} {intent}", toolset=toolset, limit=1)
+        agent = str((selected_agents[0] if selected_agents else agent_for_toolset(toolset)).get("name") or "dev_agent")
     chain = build_handoff_chain(user_input, intent, primary_toolset=toolset, primary_agent=agent)
     coordination_mode = "multi_agent_handoff" if handoff_needed(
         user_input,

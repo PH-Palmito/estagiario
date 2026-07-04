@@ -6,10 +6,11 @@ from dataclasses import dataclass
 
 from config import LLM_INTENT_JUDGE_ENABLED, OLLAMA_TEXT_MODEL
 from core.command_schema import Command
-from core.intent_judge import IntentJudgeResult
+from core.intent_judge import IntentJudgeResult, text_has_investment_context
 from core.permission_policy import command_requires_confirmation, command_requires_strong_confirmation
 from core.router_utils import normalize_text
 from llm.ollama_client import ask_model
+from memory.ui_state import load_ui_state
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,17 @@ RISKY_ACTIONS = {
     "file_rename",
     "folder_create",
 }
+READ_ONLY_INVESTMENT_ANSWERS = {"investment.answer", "investment_memory_answer"}
+
+
+def is_llm_intent_judge_enabled() -> bool:
+    try:
+        state = load_ui_state()
+        if isinstance(state, dict) and "llm_intent_judge_enabled" in state:
+            return bool(state.get("llm_intent_judge_enabled"))
+    except Exception:
+        pass
+    return bool(LLM_INTENT_JUDGE_ENABLED)
 
 
 def _action_name(command: Command) -> str:
@@ -64,11 +76,13 @@ def should_request_llm_intent_review(
     route_trace: dict | None = None,
     decision_plan: dict | None = None,
 ) -> bool:
-    if not LLM_INTENT_JUDGE_ENABLED:
+    if not is_llm_intent_judge_enabled():
         return False
 
     action = _action_name(command)
     if not action or action == "respond":
+        return False
+    if action in READ_ONLY_INVESTMENT_ANSWERS and text_has_investment_context(user_input):
         return False
 
     plan = decision_plan or {}

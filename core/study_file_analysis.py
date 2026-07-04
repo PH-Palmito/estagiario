@@ -291,6 +291,21 @@ def _is_page_only_reference(reference: str) -> bool:
     )
 
 
+def _strip_study_payload_tail(payload: str) -> tuple[str, str | None]:
+    raw = str(payload or "").strip()
+    normalized = _plain(raw)
+    for pattern, request in (
+        (r"\s+(?:e\s+depois|e|ai|aí|depois)\s+(?:me\s+)?(?:explique|explica|fala|fale)\b", "explique"),
+        (r"\s+(?:e\s+depois|e|ai|aí|depois)\s+(?:me\s+)?(?:resuma|resume)\b", "resuma"),
+        (r"\s+(?:e\s+depois|e|ai|aí|depois)\s+(?:me\s+)?(?:crie|cria|gere|gera|faca|faça)\s+(?:perguntas|questoes|questões)\b", "gere questoes"),
+        (r"\s+(?:e\s+depois|e|ai|aí|depois)\s+(?:me\s+)?(?:da|dá|de|dê|recomenda|recomende|avisa|avise)\b", None),
+    ):
+        match = re.search(pattern, normalized)
+        if match:
+            return raw[: match.start()].strip(" .,:;-"), request
+    return raw, None
+
+
 def parse_study_file_command(user_input: str) -> tuple[list[str], str] | None:
     raw = str(user_input or "").strip()
     if re.match(r"^(?:ler|leia|ver|veja)\s+(?:o\s+)?arquivo\b", raw, flags=re.I):
@@ -323,16 +338,17 @@ def parse_study_file_command(user_input: str) -> tuple[list[str], str] | None:
     )
     if flexible_natural_match:
         reference = flexible_natural_match.group(1).strip(" .,:;-\"'?!")
+        reference, tail_request = _strip_study_payload_tail(reference)
         if _plain(reference) in {"tela", "a tela", "na tela", "isso", "ai", "aqui"}:
             return None
         if _is_page_only_reference(reference):
             return None
         resolved = _resolve_file_reference_by_name(reference)
         if resolved:
-            return [resolved], f"o que tem no arquivo {reference}"
+            return [resolved], tail_request or f"o que tem no arquivo {reference}"
         if _plain(reference) in {"arquivo", "documento", "pdf", "slide", "slides"}:
             return None
-        return [reference], f"o que tem no arquivo {reference}"
+        return [reference], tail_request or f"o que tem no arquivo {reference}"
 
     natural_match = re.match(
         r"^(?:o\s*que|oque|oq)\s+(?:tem|ha|há)\s+(?:no|nesse|neste|naquele)?\s*arquivo\s+(.+?)\s*$",
@@ -341,10 +357,11 @@ def parse_study_file_command(user_input: str) -> tuple[list[str], str] | None:
     )
     if natural_match:
         reference = natural_match.group(1).strip(" .,:;-\"'")
+        reference, tail_request = _strip_study_payload_tail(reference)
         resolved = _resolve_file_reference_by_name(reference)
         if resolved:
-            return [resolved], f"o que tem no arquivo {reference}"
-        return [reference], f"o que tem no arquivo {reference}"
+            return [resolved], tail_request or f"o que tem no arquivo {reference}"
+        return [reference], tail_request or f"o que tem no arquivo {reference}"
 
     match = re.match(
         r"^(?:analisar|analise|analisa|ler|leia|resumir|resuma|estudar|estude|explicar|explique|falar sobre|fale sobre|ver|veja|gerar questoes de|fazer questoes de)\s+"
@@ -377,6 +394,10 @@ def parse_study_file_command(user_input: str) -> tuple[list[str], str] | None:
         if separator in payload:
             payload, request = payload.split(separator, 1)
             break
+    else:
+        payload, tail_request = _strip_study_payload_tail(payload)
+        if tail_request:
+            request = tail_request
 
     paths: list[str] = []
     if payload.startswith("["):
@@ -606,7 +627,7 @@ def _study_request_kind(request: str) -> str:
 
 def request_is_study_or_practice(request: str) -> bool:
     plain = _plain(request)
-    if "nome do projeto" in plain or "qual o projeto" in plain or "projeto do arquivo" in plain:
+    if "nome do projeto" in plain or "qual o projeto" in plain or "qual era o projeto" in plain or "projeto do arquivo" in plain:
         return False
     return any(
         word in plain
@@ -1301,7 +1322,7 @@ def _answer_specific_file_request(name: str, text: str, request: str) -> str | N
 
     sections = _markdown_sections(text)
 
-    if "nome do projeto" in plain or "qual o projeto" in plain or "projeto do arquivo" in plain:
+    if "nome do projeto" in plain or "qual o projeto" in plain or "qual era o projeto" in plain or "projeto do arquivo" in plain:
         return _answer_project_name_from_file(name, text, _topic_from_text(text))
 
     if any(phrase in plain for phrase in {"conceitos principais", "principais conceitos", "topicos principais", "tópicos principais"}):
@@ -1420,12 +1441,15 @@ def _content_subject_from_request(request: str) -> str:
             "material",
             "esse material",
             "nesse material",
+            "conteudo",
+            "esse conteudo",
+            "nesse conteudo",
         }:
             return subject
     return ""
 
 
-def _requested_page_number(request: str) -> int | None:
+def _requested_page_number(request: str, current_page_number: int | None = None) -> int | None:
     plain = _plain(request)
     digit_match = re.search(r"(?:pagina|pag|p)\s*(\d+)|(\d+)\s*(?:pagina|pag)", plain)
     if digit_match:
@@ -1468,7 +1492,111 @@ def _requested_page_number(request: str) -> int | None:
     for word, number in number_words.items():
         if re.search(rf"\b(?:pagina\s+{word}|{word}\s+pagina)\b", plain):
             return number
+    current = int(current_page_number or 0)
+    if current > 0:
+        next_phrases = {
+            "proxima pagina",
+            "pagina proxima",
+            "pagina seguinte",
+            "seguinte pagina",
+            "proximo slide",
+            "slide seguinte",
+            "e a proxima",
+            "e a seguinte",
+        }
+        previous_phrases = {
+            "pagina anterior",
+            "anterior pagina",
+            "slide anterior",
+            "e a anterior",
+        }
+        if any(phrase in plain for phrase in next_phrases):
+            return current + 1
+        if any(phrase in plain for phrase in previous_phrases):
+            return max(1, current - 1)
     return None
+
+
+def _context_current_page_number(context: dict) -> int | None:
+    try:
+        stored = int(context.get("last_page_number") or 0)
+    except Exception:
+        stored = 0
+    if stored > 0:
+        return stored
+    return _requested_page_number(str(context.get("request") or ""))
+
+
+def _current_study_file_context(context: dict) -> dict:
+    files = context.get("files") if isinstance(context, dict) else []
+    if not isinstance(files, list) or not files:
+        return {}
+    clean_files = [item for item in files if isinstance(item, dict)]
+    if not clean_files:
+        return {}
+
+    preferred_paths = [
+        str(context.get("current_file_path") or "").strip(),
+        str(context.get("last_file_path") or "").strip(),
+    ]
+    for preferred in [path for path in preferred_paths if path]:
+        preferred_identity = _analysis_path_identity(preferred)
+        for item in reversed(clean_files):
+            item_identity = _analysis_path_identity(str(item.get("path") or ""))
+            if item_identity and item_identity == preferred_identity:
+                return item
+    return clean_files[-1]
+
+
+def current_study_context_matches_study_panel(context: dict | None = None, request: str = "") -> bool:
+    if request_is_study_or_practice(request):
+        return True
+    if context is None:
+        try:
+            context = load_study_context()
+        except Exception:
+            context = {}
+    first = _current_study_file_context(context or {})
+    if not first:
+        return False
+    text = str(first.get("raw_text") or first.get("text") or "")
+    return _looks_like_study_material(text)
+
+
+def _remember_study_followup_response(
+    context: dict,
+    request: str,
+    response: str,
+    *,
+    page_number: int | None = None,
+) -> None:
+    if not isinstance(context, dict):
+        return
+    updated = dict(context)
+    updated["request"] = request
+    updated["last_response"] = response
+    if page_number is not None:
+        updated["last_page_number"] = page_number
+    try:
+        save_study_context(updated)
+    except Exception:
+        pass
+
+
+def _cached_study_followup_response(
+    context: dict,
+    request: str,
+    *,
+    current_page_number: int | None = None,
+) -> str | None:
+    if not isinstance(context, dict):
+        return None
+    if _requested_page_number(request) is None and _requested_page_number(request, current_page_number=current_page_number) is not None:
+        return None
+    if _plain(str(context.get("request") or "")) != _plain(request):
+        return None
+    cached = str(context.get("last_response") or "").strip()
+    return cached or None
 
 
 def _answer_content_subject(name: str, text: str, request: str, topic: str = "") -> str | None:
@@ -1482,8 +1610,8 @@ def _answer_content_subject(name: str, text: str, request: str, topic: str = "")
     return f"Não. No trecho extraído de {name}, não encontrei menção clara a {subject}. O material parece falar sobre {topic or _topic_from_text(text) or 'outro assunto'}."
 
 
-def _answer_page_request(name: str, pages: list, request: str) -> str | None:
-    number = _requested_page_number(request)
+def _answer_page_request(name: str, pages: list, request: str, current_page_number: int | None = None) -> str | None:
+    number = _requested_page_number(request, current_page_number=current_page_number)
     if number is None:
         return None
     clean_pages = [page for page in pages if isinstance(page, dict)]
@@ -1575,6 +1703,8 @@ def _asks_for_file_type_answer(normalized: str) -> bool:
         "pdf",
         "slide",
         "slides",
+        "conteudo",
+        "conteúdo",
         "apresentacao",
         "powerpoint",
         "pptx",
@@ -1616,7 +1746,12 @@ def _should_answer_study_followup(normalized: str) -> bool:
     if _requested_page_number(normalized) is not None:
         return True
 
-    if "nome do projeto" in normalized or "qual o projeto" in normalized or "projeto do arquivo" in normalized:
+    if (
+        "nome do projeto" in normalized
+        or "qual o projeto" in normalized
+        or "qual era o projeto" in normalized
+        or "projeto do arquivo" in normalized
+    ):
         return True
 
     if has_file_reference:
@@ -1692,26 +1827,47 @@ def _answer_study_followup_raw(user_input: str) -> str | None:
         ("conceit" in normalized and "principal" in normalized)
         or any(term in normalized for term in {"tcp", "udp", "osi", "protocolo", "camadas", "roteador", "switch"})
     )
-    if not _should_answer_study_followup(normalized) and not forced_study_followup:
+    current_page_number = _context_current_page_number(context if isinstance(context, dict) else {})
+    relative_page_followup = _requested_page_number(normalized, current_page_number=current_page_number) is not None
+    if not _should_answer_study_followup(normalized) and not forced_study_followup and not relative_page_followup:
         return None
 
-    if "nome do projeto" in normalized or "qual o projeto" in normalized or "projeto do arquivo" in normalized:
-        first = files[0] if isinstance(files[0], dict) else {}
+    cached_followup = _cached_study_followup_response(context, raw, current_page_number=current_page_number)
+    if cached_followup:
+        return cached_followup
+
+    if (
+        "nome do projeto" in normalized
+        or "qual o projeto" in normalized
+        or "qual era o projeto" in normalized
+        or "projeto do arquivo" in normalized
+    ):
+        first = _current_study_file_context(context)
         name = str(first.get("name") or "arquivo")
         text = str(first.get("raw_text") or first.get("text") or "")
-        return _answer_project_name_from_file(name, text, str(first.get("topic") or ""))
+        answer = _answer_project_name_from_file(name, text, str(first.get("topic") or ""))
+        _remember_study_followup_response(context, raw, answer)
+        return answer
 
-    first = files[0] if isinstance(files[0], dict) else {}
+    first = _current_study_file_context(context)
     first_name = str(first.get("name") or "arquivo")
     first_text = str(first.get("raw_text") or first.get("text") or "")
     first_topic = str(first.get("topic") or "").strip()
 
-    page_answer = _answer_page_request(first_name, first.get("pages") if isinstance(first.get("pages"), list) else [], raw)
+    page_number = _requested_page_number(raw, current_page_number=current_page_number)
+    page_answer = _answer_page_request(
+        first_name,
+        first.get("pages") if isinstance(first.get("pages"), list) else [],
+        raw,
+        current_page_number=current_page_number,
+    )
     if page_answer:
+        _remember_study_followup_response(context, raw, page_answer, page_number=page_number)
         return page_answer
 
     content_answer = _answer_content_subject(first_name, first_text, raw, first_topic)
     if content_answer:
+        _remember_study_followup_response(context, raw, content_answer)
         return content_answer
 
     file_reference_terms = {
@@ -1722,6 +1878,8 @@ def _answer_study_followup_raw(user_input: str) -> str | None:
         "pdf",
         "slide",
         "slides",
+        "conteudo",
+        "conteúdo",
         "apresentacao",
         "apresentação",
         "powerpoint",
@@ -1750,7 +1908,7 @@ def _answer_study_followup_raw(user_input: str) -> str | None:
         topic = first_topic
         text = first_text
         presentation_like = bool(first.get("presentation_like")) or _looks_like_slide_deck_text(text)
-        return _format_file_type_answer(
+        answer = _format_file_type_answer(
             name=name,
             kind=kind,
             suffix=suffix,
@@ -1758,6 +1916,8 @@ def _answer_study_followup_raw(user_input: str) -> str | None:
             text=text,
             presentation_like=presentation_like,
         )
+        _remember_study_followup_response(context, raw, answer)
+        return answer
 
     if "arquivo" in normalized or forced_study_followup or any(word in normalized for word in {"integrantes", "tecnologias", "executar", "testes", "bugs", "status", "slogan", "conceitos", "topicos", "tópicos", "protocolo", "tcp", "udp", "osi", "camadas", "rede", "redes"}):
         specific = _answer_specific_file_request(
@@ -1766,10 +1926,11 @@ def _answer_study_followup_raw(user_input: str) -> str | None:
             raw,
         )
         if specific:
+            _remember_study_followup_response(context, raw, specific)
             return specific
 
     if any(phrase in normalized for phrase in {"sobre o que", "do que se trata", "qual o assunto", "que assunto"}):
-        first = files[0] if isinstance(files[0], dict) else {}
+        first = _current_study_file_context(context)
         text = str(first.get("text") or "")
         name = str(first.get("name") or "arquivo")
         if "caixa preta" in _plain(text) or "caixa branca" in _plain(text):
@@ -1817,21 +1978,21 @@ def _answer_study_followup_raw(user_input: str) -> str | None:
         return f"Eu lembro do arquivo, mas nao consegui separar o enunciado da questao {number} com seguranca."
 
     if any(word in normalized for word in {"perguntar", "perguntas", "questoes", "questões", "exercicios", "exercícios", "arguir", "arguicao", "quiz", "simulado"}):
-        first = files[0] if isinstance(files[0], dict) else {}
+        first = _current_study_file_context(context)
         text = str(first.get("raw_text") or first.get("text") or "")
         questions = _practice_questions_from_material(text, limit=6)
         if questions:
             return "Perguntas para praticar:\n" + "\n".join(questions)
 
     if any(word in normalized for word in {"resumir", "resuma", "resumo"}):
-        first = files[0] if isinstance(files[0], dict) else {}
+        first = _current_study_file_context(context)
         name = str(first.get("name") or "arquivo")
         text = str(first.get("text") or "")
         focus = [str(item) for item in first.get("focus", [])] if isinstance(first.get("focus"), list) else []
         return " ".join(_summarize_material(name, text, focus, detailed=True))
 
     if any(word in normalized for word in {"plano", "revisao", "estudar"}):
-        first = files[0] if isinstance(files[0], dict) else {}
+        first = _current_study_file_context(context)
         name = str(first.get("name") or "arquivo")
         text = str(first.get("text") or "")
         return "\n".join(_study_plan(name, text))
@@ -1866,7 +2027,7 @@ def run_study_file_self_test(user_input: str) -> str | None:
     if not isinstance(files, list) or not files:
         return "Ainda nao tenho um arquivo atual para testar. Analise um arquivo primeiro."
 
-    first = files[0] if isinstance(files[0], dict) else {}
+    first = _current_study_file_context(context)
     name = str(first.get("name") or "arquivo")
     text = str(first.get("raw_text") or first.get("text") or "")
     topic = str(first.get("topic") or _topic_from_text(text) or "conteudo extraido")
@@ -2138,17 +2299,17 @@ def analyze_study_files(paths: list[str], request: str = "") -> str:
         response.extend(questions)
         response.append("Gabarito curto: responda com base nos pontos-chave acima; eu posso corrigir suas respostas depois.")
 
-    if request and has_study_material and request_is_study_or_practice(request):
-        response.append(f"Pedido considerado: {request}.")
-
     final_response = polish_study_response("\n".join(response))
     if context_files:
+        current_file_path = str(context_files[-1].get("path") or clean_paths[-1])
         save_study_context(
             {
                 "source": "attached_files",
                 "request": request,
                 "analysis_cache_version": STUDY_ANALYSIS_CACHE_VERSION,
                 "file_signatures": _analysis_signatures(clean_paths),
+                "current_file_path": current_file_path,
+                "last_file_path": current_file_path,
                 "files": context_files,
                 "last_response": final_response,
             }

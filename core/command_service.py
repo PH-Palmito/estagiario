@@ -4,6 +4,7 @@ import time
 from collections.abc import Callable
 
 from core.action_result import normalize_action_result
+from core.axel_brain_effects import apply_plan_to_command
 from core.action_governance import command_audit_required, command_governance_payload
 from core.command_schema import Command
 from core.context_resolver import resolve_params
@@ -13,6 +14,7 @@ from core.latency_metrics import log_latency_stage
 from core.normalizer import normalize_action
 from core.permission_policy import permission_decision
 from core.performance_policy import default_action_performance_advice
+from core.response_provenance import record_tool_use
 from memory.sensitive_audit import append_sensitive_action_audit
 from memory.task_evaluation import record_task_evaluation
 from core.validator import validate_command
@@ -209,9 +211,16 @@ def process_raw_action(raw_action: dict, runtime_state, log_event: LogEvent) -> 
         reason=judge.reason,
     )
     if not judge.allowed:
-        return judge.message or "Interpretação insegura. Reformule o pedido ou confirme com mais detalhes."
+        return judge.message or "Segurei essa ação por falta de clareza. Reformule o pedido ou confirme com mais detalhes."
     if judge.requires_confirmation:
         command.requires_confirmation = True
+
+    brain_effects = apply_plan_to_command(command, getattr(runtime_state, "axel_brain_plan", {}) or {})
+    log_event(
+        "axel_brain_command_effects",
+        action=getattr(command, "action", ""),
+        **brain_effects,
+    )
 
     return command
 
@@ -239,6 +248,7 @@ def execute_processed_command(
             should_cache=performance_advice.should_cache,
         )
     if should_auto_background(command):
+        record_tool_use(getattr(command, "action", ""), getattr(command, "params", {}))
         result = _submit_command_background_task(command, execute, log_event)
         runtime_state.update(command, result)
         return result
@@ -256,6 +266,7 @@ def execute_processed_command(
         raw_result = execute(command)
         action_result = normalize_action_result(raw_result)
         result = action_result.message
+        record_tool_use(getattr(command, "action", ""), getattr(command, "params", {}))
         runtime_state.update(command, result)
         log_event(
             "command_execute_end",

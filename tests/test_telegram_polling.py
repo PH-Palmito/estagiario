@@ -6,6 +6,15 @@ from services import telegram_polling
 
 
 class TelegramPollingTests(unittest.TestCase):
+    def test_send_telegram_message_polishes_text_payload(self):
+        response = SimpleNamespace(raise_for_status=lambda: None)
+
+        with patch.object(telegram_polling.requests, "post", return_value=response) as post:
+            telegram_polling.send_telegram_message("token", "123", "Nao encontrei precos. O que voce quer")
+
+        payload = post.call_args.kwargs["json"]
+        self.assertEqual(payload["text"], "Não encontrei preços. O que você quer.")
+
     def test_polling_passes_audio_transcriber_to_gateway(self):
         calls = []
         stop_calls = {"count": 0}

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from core.router_apps import _best_fuzzy_match, _site_options, _strip_leading_articles
-from core.router_search_utils import cleanup_marketplace_query
+from core.router_search_utils import cleanup_marketplace_query, strip_search_conversation_tail
 from core.router_utils import normalize_text
 
 
@@ -17,7 +17,7 @@ def _match_site_target(text: str):
 
 
 def detect_site_search_command(user_input: str):
-    lower = normalize_text(user_input).strip(" .")
+    lower = normalize_text(strip_search_conversation_tail(user_input)).strip(" .")
 
     if lower in {"que no mercado livre", "no mercado livre"}:
         return {"intent": "respond", "target": None, "response": "Qual produto voce quer pesquisar no Mercado Livre?"}

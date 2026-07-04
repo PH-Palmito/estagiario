@@ -74,6 +74,18 @@ class RouterDailyTests(unittest.TestCase):
         self.assertEqual(result["intent"], "reminder_add")
         self.assertEqual(result["target"], "testar briefing amanha")
 
+    def test_detects_yearly_reminder_add(self):
+        result = detect_reminder_command("me lembre todo dia 2 de junho do presente do dia dos namorados dia 12/06")
+
+        self.assertEqual(result["intent"], "reminder_add")
+        self.assertEqual(result["target"], "todo dia 2 de junho do presente do dia dos namorados dia 12/06")
+
+    def test_reminder_add_strips_clear_conversation_tail(self):
+        result = detect_reminder_command("me lembre de comprar presente amanha e depois me da ideias")
+
+        self.assertEqual(result["intent"], "reminder_add")
+        self.assertEqual(result["target"], "comprar presente amanha")
+
     def test_detects_trailing_reminder_as_agenda_commitment(self):
         result = detect_reminder_command("prova amanha me lembre")
 

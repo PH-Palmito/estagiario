@@ -591,13 +591,20 @@ def _portfolio_dividend_schedule_answer(snapshot: dict) -> str:
     )
 
 
-def format_upcoming_dividend_brief(limit: int = 2) -> str:
+def format_upcoming_dividend_brief(
+    limit: int = 2,
+    *,
+    max_days_until_payment: int | None = None,
+    today=None,
+) -> str:
     snapshot = load_investment_snapshot()
     return upcoming_dividend_brief(
         snapshot,
         rank_portfolio_positions=_rank_portfolio_positions,
         ensure_asset_fundamentals=_ensure_asset_fundamentals,
         limit=limit,
+        max_days_until_payment=max_days_until_payment,
+        today=today,
     )
 
 
@@ -710,6 +717,50 @@ def _looks_like_broader_investment_question(normalized: str) -> bool:
     return any(term in normalized for term in broader_terms)
 
 
+def _looks_like_climate_investment_question(normalized: str) -> bool:
+    return any(
+        term in normalized
+        for term in {
+            "el nino",
+            "la nina",
+            "clima",
+            "seca",
+            "chuva",
+            "safra",
+            "estiagem",
+            "fenomeno climatico",
+            "fenomeno climático",
+        }
+    )
+
+
+def _recent_climate_context_is_active() -> bool:
+    try:
+        from memory.ui_state import load_ui_state
+
+        state = load_ui_state()
+    except Exception:
+        state = {}
+    if not isinstance(state, dict):
+        return False
+    recent_text = " ".join(
+        str(state.get(key) or "")
+        for key in ("last_heard", "last_response", "last_command")
+    )
+    return _looks_like_climate_investment_question(_normalize(recent_text))
+
+
+def _expand_investment_followup_question(question: str) -> str:
+    normalized = _normalize(question)
+    if _looks_like_climate_investment_question(normalized):
+        return question
+    if not any(term in normalized for term in {"afetado", "afetada", "afeta", "impacto"}):
+        return question
+    if not _recent_climate_context_is_active():
+        return question
+    return f"como o el nino afeta {question}"
+
+
 def _build_local_investment_reading(question: str, snapshot: dict) -> str:
     return build_local_investment_reading(
         question,
@@ -807,7 +858,11 @@ def format_investment_snapshot_summary() -> str:
     return "Tenho uma carteira atualizada, mas ainda com poucos dados úteis extraídos."
 
 
-def format_investment_financial_report() -> str:
+def format_investment_financial_report(
+    *,
+    max_days_until_dividend: int | None = None,
+    today=None,
+) -> str:
     snapshot = load_investment_snapshot()
     return investment_financial_report(
         snapshot,
@@ -823,10 +878,16 @@ def format_investment_financial_report() -> str:
         compact_report_news=_compact_report_news,
         filter_new_signal_texts=_filter_new_signal_texts,
         format_percent=_format_percent,
+        max_days_until_dividend=max_days_until_dividend,
+        today=today,
     )
 
 
-def format_investment_active_radar_brief() -> str:
+def format_investment_active_radar_brief(
+    *,
+    max_days_until_dividend: int | None = None,
+    today=None,
+) -> str:
     snapshot = load_investment_snapshot()
     return investment_active_radar_brief(
         snapshot,
@@ -839,6 +900,8 @@ def format_investment_active_radar_brief() -> str:
         portfolio_news_digest=_portfolio_news_digest,
         compact_report_news=_compact_report_news,
         format_percent=_format_percent,
+        max_days_until_dividend=max_days_until_dividend,
+        today=today,
     )
 
 
@@ -871,6 +934,11 @@ def _answer_investment_snapshot_question_base(question: str) -> str:
     strategy = get_asset_strategy(question_ticker) if question_ticker else {}
     asset_positions = _asset_positions(snapshot)
     asset_position = asset_positions.get(question_ticker, {}) if question_ticker else {}
+
+    if _looks_like_climate_investment_question(normalized):
+        if not updated_at and not summary:
+            return answer_empty_snapshot()
+        return _build_local_investment_reading(question, snapshot)
 
     if question_ticker and _looks_like_broader_investment_question(normalized) and asset_position:
         return _format_position_reading(snapshot, question_ticker, asset_position)
@@ -952,6 +1020,7 @@ def _answer_investment_snapshot_question_base(question: str) -> str:
     return "Tenho uma carteira atualizada, mas não encontrei essa informação de forma confiável nela."
 
 def answer_investment_snapshot_question(question: str) -> str:
+    question = _expand_investment_followup_question(question)
     snapshot = load_investment_snapshot()
     normalized = _normalize(question)
     question_ticker = _extract_question_ticker(question)

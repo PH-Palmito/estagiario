@@ -11,6 +11,7 @@ from core.router_basic import (
     detect_profile_question,
     detect_user_name,
 )
+from core.router_files import detect_study_file_analysis
 
 
 class RouterBasicTests(unittest.TestCase):
@@ -44,6 +45,12 @@ class RouterBasicTests(unittest.TestCase):
                 "response": "O projeto se chama Axel. E o assistente local que estamos construindo para voz, arquivos, estudos, automacoes e controle do computador.",
             },
         )
+
+    def test_night_intern_question_is_local(self):
+        result = detect_greeting("oq faz o estagiario noturno?")
+
+        self.assertEqual(result["intent"], "respond")
+        self.assertIn("modo de tom mais quieto", result["response"])
 
     def test_presence_check(self):
         self.assertEqual(
@@ -127,6 +134,16 @@ class RouterBasicTests(unittest.TestCase):
             detect_bluetooth_command("status do bluetooth"),
             {"intent": "bluetooth_status", "target": None},
         )
+
+    def test_study_file_analysis_detector_accepts_attached_files(self):
+        result = detect_study_file_analysis('analisar arquivos anexados: ["C:/fake/RedesBasico.pdf"] :: resuma')
+
+        self.assertEqual(result["intent"], "study_analyze_files")
+        self.assertEqual(result["target"]["paths"], ["C:/fake/RedesBasico.pdf"])
+        self.assertEqual(result["target"]["request"], "resuma")
+
+    def test_study_file_analysis_detector_does_not_steal_screen(self):
+        self.assertIsNone(detect_study_file_analysis("resuma a tela"))
 
 
 if __name__ == "__main__":

@@ -22,6 +22,19 @@ def _extract_location_fragment(text: str, prefixes: tuple[str, ...]) -> str | No
     return None
 
 
+def _strip_conversation_tail(text: str) -> str:
+    raw = str(text or "").strip()
+    normalized = normalize_text(raw)
+    for pattern in (
+        r"\s+(?:e\s+depois|e|ai|aí|depois)\s+(?:me\s+)?(?:da|dá|de|dê|fala|explique|explica|mostra|mostre|recomenda|recomende)\b",
+        r"\s+(?:e\s+depois|e|ai|aí|depois)\s+(?:abre|abra|toca|toque|coloca|coloque|foca|foque)\b",
+    ):
+        match = re.search(pattern, normalized)
+        if match:
+            return raw[: match.start()].strip(" .,:;-")
+    return raw
+
+
 def detect_weather_command(user_input: str):
     lower = normalize_text(user_input)
     direct_prefixes = (
@@ -150,7 +163,7 @@ def detect_agenda_command(user_input: str):
     )
     for prefix in add_prefixes:
         if lower.startswith(prefix):
-            text = user_input[len(prefix):].strip()
+            text = _strip_conversation_tail(user_input[len(prefix):])
             if not text:
                 return {"intent": "respond", "target": None, "response": "Qual compromisso devo registrar?"}
             return {"intent": "agenda_add", "target": text}
@@ -213,7 +226,7 @@ def detect_reminder_command(user_input: str):
     for pattern in add_patterns:
         match = re.match(pattern, lower)
         if match:
-            text = user_input[match.start(1):].strip()
+            text = _strip_conversation_tail(user_input[match.start(1):])
             if not text:
                 return {"intent": "respond", "target": None, "response": "O que devo lembrar?"}
             return {"intent": "reminder_add", "target": text}

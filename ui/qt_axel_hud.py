@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow
 from core.performance_mode import performance_settings_from_state
 from memory.ui_commands import enqueue_ui_command
 from memory.ui_state import load_ui_state, update_ui_state
+from memory.voice_preferences import load_voice_preferences
 
 try:
     from tools.spotify_api import spotify_current_playback
@@ -54,14 +55,23 @@ class AxelBridge(QObject):
         super().__init__()
         self.window = window
 
-    @Slot(str)
+    @Slot(str, result=str)
     def sendCommand(self, text: str):
         try:
-            enqueue_ui_command(text, source="qt_hud")
-            update_ui_state({"last_command": str(text or "").strip()})
+            item = enqueue_ui_command(text, source="qt_hud")
+            feedback = {
+                "id": str(item.get("id") or ""),
+                "command": str(item.get("text") or ""),
+                "status": "queued",
+                "message": "Comando adicionado a fila.",
+                "at": time.time(),
+            }
+            update_ui_state({"last_command": str(text or "").strip(), "command_feedback": feedback})
             self.window.push_state()
-        except Exception:
+            return json.dumps(feedback, ensure_ascii=False)
+        except Exception as exc:
             self.window.log_exception("sendCommand")
+            return json.dumps({"status": "error", "message": str(exc)}, ensure_ascii=False)
 
     @Slot()
     def requestRefresh(self):
@@ -90,13 +100,23 @@ class AxelBridge(QObject):
         except Exception:
             self.window.log_exception("clearOpenPanels")
 
-    @Slot()
+    @Slot(result=str)
     def refreshData(self):
         try:
             self.window.clear_cache()
+            feedback = {
+                "id": f"refresh-{int(time.time() * 1000)}",
+                "command": "atualizar painel",
+                "status": "success",
+                "message": "Dados atualizados.",
+                "at": time.time(),
+            }
+            update_ui_state({"command_feedback": feedback})
             self.window.push_state(force=True)
-        except Exception:
+            return json.dumps(feedback, ensure_ascii=False)
+        except Exception as exc:
             self.window.log_exception("refreshData")
+            return json.dumps({"status": "error", "message": str(exc)}, ensure_ascii=False)
 
     @Slot(result=str)
     def selectStudyFiles(self) -> str:
@@ -322,6 +342,13 @@ class AxelWebHud(QMainWindow):
 
     def _payload(self) -> dict:
         ui_state = load_ui_state()
+        try:
+            preferences = load_voice_preferences()
+            ui_state = dict(ui_state)
+            ui_state["assistant_personality_enabled"] = bool(preferences.get("assistant_personality_enabled", True))
+            ui_state["assistant_proactivity_enabled"] = bool(preferences.get("assistant_proactivity_enabled", True))
+        except Exception:
+            ui_state = dict(ui_state)
         self._apply_performance_mode(ui_state)
         active_panels = self._active_panels(ui_state)
         try:

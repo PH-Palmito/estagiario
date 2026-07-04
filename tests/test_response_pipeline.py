@@ -111,6 +111,138 @@ class ResponsePipelineTests(unittest.TestCase):
         self.assertEqual(result.styled_message, "Não encontrei microfones disponíveis. O que você quer fazer?")
         self.assertEqual(calls["terminal"], [f"IA: {result.styled_message}"])
 
+    def test_output_response_preserves_demonstrative_esta(self):
+        pipeline, _calls, _state = self._pipeline()
+
+        result = pipeline.output_response(
+            "Esta skill esta pronta e pertence a propria categoria.",
+            False,
+            direct_response_ready_announced=True,
+        )
+
+        self.assertEqual(
+            result.styled_message,
+            "Esta skill est\u00e1 pronta e pertence a pr\u00f3pria categoria.",
+        )
+
+    def test_output_response_polishes_general_conversation_terms(self):
+        pipeline, _calls, _state = self._pipeline()
+
+        result = pipeline.output_response(
+            (
+                "Meu nome e Axel. Recursao em Python e quando uma funcao chama ela mesma. "
+                "Tesla pode ser a empresa de carros eletricos fundada por socios."
+            ),
+            False,
+            direct_response_ready_announced=True,
+        )
+
+        self.assertIn("Meu nome é Axel.", result.styled_message)
+        self.assertIn("Recursão em Python é quando uma função", result.styled_message)
+        self.assertIn("carros elétricos", result.styled_message)
+        self.assertIn("sócios", result.styled_message)
+
+    def test_output_response_polishes_financial_climate_terms(self):
+        pipeline, _calls, _state = self._pipeline()
+
+        result = pipeline.output_response(
+            (
+                "El Nino pode afetar VGIA11 por tres caminhos: clima sobre safras, "
+                "precos de commodities e juros/inflacao. No caso de VGIA11, eu olharia "
+                "especialmente exposicao ao agro, qualidade dos devedores, garantias, "
+                "inadimplencia, renegociacoes e estabilidade dos dividendos. "
+                "Como o peso salvo e 16,7% da carteira, vale medir se esse risco e relevante "
+                "no conjunto. Isso e leitura de risco, nao recomendacao de compra ou venda."
+            ),
+            False,
+            direct_response_ready_announced=True,
+        )
+
+        self.assertIn("El Niño", result.styled_message)
+        self.assertIn("três caminhos", result.styled_message)
+        self.assertIn("preços de commodities", result.styled_message)
+        self.assertIn("juros/inflação", result.styled_message)
+        self.assertIn("exposição ao agro", result.styled_message)
+        self.assertIn("inadimplência", result.styled_message)
+        self.assertIn("renegociações", result.styled_message)
+        self.assertIn("peso salvo é 16,7%", result.styled_message)
+        self.assertIn("risco é relevante", result.styled_message)
+        self.assertIn("Isso é leitura de risco, não recomendação", result.styled_message)
+
+    def test_output_response_applies_personality_layer_after_styling(self):
+        pipeline, calls, _state = self._pipeline(
+            preferences={
+                "assistant_personality_enabled": True,
+                "assistant_humor_enabled": True,
+                "assistant_humor_style": "seco",
+                "assistant_humor_level": 2,
+            }
+        )
+
+        result = pipeline.output_response(
+            "Encontrei 4 versoes do arquivo final_final.pdf.",
+            False,
+            direct_response_ready_announced=True,
+        )
+
+        self.assertIn("Todas aparentemente definitivas.", result.styled_message)
+        self.assertEqual(calls["terminal"], [f"IA: {result.styled_message}"])
+
+    def test_execute_short_brain_mode_suppresses_personality_layer(self):
+        pipeline, _calls, state = self._pipeline(
+            preferences={
+                "assistant_personality_enabled": True,
+                "assistant_humor_enabled": True,
+                "assistant_humor_style": "seco",
+                "assistant_humor_level": 2,
+            }
+        )
+        state.axel_brain_plan = {"response_mode": "execute_short", "risk_level": "low"}
+
+        result = pipeline.output_response(
+            "Encontrei 4 versoes do arquivo final_final.pdf.",
+            False,
+            direct_response_ready_announced=True,
+        )
+
+        self.assertNotIn("Todas aparentemente definitivas", result.styled_message)
+
+    def test_output_response_trims_cutoff_final_fragment(self):
+        pipeline, calls, _state = self._pipeline()
+
+        result = pipeline.output_response(
+            "Sim, senhor. A",
+            True,
+            direct_response_ready_announced=True,
+        )
+
+        self.assertEqual(result.styled_message, "Sim, senhor.")
+        self.assertEqual(calls["speak"][0][0], ("Sim, senhor.",))
+
+    def test_output_response_marks_incomplete_trailing_connector(self):
+        pipeline, calls, _state = self._pipeline()
+
+        result = pipeline.output_response(
+            "A noite chegou, que tal salvar e.",
+            True,
+            direct_response_ready_announced=True,
+        )
+
+        self.assertEqual(result.styled_message, "A noite chegou, que tal salvar...")
+        self.assertEqual(calls["speak"][0][0], ("A noite chegou, que tal salvar...",))
+
+    def test_output_response_marks_incomplete_context_word(self):
+        pipeline, calls, _state = self._pipeline()
+
+        result = pipeline.output_response(
+            "Que tal guardar o trabalho e ter uma boa.",
+            True,
+            direct_response_ready_announced=True,
+        )
+
+        self.assertEqual(result.styled_message, "Que tal guardar o trabalho e ter uma...")
+        self.assertEqual(calls["speak"][0][0], ("Que tal guardar o trabalho e ter uma...",))
+
     def test_action_progress_polishes_common_portuguese(self):
         pipeline, calls, _state = self._pipeline(
             progress_variants={"daily_briefing": ("Nao consegui iniciar a acao.",)}

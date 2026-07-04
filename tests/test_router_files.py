@@ -18,6 +18,12 @@ class RouterFilesTests(unittest.TestCase):
     def test_create_file(self):
         self.assertEqual(detect_create_file("crie arquivo teste.txt"), {"intent": "create_file", "target": "teste.txt"})
 
+    def test_create_file_strips_conversation_tail(self):
+        self.assertEqual(
+            detect_create_file("crie arquivo teste.txt e depois me da uma dica"),
+            {"intent": "create_file", "target": "teste.txt"},
+        )
+
     def test_write_file_with_content(self):
         self.assertEqual(
             detect_write_file("escreva no arquivo teste.txt: oi"),
@@ -33,8 +39,20 @@ class RouterFilesTests(unittest.TestCase):
     def test_read_file(self):
         self.assertEqual(detect_read_file("leia arquivo teste.txt"), {"intent": "read_file", "target": "teste.txt"})
 
+    def test_read_file_strips_conversation_tail(self):
+        self.assertEqual(
+            detect_read_file("leia arquivo teste.txt e depois me explica"),
+            {"intent": "read_file", "target": "teste.txt"},
+        )
+
     def test_delete_file(self):
         self.assertEqual(detect_delete_file("apague teste.txt"), {"intent": "delete_file", "target": "teste.txt"})
+
+    def test_delete_file_strips_conversation_tail(self):
+        self.assertEqual(
+            detect_delete_file("apague teste.txt e depois me avise"),
+            {"intent": "delete_file", "target": "teste.txt"},
+        )
 
     def test_delete_file_ignores_watchlist_command(self):
         self.assertIsNone(detect_delete_file("remova BBAS3 da watchlist"))

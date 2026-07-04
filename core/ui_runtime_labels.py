@@ -5,7 +5,7 @@ from collections.abc import Mapping
 
 def assistant_style_label(preferences: Mapping[str, object]) -> str:
     assistant_style = str(preferences.get("assistant_style", "")).strip().lower()
-    if assistant_style in {"jarvis", "assistente", "elegante"}:
+    if assistant_style in {"axel", "jarvis", "assistente", "elegante"}:
         return assistant_style
 
     humor_enabled = bool(preferences.get("assistant_humor_enabled", True))

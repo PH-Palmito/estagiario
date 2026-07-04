@@ -1,6 +1,7 @@
 import inspect
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
@@ -103,6 +104,27 @@ class InvestmentSnapshotTests(unittest.TestCase):
         self.assertIn("Dividendos", result)
         self.assertIn("BBAS3 paga JCP em 20/05", result)
         self.assertIn("PETR4 paga DIV em 15/06", result)
+
+    def test_upcoming_dividend_brief_can_filter_by_payment_window(self):
+        with patch.object(inv, "load_investment_snapshot", return_value=self.snapshot):
+            result = inv.format_upcoming_dividend_brief(
+                limit=2,
+                max_days_until_payment=7,
+                today=date(2026, 6, 10),
+            )
+
+        self.assertNotIn("BBAS3", result)
+        self.assertIn("PETR4 paga DIV em 15/06", result)
+
+    def test_upcoming_dividend_brief_omits_far_future_payments(self):
+        with patch.object(inv, "load_investment_snapshot", return_value=self.snapshot):
+            result = inv.format_upcoming_dividend_brief(
+                limit=2,
+                max_days_until_payment=7,
+                today=date(2026, 6, 1),
+            )
+
+        self.assertEqual(result, "")
 
     def test_dividend_question_returns_portfolio_schedule(self):
         with patch.object(inv, "load_investment_snapshot", return_value=self.snapshot):
@@ -303,6 +325,63 @@ class InvestmentSnapshotTests(unittest.TestCase):
         self.assertIn("BBAS3", result)
         self.assertIn("preço-teto", result)
         self.assertIn("barato ou caro", result)
+
+    def test_local_investment_reading_explains_el_nino_for_vgia11(self):
+        snapshot = fake_snapshot()
+        snapshot["asset_positions"]["VGIA11"] = {
+            "current_price": "R$ 8,50",
+            "rentability": "4,00%",
+            "balance": "R$ 1.000,00",
+            "portfolio_percentage": "10,00%",
+        }
+        snapshot["asset_fundamentals"]["VGIA11"] = {
+            "company_name": "FII VGIA Agro",
+            "quote": "R$ 8,50",
+            "dividend_yield_current": "14,00%",
+        }
+
+        with patch.object(inv, "get_asset_strategy", side_effect=fake_strategy):
+            result = inv._build_local_investment_reading("como o el nino afeta o VGIA11?", snapshot)
+
+        self.assertIn("El Niño", result)
+        self.assertIn("VGIA11", result)
+        self.assertIn("inadimplência", result)
+        self.assertIn("não recomendação", result)
+
+    def test_investment_answer_explains_el_nino_for_portfolio_without_ticker(self):
+        with patch.object(inv, "load_investment_snapshot", return_value=fake_snapshot()):
+            result = inv.answer_investment_snapshot_question("como o el nino afeta meus investimentos")
+
+        self.assertIn("El Niño", result)
+        self.assertIn("seus investimentos", result)
+        self.assertIn("carteira inteira", result)
+        self.assertNotIn("BBAS3 por três caminhos", result)
+
+    def test_investment_followup_inherits_el_nino_and_resolves_partial_ticker(self):
+        snapshot = fake_snapshot()
+        snapshot["asset_positions"]["VGIA11"] = {
+            "current_price": "R$ 8,50",
+            "balance": "R$ 1.000,00",
+            "portfolio_percentage": "10,00%",
+        }
+        snapshot["asset_fundamentals"]["VGIA11"] = {
+            "company_name": "FII VGIA Agro",
+            "quote": "R$ 8,50",
+            "dividend_yield_current": "14,00%",
+        }
+
+        with patch.object(inv, "load_investment_snapshot", return_value=snapshot), patch(
+            "memory.ui_state.load_ui_state",
+            return_value={
+                "last_heard": "como o el nino afeta meus investimentos",
+                "last_response": "El Niño pode afetar seus investimentos por três caminhos.",
+            },
+        ):
+            result = inv.answer_investment_snapshot_question("e o vgia como é afetado?")
+
+        self.assertIn("El Niño", result)
+        self.assertIn("VGIA11", result)
+        self.assertIn("exposição ao agro", result)
 
     def test_metric_map_extracts_common_wallet_labels(self):
         result = inv._extract_metric_map(

@@ -347,6 +347,32 @@ def _looks_pronounceable_acronym(token: str) -> bool:
     return vowels >= 2 and consonants >= 1
 
 
+_COMMON_UPPERCASE_WORDS = {
+    "A",
+    "AS",
+    "COM",
+    "DA",
+    "DAS",
+    "DE",
+    "DO",
+    "DOS",
+    "E",
+    "EM",
+    "EU",
+    "ME",
+    "NO",
+    "NOS",
+    "O",
+    "OS",
+    "OU",
+    "PRA",
+    "QUE",
+    "SEM",
+    "UM",
+    "UMA",
+}
+
+
 def _apply_abbreviation_rules(text: str) -> str:
     for source, rule in _TTS_ABBREVIATION_RULES.items():
         mode = str(rule.get("mode", "")).strip().lower()
@@ -382,6 +408,8 @@ def _apply_abbreviation_heuristics(text: str) -> str:
             return token
 
         if token.isupper() and len(token) <= 4:
+            if token in _COMMON_UPPERCASE_WORDS:
+                return token.lower()
             if _looks_pronounceable_acronym(token):
                 return token.lower()
             return _spell_acronym(token)

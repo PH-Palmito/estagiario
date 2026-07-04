@@ -31,6 +31,8 @@ class UIMemoryFilesTests(unittest.TestCase):
             self.assertEqual(loaded["last_route_trace"], {})
             self.assertEqual(loaded["skill_suggestions"], [])
             self.assertIn("observability", loaded)
+            self.assertTrue(loaded["assistant_personality_enabled"])
+            self.assertTrue(loaded["assistant_proactivity_enabled"])
             self.assertTrue(updated["visible"])
             self.assertEqual(updated["last_command"], "abrir painel")
 
@@ -118,13 +120,15 @@ class UIMemoryFilesTests(unittest.TestCase):
             queue_path.write_text('[{"text":"primeiro"}, "ruido"]', encoding="utf-8")
 
             with patch.object(ui_commands, "QUEUE_PATH", queue_path):
-                ui_commands.enqueue_ui_command("segundo", source="test", silent=True)
+                queued = ui_commands.enqueue_ui_command("segundo", source="test", silent=True)
                 first = ui_commands.dequeue_ui_command_item()
                 second = ui_commands.dequeue_ui_command_item()
                 empty = ui_commands.dequeue_ui_command_item()
 
             self.assertEqual(first["text"], "primeiro")
             self.assertEqual(second["text"], "segundo")
+            self.assertEqual(second["id"], queued["id"])
+            self.assertEqual(len(second["id"]), 12)
             self.assertTrue(second["silent"])
             self.assertEqual(empty, {})
 

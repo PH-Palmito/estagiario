@@ -1,5 +1,8 @@
 import unittest
+import tempfile
 from datetime import datetime
+from pathlib import Path
+from unittest.mock import patch
 
 from core.reminder_announcer import ReminderAnnouncer, reminder_message
 
@@ -107,20 +110,55 @@ class ReminderAnnouncerTests(unittest.TestCase):
     def test_announces_night_sleep_prompt_once(self):
         calls = []
         timestamp = datetime(2026, 6, 10, 23, 30).timestamp()
-        announcer = ReminderAnnouncer(
-            consume_due_training_reminder=lambda: {},
-            consume_due_reminders=lambda: [],
-            output_response=lambda *args, **kwargs: calls.append((args, kwargs)),
-            now_fn=lambda: timestamp,
-            min_interval_seconds=0,
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                patch("core.reminder_announcer.REMINDER_ANNOUNCER_STATE_PATH", Path(tmpdir) / "announcer.json"),
+                patch("memory.assistant_phrases.PHRASE_STATE_PATH", Path(tmpdir) / "phrases.json"),
+                patch("memory.assistant_phrases.STARTUP_PHRASES_PATH", Path(tmpdir) / "startup_phrases.json"),
+            ):
+                announcer = ReminderAnnouncer(
+                    consume_due_training_reminder=lambda: {},
+                    consume_due_reminders=lambda: [],
+                    output_response=lambda *args, **kwargs: calls.append((args, kwargs)),
+                    now_fn=lambda: timestamp,
+                    min_interval_seconds=0,
+                )
 
-        first = announcer.maybe_announce_due_reminders(False)
-        second = announcer.maybe_announce_due_reminders(False)
+                first = announcer.maybe_announce_due_reminders(False)
+                second = announcer.maybe_announce_due_reminders(False)
 
         self.assertTrue(first)
         self.assertFalse(second)
-        self.assertIn("dormir", calls[0][0][0])
+        self.assertGreaterEqual(len(calls[0][0][0].split()), 4)
+
+    def test_night_sleep_prompt_persists_across_announcer_instances(self):
+        calls = []
+        timestamp = datetime(2026, 6, 10, 23, 30).timestamp()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                patch("core.reminder_announcer.REMINDER_ANNOUNCER_STATE_PATH", Path(tmpdir) / "announcer.json"),
+                patch("memory.assistant_phrases.PHRASE_STATE_PATH", Path(tmpdir) / "phrases.json"),
+                patch("memory.assistant_phrases.STARTUP_PHRASES_PATH", Path(tmpdir) / "startup_phrases.json"),
+            ):
+                first = ReminderAnnouncer(
+                    consume_due_training_reminder=lambda: {},
+                    consume_due_reminders=lambda: [],
+                    output_response=lambda *args, **kwargs: calls.append(args),
+                    now_fn=lambda: timestamp,
+                    min_interval_seconds=0,
+                )
+                second = ReminderAnnouncer(
+                    consume_due_training_reminder=lambda: {},
+                    consume_due_reminders=lambda: [],
+                    output_response=lambda *args, **kwargs: calls.append(args),
+                    now_fn=lambda: timestamp,
+                    min_interval_seconds=0,
+                )
+
+                self.assertTrue(first.maybe_announce_due_reminders(False))
+                self.assertFalse(second.maybe_announce_due_reminders(False))
+
+        self.assertEqual(len(calls), 1)
 
     def test_does_not_announce_night_sleep_prompt_during_day(self):
         calls = []

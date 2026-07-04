@@ -48,6 +48,24 @@ def detect_windows_startup_command(user_input: str):
     return {"intent": "windows_startup_enable", "target": None}
 
 
+def detect_windows_app_command(user_input: str):
+    lower = normalize_text(user_input)
+    if "axel" not in lower or "app" not in lower:
+        return None
+
+    install_terms = ("instalar", "criar", "adicionar", "colocar")
+    remove_terms = ("remover", "desinstalar", "apagar", "tirar")
+    status_terms = ("status", "esta instalado", "ta instalado", "atalho")
+
+    if any(term in lower for term in remove_terms):
+        return {"intent": "windows_app_uninstall", "target": None}
+    if any(term in lower for term in status_terms):
+        return {"intent": "windows_app_status", "target": None}
+    if any(term in lower for term in install_terms):
+        return {"intent": "windows_app_install", "target": None}
+    return None
+
+
 def detect_run_script(user_input: str):
     lower = normalize_text(user_input)
     for prefix in ["rode o script ", "rode script ", "execute o script ", "execute script ", "executar script "]:
@@ -243,6 +261,7 @@ SYSTEM_INPUT_DETECTORS = (
 )
 
 SYSTEM_DETECTORS = (
+    detect_windows_app_command,
     detect_windows_startup_command,
     detect_power_command,
     detect_background_status_command,

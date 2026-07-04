@@ -42,6 +42,7 @@ INVESTMENT_KEYWORDS = {
     "tesouro",
     "ticker",
 }
+TICKER_PATTERN = re.compile(r"\b[a-z]{4}\d{1,2}\b", re.I)
 
 OPEN_TERMS = {"abra", "abre", "abrir", "inicie", "iniciar", "ligue", "ligar", "abrindo"}
 CLOSE_TERMS = {"feche", "fecha", "fechar", "encerre", "encerrar", "desligue", "desligar"}
@@ -77,6 +78,11 @@ def _has_any(text: str, terms: set[str]) -> bool:
     return any(_term_in_text(text, term) for term in terms)
 
 
+def text_has_investment_context(text: str) -> bool:
+    normalized = normalize_text(text)
+    return _has_any(normalized, INVESTMENT_KEYWORDS) or bool(TICKER_PATTERN.search(normalized))
+
+
 def judge_command_interpretation(user_input: str, command: Command, *, route_trace: dict | None = None) -> IntentJudgeResult:
     text = normalize_text(user_input)
     action = _action_name(command)
@@ -85,13 +91,13 @@ def judge_command_interpretation(user_input: str, command: Command, *, route_tra
     if not text or action == "respond":
         return IntentJudgeResult()
 
-    if action.startswith(INVESTMENT_ACTION_PREFIXES) and not _has_any(text, INVESTMENT_KEYWORDS):
+    if action.startswith(INVESTMENT_ACTION_PREFIXES) and not text_has_investment_context(text):
         return IntentJudgeResult(
             allowed=False,
             reason="investment_action_without_investment_terms",
             message=(
-                "Interpretação insegura: o pedido não parece ser sobre carteira ou investimentos, "
-                "então não vou acionar ações financeiras."
+                "Segurei essa ação: o pedido não parece ser sobre carteira ou investimentos, "
+                "então não vou acionar rotinas financeiras."
             ),
         )
 
@@ -100,7 +106,7 @@ def judge_command_interpretation(user_input: str, command: Command, *, route_tra
             return IntentJudgeResult(
                 allowed=False,
                 reason="open_action_without_open_intent",
-                message=f"Interpretação insegura: não vou abrir {target} porque o pedido não parece pedir abertura.",
+                message=f"Segurei a abertura de {target}: o pedido não parecia pedir para abrir isso.",
             )
 
     if action in {"close_app", "smart_close_app"} and not _has_any(text, CLOSE_TERMS):
@@ -116,8 +122,8 @@ def judge_command_interpretation(user_input: str, command: Command, *, route_tra
                 allowed=False,
                 reason="screen_action_for_general_question",
                 message=(
-                    "Interpretação insegura: essa pergunta parece geral, não um pedido para ler a tela. "
-                    "Vou evitar analisar a tela sem você pedir isso claramente."
+                    "Segurei a leitura da tela: essa parece uma pergunta geral. "
+                    "Se quiser que eu olhe a tela, peça isso claramente."
                 ),
             )
 

@@ -2,13 +2,91 @@ from __future__ import annotations
 
 import re
 
+from core.router_apps import APP_DETECTORS, command_target_segment
+from core.router_daily import detect_reminder_command
 from core.router_music import _extract_music_session_vibe, detect_music_command
-from core.router_search_utils import cleanup_marketplace_query, cleanup_site_query
+from core.router_search_utils import cleanup_marketplace_query, cleanup_site_query, strip_search_conversation_tail
 from core.router_utils import normalize_text
 
 
-def detect_fast_path_command(user_input: str):
-    lower = normalize_text(user_input).strip(" .")
+TRAILING_ACTION_VERBS = (
+    "abra",
+    "abre",
+    "abrir",
+    "inicie",
+    "iniciar",
+    "toca",
+    "toque",
+    "tocar",
+    "coloca",
+    "coloque",
+    "botar",
+    "bota",
+    "foca",
+    "foque",
+    "focar",
+    "troca",
+    "troque",
+    "vai",
+    "volta",
+    "pesquisa",
+    "pesquise",
+    "pesquisar",
+    "procure",
+    "buscar",
+    "busque",
+    "lembre",
+    "lembra",
+    "lembrar",
+    "avise",
+    "avisa",
+    "avisar",
+)
+
+LEADING_PRIMARY_ACTION_PATTERN = re.compile(
+    r"^(?:"
+    r"adicionar|adicione|agenda|agendar|"
+    r"me\s+lembre|me\s+lembra|lembre|lembra|avise|avisa|"
+    r"abra|abre|abrir|inicie|iniciar|"
+    r"toca|toque|tocar|coloca|coloque|botar|bota|"
+    r"foca|foque|focar|troca|troque|vai|volta|"
+    r"pesquisa|pesquise|pesquisar|procure|buscar|busque"
+    r")\b"
+)
+
+
+def _trailing_action_segment(user_input: str) -> str:
+    phrase = normalize_text(user_input).strip(" .,:;-")
+    if LEADING_PRIMARY_ACTION_PATTERN.search(phrase):
+        return ""
+    verb_pattern = "|".join(re.escape(verb) for verb in TRAILING_ACTION_VERBS)
+    match = re.search(
+        rf"\b(?:e\s+depois|e|ai|aí|depois)\s+(?=(?:me\s+)?(?:{verb_pattern})\b)",
+        phrase,
+    )
+    if not match or match.start() <= 0:
+        return ""
+    return phrase[match.end() :].strip(" .,:;-")
+
+
+def _detect_trailing_action(user_input: str):
+    segment = _trailing_action_segment(user_input)
+    if not segment:
+        return None
+
+    fast_result = _detect_fast_path_core(segment)
+    if fast_result and fast_result.get("intent") != "respond":
+        return fast_result
+
+    for detector in (detect_music_command, detect_reminder_command, *APP_DETECTORS):
+        result = detector(segment)
+        if result and result.get("intent") != "respond":
+            return result
+    return None
+
+
+def _detect_fast_path_core(user_input: str):
+    lower = command_target_segment(strip_search_conversation_tail(user_input))
     if not lower:
         return None
 
@@ -119,6 +197,14 @@ def detect_fast_path_command(user_input: str):
         }
 
     return detect_music_command(user_input)
+
+
+def detect_fast_path_command(user_input: str):
+    trailing_action = _detect_trailing_action(user_input)
+    if trailing_action:
+        return trailing_action
+
+    return _detect_fast_path_core(user_input)
 
 
 FAST_PATH_DETECTORS = (

@@ -1,4 +1,5 @@
 import time
+import uuid
 from pathlib import Path
 
 from memory.json_store import read_json_file, update_json_file, write_json_atomic
@@ -18,16 +19,19 @@ def _save_queue(queue: list[dict]):
 def enqueue_ui_command(text: str, source: str = "hud", silent: bool = False):
     content = str(text or "").strip()
     if not content:
-        return
+        return {}
+
+    item = {
+        "id": uuid.uuid4().hex[:12],
+        "text": content,
+        "source": source,
+        "silent": bool(silent),
+        "created_at": time.time(),
+    }
 
     def append_item(queue: list[dict]) -> list[dict]:
         clean_queue = [item for item in queue if isinstance(item, dict)]
-        clean_queue.append({
-            "text": content,
-            "source": source,
-            "silent": bool(silent),
-            "created_at": time.time(),
-        })
+        clean_queue.append(dict(item))
         return clean_queue[-20:]
 
     update_json_file(
@@ -37,6 +41,7 @@ def enqueue_ui_command(text: str, source: str = "hud", silent: bool = False):
         validator=lambda value: isinstance(value, list),
         indent=2,
     )
+    return item
 
 
 def dequeue_ui_command_item() -> dict:

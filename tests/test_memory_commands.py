@@ -5,6 +5,36 @@ from core.memory_commands import maybe_handle_long_memory_command, maybe_handle_
 
 
 class MemoryCommandTests(unittest.TestCase):
+    def test_last_user_question_skips_current_meta_question(self):
+        turns = [
+            {"role": "user", "text": "o arquivo fala sobre bananas?"},
+            {"role": "assistant", "text": "Nao. O arquivo fala sobre redes."},
+            {"role": "user", "text": "qual foi minha ultima pergunta?"},
+        ]
+
+        with patch("core.memory_commands.recent_turns", return_value=turns):
+            result = maybe_handle_operational_context_command("qual foi minha ultima pergunta?")
+
+        self.assertEqual(result, "Sua ultima pergunta foi: o arquivo fala sobre bananas?")
+
+    def test_last_assistant_response_uses_recent_session_turn(self):
+        turns = [
+            {"role": "user", "text": "o arquivo fala sobre bananas?"},
+            {"role": "assistant", "text": "Nao. O arquivo fala sobre redes."},
+            {"role": "user", "text": "qual foi sua ultima resposta?"},
+        ]
+
+        with patch("core.memory_commands.recent_turns", return_value=turns):
+            result = maybe_handle_operational_context_command("qual foi sua ultima resposta?")
+
+        self.assertEqual(result, "Minha ultima resposta foi: Nao. O arquivo fala sobre redes.")
+
+    def test_last_user_question_handles_empty_session(self):
+        with patch("core.memory_commands.recent_turns", return_value=[]):
+            result = maybe_handle_operational_context_command("qual foi minha ultima pergunta?")
+
+        self.assertEqual(result, "Ainda nao tenho uma pergunta anterior guardada nesta sessao.")
+
     def test_remember_operational_preference_keeps_tail(self):
         with patch(
             "core.memory_commands.remember_operational_preference",
@@ -122,6 +152,79 @@ class MemoryCommandTests(unittest.TestCase):
             result = maybe_handle_long_memory_command("listar agentes do axel")
 
         self.assertEqual(result, "Agentes especialistas do Axel: dev_agent.")
+
+    def test_agent_operations_overview_command(self):
+        with patch("core.memory_commands.format_agent_operations_overview", return_value="Agentes operacionais do Axel: dev_agent."):
+            result = maybe_handle_long_memory_command("agentes operacionais do axel")
+
+        self.assertEqual(result, "Agentes operacionais do Axel: dev_agent.")
+
+    def test_agent_operations_detail_command(self):
+        with patch("core.memory_commands.format_agent_operations_detail", return_value="Agente de Programação: uso 3.") as detail:
+            result = maybe_handle_long_memory_command("detalhar agente dev_agent")
+
+        detail.assert_called_once_with("dev_agent")
+        self.assertEqual(result, "Agente de Programação: uso 3.")
+
+    def test_agent_handoff_command(self):
+        with patch("core.memory_commands.format_handoff_plan_for_task", return_value="Handoff para a tarefa: ok.") as handoff:
+            result = maybe_handle_long_memory_command("handoff para pesquisar fontes e revisar código")
+
+        handoff.assert_called_once_with("pesquisar fontes e revisar código")
+        self.assertEqual(result, "Handoff para a tarefa: ok.")
+
+    def test_actionable_skills_overview_command(self):
+        with patch("core.memory_commands.format_actionable_skills_overview", return_value="Skills acionáveis: estudos pronta."):
+            result = maybe_handle_long_memory_command("skills acionáveis")
+
+        self.assertEqual(result, "Skills acionáveis: estudos pronta.")
+
+    def test_actionable_skill_detail_command(self):
+        with patch("core.memory_commands.format_actionable_skill_detail", return_value="Skill estudos: pronta.") as detail:
+            result = maybe_handle_long_memory_command("validar skill estudos")
+
+        detail.assert_called_once_with("estudos")
+        self.assertEqual(result, "Skill estudos: pronta.")
+
+    def test_todo_priorities_command(self):
+        with patch("core.memory_commands.format_todo_priorities", return_value="Prioridade atual do Axel: Transformar fachada."):
+            result = maybe_handle_long_memory_command("como estamos na lista de prioridades")
+
+        self.assertEqual(result, "Prioridade atual do Axel: Transformar fachada.")
+
+    def test_todo_evidence_audit_command(self):
+        with patch("core.memory_commands.format_todo_evidence_audit", return_value="Auditoria de evidências das metas: ok."):
+            result = maybe_handle_long_memory_command("auditar evidências das metas")
+
+        self.assertEqual(result, "Auditoria de evidências das metas: ok.")
+
+    def test_next_todo_step_command(self):
+        with patch("core.memory_commands.format_next_todo_step", return_value="Próximo passo do Axel: tornar metas úteis."):
+            result = maybe_handle_long_memory_command("qual o próximo passo")
+
+        self.assertEqual(result, "Próximo passo do Axel: tornar metas úteis.")
+
+    def test_complete_todo_priority_command(self):
+        with patch("core.memory_commands.update_current_priority_status", return_value="Meta 2 concluída.") as update:
+            result = maybe_handle_long_memory_command("concluir meta 2")
+
+        update.assert_called_once_with(2, done=True)
+        self.assertEqual(result, "Meta 2 concluída.")
+
+    def test_show_todo_evidence_command(self):
+        with patch("core.memory_commands.format_current_priority_evidence", return_value="Meta: X. Arquivos: a.py."):
+            result = maybe_handle_long_memory_command("mostrar evidência da meta 2")
+
+        self.assertEqual(result, "Meta: X. Arquivos: a.py.")
+
+    def test_add_todo_evidence_command(self):
+        with patch("core.memory_commands.parse_and_add_current_priority_evidence", return_value="Evidência registrada.") as add:
+            result = maybe_handle_long_memory_command(
+                "registrar evidência da meta 2 arquivos: core/memory_commands.py | testes: tests.test_memory_commands"
+            )
+
+        add.assert_called_once_with(2, "arquivos: core/memory_commands.py | testes: tests.test_memory_commands")
+        self.assertEqual(result, "Evidência registrada.")
 
     def test_search_agents(self):
         with patch("core.memory_commands.format_relevant_agents", return_value="Agentes especialistas relevantes: Pesquisa."):

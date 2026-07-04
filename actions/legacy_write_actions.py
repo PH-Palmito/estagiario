@@ -6,6 +6,7 @@ from actions.registry import ActionSpec, register_action
 from memory.action_memory import remember_memory
 from memory.agenda import add_agenda_item, export_agenda_ics, import_agenda_ics, remove_agenda_item
 from memory.reminders import add_reminder, remove_reminder
+from tools.system_tools import install_windows_app_shortcuts, uninstall_windows_app_shortcuts
 
 
 def _format_result(result) -> str:
@@ -70,7 +71,14 @@ def register_legacy_write_actions() -> None:
         },
         category="agenda",
     )
-    _register("reminder_add", "Adiciona lembrete local.", lambda args: add_reminder(args.get("text", "")), text_param, category="agenda")
+    _register(
+        "reminder_add",
+        "Adiciona lembrete local.",
+        lambda args: add_reminder(args.get("text", "")),
+        text_param,
+        category="agenda",
+        requires_confirmation=False,
+    )
     _register("reminder_remove", "Remove lembrete local.", lambda args: remove_reminder(args.get("index", "")), index_param, category="agenda")
     _register(
         "action_memory_remember",
@@ -83,4 +91,16 @@ def register_legacy_write_actions() -> None:
         },
         category="memory",
         requires_confirmation=False,
+    )
+    _register(
+        "windows_app_install",
+        "Instala atalhos do app do Axel no Windows.",
+        lambda _args: install_windows_app_shortcuts(),
+        category="system",
+    )
+    _register(
+        "windows_app_uninstall",
+        "Remove atalhos do app do Axel no Windows.",
+        lambda _args: uninstall_windows_app_shortcuts(),
+        category="system",
     )

@@ -43,7 +43,7 @@ def keyboard_led_status() -> str:
         "LED do teclado: "
         f"{mode}; cor {state.get('color')}; perfil {state.get('profile')}; "
         f"efeito {state.get('effect')}. "
-        "Driver fisico ainda nao configurado; estado salvo em modo simulado."
+        "Primeira camada plugável: driver físico ainda não configurado; estado salvo em modo simulado."
     )
 
 
@@ -68,7 +68,7 @@ def keyboard_led_set(
     return (
         f"LED do teclado {mode}: cor {saved.get('color')}, perfil {saved.get('profile')}, "
         f"efeito {saved.get('effect')}. "
-        "Modo simulado ativo ate conectar um provedor fisico compativel."
+        "Primeira camada plugável: modo simulado ativo até conectar um provedor físico compatível."
     )
 
 

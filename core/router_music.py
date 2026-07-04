@@ -43,6 +43,9 @@ MUSIC_SESSION_ALIASES = {
     "foco": "foco",
     "concentracao": "foco",
     "estudo": "foco",
+    "estudar": "foco",
+    "trabalhar": "foco",
+    "focar": "foco",
     "treino": "treino",
     "academia": "treino",
     "triste": "triste",
@@ -58,6 +61,28 @@ SPOTIFY_STANDALONE_SONG_ALIASES = {
     "do meu": "filho meu",
     "filho mil": "filho meu",
 }
+
+
+def _music_command_segment(text: str) -> str:
+    phrase = normalize_text(text).strip(" .,:;-")
+    if not re.search(r"\b(?:doca|docar|toca|tocar|toque|coloca|coloque|bota|botar)\b", phrase):
+        return phrase
+
+    if re.search(
+        r"\b(?:doca|docar|toca|tocar|toque|coloca|coloque|bota|botar)\s+"
+        r"(?:uma\s+)?(?:musica|música|som|playlist)\s+(?:para|pra)\s+(?:eu\s+)?(?:estudar|trabalhar|focar)\b",
+        phrase,
+    ):
+        return phrase
+
+    for pattern in (
+        r"\s+(?:e\s+depois|e|ai|aí|depois)\s+(?:me\s+)?(?:da|dá|de|dê|fala|explique|explica|mostra|mostre|abre|abra)\b",
+        r"\s+(?:para|pra)\s+(?:eu\s+)?(?:estudar|treinar|trabalhar|focar)\b",
+    ):
+        match = re.search(pattern, phrase)
+        if match:
+            return phrase[: match.start()].strip(" .,:;-")
+    return phrase
 
 
 def _strip_music_polite_prefix(text: str) -> str:
@@ -88,28 +113,44 @@ def _extract_music_session_vibe(text: str) -> str:
         "alguma coisa para ",
         "alguma coisa pra ",
         "alguma coisa ",
+        "uma musica para eu ",
         "uma musica para ",
+        "uma musica pra eu ",
         "uma musica pra ",
         "uma musica ",
+        "musica para eu ",
         "musica para ",
+        "musica pra eu ",
         "musica pra ",
         "musica ",
+        "umas musicas para eu ",
         "umas musicas para ",
+        "umas musicas pra eu ",
         "umas musicas pra ",
         "umas musicas ",
+        "musicas para eu ",
         "musicas para ",
+        "musicas pra eu ",
         "musicas pra ",
         "musicas ",
+        "um som para eu ",
         "um som para ",
+        "um som pra eu ",
         "um som pra ",
         "um som ",
+        "som para eu ",
         "som para ",
+        "som pra eu ",
         "som pra ",
         "som ",
+        "uma playlist para eu ",
         "uma playlist para ",
+        "uma playlist pra eu ",
         "uma playlist pra ",
         "uma playlist ",
+        "playlist para eu ",
         "playlist para ",
+        "playlist pra eu ",
         "playlist pra ",
         "playlist ",
         "um estilo ",
@@ -123,7 +164,7 @@ def _extract_music_session_vibe(text: str) -> str:
 
 
 def detect_music_command(user_input: str):
-    lower = normalize_text(user_input).strip(" .")
+    lower = _music_command_segment(user_input)
 
     if (
         "spotify" in lower

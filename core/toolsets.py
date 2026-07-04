@@ -32,6 +32,14 @@ TOOLSETS = (
         default_model_policy="nvidia_or_gemini_for_reasoning",
     ),
     Toolset(
+        name="estudos",
+        title="Estudos",
+        triggers=("estudo", "estudar", "pdf", "slide", "slides", "arquivo", "questoes", "questões", "resumir", "revisao", "revisão"),
+        capabilities=("analisar arquivos", "resumir material", "gerar questoes", "corrigir respostas", "salvar contexto de estudo"),
+        risks=("extracao incompleta", "ocr ruim", "inventar conteudo fora do material"),
+        default_model_policy="nvidia_or_gemini_for_reasoning",
+    ),
+    Toolset(
         name="carteira",
         title="Carteira",
         triggers=("carteira", "investimento", "dividendo", "fii", "acao", "ativo", "preco teto"),
@@ -62,6 +70,14 @@ TOOLSETS = (
         capabilities=("buscar fontes", "comparar informacoes", "sintetizar resposta fundamentada"),
         risks=("informacao recente instavel", "fonte fraca", "misturar opiniao e fato"),
         default_model_policy="cloud_with_sources",
+    ),
+    Toolset(
+        name="memoria",
+        title="Memoria",
+        triggers=("memoria", "memória", "lembrar", "salvar contexto", "contexto", "preferencia", "preferência", "sessao", "sessão", "skill"),
+        capabilities=("salvar contexto", "consultar memoria", "organizar preferencias", "recuperar sessoes", "gerenciar skills"),
+        risks=("salvar dado passageiro", "confundir contexto antigo", "expor informacao sensivel"),
+        default_model_policy="local_first",
     ),
 )
 
