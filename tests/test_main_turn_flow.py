@@ -302,10 +302,13 @@ class MainTurnFlowTests(unittest.TestCase):
         ):
             raw_action = main.route_user_input("???", source="unit")
 
-        self.assertEqual(raw_action, {"intent": "respond", "target": None, "response": "Nao entendi."})
+        self.assertEqual(raw_action["intent"], "respond")
+        self.assertEqual(raw_action["__decision_type"], "UNKNOWN")
+        self.assertIn("texto suficiente", raw_action["response"])
         self.assertEqual(calls[0][0], "route_result")
         self.assertEqual(calls[0][1]["source"], "unit")
         self.assertEqual(calls[0][1]["intent"], "respond")
+        self.assertEqual(calls[0][1]["decision_type"], "UNKNOWN")
         self.assertEqual(calls[0][1]["group"], "")
         self.assertEqual(calls[0][1]["detector"], "")
         self.assertEqual(calls[0][1]["intent_level"], "conversa")
@@ -315,12 +318,14 @@ class MainTurnFlowTests(unittest.TestCase):
         self.assertIn("decision_plan", calls[0][1])
         self.assertIn("specialist_brief", calls[0][1])
         self.assertEqual(main.app_runtime.runtime_state.axel_brain_plan["intent"], "respond")
+        self.assertEqual(main.app_runtime.runtime_state.axel_brain_plan["decision_type"], "UNKNOWN")
         self.assertEqual(main.app_runtime.runtime_state.axel_brain_contract["version"], "2.0")
         self.assertEqual(main.app_runtime.runtime_state.axel_brain_contract["channel"], "local")
         self.assertEqual(main.app_runtime.runtime_state.axel_brain_contract["remote_policy"]["decision"], "local_flow")
         self.assertEqual(main.app_runtime.runtime_state.axel_brain_history[-1]["intent"], "respond")
         self.assertEqual(main.app_runtime.runtime_state.axel_brain_history[-1]["safety_profile"], "local_normal")
         self.assertEqual(main.app_runtime.runtime_state.last_route_trace["intent"], "respond")
+        self.assertEqual(main.app_runtime.runtime_state.last_route_trace["decision_type"], "UNKNOWN")
         self.assertEqual(main.app_runtime.runtime_state.last_route_trace["checked_detectors"], 20)
         self.assertEqual(
             main.app_runtime.runtime_state.axel_brain_brief["agent"],

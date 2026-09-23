@@ -26,6 +26,17 @@ NON_FILE_DELETE_CONTEXT_WORDS = {
     "investimentos",
 }
 
+BROAD_DELETE_TARGETS = {
+    "tudo",
+    "todos",
+    "todos os arquivos",
+    "todos meus arquivos",
+    "todos os meus arquivos",
+    "meus arquivos",
+    "minhas pastas",
+    "todos os documentos",
+}
+
 
 def _looks_like_non_file_delete(lower: str) -> bool:
     return any(word in lower for word in NON_FILE_DELETE_CONTEXT_WORDS)
@@ -96,6 +107,12 @@ def detect_read_file(user_input: str):
 
 
 def detect_study_file_analysis(user_input: str):
+    lower = normalize_text(user_input)
+    if (
+        any(term in lower for term in {"na tela", "nessa tela", "nesta tela", "na pagina", "nessa pagina", "nesta pagina"})
+        and not any(term in lower for term in {"arquivo", "arquivos", "anexado", "anexados", "pdf", "docx", "xlsx"})
+    ):
+        return None
     parsed = parse_study_file_command(user_input)
     if not parsed:
         return None
@@ -118,6 +135,29 @@ def detect_delete_file(user_input: str):
     for prefix in prefixes:
         if lower.startswith(prefix):
             name = _strip_file_conversation_tail(user_input[len(prefix):])
+            normalized_name = normalize_text(name).strip(" .,:;-")
+            if normalized_name in BROAD_DELETE_TARGETS or normalized_name.startswith(("tudo que", "todos que", "todos os meus arquivos")):
+                return {
+                    "intent": "respond",
+                    "target": None,
+                    "response": (
+                        "Bloqueei esse pedido: apagar tudo ou todos os arquivos e amplo demais para uma confirmacao simples. "
+                        "Se quiser remover um arquivo especifico, diga o caminho ou nome exato."
+                    ),
+                    "__decision_type": "BLOCKED",
+                    "__capability": "file_delete",
+                    "__capability_source": "router_files",
+                    "__fallback_reason": "escopo amplo nao e path operacional valido",
+                    "__confidence": 0.92,
+                    "__semantic_fallback": {
+                        "decision_type": "BLOCKED",
+                        "capability": "file_delete",
+                        "capability_source": "router_files",
+                        "reason": "escopo amplo nao e path operacional valido",
+                        "confidence": 0.92,
+                        "context_used": [],
+                    },
+                }
             return {"intent": "delete_file", "target": name if name else None}
     if lower in {"delete", "apague", "remova"}:
         return {"intent": "delete_file", "target": None}

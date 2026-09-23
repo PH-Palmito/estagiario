@@ -25,6 +25,9 @@ REMOTE_LIGHT_CONFIRM_ACTIONS = {
     "volume_down",
     "volume_mute",
 }
+REMOTE_SAFE_WRITE_ACTIONS = {
+    "reminder_add",
+}
 REMOTE_PERMISSION_TIERS = (
     {
         "tier": "read_only",
@@ -37,6 +40,12 @@ REMOTE_PERMISSION_TIERS = (
         "can_execute": False,
         "can_confirm_remotely": True,
         "summary": "Midia e volume leves exigem confirmacao no proprio chat.",
+    },
+    {
+        "tier": "safe_write",
+        "can_execute": True,
+        "can_confirm_remotely": False,
+        "summary": "Escritas locais de baixo risco, como lembretes, podem rodar no canal remoto autorizado.",
     },
     {
         "tier": "sensitive_or_write",
@@ -73,6 +82,7 @@ def remote_permission_summary() -> dict:
         "status": "remote_limited",
         "remote_mode": "expanded_disabled",
         "confirmable_actions": sorted(REMOTE_LIGHT_CONFIRM_ACTIONS),
+        "safe_write_actions": sorted(REMOTE_SAFE_WRITE_ACTIONS),
         "tiers": [dict(item) for item in REMOTE_PERMISSION_TIERS],
         "next_review_gate": (
             "Somente ampliar permissoes remotas depois de auditoria, escopo por action, "
@@ -98,6 +108,16 @@ def remote_execution_policy(plan: dict, *, source: str, action_name: str = "") -
     needs_confirmation = bool(plan.get("needs_confirmation"))
     response_mode = str(plan.get("response_mode") or "").strip()
     action = str(action_name or plan.get("intent") or "").strip()
+    if action in REMOTE_LIGHT_CONFIRM_ACTIONS:
+        return {
+            "channel": channel,
+            "can_execute": False,
+            "can_confirm_remotely": True,
+            "decision": "confirm_remote_light",
+            "safety_profile": "remote_light_media_confirmation",
+            "execution_guidance": "pedir confirmacao no chat antes de executar midia leve",
+            "reason": "canal remoto permite apenas midia leve com confirmacao no proprio chat",
+        }
     if risk == "read" and not needs_confirmation and response_mode != "confirm_then_act":
         return {
             "channel": channel,
@@ -108,15 +128,15 @@ def remote_execution_policy(plan: dict, *, source: str, action_name: str = "") -
             "execution_guidance": "responder no canal remoto sem acao de escrita",
             "reason": "canal remoto limitado a leitura nesta fase",
         }
-    if action in REMOTE_LIGHT_CONFIRM_ACTIONS:
+    if action in REMOTE_SAFE_WRITE_ACTIONS and not needs_confirmation:
         return {
             "channel": channel,
-            "can_execute": False,
-            "can_confirm_remotely": True,
-            "decision": "confirm_remote_light",
-            "safety_profile": "remote_light_media_confirmation",
-            "execution_guidance": "pedir confirmacao no chat antes de executar midia leve",
-            "reason": "canal remoto permite apenas midia leve com confirmacao no proprio chat",
+            "can_execute": True,
+            "can_confirm_remotely": False,
+            "decision": "allow_remote_safe_write",
+            "safety_profile": "remote_safe_write",
+            "execution_guidance": "executar escrita local de baixo risco no canal remoto autorizado",
+            "reason": "canal remoto permite lembretes sem confirmacao local",
         }
     return {
         "channel": channel,
@@ -147,6 +167,27 @@ def build_axel_brain_contract(
         for item in layers
         if isinstance(item, dict) and str(item.get("name") or "").strip()
     ]
+    memory_influences = []
+    for layer in layers:
+        if not isinstance(layer, dict):
+            continue
+        layer_name = str(layer.get("name") or "").strip()
+        for influence in layer.get("influences") or []:
+            if not isinstance(influence, dict):
+                continue
+            memory_influences.append(
+                {
+                    "layer": layer_name,
+                    "domain": str(influence.get("domain") or ""),
+                    "section": str(influence.get("section") or ""),
+                    "source": str(influence.get("source") or ""),
+                    "scope": str(influence.get("scope") or ""),
+                    "confidence": influence.get("confidence"),
+                    "priority": str(influence.get("priority") or ""),
+                    "reason": str(influence.get("reason") or "")[:180],
+                    "text": str(influence.get("text") or "")[:180],
+                }
+            )
     action_name = str(action.get("intent") or plan_payload.get("intent") or "respond")
     policy = remote_execution_policy(plan_payload, source=source, action_name=action_name)
     return {
@@ -156,6 +197,10 @@ def build_axel_brain_contract(
         "user_input": str(user_input or "")[:500],
         "intent": action_name,
         "target": action.get("target"),
+        "decision_type": str(plan_payload.get("decision_type") or action.get("__decision_type") or ""),
+        "capability": str(plan_payload.get("capability") or action.get("__capability") or ""),
+        "capability_source": str(plan_payload.get("capability_source") or action.get("__capability_source") or ""),
+        "semantic_fallback": dict(action.get("__semantic_fallback") or {}) if isinstance(action.get("__semantic_fallback"), dict) else {},
         "agent": str(plan_payload.get("agent") or brief_payload.get("agent") or ""),
         "toolset": str(plan_payload.get("toolset") or brief_payload.get("toolset") or ""),
         "risk_level": str(plan_payload.get("risk_level") or ""),
@@ -166,6 +211,7 @@ def build_axel_brain_contract(
         "next_step": str(brief_payload.get("next_step") or ""),
         "execution_guidance": str(policy.get("execution_guidance") or ""),
         "memory_layers": layer_names[:6],
+        "memory_influences": memory_influences[:8],
         "success_criteria": [str(item) for item in (brief_payload.get("success_criteria") or [])[:5]],
         "post_task_signals": [str(item) for item in (brief_payload.get("post_task_signals") or [])[:5]],
         "remote_policy": policy,

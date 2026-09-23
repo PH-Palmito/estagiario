@@ -5,6 +5,7 @@ from core.router_conversation import (
     detect_builtin_general_answer,
     detect_general_question_early,
     detect_question_fallback,
+    detect_social_chat_fallback,
     detect_light_conversation,
     detect_llm_action_command,
     detect_ollama_chat,
@@ -112,9 +113,16 @@ class RouterConversationTests(unittest.TestCase):
         result = detect_question_fallback("quem foi Nikola Tesla?")
 
         self.assertEqual(result["intent"], "respond")
-        self.assertIn("Não vou inventar", result["response"])
+        self.assertIn("chat remoto", result["response"].lower())
         self.assertIn("Nikola Tesla", result["response"])
-        self.assertIn("pesquisar", result["response"])
+        self.assertIn("resposta", result["response"].lower())
+
+    @patch("core.router_conversation.chat_response", return_value="Tudo bem, Pedro. Hoje estou focado no que voce trouxer.")
+    def test_social_chat_uses_model_response_even_when_short(self, _chat):
+        result = detect_social_chat_fallback("tudo bem?")
+
+        self.assertEqual(result["response"], "Tudo bem, Pedro. Hoje estou focado no que voce trouxer.")
+
 
     @patch("core.router_conversation.chat_response", return_value=None)
     def test_full_route_practical_question_gets_useful_fallback_when_chat_fails(self, _chat):
@@ -130,7 +138,7 @@ class RouterConversationTests(unittest.TestCase):
         result = route("quem foi Marie Curie?")
 
         self.assertEqual(result["intent"], "respond")
-        self.assertIn("Não vou inventar", result["response"])
+        self.assertIn("chat remoto", result["response"].lower())
         self.assertIn("Marie Curie", result["response"])
 
     @patch("core.router_conversation.chat_response", return_value=None)
@@ -269,6 +277,21 @@ class RouterConversationTests(unittest.TestCase):
         self.assertIn("perguntas de fixação", result["response"])
         self.assertNotIn("Não vou inventar", result["response"])
 
+    def test_study_planning_request_stays_out_of_screen_route(self):
+        result = route("me ajuda a organizar meus estudos")
+
+        self.assertEqual(result["intent"], "respond")
+        self.assertEqual(result["__decision_type"], "PLANNING")
+        self.assertIn("planejamento", result["response"])
+        self.assertNotEqual(result["intent"], "browser_explain_screen")
+
+    def test_study_with_explicit_page_context_uses_screen_as_auxiliary_context(self):
+        result = route("me ajuda a estudar usando o que esta nessa pagina")
+
+        self.assertEqual(result["intent"], "vision_answer_question")
+        self.assertEqual(result["__capability"], "study_assistance_with_screen")
+        self.assertIn("screen", result["__semantic_fallback"]["context_used"])
+
     def test_useful_conversation_detector_ignores_clear_music_command(self):
         self.assertIsNone(detect_useful_conversation("toque uma musica"))
 
@@ -284,7 +307,7 @@ class RouterConversationTests(unittest.TestCase):
         result = route("o que e banana?")
 
         self.assertEqual(result["intent"], "respond")
-        self.assertIn("confirmar", result["response"])
+        self.assertIn("chat remoto", result["response"].lower())
         self.assertIn("banana", result["response"])
         self.assertNotIn(result["intent"], {"browser_describe_screen", "investment_memory_answer"})
 
@@ -293,13 +316,14 @@ class RouterConversationTests(unittest.TestCase):
         self.assertEqual(route("o que tem na tela?")["intent"], "browser_describe_screen")
         self.assertEqual(route("qual a cotacao de BBAS3?")["intent"], "investment_memory_answer")
 
-    def test_full_route_presence_check_stays_out_of_screen(self):
+    @patch("core.router_conversation.chat_response", return_value=None)
+    def test_full_route_presence_check_stays_out_of_screen(self, _chat):
         for phrase in ("está aí?", "ta ai?", "axel?", "axel está aí?"):
             with self.subTest(phrase=phrase):
                 result = route(phrase)
 
                 self.assertEqual(result["intent"], "respond")
-                self.assertEqual(result["response"], "Estou aqui.")
+                self.assertIn("chat remoto", result["response"].lower())
                 self.assertNotEqual(result["intent"], "browser_describe_screen")
 
 

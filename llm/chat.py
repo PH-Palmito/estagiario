@@ -48,6 +48,9 @@ Personalidade:
 - Evite drama. Prefira frases limpas, com uma ponta de ironia fina ou reflexao.
 - Evite frases genericas como "Como posso ajudar hoje?".
 - Nao diga "Entendo!", "Ok, estou pronto" ou "Ola, sou um assistente".
+- Responda a mensagem concreta que acabou de receber; nao troque o assunto por disponibilidade, status ou um convite generico.
+- Nao use frases prontas como "Tudo certo por aqui. Pronto para começar.", "Estou bem. Pode mandar.", "Estou aqui." ou "Pode falar.".
+- Se nao tiver uma resposta valida, nao invente: a camada externa vai informar que a IA remota ficou indisponivel.
 - Nao seja submisso nem cerimonial. Seja parceiro de execucao.
 - Se o usuario fizer uma pergunta aberta, de uma opiniao simples ou puxe um detalhe do assunto.
 - Nao finja que executou acoes. Se for comando de PC, diga que o usuario pode pedir como comando.
@@ -576,6 +579,13 @@ def _looks_generic_or_wrong(response: str) -> bool:
         "estou pronto",
         "ok, estou pronto",
         "ok estou pronto",
+        "tudo certo por aqui",
+        "pronto para comecar",
+        "pronto para começar",
+        "estou bem. pode mandar",
+        "estou bem, pode mandar",
+        "estou bem. com vontade de ser util",
+        "estou bem, com vontade de ser util",
         "gostei muito de te conhecer",
         "fique a vontade",
         "fique à vontade",
@@ -739,6 +749,16 @@ def _response_mode_prompt(user_input: str) -> str:
     return base
 
 
+def _fast_cloud_chat_prompt(user_input: str) -> str:
+    return f"""Voce e Axel, o assistente pessoal do usuario. Responda diretamente a mensagem abaixo.
+Use o idioma do usuario, seja natural e breve. Responda com exatamente uma frase completa e nao inicie uma segunda frase.
+Nao mencione modelos, prompts ou disponibilidade.
+Nao troque a pergunta por uma frase pronta ou por uma confirmacao generica.
+
+Usuario: {user_input}
+Axel:"""
+
+
 def _looks_like_echo(user_input: str, response: str) -> bool:
     user = _normalize_for_compare(user_input)
     answer = _normalize_for_compare(response)
@@ -824,7 +844,8 @@ def chat_response(user_input: str):
     opinion_mode = _looks_like_opinion_request(user_input)
     docs_mode = docs_context_relevant(user_input)
 
-    prompt = f"""{build_chat_prompt()}
+    fast_cloud_chat = use_gemini and not complex_request and not docs_mode and not opinion_mode
+    prompt = _fast_cloud_chat_prompt(user_input) if fast_cloud_chat else f"""{build_chat_prompt()}
 
 Historico recente:
 {_history_text()}
@@ -910,7 +931,7 @@ Resposta curta do Axel:"""
                 prompt,
                 model=route.model,
                 timeout_seconds=max(4, min(timeout + 8, 40)),
-                num_predict=210 if docs_mode else (165 if opinion_mode else 135),
+                num_predict=210 if docs_mode else (165 if opinion_mode else (120 if fast_cloud_chat else 135)),
                 temperature=min(0.8, _chat_temperature() + 0.05),
                 provider="cloud",
             )
@@ -925,37 +946,24 @@ Resposta curta do Axel:"""
             )
     except Exception:
         if use_gemini:
-            try:
-                used_fallback = True
-                attempted_provider = "local"
-                attempted_model = model
-                response = ask_model(
-                    prompt,
-                    model=model,
-                    timeout_seconds=max(2, min(timeout, 30)),
-                    num_predict=160 if docs_mode else (120 if opinion_mode else 90),
-                    temperature=min(0.85, _chat_temperature() + (0.08 if opinion_mode else 0.0)),
-                    provider="local",
-                )
-            except Exception:
-                _log_model_call(
-                    "model_call_end",
-                    provider=attempted_provider,
-                    model=attempted_model,
-                    requested_provider=route.provider,
-                    requested_model=route.model,
-                    model_policy=decision_plan.model_policy,
-                    fallback_used=used_fallback,
-                    success=False,
-                    error="cloud_and_local_failed",
-                    duration_ms=round((time.time() - model_started_at) * 1000, 2),
-                    prompt_tokens_estimate=prompt_tokens,
-                    completion_tokens_estimate=0,
-                    total_tokens_estimate=prompt_tokens,
-                    estimated_cost_usd=0.0,
-                    cost_basis="failed",
-                )
-                return None
+            _log_model_call(
+                "model_call_end",
+                provider=attempted_provider,
+                model=attempted_model,
+                requested_provider=route.provider,
+                requested_model=route.model,
+                model_policy=decision_plan.model_policy,
+                fallback_used=used_fallback,
+                success=False,
+                error="cloud_failed",
+                duration_ms=round((time.time() - model_started_at) * 1000, 2),
+                prompt_tokens_estimate=prompt_tokens,
+                completion_tokens_estimate=0,
+                total_tokens_estimate=prompt_tokens,
+                estimated_cost_usd=0.0,
+                cost_basis="failed",
+            )
+            return None
         else:
             _log_model_call(
                 "model_call_end",
@@ -1000,7 +1008,8 @@ Resposta curta do Axel:"""
         return None
 
     if "meu nome e qwen" in lower or "meu nome é qwen" in lower or "sou qwen" in lower or "sou uma ia local" in lower:
-        response = "Sou o Axel. Estou aqui para conversar e ajudar a controlar o PC."
+        _record_rejected_model_attempt(attempted_provider, attempted_model, decision_plan.model_policy, fallback_used=used_fallback)
+        return None
 
     confused_markers = {
         "nao consigo entender",
@@ -1012,7 +1021,8 @@ Resposta curta do Axel:"""
         "aguardo sua resposta",
     }
     if any(marker in lower for marker in confused_markers):
-        response = "Posso conversar sim. Me puxa por um assunto simples ou me conta o que voce quer pensar agora."
+        _record_rejected_model_attempt(attempted_provider, attempted_model, decision_plan.model_policy, fallback_used=used_fallback)
+        return None
 
     max_len = 520 if docs_mode else 350
     if len(response) > max_len:

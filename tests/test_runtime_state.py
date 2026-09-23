@@ -19,7 +19,25 @@ class RuntimeStateTests(unittest.TestCase):
             "model_policy": "local_first",
         }
         state.axel_brain_brief = {
-            "memory_layers": [{"name": "memoria_curta"}, {"name": "skills_procedurais"}],
+            "memory_layers": [
+                {"name": "memoria_curta"},
+                {
+                    "name": "memoria_profunda",
+                    "influences": [
+                        {
+                            "domain": "rotina",
+                            "section": "regras_adaptativas",
+                            "source": "memory/adaptive_preferences.json",
+                            "scope": "treino",
+                            "confidence": 0.9,
+                            "priority": "alta",
+                            "reason": "nao avisar treino",
+                            "text": "Regra adaptativa: evitar avisar treino",
+                        }
+                    ],
+                },
+                {"name": "skills_procedurais"},
+            ],
         }
         state.axel_brain_contract = {
             "source": "turn",
@@ -55,7 +73,9 @@ class RuntimeStateTests(unittest.TestCase):
         self.assertEqual(timeline_entry["decision"]["intent"], "close_app")
         self.assertEqual(timeline_entry["decision"]["reason"], "comando local de sistema")
         self.assertEqual(timeline_entry["decision"]["confidence"], 0.91)
-        self.assertEqual(timeline_entry["context"]["memory_layers"], ["memoria_curta", "skills_procedurais"])
+        self.assertEqual(timeline_entry["context"]["memory_layers"], ["memoria_curta", "memoria_profunda", "skills_procedurais"])
+        self.assertEqual(timeline_entry["context"]["memory_influences"][0]["source"], "memory/adaptive_preferences.json")
+        self.assertEqual(timeline_entry["context"]["memory_influences"][0]["domain"], "rotina")
         self.assertEqual(timeline_entry["execution"]["action"], "close_app")
         self.assertTrue(timeline_entry["execution"]["needs_confirmation"])
         self.assertEqual(timeline_entry["response"]["final"], "Spotify fechado.")

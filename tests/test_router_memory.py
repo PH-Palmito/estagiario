@@ -51,6 +51,44 @@ class RouterMemoryTests(unittest.TestCase):
 
         self.assertEqual(result, {"intent": "action_memory_list", "target": "investments"})
 
+    def test_detects_deep_memory_summary(self):
+        result = detect_memory_command("mostrar memoria profunda")
+
+        self.assertEqual(result, {"intent": "action_tool_execute", "target": {"name": "memory.deep.summary", "arguments": {}}})
+
+    def test_detects_deep_memory_preferences_before_simple_recall(self):
+        result = detect_memory_command("o que voce sabe sobre minhas preferencias")
+
+        self.assertEqual(
+            result,
+            {
+                "intent": "action_tool_execute",
+                "target": {"name": "memory.deep.domain", "arguments": {"domain": "operacional"}},
+            },
+        )
+
+    def test_detects_deep_memory_domain_query(self):
+        result = detect_memory_command("qual contexto de treino esta ativo")
+
+        self.assertEqual(
+            result,
+            {
+                "intent": "action_tool_execute",
+                "target": {"name": "memory.deep.domain", "arguments": {"domain": "treino"}},
+            },
+        )
+
+    def test_detects_deep_memory_explanation_query(self):
+        result = detect_memory_command("por que voce nao me avisou do treino?")
+
+        self.assertEqual(
+            result,
+            {
+                "intent": "action_tool_execute",
+                "target": {"name": "memory.deep.explain", "arguments": {"query": "por que voce nao me avisou do treino?"}},
+            },
+        )
+
     def test_detects_action_tool_execute_with_json_arguments(self):
         result = detect_action_core_command('executar action file.process {"path":"README.md","max_chars":1000}')
 

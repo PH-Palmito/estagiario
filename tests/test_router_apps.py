@@ -7,6 +7,7 @@ from core.router_apps import (
     detect_open_url,
     detect_window_command,
 )
+from core.router import route
 
 
 class RouterAppsTests(unittest.TestCase):
@@ -35,6 +36,18 @@ class RouterAppsTests(unittest.TestCase):
         result = detect_window_command("foca no chrome")
 
         self.assertEqual(result, {"intent": "focus_app", "target": "chrome"})
+
+    def test_does_not_confuse_faca_with_focus_command(self):
+        result = detect_window_command("faca teletransporte quantico do meu monitor")
+
+        self.assertIsNone(result)
+
+    def test_entity_monitor_alone_does_not_select_window_router(self):
+        result = route("teletransporte meu monitor")
+
+        self.assertEqual(result["intent"], "respond")
+        self.assertEqual(result["__decision_type"], "UNKNOWN")
+        self.assertIn("nao tenho capacidade", result["response"].lower())
 
     def test_detects_window_context_maximize(self):
         result = detect_window_command("maximiza")

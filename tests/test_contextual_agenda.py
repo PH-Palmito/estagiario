@@ -99,6 +99,33 @@ class ContextualAgendaTests(unittest.TestCase):
         self.assertIn("Combinado. Vou lembrar", second)
         self.assertIn("eu tenho uma prova", second)
 
+    def test_add_reminder_uses_explicit_base_time_for_relative_dates(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reminders_path = Path(temp_dir) / "reminders.json"
+            pending_path = Path(temp_dir) / "pending_reminder.json"
+            with (
+                patch.object(reminders, "REMINDERS_PATH", reminders_path),
+                patch.object(reminders, "PENDING_REMINDER_PATH", pending_path),
+                patch.object(reminders, "sync_memory_state_safely"),
+                patch.object(reminders, "load_current_topic", return_value={}),
+                patch("memory.reminders.datetime") as dt,
+            ):
+                dt.now.return_value = datetime(2026, 7, 31, 12, 0)
+                dt.min = datetime.min
+                dt.fromisoformat = datetime.fromisoformat
+                dt.combine = datetime.combine
+                dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+                reminders.add_reminder(
+                    "testar o axel amanha 9h",
+                    now=datetime(2026, 7, 29, 10, 0),
+                )
+                item = reminders.load_reminders()["items"][0]
+
+        self.assertEqual(item["text"], "testar o axel")
+        self.assertEqual(item["due_at"], "2026-07-30T09:00")
+        self.assertEqual(item["created_at"], "2026-07-29T10:00:00")
+
 
 if __name__ == "__main__":
     unittest.main()

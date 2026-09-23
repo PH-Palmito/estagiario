@@ -41,10 +41,30 @@ class AxelBrainCommandTests(unittest.TestCase):
                 "next_step": "Responder usando as camadas de memoria e fontes relevantes.",
                 "success_criteria": ["resposta curta", "contexto usado"],
                 "post_task_signals": ["registrar sucesso"],
-                "memory_layers": [{"name": "memoria_curta"}, {"name": "skills_procedurais"}],
+                "memory_layers": [
+                    {"name": "memoria_curta"},
+                    {
+                        "name": "memoria_profunda",
+                        "influences": [
+                            {
+                                "domain": "programacao",
+                                "source": "memory/long_memory.json",
+                                "text": "Prioridade atual: revisar codigo",
+                            }
+                        ],
+                    },
+                    {"name": "skills_procedurais"},
+                ],
             },
             {
                 "channel": "remote",
+                "memory_influences": [
+                    {
+                        "domain": "programacao",
+                        "source": "memory/long_memory.json",
+                        "text": "Prioridade atual: revisar codigo",
+                    }
+                ],
                 "remote_policy": {
                     "channel": "remote",
                     "decision": "confirm_remote_light",
@@ -67,7 +87,8 @@ class AxelBrainCommandTests(unittest.TestCase):
         self.assertIn("proximo passo: Responder usando", text)
         self.assertIn("criterios de sucesso: resposta curta", text)
         self.assertIn("sinais pos-tarefa: registrar sucesso", text)
-        self.assertIn("memoria consultada: memoria_curta, skills_procedurais", text)
+        self.assertIn("memoria consultada: memoria_curta, memoria_profunda, skills_procedurais", text)
+        self.assertIn("influencias profundas: programacao via memory/long_memory.json", text)
         self.assertIn("politica de canal: canal remote", text)
         self.assertIn("perfil remote_light_media_confirmation", text)
         self.assertIn("confirmacao remota sim", text)
@@ -114,7 +135,15 @@ class AxelBrainCommandTests(unittest.TestCase):
                 "response_mode": "answer_with_context",
                 "tool_libraries": [{"actions": [{"name": "study.analyze_files"}]}],
             },
-            axel_brain_brief={"memory_layers": [{"name": "skills_procedurais"}]},
+            axel_brain_brief={
+                "memory_layers": [
+                    {
+                        "name": "memoria_profunda",
+                        "influences": [{"source": "memory/adaptive_preferences.json"}],
+                    },
+                    {"name": "skills_procedurais"},
+                ]
+            },
             axel_brain_contract={"channel": "local"},
         )
 
@@ -122,12 +151,22 @@ class AxelBrainCommandTests(unittest.TestCase):
 
         self.assertIn("Efeitos reais do AxelBrain", result)
         self.assertIn("study_agent", result)
+        self.assertIn("memory/adaptive_preferences.json", result)
 
     def test_audits_last_response_without_sensitive_details(self):
         timeline = [
             {
                 "action": "study.analyze_files",
-                "context": {"memory_layers": ["skills_procedurais", "sessoes_relevantes"]},
+                "context": {
+                    "memory_layers": ["memoria_profunda", "skills_procedurais", "sessoes_relevantes"],
+                    "memory_influences": [
+                        {
+                            "source": "memory/study.json",
+                            "domain": "estudos",
+                            "text": "Revisao pendente: redes",
+                        }
+                    ],
+                },
                 "execution": {"action": "study.analyze_files"},
                 "response": {
                     "provenance": {
@@ -145,6 +184,7 @@ class AxelBrainCommandTests(unittest.TestCase):
         self.assertIn("study.analyze_files", text)
         self.assertIn("RedesBasico.pdf", text)
         self.assertIn("skills_procedurais", text)
+        self.assertIn("memory/study.json", text)
         self.assertNotIn("C:\\Users", text)
 
     def test_handles_response_reality_command(self):
@@ -251,7 +291,10 @@ class AxelBrainCommandTests(unittest.TestCase):
                     "input": "fechar spotify",
                     "route_group": "system",
                     "detector": "detect_close_app",
-                    "memory_layers": ["memoria_curta"],
+                    "memory_layers": ["memoria_curta", "memoria_profunda"],
+                    "memory_influences": [
+                        {"source": "memory/adaptive_preferences.json", "domain": "rotina"}
+                    ],
                 },
                 "execution": {"action": "close_app", "needs_confirmation": True},
                 "response": {"final": "Spotify fechado."},
@@ -263,7 +306,8 @@ class AxelBrainCommandTests(unittest.TestCase):
         self.assertIn("decisao intent close_app", text)
         self.assertIn("motivo comando local de sistema", text)
         self.assertIn("contexto rota system/detect_close_app", text)
-        self.assertIn("memoria memoria_curta", text)
+        self.assertIn("memoria memoria_curta, memoria_profunda", text)
+        self.assertIn("fontes profundas memory/adaptive_preferences.json", text)
         self.assertIn("execucao action close_app", text)
         self.assertIn("confirmacao sim", text)
         self.assertIn("resposta final Spotify fechado.", text)
@@ -289,6 +333,29 @@ class AxelBrainCommandTests(unittest.TestCase):
         self.assertIn("decisao intent open_app", text)
         self.assertIn("contexto rota apps/detect_open_app", text)
         self.assertIn("resposta final Chrome aberto.", text)
+
+    def test_history_prefers_timeline_question_and_answer(self):
+        text = format_axel_brain_history(
+            [{"intent": "legacy_only", "agent": "old_agent"}],
+            timeline=[
+                {
+                    "input": "me ajuda a organizar meus estudos",
+                    "intent": "respond",
+                    "decision_type": "PLANNING",
+                    "action": "respond",
+                    "result": "Vou tratar isso como planejamento.",
+                    "context": {"input": "me ajuda a organizar meus estudos", "route_group": "general_questions"},
+                    "decision": {"intent": "respond", "decision_type": "PLANNING"},
+                    "execution": {"action": "respond"},
+                    "response": {"final": "Vou tratar isso como planejamento."},
+                }
+            ],
+        )
+
+        self.assertIn("Historico recente do Axel", text)
+        self.assertIn("pergunta: me ajuda a organizar meus estudos", text)
+        self.assertIn("resposta: Vou tratar isso como planejamento.", text)
+        self.assertIn("decisao: respond/PLANNING", text)
 
     def test_handles_timeline_command(self):
         runtime_state = SimpleNamespace(

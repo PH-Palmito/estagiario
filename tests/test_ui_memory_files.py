@@ -31,8 +31,8 @@ class UIMemoryFilesTests(unittest.TestCase):
             self.assertEqual(loaded["last_route_trace"], {})
             self.assertEqual(loaded["skill_suggestions"], [])
             self.assertIn("observability", loaded)
-            self.assertTrue(loaded["assistant_personality_enabled"])
-            self.assertTrue(loaded["assistant_proactivity_enabled"])
+            self.assertFalse(loaded["assistant_personality_enabled"])
+            self.assertFalse(loaded["assistant_proactivity_enabled"])
             self.assertTrue(updated["visible"])
             self.assertEqual(updated["last_command"], "abrir painel")
 

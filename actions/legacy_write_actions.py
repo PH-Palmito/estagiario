@@ -74,7 +74,7 @@ def register_legacy_write_actions() -> None:
     _register(
         "reminder_add",
         "Adiciona lembrete local.",
-        lambda args: add_reminder(args.get("text", "")),
+        lambda args: add_reminder(args.get("text", ""), now=args.get("now") or None),
         text_param,
         category="agenda",
         requires_confirmation=False,

@@ -199,6 +199,14 @@ CONTEXT_RESTORE_PATTERNS = {
     "restaure",
 }
 
+NON_WINDOW_ACTION_PREFIXES = {
+    "faca",
+    "faz",
+    "fazer",
+    "faco",
+    "fiz",
+}
+
 
 def _app_options():
     options = dict(KNOWN_APPS)
@@ -329,8 +337,17 @@ def _match_smart_app_target(text: str):
     return _best_fuzzy_match(target, _smart_app_options(), cutoff=0.66)
 
 
+def _exact_option_match(text: str, options: dict):
+    target = _normalize_target_phrase(text)
+    normalized_options = {normalize_text(key): value for key, value in options.items()}
+    return normalized_options.get(target)
+
+
 def _looks_like_window_request(text: str) -> bool:
     normalized = normalize_text(text)
+    first_word = normalized.split(" ", 1)[0] if normalized else ""
+    if first_word in NON_WINDOW_ACTION_PREFIXES:
+        return False
     window_prefix_groups = (
         FOCUS_PREFIXES,
         MINIMIZE_PREFIXES,
@@ -342,7 +359,6 @@ def _looks_like_window_request(text: str) -> bool:
         if _extract_after_fuzzy_prefix(normalized, prefixes):
             return True
 
-    first_word = normalized.split(" ", 1)[0] if normalized else ""
     if difflib.get_close_matches(
         first_word,
         ["foca", "focar", "troca", "troque", "vai", "volta", "minimiza", "minimizar", "maximize", "maximiza", "maximizar", "restaura", "restaurar"],
@@ -397,7 +413,7 @@ def detect_open_url(user_input: str):
             return {"intent": "open_url", "target": site}
 
     if len(lower.split()) <= 3:
-        site = _best_fuzzy_match(lower, sites, cutoff=0.75)
+        site = _exact_option_match(lower, sites)
         if site:
             return {"intent": "open_url", "target": site}
 
@@ -406,6 +422,9 @@ def detect_open_url(user_input: str):
 
 def detect_window_command(user_input: str):
     lower = _command_target_segment(user_input)
+    first_word = lower.split(" ", 1)[0] if lower else ""
+    if first_word in NON_WINDOW_ACTION_PREFIXES:
+        return None
 
     if lower in CONTEXT_FOCUS_PATTERNS:
         return {"intent": "focus_app", "target": None}
@@ -505,10 +524,10 @@ def detect_open_app(user_input: str):
         return {"intent": "smart_open", "target": open_target}
 
     if len(lower.split()) <= 3:
-        app = _match_app_target(lower)
+        app = _exact_option_match(lower, _app_options())
         if app:
             return {"intent": "open_app", "target": app}
-        smart_app = _match_smart_app_target(lower)
+        smart_app = _exact_option_match(lower, _smart_app_options())
         if smart_app:
             return {"intent": "smart_open", "target": smart_app}
 

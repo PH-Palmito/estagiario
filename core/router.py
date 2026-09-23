@@ -33,6 +33,7 @@ from core.router_registry import (
     iter_group_detectors,
     trace_route,
 )
+from core.unknown_intent import action_from_unknown_intent
 
 ROUTER_GROUP_DEFINITIONS = [
     ("fast_path", FAST_PATH_DETECTORS, INTENT_LEVEL_DIRECT_COMMAND),
@@ -83,4 +84,4 @@ def route(user_input: str):
     if match:
         return match.result
 
-    return {"intent": "respond", "target": None, "response": "Nao entendi."}
+    return action_from_unknown_intent(user_input)

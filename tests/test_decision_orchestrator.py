@@ -16,6 +16,7 @@ class DecisionOrchestratorTests(unittest.TestCase):
         self.assertEqual(plan.toolset, "programacao")
         self.assertEqual(plan.agent, "dev_agent")
         self.assertEqual(plan.response_mode, "answer_with_context")
+        self.assertEqual(plan.decision_type, "INFORMATION")
         self.assertFalse(plan.needs_confirmation)
         self.assertEqual(plan.coordination_mode, "single_agent")
         self.assertEqual(plan.tool_libraries[0]["agent"], "dev_agent")
@@ -29,6 +30,7 @@ class DecisionOrchestratorTests(unittest.TestCase):
         )
 
         self.assertEqual(plan.risk_level, "critical")
+        self.assertEqual(plan.decision_type, "KNOWN_CAPABILITY")
         self.assertTrue(plan.needs_confirmation)
         self.assertEqual(plan.response_mode, "confirm_then_act")
 
@@ -41,6 +43,7 @@ class DecisionOrchestratorTests(unittest.TestCase):
         )
 
         self.assertEqual(plan.toolset, "sistema")
+        self.assertEqual(plan.decision_type, "KNOWN_CAPABILITY")
         self.assertEqual(plan.agent, "system_agent")
         self.assertEqual(plan.model_policy, "local_first")
 
@@ -53,6 +56,7 @@ class DecisionOrchestratorTests(unittest.TestCase):
         )
 
         self.assertEqual(plan.risk_level, "low")
+        self.assertEqual(plan.decision_type, "KNOWN_CAPABILITY")
         self.assertFalse(plan.needs_confirmation)
         self.assertEqual(plan.response_mode, "execute_short")
 

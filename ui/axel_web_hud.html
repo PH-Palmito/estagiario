@@ -103,7 +103,76 @@
         width: 100%;
         height: 100%;
         z-index: 0;
+        cursor: grab;
       }
+
+      .core-canvas.is-dragging { cursor: grabbing; }
+      .stage.three-ready .core,
+      .stage.three-ready .focus-oval,
+      .stage.three-ready .starfield { display: none; }
+
+      .visual-shell {
+        position: absolute;
+        right: 86px;
+        top: 24px;
+        z-index: 4;
+      }
+
+      .visual-trigger {
+        width: 44px;
+        height: 44px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        color: var(--soft);
+        border: 1px solid rgba(148, 204, 231, 0.14);
+        border-radius: 8px;
+        background: rgba(14, 30, 43, 0.54);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 44px rgba(0, 0, 0, 0.24);
+        backdrop-filter: blur(18px) saturate(128%);
+      }
+
+      .visual-trigger:hover, .visual-trigger.active {
+        color: var(--text);
+        border-color: rgba(125, 211, 252, 0.34);
+        background: rgba(20, 45, 62, 0.68);
+      }
+
+      .visual-controls {
+        position: absolute;
+        top: 54px;
+        right: 0;
+        width: 234px;
+        display: none;
+        padding: 12px;
+        border: 1px solid rgba(148, 204, 231, 0.16);
+        border-radius: 8px;
+        background: rgba(10, 20, 31, 0.86);
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(22px) saturate(132%);
+      }
+
+      .visual-controls.open { display: grid; gap: 10px; }
+      .visual-controls-title { color: var(--soft); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+      .visual-form-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+      .visual-form-options button, .visual-rotation button {
+        min-height: 34px;
+        padding: 6px 7px;
+        color: var(--soft);
+        border: 1px solid rgba(148, 204, 231, 0.12);
+        border-radius: 6px;
+        background: rgba(4, 10, 17, 0.36);
+      }
+
+      .visual-form-options button:hover, .visual-rotation button:hover, .visual-form-options button.active {
+        color: var(--text);
+        border-color: rgba(56, 189, 248, 0.44);
+        background: rgba(37, 99, 235, 0.18);
+      }
+
+      .visual-rotation { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+      .visual-auto { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--dim); font-size: 12px; }
+      .visual-auto input { accent-color: var(--cyan); }
 
       .settings-shell,
       .settings,
@@ -464,6 +533,245 @@
       .command-feedback[data-status="success"] { color: #34d399; }
       .command-feedback[data-status="error"] { color: #fb7185; }
       .command-feedback[data-status="waiting_confirmation"] { color: #facc15; }
+
+      .chat-shell {
+        position: absolute;
+        inset: 76px 0 28px;
+        z-index: 3;
+        width: min(780px, calc(100vw - 152px));
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin: 0 auto;
+      }
+
+      .stage.page-mode .chat-shell {
+        display: none;
+      }
+
+      .stage.chat-hidden .chat-shell {
+        display: none;
+      }
+
+      .chat-launcher {
+        position: absolute;
+        top: 82px;
+        right: 30px;
+        z-index: 3;
+        min-height: 34px;
+        color: var(--soft);
+        background: rgba(10, 24, 37, 0.72);
+        border-color: rgba(125, 211, 252, 0.2);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(14px);
+      }
+
+      .chat-launcher:hover {
+        color: var(--text);
+        border-color: rgba(125, 211, 252, 0.4);
+        background: rgba(18, 42, 60, 0.82);
+      }
+
+      .chat-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 0 4px;
+      }
+
+      .chat-header-main {
+        display: flex;
+        align-items: baseline;
+        gap: 9px;
+      }
+
+      .chat-kicker {
+        color: var(--cyan);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+
+      .chat-header h1 {
+        margin: 0;
+        color: var(--text);
+        font-size: 16px;
+        font-weight: 700;
+      }
+
+      .chat-status-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .chat-status {
+        color: var(--dim);
+        font-size: 11px;
+      }
+
+      .chat-status::before {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: #34d399;
+        box-shadow: 0 0 10px rgba(52, 211, 153, 0.75);
+      }
+
+      .chat-minimize {
+        width: 30px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        color: var(--dim);
+        background: transparent;
+        border-color: transparent;
+        font-size: 19px;
+        line-height: 1;
+      }
+
+      .chat-minimize:hover {
+        color: var(--text);
+        border-color: rgba(148, 204, 231, 0.2);
+        background: rgba(15, 31, 45, 0.56);
+      }
+
+      .chat-history {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow-y: auto;
+        padding: 18px;
+        border: 1px solid rgba(125, 211, 252, 0.14);
+        border-radius: 8px;
+        background: rgba(3, 11, 20, 0.72);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 20px 56px rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(16px) saturate(124%);
+        scrollbar-color: rgba(96, 165, 250, 0.48) transparent;
+      }
+
+      .chat-message {
+        display: grid;
+        gap: 5px;
+        max-width: min(86%, 620px);
+      }
+
+      .chat-message.user {
+        align-self: flex-end;
+      }
+
+      .chat-message.assistant,
+      .chat-message.system {
+        align-self: flex-start;
+      }
+
+      .chat-message-meta {
+        color: var(--dim);
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .chat-message.user .chat-message-meta {
+        text-align: right;
+      }
+
+      .chat-message-bubble {
+        padding: 11px 13px;
+        border: 1px solid rgba(148, 204, 231, 0.13);
+        border-radius: 8px;
+        color: var(--soft);
+        background: rgba(9, 21, 34, 0.84);
+        font-size: 13px;
+        line-height: 1.55;
+        white-space: pre-wrap;
+      }
+
+      .chat-message.user .chat-message-bubble {
+        color: #eaf4ff;
+        border-color: rgba(96, 165, 250, 0.38);
+        background: rgba(37, 99, 235, 0.22);
+      }
+
+      .chat-message.pending .chat-message-bubble {
+        opacity: 0.7;
+      }
+
+      .chat-empty {
+        display: grid;
+        place-items: center;
+        min-height: 100%;
+        color: var(--dim);
+        font-size: 13px;
+        text-align: center;
+      }
+
+      .chat-shell .quick-command {
+        position: relative;
+        left: auto;
+        bottom: auto;
+        width: auto;
+        transform: none;
+        flex: 0 0 auto;
+      }
+
+      .chat-shell .command-feedback {
+        position: relative;
+        left: auto;
+        bottom: auto;
+        width: auto;
+        min-height: 0;
+        transform: none;
+        display: none;
+        padding: 0 4px;
+        text-align: left;
+      }
+
+      .chat-shell .command-feedback[data-status="queued"],
+      .chat-shell .command-feedback[data-status="processing"],
+      .chat-shell .command-feedback[data-status="waiting_confirmation"],
+      .chat-shell .command-feedback[data-status="error"] {
+        display: block;
+      }
+
+      @media (max-width: 720px) {
+        .visual-shell { right: 68px; top: 14px; }
+        .visual-controls { width: 218px; }
+
+        .chat-shell {
+          inset: 68px 14px 18px 58px;
+          width: auto;
+        }
+
+        .chat-launcher {
+          top: 78px;
+          right: 14px;
+        }
+
+        .chat-history {
+          padding: 13px;
+        }
+
+        .chat-message {
+          max-width: 94%;
+        }
+
+        .chat-shell .quick-command {
+          gap: 6px;
+          padding: 6px;
+        }
+
+        .chat-shell .quick-command input {
+          padding: 10px;
+        }
+      }
 
       button.command-pending {
         opacity: 0.58;
@@ -1727,12 +2035,29 @@
           <button type="button" data-panel="contexto">⌘ Contexto</button>
           <button type="button" data-panel="comandos">⌨ Comandos</button>
           <button type="button" data-command="autoteste do axel">✓ Autoteste</button>
-          <button type="button" id="intentJudgeToggle" class="state-toggle" data-command="alternar juiz llm" aria-pressed="false">Juiz LLM <span id="intentJudgeStatus">--</span></button>
-          <button type="button" id="personalityToggle" class="state-toggle" data-command="personalidade" aria-pressed="false">Personalidade <span id="personalityStatus">--</span></button>
-          <button type="button" id="proactivityToggle" class="state-toggle" data-command="proatividade" aria-pressed="false">Proatividade <span id="proactivityStatus">--</span></button>
           <button type="button" id="resetLayoutButton">↻ Restaurar layout</button>
         </div>
       </div>
+      <div class="visual-shell">
+        <button class="visual-trigger" id="visualTrigger" type="button" title="Ajustar visual do Axel" aria-label="Ajustar visual do Axel">◌</button>
+        <section class="visual-controls" id="visualControls" aria-label="Visual do Axel">
+          <span class="visual-controls-title">Forma neural</span>
+          <div class="visual-form-options" role="group" aria-label="Escolher forma">
+            <button type="button" data-brain-form="brain">Cérebro</button>
+            <button type="button" data-brain-form="orbital">Orbital</button>
+            <button type="button" data-brain-form="constellation">Nuvem</button>
+          </div>
+          <span class="visual-controls-title">Visão</span>
+          <div class="visual-rotation" role="group" aria-label="Girar visão">
+            <button type="button" data-brain-rotate="left" title="Girar para a esquerda" aria-label="Girar para a esquerda">↶</button>
+            <button type="button" data-brain-rotate="right" title="Girar para a direita" aria-label="Girar para a direita">↷</button>
+            <button type="button" data-brain-rotate="up" title="Inclinar para cima" aria-label="Inclinar para cima">↑</button>
+            <button type="button" data-brain-rotate="reset" title="Centralizar visão" aria-label="Centralizar visão">⌾</button>
+          </div>
+          <label class="visual-auto"><span>Movimento automático</span><input id="brainAutoRotate" type="checkbox" checked /></label>
+        </section>
+      </div>
+      <button class="chat-launcher" id="showChatButton" type="button" title="Mostrar conversa" hidden>Chat</button>
 
       <section class="core" aria-label="Axel">
         <div class="halo"></div>
@@ -1761,29 +2086,38 @@
         <div class="signal-bar"></div>
       </section>
 
-      <form class="quick-command" id="quickCommand" autocomplete="off">
-        <button id="attachFiles" class="attach-button" type="button" title="Adicionar arquivos" aria-label="Adicionar arquivos">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M21.4 11.6 12 21a6 6 0 0 1-8.5-8.5l10-10a4 4 0 1 1 5.7 5.7L9.6 17.8a2 2 0 0 1-2.8-2.8l8.8-8.8" />
-          </svg>
-          <span class="attach-count" id="attachCount">0</span>
-        </button>
-        <input id="commandInput" placeholder="Pergunte ou peça algo ao Axel" />
-        <button id="sendCommand" class="primary" type="button">Enviar</button>
-      </form>
-      <div class="command-feedback" id="commandFeedback" data-status="idle" role="status" aria-live="polite">Pronto para comandos.</div>
+      <section class="chat-shell" aria-label="Conversa com Axel">
+        <header class="chat-header">
+          <div class="chat-header-main">
+            <span class="chat-kicker">AXEL</span>
+            <h1>Conversa</h1>
+          </div>
+          <div class="chat-status-wrap">
+            <span class="chat-status" id="chatStatus">online</span>
+            <button class="chat-minimize" id="hideChatButton" type="button" title="Ocultar conversa" aria-label="Ocultar conversa">−</button>
+          </div>
+        </header>
+        <div class="chat-history" id="chatHistory" role="log" aria-live="polite" aria-relevant="additions text"></div>
+        <div class="command-feedback" id="commandFeedback" data-status="idle" role="status" aria-live="polite">Pronto para comandos.</div>
+        <form class="quick-command" id="quickCommand" autocomplete="off">
+          <button id="attachFiles" class="attach-button" type="button" title="Adicionar arquivos" aria-label="Adicionar arquivos">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21.4 11.6 12 21a6 6 0 0 1-8.5-8.5l10-10a4 4 0 1 1 5.7 5.7L9.6 17.8a2 2 0 0 1-2.8-2.8l8.8-8.8" />
+            </svg>
+            <span class="attach-count" id="attachCount">0</span>
+          </button>
+          <input id="commandInput" placeholder="Escreva uma mensagem" />
+          <button id="sendCommand" class="primary" type="button">Enviar</button>
+        </form>
+      </section>
 
       <nav class="dock">
         <button type="button" data-panel="midia" title="Mídia" aria-label="Mídia">♪<span>Mídia</span></button>
         <button type="button" data-panel="tempo" title="Tempo" aria-label="Tempo">☁<span>Tempo</span></button>
         <button type="button" data-panel="carteira" title="Carteira" aria-label="Carteira">↗<span>Carteira</span></button>
-        <button type="button" data-panel="tarefas" title="Tarefas" aria-label="Tarefas">✓<span>Tarefas</span></button>
         <button type="button" data-panel="habitos" title="Hábitos" aria-label="Hábitos">◎<span>Hábitos</span></button>
-        <button type="button" data-panel="noticias" title="Notícias" aria-label="Notícias">◫<span>Notícias</span></button>
         <button type="button" data-panel="saude" title="Saúde" aria-label="Saúde">+<span>Saúde</span></button>
-        <button type="button" data-panel="estudos" title="Estudos" aria-label="Estudos">◇<span>Estudos</span></button>
         <button type="button" data-panel="skills" title="Skills" aria-label="Skills">⌁<span>Skills</span></button>
-        <button type="button" data-panel="treino" title="Treino" aria-label="Treino">⊙<span>Treino</span></button>
       </nav>
 
       <section class="panel-window" data-window="audio">
@@ -2253,6 +2587,7 @@
       </section>
     </main>
 
+    <script src="vendor/three.min.js"></script>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script>
       let bridge = null;
@@ -2270,17 +2605,22 @@
       let attachedStudyFiles = [];
       let queuedPanelCommands = [];
       let coreAnimationFrame = 0;
+      let hudWindowActive = true;
+      let lastVisualSourceTime = 0;
+      let visualTime = 0;
       let panelSwitchingUntil = 0;
       let panelSwitchTimeout = 0;
       let panelSwitchClassTimer = 0;
       const stage = document.querySelector(".stage");
       const compactPanels = new Set(["midia", "tempo"]);
+      const hiddenDockPanels = new Set(["treino", "estudos", "tarefas", "noticias"]);
       const draggablePanels = new Set();
       let panelPositions = {};
       let dragState = null;
       let commandDeckFilter = "todos";
       let commandDeckSearch = "";
       const pendingCommandButtons = new Set();
+      const pendingChatMessages = [];
 
       const commandGroups = [
         ["Favoritos", [
@@ -2357,12 +2697,130 @@
       }
 
       const canvas = document.getElementById("coreCanvas");
-      const ctx = canvas.getContext("2d");
+      let ctx = null;
+      let threeHud = null;
+      let threeHudFailed = false;
+      const brainView = { form: "brain", yaw: 0, pitch: -0.08, targetYaw: 0, targetPitch: -0.08, autoRotate: true };
+      let brainDrag = null;
+
+      function seededRandom(seed) {
+        let state = seed >>> 0;
+        return () => {
+          state = (state * 1664525 + 1013904223) >>> 0;
+          return state / 4294967296;
+        };
+      }
+
+      function createBrainLayouts(count) {
+        const random = seededRandom(811);
+        const brain = new Float32Array(count * 3);
+        const orbital = new Float32Array(count * 3);
+        const constellation = new Float32Array(count * 3);
+        for (let index = 0; index < count; index += 1) {
+          const side = index % 2 === 0 ? -1 : 1;
+          const theta = random() * Math.PI * 2;
+          const vertical = random() * 2 - 1;
+          const radial = 0.18 + Math.pow(random(), 0.62) * 0.82;
+          const horizontal = Math.sqrt(Math.max(0, 1 - vertical * vertical));
+          const offset = index * 3;
+          const seam = 0.13 + random() * 0.08;
+          brain[offset] = side * (seam + horizontal * radial * (0.42 + Math.abs(Math.cos(theta)) * 0.36));
+          brain[offset + 1] = vertical * radial * 0.8 + Math.sin(theta * 3) * horizontal * 0.06;
+          brain[offset + 2] = Math.sin(theta) * horizontal * radial * 0.72;
+          if (index % 13 === 0) { brain[offset] *= 0.74; brain[offset + 1] -= 0.56; brain[offset + 2] *= 0.72; }
+
+          const orbit = 0.34 + (index % 8) * 0.105 + random() * 0.12;
+          const orbitAngle = (index / count) * Math.PI * 18 + random() * 0.38;
+          orbital[offset] = Math.cos(orbitAngle) * orbit * 1.6;
+          orbital[offset + 1] = Math.sin(orbitAngle * 2.4) * 0.68;
+          orbital[offset + 2] = Math.sin(orbitAngle) * orbit * 0.8;
+
+          const shell = 0.38 + Math.pow(random(), 0.52) * 1.18;
+          constellation[offset] = Math.cos(theta) * horizontal * shell * 1.35;
+          constellation[offset + 1] = vertical * shell * 0.92;
+          constellation[offset + 2] = Math.sin(theta) * horizontal * shell;
+        }
+        return { brain, orbital, constellation };
+      }
+
+      function createNeuralCore(count = 420) {
+        const layouts = createBrainLayouts(count);
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.BufferAttribute(layouts.brain.slice(), 3));
+        const colors = new Float32Array(count * 3);
+        for (let index = 0; index < count; index += 1) colors.set(index % 7 === 0 ? [0.33, 0.92, 0.76] : [0.42, 0.72, 1], index * 3);
+        geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+        const material = new THREE.PointsMaterial({ size: 0.043, transparent: true, opacity: 0.95, vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+        const points = new THREE.Points(geometry, material);
+
+        const connections = [];
+        for (let index = 0; index < count; index += 1) {
+          const candidates = [];
+          const offset = index * 3;
+          for (let other = 0; other < count; other += 1) {
+            if (other === index) continue;
+            const otherOffset = other * 3;
+            const dx = layouts.brain[offset] - layouts.brain[otherOffset];
+            const dy = layouts.brain[offset + 1] - layouts.brain[otherOffset + 1];
+            const dz = layouts.brain[offset + 2] - layouts.brain[otherOffset + 2];
+            candidates.push([dx * dx + dy * dy + dz * dz, other]);
+          }
+          candidates
+            .sort((a, b) => a[0] - b[0])
+            .slice(0, 3)
+            .filter(([distance]) => distance < 0.24)
+            .forEach(([, other]) => { if (other > index) connections.push(index, other); });
+        }
+        for (let index = 0; index < count; index += 2) {
+          const offset = index * 3;
+          if (Math.abs(layouts.brain[offset]) > 0.38 || index % 10 !== 0) continue;
+          let nearestIndex = -1;
+          let nearestDistance = Infinity;
+          for (let other = 1; other < count; other += 2) {
+            const otherOffset = other * 3;
+            const dx = layouts.brain[offset] - layouts.brain[otherOffset];
+            const dy = layouts.brain[offset + 1] - layouts.brain[otherOffset + 1];
+            const dz = layouts.brain[offset + 2] - layouts.brain[otherOffset + 2];
+            const distance = dx * dx + dy * dy + dz * dz;
+            if (distance < nearestDistance) {
+              nearestDistance = distance;
+              nearestIndex = other;
+            }
+          }
+          if (nearestIndex >= 0 && nearestDistance < 0.36) connections.push(index, nearestIndex);
+        }
+        const lineGeometry = new THREE.BufferGeometry();
+        lineGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(connections.length * 3), 3));
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x4ba9ff, transparent: true, opacity: 0.24, blending: THREE.AdditiveBlending, depthWrite: false });
+        const lines = new THREE.LineSegments(lineGeometry, lineMaterial);
+        return { points, lines, layouts, connections };
+      }
+
+      function updateNeuralConnections(neural) {
+        const positions = neural.points.geometry.attributes.position.array;
+        const lines = neural.lines.geometry.attributes.position.array;
+        neural.connections.forEach((pointIndex, index) => {
+          const positionOffset = pointIndex * 3;
+          lines[index * 3] = positions[positionOffset];
+          lines[index * 3 + 1] = positions[positionOffset + 1];
+          lines[index * 3 + 2] = positions[positionOffset + 2];
+        });
+        neural.lines.geometry.attributes.position.needsUpdate = true;
+      }
 
       function resizeCanvas() {
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const width = window.innerWidth;
         const height = window.innerHeight;
+        if (threeHud?.renderer) {
+          threeHud.renderer.setPixelRatio(dpr);
+          threeHud.renderer.setSize(width, height, false);
+          threeHud.camera.aspect = width / height;
+          threeHud.camera.position.z = height > width ? 9.2 : 6.2;
+          threeHud.camera.updateProjectionMatrix();
+          return;
+        }
+        if (!ctx) ctx = canvas.getContext("2d");
         canvas.width = Math.floor(width * dpr);
         canvas.height = Math.floor(height * dpr);
         canvas.style.width = `${width}px`;
@@ -2437,6 +2895,297 @@
           panelFrameDelay: Number(settings.web_panel_frame_delay_ms || (economy ? 120 : 50)),
           transitionFrameDelay: Number(settings.web_transition_frame_delay_ms || (economy ? 120 : 80)),
         };
+      }
+
+      // QWebEngine/Chromium can heavily throttle animation frames while the
+      // window is behind another application.  Keep a virtual clock so a
+      // throttled frame never makes the 3D scene jump several seconds ahead.
+      function nextVisualTime(timestamp = 0) {
+        const sourceTime = timestamp > 0 ? timestamp : performance.now();
+        if (!visualTime) visualTime = sourceTime;
+        if (lastVisualSourceTime) {
+          const elapsed = Math.max(0, sourceTime - lastVisualSourceTime);
+          visualTime += Math.min(elapsed, 80);
+        }
+        lastVisualSourceTime = sourceTime;
+        return visualTime;
+      }
+
+      function createRing(radius, color, opacity, tube = 0.01) {
+        const geometry = new THREE.TorusGeometry(radius, tube, 8, 160);
+        const material = new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        return new THREE.Mesh(geometry, material);
+      }
+
+      function createParticleField(count, spread, color) {
+        const positions = new Float32Array(count * 3);
+        const seeds = new Float32Array(count);
+        for (let index = 0; index < count; index += 1) {
+          positions[index * 3] = (Math.random() - 0.5) * spread.x;
+          positions[index * 3 + 1] = (Math.random() - 0.5) * spread.y;
+          positions[index * 3 + 2] = (Math.random() - 0.5) * spread.z;
+          seeds[index] = Math.random();
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute("seed", new THREE.BufferAttribute(seeds, 1));
+        const material = new THREE.PointsMaterial({
+          color,
+          size: 0.018,
+          transparent: true,
+          opacity: 0.56,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        const points = new THREE.Points(geometry, material);
+        points.userData.basePositions = positions.slice();
+        return points;
+      }
+
+      function initThreeHud() {
+        if (threeHud || threeHudFailed || !window.THREE) return Boolean(threeHud);
+        try {
+          const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
+          renderer.setClearColor(0x03070f, 1);
+          renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+          const scene = new THREE.Scene();
+          scene.fog = new THREE.FogExp2(0x03070f, 0.065);
+          const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+          camera.position.set(0, 0.22, 6.2);
+
+          const root = new THREE.Group();
+          const focusRig = new THREE.Group();
+          scene.add(root, focusRig);
+
+          const starfield = createParticleField(460, { x: 9.5, y: 5.2, z: 4.2 }, 0x86d8ff);
+          starfield.position.z = -1.8;
+          starfield.visible = false;
+          scene.add(starfield);
+
+          const grid = new THREE.GridHelper(9, 26, 0x18496e, 0x0b2741);
+          grid.rotation.x = Math.PI / 2;
+          grid.position.set(0, -1.36, -1.5);
+          grid.material.transparent = true;
+          grid.material.opacity = 0.28;
+          scene.add(grid);
+
+          const coreGeometry = new THREE.IcosahedronGeometry(0.86, 5);
+          const coreMaterial = new THREE.MeshStandardMaterial({
+            color: 0x60a5fa,
+            emissive: 0x123a78,
+            emissiveIntensity: 1.2,
+            roughness: 0.24,
+            metalness: 0.18,
+            transparent: true,
+            opacity: 0.92,
+            wireframe: true,
+          });
+          const core = new THREE.Mesh(coreGeometry, coreMaterial);
+          core.visible = false;
+          root.add(core);
+
+          const neural = createNeuralCore();
+          updateNeuralConnections(neural);
+          root.add(neural.lines, neural.points);
+
+          const glow = new THREE.Mesh(
+            new THREE.SphereGeometry(0.92, 48, 32),
+            new THREE.MeshBasicMaterial({
+              color: 0x1e9bff,
+              transparent: true,
+              opacity: 0.1,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+            }),
+          );
+          glow.visible = false;
+          root.add(glow);
+
+          const rings = [
+            createRing(1.25, 0x60a5fa, 0.72, 0.008),
+            createRing(1.62, 0x38bdf8, 0.38, 0.006),
+            createRing(1.95, 0xd946ef, 0.2, 0.005),
+          ];
+          rings[0].rotation.x = Math.PI / 2.5;
+          rings[1].rotation.y = Math.PI / 3.2;
+          rings[2].rotation.x = Math.PI / 2;
+          rings.forEach((ring) => { ring.visible = false; });
+          rings.forEach((ring) => root.add(ring));
+
+          const orbiters = [];
+          const orbiterGeometry = new THREE.SphereGeometry(0.035, 12, 12);
+          for (let index = 0; index < 18; index += 1) {
+            const material = new THREE.MeshBasicMaterial({
+              color: index % 4 === 0 ? 0x54e6c2 : 0x93c5fd,
+              transparent: true,
+              opacity: 0.85,
+              blending: THREE.AdditiveBlending,
+            });
+            const orbiter = new THREE.Mesh(orbiterGeometry, material);
+            orbiter.userData = {
+              radius: 1.35 + (index % 5) * 0.16,
+              phase: (Math.PI * 2 * index) / 18,
+              yScale: 0.32 + (index % 3) * 0.11,
+              speed: 0.42 + (index % 6) * 0.035,
+            };
+            root.add(orbiter);
+            orbiters.push(orbiter);
+          }
+          orbiters.forEach((orbiter) => { orbiter.visible = false; });
+
+          const sideBars = new THREE.Group();
+          const barMaterial = new THREE.LineBasicMaterial({ color: 0x1d6ca8, transparent: true, opacity: 0.58 });
+          for (const side of [-1, 1]) {
+            for (let index = 0; index < 9; index += 1) {
+              const width = 0.22 + (index % 4) * 0.08;
+              const y = -0.68 + index * 0.17;
+              const geometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(side * 2.2, y, 0),
+                new THREE.Vector3(side * (2.2 + width), y, 0),
+              ]);
+              sideBars.add(new THREE.Line(geometry, barMaterial));
+            }
+          }
+          root.add(sideBars);
+          sideBars.visible = false;
+
+          const ambient = new THREE.AmbientLight(0x7dd3fc, 0.9);
+          const key = new THREE.PointLight(0x38bdf8, 2.2, 8);
+          key.position.set(-1.8, 1.4, 3.2);
+          const rim = new THREE.PointLight(0xd946ef, 1.3, 6);
+          rim.position.set(2.3, -0.6, 2.4);
+          scene.add(ambient, key, rim);
+
+          threeHud = { renderer, scene, camera, root, focusRig, starfield, grid, core, neural, glow, rings, orbiters, sideBars, key, rim };
+          stage.classList.add("three-ready");
+          window.__axelHudMode = "three";
+          resizeCanvas();
+          return true;
+        } catch (error) {
+          console.warn("Three.js HUD indisponível; usando canvas 2D.", error);
+          threeHud = null;
+          threeHudFailed = true;
+          stage.classList.remove("three-ready");
+          window.__axelHudMode = "fallback-2d";
+          ctx = canvas.getContext("2d");
+          return false;
+        }
+      }
+
+      function renderThreeHud(timestamp = 0) {
+        if (!initThreeHud()) return false;
+        const perf = performanceSettings();
+        const status = String(currentUiState.status || "INATIVO").toUpperCase();
+        const [primary, secondary] = statusPalette(status);
+        const primaryColor = new THREE.Color(primary);
+        const secondaryColor = new THREE.Color(secondary);
+        let intensity = 0.36;
+        let speed = 1;
+        if (["RESPOSTA", "CONVERSA"].includes(status)) {
+          intensity = 1;
+          speed = 1.58;
+        } else if (status === "DITADO") {
+          intensity = 0.76;
+          speed = 1.28;
+        } else if (["COMANDO", "ATIVA"].includes(status)) {
+          intensity = 0.66;
+        } else if (status === "PAUSADA") {
+          intensity = 0.18;
+          speed = 0.55;
+        }
+
+        const time = nextVisualTime(timestamp) * 0.001;
+        const switching = timestamp < panelSwitchingUntil;
+        const motionScale = perf.reduceMotion ? Math.min(perf.animationScale, 0.42) : perf.animationScale;
+        const pulse = 1 + Math.sin(time * speed * 2.4) * (0.035 + intensity * 0.035);
+        const targetFocus = stage?.classList.contains("focus-mode") ? 1 : 0;
+        focusProgress += (targetFocus - focusProgress) * 0.09;
+        if (Math.abs(targetFocus - focusProgress) < 0.002) focusProgress = targetFocus;
+        const smoothFocus = focusProgress * focusProgress * (3 - 2 * focusProgress);
+
+        threeHud.root.position.x = 1.95 * smoothFocus;
+        threeHud.root.position.y = -0.82 * smoothFocus;
+        threeHud.root.scale.setScalar((1.18 - 0.38 * smoothFocus) * pulse);
+        brainView.yaw += (brainView.targetYaw - brainView.yaw) * 0.09;
+        brainView.pitch += (brainView.targetPitch - brainView.pitch) * 0.09;
+        const automaticYaw = brainView.autoRotate ? time * 0.16 : 0;
+        threeHud.root.rotation.y = brainView.yaw + automaticYaw;
+        threeHud.root.rotation.x = brainView.pitch + Math.sin(time * 0.22) * 0.035;
+        threeHud.core.rotation.x += 0.008 * motionScale * speed;
+        threeHud.core.rotation.y += 0.011 * motionScale * speed;
+        threeHud.core.material.color.lerp(primaryColor, 0.18);
+        threeHud.core.material.emissive.lerp(secondaryColor, 0.12);
+        threeHud.core.material.emissiveIntensity = 0.74 + intensity * 1.2;
+        threeHud.glow.material.color.lerp(secondaryColor, 0.14);
+        threeHud.glow.material.opacity = switching ? 0.06 : 0.08 + intensity * 0.1;
+        threeHud.key.color.lerp(secondaryColor, 0.12);
+        threeHud.key.intensity = 1.1 + intensity * 1.4;
+        threeHud.rim.intensity = switching ? 0.4 : 0.7 + intensity * 0.9;
+
+        const neural = threeHud.neural;
+        const neuralPositions = neural.points.geometry.attributes.position;
+        const neuralTarget = neural.layouts[brainView.form] || neural.layouts.brain;
+        for (let index = 0; index < neuralPositions.count; index += 1) {
+          const offset = index * 3;
+          const drift = Math.sin(time * (1.25 + (index % 5) * 0.08) + index * 0.9) * 0.008 * intensity;
+          neuralPositions.array[offset] += (neuralTarget[offset] - neuralPositions.array[offset]) * 0.055;
+          neuralPositions.array[offset + 1] += (neuralTarget[offset + 1] + drift - neuralPositions.array[offset + 1]) * 0.055;
+          neuralPositions.array[offset + 2] += (neuralTarget[offset + 2] - neuralPositions.array[offset + 2]) * 0.055;
+        }
+        neuralPositions.needsUpdate = true;
+        updateNeuralConnections(neural);
+        neural.points.material.color.lerp(secondaryColor, 0.08);
+        neural.points.material.size = 0.034 + intensity * 0.018;
+        neural.lines.material.color.lerp(primaryColor, 0.08);
+        neural.lines.material.opacity = switching ? 0.1 : 0.16 + intensity * 0.16;
+
+        threeHud.rings.forEach((ring, index) => {
+          const direction = index % 2 ? -1 : 1;
+          ring.rotation.z += direction * (0.006 + intensity * 0.004) * motionScale;
+          ring.rotation.x += direction * 0.0018 * motionScale;
+          ring.material.color.lerp(index === 2 ? new THREE.Color(0xd946ef) : secondaryColor, 0.08);
+          ring.material.opacity = (switching ? 0.18 : [0.76, 0.42, 0.23][index]) * (0.72 + intensity * 0.28);
+        });
+
+        threeHud.orbiters.forEach((orbiter, index) => {
+          const phase = orbiter.userData.phase + time * orbiter.userData.speed * speed;
+          const radius = orbiter.userData.radius + Math.sin(time * 1.6 + index) * 0.035;
+          orbiter.position.set(
+            Math.cos(phase) * radius,
+            Math.sin(phase * 1.21) * radius * orbiter.userData.yScale,
+            Math.sin(phase) * 0.42,
+          );
+          orbiter.scale.setScalar(0.82 + intensity * 1.25 + Math.max(0, Math.sin(phase * 2.4)) * 0.7);
+          orbiter.material.opacity = switching ? 0.32 : 0.42 + intensity * 0.45;
+        });
+
+        const positions = threeHud.starfield.geometry.attributes.position;
+        const base = threeHud.starfield.userData.basePositions;
+        for (let index = 0; index < positions.count; index += 1) {
+          const offset = index * 3;
+          positions.array[offset + 1] = base[offset + 1] + Math.sin(time * 0.35 + index * 0.17) * 0.025;
+        }
+        positions.needsUpdate = true;
+        threeHud.starfield.rotation.z = time * 0.015 * motionScale;
+        threeHud.starfield.material.opacity = 0.28 + intensity * 0.22;
+        threeHud.grid.material.opacity = currentPanelName ? 0.18 : 0.24 + intensity * 0.05;
+        threeHud.sideBars.visible = smoothFocus < 0.5 && !switching;
+        threeHud.sideBars.children.forEach((lineMesh, index) => {
+          lineMesh.material.opacity = 0.22 + Math.max(0, Math.sin(time * 2.1 + index * 0.48)) * (0.26 + intensity * 0.24);
+        });
+
+        threeHud.camera.position.x = Math.sin(time * 0.16) * 0.08;
+        threeHud.camera.position.y = 0.22 + Math.cos(time * 0.19) * 0.04;
+        threeHud.camera.lookAt(threeHud.root.position.x * 0.38, threeHud.root.position.y * 0.3, 0);
+        threeHud.renderer.render(threeHud.scene, threeHud.camera);
+        return true;
       }
 
       function drawBackgroundGrid(width, height) {
@@ -2609,7 +3358,7 @@
         }
       }
 
-      function drawOldHudCore() {
+      function drawFallbackHudCore() {
         const width = window.innerWidth;
         const height = window.innerHeight;
         const switching = performance.now() < panelSwitchingUntil;
@@ -2693,7 +3442,7 @@
 
       function animateCore(timestamp = 0) {
         coreAnimationFrame = 0;
-        if (currentPanelName && !compactPanels.has(currentPanelName)) return;
+        if (!hudWindowActive || document.hidden || (currentPanelName && !compactPanels.has(currentPanelName))) return;
         const perf = performanceSettings();
         const transitioning = timestamp < panelSwitchingUntil;
         const frameDelay = transitioning ? Math.max(130, perf.transitionFrameDelay) : perf.frameDelay;
@@ -2707,7 +3456,7 @@
       }
 
       function startCoreAnimation() {
-        if (coreAnimationFrame || (currentPanelName && !compactPanels.has(currentPanelName))) return;
+        if (!hudWindowActive || document.hidden || coreAnimationFrame || (currentPanelName && !compactPanels.has(currentPanelName))) return;
         lastFrameAt = 0;
         coreAnimationFrame = requestAnimationFrame(animateCore);
       }
@@ -2731,6 +3480,11 @@
         });
       }
 
+      function drawOldHudCore(timestamp = 0) {
+        if (renderThreeHud(timestamp)) return;
+        drawFallbackHudCore();
+      }
+
       function parseBridgeFeedback(payload, fallbackStatus = "queued") {
         try {
           const parsed = JSON.parse(String(payload || "{}"));
@@ -2743,9 +3497,18 @@
         const status = String(feedback.status || "idle");
         const message = String(feedback.message || "Pronto para comandos.");
         const element = document.getElementById("commandFeedback");
+        const chatStatus = document.getElementById("chatStatus");
         if (element) {
           element.dataset.status = status;
           element.textContent = message;
+        }
+        if (chatStatus) {
+          chatStatus.textContent = {
+            queued: "enviando",
+            processing: "respondendo",
+            waiting_confirmation: "aguarda confirmação",
+            error: "atenção necessária",
+          }[status] || "online";
         }
         if (["success", "error", "waiting_confirmation", "idle"].includes(status)) {
           pendingCommandButtons.forEach((button) => {
@@ -2754,6 +3517,18 @@
           });
           pendingCommandButtons.clear();
         }
+      }
+
+      function pauseHudAnimation() {
+        hudWindowActive = false;
+        lastVisualSourceTime = 0;
+        stopCoreAnimation();
+      }
+
+      function resumeHudAnimation() {
+        hudWindowActive = true;
+        lastVisualSourceTime = 0;
+        startCoreAnimation();
       }
 
       function markCommandButtonPending(button) {
@@ -2766,6 +3541,8 @@
       function sendCommand(text, sourceButton = null) {
         const value = String(text || "").trim();
         if (!value) return false;
+        pendingChatMessages.push({ text: value, at: Date.now() });
+        renderHistory(currentUiState.history);
         markCommandButtonPending(sourceButton);
         setCommandFeedback({ status: "queued", message: `Na fila: ${value}` });
         if (!bridge) {
@@ -2826,6 +3603,17 @@
         input?.select();
       }
 
+      function setChatVisibility(hidden, focus = true) {
+        const isHidden = Boolean(hidden);
+        stage.classList.toggle("chat-hidden", isHidden);
+        const showButton = document.getElementById("showChatButton");
+        if (showButton) showButton.hidden = !isHidden;
+        try {
+          localStorage.setItem("axelChatHidden", isHidden ? "1" : "0");
+        } catch (_error) {}
+        if (!isHidden && focus) focusCommandBar();
+      }
+
       function sendActionFromBuilder() {
         const nameInput = document.getElementById("actionNameInput");
         const argsInput = document.getElementById("actionArgsInput");
@@ -2878,12 +3666,46 @@
       }
 
       function renderHistory(history) {
-        const items = Array.isArray(history) ? history.slice(-8).reverse() : [];
-        const html = items.length
-          ? items.map((item) => `<li><b>${item.role || "system"}:</b> ${item.text || ""}</li>`).join("")
+        const items = Array.isArray(history) ? history.slice(-40) : [];
+        const storedUserMessages = items.filter((item) => item?.role === "user");
+        const pending = pendingChatMessages.filter((entry) => !storedUserMessages.some((item) => (
+          String(item?.text || "").trim() === entry.text
+          && Number(item?.at || 0) * 1000 >= entry.at - 2000
+        )));
+        pendingChatMessages.splice(0, pendingChatMessages.length, ...pending);
+        const chatItems = [
+          ...items.map((item) => ({ ...item, pending: false })),
+          ...pending.map((item) => ({ role: "user", text: item.text, at: item.at / 1000, pending: true })),
+        ];
+        const historyElement = document.getElementById("chatHistory");
+        const shouldStickToBottom = historyElement
+          && historyElement.scrollHeight - historyElement.scrollTop - historyElement.clientHeight < 72;
+        if (historyElement) {
+          historyElement.innerHTML = chatItems.length
+            ? chatItems.map((item) => {
+              const role = ["user", "assistant"].includes(item?.role) ? item.role : "system";
+              const label = role === "user" ? "Você" : role === "assistant" ? "Axel" : "Sistema";
+              const timestamp = Number(item?.at || 0);
+              const time = timestamp
+                ? new Date(timestamp * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                : "";
+              return `<article class="chat-message ${role}${item.pending ? " pending" : ""}">
+                <div class="chat-message-meta">${label}${time ? ` · ${time}` : ""}</div>
+                <div class="chat-message-bubble">${escapeHtml(item?.text || "")}</div>
+              </article>`;
+            }).join("")
+            : `<div class="chat-empty">Comece uma conversa.</div>`;
+          if (shouldStickToBottom || !historyElement.dataset.rendered) {
+            historyElement.scrollTop = historyElement.scrollHeight;
+          }
+          historyElement.dataset.rendered = "1";
+        }
+
+        const contextItems = items.slice(-8).reverse();
+        const contextHtml = contextItems.length
+          ? contextItems.map((item) => `<li><b>${escapeHtml(item?.role || "system")}:</b> ${escapeHtml(item?.text || "")}</li>`).join("")
           : `<li>Sem histórico recente.</li>`;
-        setHtml("historyList", html);
-        setHtml("contextHistory", html);
+        setHtml("contextHistory", contextHtml);
       }
 
       function renderMedia(media) {
@@ -3160,7 +3982,9 @@
       }
 
       function panelTargetExists(name) {
-        return name === "texto" || name === "treino" || Boolean(document.querySelector(`[data-window="${name}"]`));
+        return !hiddenDockPanels.has(name) && (
+          name === "texto" || Boolean(document.querySelector(`[data-window="${name}"]`))
+        );
       }
 
       function renderChipList(id, items, mapper = (item) => item) {
@@ -3205,9 +4029,9 @@
         const channel = ui.visible ? "painel + voz" : "voz";
         const intentJudgeEnabled = Boolean(ui.llm_intent_judge_enabled);
         const intentJudge = intentJudgeEnabled ? "ligado" : "desligado";
-        const personalityEnabled = ui.assistant_personality_enabled !== false;
+        const personalityEnabled = ui.assistant_personality_enabled === true;
         const personality = personalityEnabled ? "ligada" : "desligada";
-        const proactivityEnabled = ui.assistant_proactivity_enabled !== false;
+        const proactivityEnabled = ui.assistant_proactivity_enabled === true;
         const proactivity = proactivityEnabled ? "ligada" : "desligada";
         const now = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
@@ -3615,6 +4439,27 @@
         });
       }
 
+      function saveBrainView() {
+        localStorage.setItem("axelBrainView", JSON.stringify({ form: brainView.form, yaw: brainView.targetYaw, pitch: brainView.targetPitch, autoRotate: brainView.autoRotate }));
+      }
+
+      function syncBrainVisualControls() {
+        document.querySelectorAll("[data-brain-form]").forEach((button) => button.classList.toggle("active", button.dataset.brainForm === brainView.form));
+        const autoRotate = document.getElementById("brainAutoRotate");
+        if (autoRotate) autoRotate.checked = brainView.autoRotate;
+      }
+
+      function restoreBrainView() {
+        try {
+          const saved = JSON.parse(localStorage.getItem("axelBrainView") || "{}");
+          if (["brain", "orbital", "constellation"].includes(saved.form)) brainView.form = saved.form;
+          if (Number.isFinite(saved.yaw)) brainView.yaw = brainView.targetYaw = saved.yaw;
+          if (Number.isFinite(saved.pitch)) brainView.pitch = brainView.targetPitch = saved.pitch;
+          if (typeof saved.autoRotate === "boolean") brainView.autoRotate = saved.autoRotate;
+        } catch (_error) {}
+        syncBrainVisualControls();
+      }
+
       document.getElementById("settingsButton").addEventListener("click", () => {
         document.getElementById("settingsMenu").classList.toggle("open");
         document.getElementById("settingsButton").classList.toggle("active");
@@ -3624,6 +4469,55 @@
         document.getElementById("settingsMenu").classList.remove("open");
         document.getElementById("settingsButton").classList.remove("active");
       });
+
+      document.getElementById("visualTrigger").addEventListener("click", () => {
+        document.getElementById("visualControls").classList.toggle("open");
+        document.getElementById("visualTrigger").classList.toggle("active");
+      });
+      document.querySelectorAll("[data-brain-form]").forEach((button) => {
+        button.addEventListener("click", () => {
+          brainView.form = button.dataset.brainForm;
+          saveBrainView();
+          syncBrainVisualControls();
+        });
+      });
+      document.querySelectorAll("[data-brain-rotate]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const direction = button.dataset.brainRotate;
+          if (direction === "left") brainView.targetYaw -= Math.PI / 7;
+          if (direction === "right") brainView.targetYaw += Math.PI / 7;
+          if (direction === "up") brainView.targetPitch = Math.max(-0.68, brainView.targetPitch - Math.PI / 10);
+          if (direction === "reset") { brainView.targetYaw = 0; brainView.targetPitch = -0.08; }
+          brainView.autoRotate = false;
+          saveBrainView();
+          syncBrainVisualControls();
+        });
+      });
+      document.getElementById("brainAutoRotate").addEventListener("change", (event) => {
+        brainView.autoRotate = Boolean(event.target.checked);
+        saveBrainView();
+      });
+      canvas.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        brainDrag = { x: event.clientX, y: event.clientY, yaw: brainView.targetYaw, pitch: brainView.targetPitch };
+        canvas.classList.add("is-dragging");
+        canvas.setPointerCapture?.(event.pointerId);
+      });
+      canvas.addEventListener("pointermove", (event) => {
+        if (!brainDrag) return;
+        brainView.targetYaw = brainDrag.yaw + (event.clientX - brainDrag.x) * 0.012;
+        brainView.targetPitch = Math.max(-0.72, Math.min(0.54, brainDrag.pitch + (event.clientY - brainDrag.y) * 0.009));
+        brainView.autoRotate = false;
+      });
+      const finishBrainDrag = () => {
+        if (!brainDrag) return;
+        brainDrag = null;
+        canvas.classList.remove("is-dragging");
+        saveBrainView();
+        syncBrainVisualControls();
+      };
+      canvas.addEventListener("pointerup", finishBrainDrag);
+      canvas.addEventListener("pointercancel", finishBrainDrag);
 
       renderCommands();
       setupPanelDragging();
@@ -3659,6 +4553,11 @@
         commandDeckFilter = String(button.dataset.commandFilter || "todos");
         renderCommands();
       });
+      document.addEventListener("click", (event) => {
+        if (event.target.closest(".visual-shell")) return;
+        document.getElementById("visualControls").classList.remove("open");
+        document.getElementById("visualTrigger").classList.remove("active");
+      });
       const commandDeckSearchInput = document.getElementById("commandDeckSearch");
       if (commandDeckSearchInput) {
         commandDeckSearchInput.addEventListener("input", () => {
@@ -3676,6 +4575,8 @@
         }
       });
       document.getElementById("attachFiles").addEventListener("click", selectStudyFiles);
+      document.getElementById("hideChatButton").addEventListener("click", () => setChatVisibility(true));
+      document.getElementById("showChatButton").addEventListener("click", () => setChatVisibility(false));
       document.getElementById("commandInput").addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
           event.preventDefault();
@@ -3692,18 +4593,31 @@
       });
 
       makeDots();
+      restoreBrainView();
+      try {
+        setChatVisibility(localStorage.getItem("axelChatHidden") === "1", false);
+      } catch (_error) {}
+      initThreeHud();
       resizeCanvas();
       window.addEventListener("resize", () => {
         resizeCanvas();
         if (!currentPanelName) drawOldHudCore();
         keepDraggedPanelsInView();
       });
-      startCoreAnimation();
-      new QWebChannel(qt.webChannelTransport, (channel) => {
-        bridge = channel.objects.axelBridge;
-        flushQueuedPanelCommands();
-        bridge.requestRefresh();
+      window.addEventListener("blur", pauseHudAnimation);
+      window.addEventListener("focus", resumeHudAnimation);
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) pauseHudAnimation();
+        else resumeHudAnimation();
       });
+      startCoreAnimation();
+      if (window.QWebChannel && window.qt?.webChannelTransport) {
+        new QWebChannel(qt.webChannelTransport, (channel) => {
+          bridge = channel.objects.axelBridge;
+          flushQueuedPanelCommands();
+          bridge.requestRefresh();
+        });
+      }
     </script>
   </body>
 </html>

@@ -3,8 +3,10 @@ from __future__ import annotations
 import re
 
 from core.router_utils import normalize_text
+from core.unknown_intent import action_from_unknown_intent
 from llm.action_selector import select_read_action
 from llm.chat import chat_response
+from memory.adaptive_preferences import apply_adaptive_response_tone
 from memory.current_topic import load_current_topic, update_current_topic_from_conversation
 
 FACTUAL_QUESTION_PREFIXES = (
@@ -223,6 +225,7 @@ def remember_useful_conversation_topic(user_input: str, response: str) -> None:
 
 
 def _respond_with_memory(user_input: str, response: str) -> dict:
+    response = apply_adaptive_response_tone(response, user_input)
     remember_useful_conversation_topic(user_input, response)
     return {"intent": "respond", "target": None, "response": response}
 
@@ -281,11 +284,52 @@ def _question_topic(user_input: str) -> str:
 
 def _question_fallback_response(user_input: str) -> str:
     topic = _question_topic(user_input)
-    topic_hint = f" sobre {topic}" if topic and len(topic) <= 80 else ""
+    subject = topic if topic and len(topic) <= 120 else "essa pergunta"
     return (
-        f"Não vou inventar{topic_hint} sem uma resposta confiável do chat local. "
-        "Posso pesquisar para confirmar, ou você pode mandar mais contexto e eu tento pelo caminho curto."
+        f"Não consegui obter uma resposta do chat remoto para \"{subject}\". "
+        "Em vez de preencher a conversa com uma resposta pronta, preciso que a conexão com a IA volte a ficar disponível."
     )
+
+
+def _is_social_chat(text: str) -> bool:
+    return text in {
+        "ok",
+        "okay",
+        "okey",
+        "boa",
+        "opa",
+        "e ai",
+        "oi",
+        "ola",
+        "axel",
+        "esta ai",
+        "ta ai",
+        "axel esta ai",
+        "axel ta ai",
+        "estagiario esta ai",
+        "estagiario ta ai",
+        "assistente esta ai",
+        "assistente ta ai",
+        "voce esta ai",
+        "voce ta ai",
+        "posso falar",
+        "ta ouvindo",
+        "esta ouvindo",
+        "tudo bem",
+        "como vai",
+        "como voce esta",
+        "como voce ta",
+        "obrigado",
+        "obrigada",
+        "valeu",
+        "bom trabalho",
+        "muito bom",
+        "vamos trabalhar",
+        "vamos avancar",
+        "bom dia",
+        "boa tarde",
+        "boa noite",
+    }
 
 
 def _is_english_learning_request(text: str) -> bool:
@@ -716,6 +760,41 @@ def detect_general_question_early(user_input: str):
     return detect_question_fallback(user_input)
 
 
+def detect_planning_request_early(user_input: str):
+    text = normalize_text(user_input)
+    if not text or len(text) <= 4:
+        return None
+    if any(term in text for term in {"teletransporte", "teletransportar", "teleportar", "teleporte"}):
+        return action_from_unknown_intent(user_input)
+    planning_terms = (
+        "organizar meus estudos",
+        "organize meus estudos",
+        "organizar melhor meus estudos",
+        "planejar meus estudos",
+        "planejar estudo",
+        "plano de estudo",
+        "rotina de estudo",
+        "organizar minha rotina de estudo",
+        "me ajuda a organizar meus estudos",
+        "me ajude a organizar meus estudos",
+    )
+    if re.search(
+        r"\b(?:me ajuda|me ajude|quero|preciso)?\s*(?:a\s+)?estudar\b.*\b(?:usando|com)\b.*\b(?:pagina|tela)\b",
+        text,
+    ):
+        return action_from_unknown_intent(user_input)
+    if re.search(
+        r"\b(?:use|usa)\s+(?:essa|esta|nessa|nesta)\s+(?:pagina|tela)\b.*\b(?:estudar|estudos)\b",
+        text,
+    ):
+        return action_from_unknown_intent(user_input)
+    if any(term in text for term in planning_terms):
+        return action_from_unknown_intent(user_input)
+    if re.search(r"\b(?:me ajuda|me ajude|quero|preciso)\b.*\b(?:organizar|planejar|estruturar)\b.*\b(?:estudo|estudos|rotina)\b", text):
+        return action_from_unknown_intent(user_input)
+    return None
+
+
 def detect_builtin_general_answer(user_input: str):
     text = normalize_text(user_input)
     if not text or len(text) <= 4:
@@ -860,18 +939,20 @@ def detect_light_conversation(user_input: str):
         return None
 
     if any(word in text for word in {"conversavel", "conversar", "bater papo", "inteligente"}):
+        response = chat_response(user_input)
         return {
             "intent": "respond",
             "target": None,
-            "response": "Da para eu ficar mais conversavel sim. Por enquanto eu respondo melhor frases curtas, mas posso aprender respostas e contexto aos poucos.",
+            "response": response or _question_fallback_response(user_input),
         }
 
     question_prefixes = ("por que ", "porque ", "como ", "qual ", "quando ", "onde ")
     if any(text.startswith(prefix) for prefix in question_prefixes):
+        response = chat_response(user_input)
         return {
             "intent": "respond",
             "target": None,
-            "response": "Essa parte de conversa aberta ainda é limitada. Se você quiser, posso responder perguntas simples e ir aprendendo respostas mais naturais.",
+            "response": response or _question_fallback_response(user_input),
         }
 
     return None
@@ -941,7 +1022,20 @@ def detect_question_fallback(user_input: str):
     return None
 
 
+def detect_social_chat_fallback(user_input: str):
+    text = normalize_text(user_input).strip(" .!?")
+    if not _is_social_chat(text):
+        return None
+    response = chat_response(user_input)
+    return {
+        "intent": "respond",
+        "target": None,
+        "response": response or _question_fallback_response(user_input),
+    }
+
+
 CONVERSATION_DETECTORS = (
+    detect_social_chat_fallback,
     detect_short_unclear_text,
     detect_builtin_general_answer,
     detect_llm_action_command,
@@ -952,5 +1046,6 @@ CONVERSATION_DETECTORS = (
 )
 
 GENERAL_QUESTION_DETECTORS = (
+    detect_planning_request_early,
     detect_general_question_early,
 )

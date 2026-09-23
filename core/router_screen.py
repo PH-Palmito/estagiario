@@ -44,7 +44,7 @@ def detect_screen_command(user_input: str):
     }:
         return {"intent": "browser_translate_last_selection", "target": None}
 
-    if re.match(r"^(?:e\s+)?(?:o\s+)?que\s+(?:tem|ta|esta)(?:\s+ai)?\s+na\s+tela$", lower):
+    if re.match(r"^(?:e\s+)?(?:o\s+)?que\s+(?:tem|ta|esta)(?:\s+ai)?\s+(?:na|nessa|nesta|nessa aqui|nesta aqui)\s+tela$", lower):
         return {"intent": "browser_describe_screen", "target": None}
 
     if lower in {
@@ -96,7 +96,11 @@ def detect_screen_command(user_input: str):
 
     if lower in {
         "o que tem na tela",
+        "o que tem nessa tela",
+        "o que tem nesta tela",
         "que tem na tela",
+        "que tem nessa tela",
+        "que tem nesta tela",
         "e que tem na tela",
         "ler tela",
         "leia a tela",

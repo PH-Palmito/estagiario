@@ -48,6 +48,26 @@ ERROR_OR_FRUSTRATION_TERMS = {
     "sem permissao",
 }
 
+UNCERTAINTY_TERMS = {
+    "acho que",
+    "nao sei",
+    "nao tenho certeza",
+    "talvez",
+    "pode ser",
+    "sem contexto",
+}
+
+SUCCESS_TERMS = {
+    "build concluido",
+    "compilacao concluida",
+    "deu certo",
+    "feito",
+    "pronto",
+    "suite completa passou",
+    "todos os testes passaram",
+    "tudo certo",
+}
+
 PROACTIVE_SUGGESTIONS = (
     (
         "file_not_found",
@@ -58,6 +78,29 @@ PROACTIVE_SUGGESTIONS = (
         "pdf_pages_missing",
         ("texto salvo no contexto nao veio separado por paginas",),
         "Próximo passo útil: reanalisar o PDF com cache por página.",
+    ),
+)
+
+ADAPTIVE_TONE_RULES = (
+    (
+        "frustration",
+        lambda text: _matches_any(text, ERROR_OR_FRUSTRATION_TERMS),
+        "Vou manter curto: primeiro isolar a causa, depois aplicar a correcao.",
+    ),
+    (
+        "sensitive",
+        lambda text: _matches_any(text, SENSITIVE_TERMS),
+        "Vou tratar isso com contexto e sem chute.",
+    ),
+    (
+        "uncertainty",
+        lambda text: _matches_any(text, UNCERTAINTY_TERMS),
+        "Se faltar contexto, eu pergunto antes de assumir.",
+    ),
+    (
+        "success",
+        lambda text: _matches_any(text, SUCCESS_TERMS),
+        "Posso usar esse sinal para calibrar o proximo passo.",
     ),
 )
 
@@ -132,14 +175,20 @@ def _remember_addition(state: MutableMapping[str, object] | None, key: str) -> N
 
 def personality_enabled(preferences: Mapping[str, object] | None) -> bool:
     if preferences is None:
-        return True
-    return bool(preferences.get("assistant_personality_enabled", True))
+        return False
+    return bool(preferences.get("assistant_personality_enabled", False))
 
 
 def proactivity_enabled(preferences: Mapping[str, object] | None) -> bool:
     if preferences is None:
-        return True
-    return bool(preferences.get("assistant_proactivity_enabled", True))
+        return False
+    return bool(preferences.get("assistant_proactivity_enabled", False))
+
+
+def adaptive_tone_enabled(preferences: Mapping[str, object] | None) -> bool:
+    if preferences is None:
+        return False
+    return bool(preferences.get("assistant_adaptive_tone_enabled", False))
 
 
 def humor_enabled(preferences: Mapping[str, object] | None) -> bool:
@@ -155,6 +204,30 @@ def humor_enabled(preferences: Mapping[str, object] | None) -> bool:
     except (TypeError, ValueError):
         level = 2
     return level >= 2
+
+
+def contextual_adaptive_tone(
+    message: str,
+    *,
+    preferences: Mapping[str, object] | None = None,
+    state: MutableMapping[str, object] | None = None,
+) -> tuple[str, str] | None:
+    if not adaptive_tone_enabled(preferences):
+        return None
+    normalized = _normalize(message)
+    if not normalized:
+        return None
+    if len(normalized) < 18 or "\n" in str(message or ""):
+        return None
+    for key, matcher, addition in ADAPTIVE_TONE_RULES:
+        state_key = f"adaptive_{key}"
+        if state_key == _last_addition_key(state):
+            continue
+        if addition.lower() in normalized:
+            continue
+        if matcher(normalized):
+            return state_key, addition
+    return None
 
 
 def contextual_proactive_suggestion(message: str, *, state: MutableMapping[str, object] | None = None) -> tuple[str, str] | None:
@@ -216,6 +289,12 @@ def apply_personality_layer(
     text = str(message or "").strip()
     if not text:
         return text
+
+    adaptive = contextual_adaptive_tone(text, preferences=preferences, state=state)
+    if adaptive:
+        key, addition = adaptive
+        _remember_addition(state, key)
+        return _append_sentence(text, addition)
 
     if proactivity_enabled(preferences):
         suggestion = contextual_proactive_suggestion(text, state=state)

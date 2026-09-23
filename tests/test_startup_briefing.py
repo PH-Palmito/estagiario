@@ -75,6 +75,14 @@ class StartupBriefingTests(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertEqual(saved, {})
 
+    def test_skips_when_adaptive_preference_blocks_briefing(self):
+        with patch("core.startup_briefing.is_adaptive_preference_suppressed", return_value=True):
+            result, calls, saved = self._send()
+
+        self.assertFalse(result)
+        self.assertEqual(calls, [])
+        self.assertEqual(saved, {})
+
     def test_reports_briefing_failure(self):
         result, calls, saved = self._send(daily_briefing=lambda: (_ for _ in ()).throw(RuntimeError("sem dados")))
 

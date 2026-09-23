@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from collections.abc import Callable
 from typing import Any
 
+from memory.adaptive_preferences import is_adaptive_preference_suppressed
+
 
 IMPORTANT_BACKGROUND_TASKS = {
     "daily_briefing",
@@ -44,6 +46,12 @@ def plan_background_voice_notification(
         return VoiceNotificationPlan(False, "", "modo silencioso ou foco ativo")
 
     name = str(notification.get("name") or "tarefa").strip() or "tarefa"
+    if is_adaptive_preference_suppressed("notifications", action="announce", text=name):
+        return VoiceNotificationPlan(False, "", "preferencia adaptativa")
+    if name == "daily_briefing" and is_adaptive_preference_suppressed("briefing", action="announce", text=name):
+        return VoiceNotificationPlan(False, "", "preferencia adaptativa")
+    if "training" in name and is_adaptive_preference_suppressed("training", action="announce", text=name):
+        return VoiceNotificationPlan(False, "", "preferencia adaptativa")
     status = str(notification.get("status") or "").strip()
     is_failure = status == "failed"
     is_important = name in IMPORTANT_BACKGROUND_TASKS

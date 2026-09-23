@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime
 from unittest.mock import Mock, patch
 
 from services import telegram_gateway as gateway
@@ -262,6 +263,62 @@ class TelegramGatewayTests(unittest.TestCase):
         self.assertIn("confirmação no PC", result.text)
         self.assertFalse(result.contract["remote_policy"]["can_execute"])
 
+    def test_allows_reminder_write_from_allowed_chat(self):
+        fake_trace = Mock()
+        fake_trace.match = Mock(
+            result={"intent": "reminder_add", "target": "me inscrever na vaga amanha as 9h"},
+            intent_level="comando_direto",
+            group_name="daily",
+            detector_name="detect_reminder_command",
+        )
+        fake_trace.checked_detectors = 3
+        fake_trace.checked_groups = ["daily"]
+        with (
+            patch.object(gateway, "route_trace", return_value=fake_trace),
+            patch.object(gateway, "execute_telegram_command", return_value="Combinado. Vou lembrar amanhã as 09:00: me inscrever na vaga.") as execute_mock,
+        ):
+            result = gateway.handle_telegram_update(
+                {"message": {"chat": {"id": 123}, "text": "me lembre de me inscrever na vaga amanha as 9h"}},
+                allowed_chat_ids={"123"},
+            )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.action, "reminder_add")
+        self.assertTrue(result.contract["remote_policy"]["can_execute"])
+        execute_mock.assert_called_once()
+
+    def test_telegram_reminder_uses_message_date_as_relative_base(self):
+        fake_trace = Mock()
+        fake_trace.match = Mock(
+            result={"intent": "reminder_add", "target": "testar o axel amanha 9h"},
+            intent_level="comando_direto",
+            group_name="daily",
+            detector_name="detect_reminder_command",
+        )
+        fake_trace.checked_detectors = 3
+        fake_trace.checked_groups = ["daily"]
+        message_date = int(datetime(2026, 7, 29, 10, 0).timestamp())
+        with (
+            patch.object(gateway, "route_trace", return_value=fake_trace),
+            patch.object(gateway, "execute_telegram_command", return_value="Combinado.") as execute_mock,
+        ):
+            result = gateway.handle_telegram_update(
+                {
+                    "message": {
+                        "date": message_date,
+                        "chat": {"id": 123},
+                        "text": "Me lembra de testar o axel amanha 9h",
+                    }
+                },
+                allowed_chat_ids={"123"},
+            )
+
+        self.assertTrue(result.ok)
+        command = execute_mock.call_args.args[0]
+        self.assertEqual(command.action, "reminder_add")
+        self.assertTrue(command.params["now"].startswith("2026-07-29T10:00:00"))
+
     def test_confirmation_help_after_pending_remote_action_is_explicit(self):
         fake_trace = Mock()
         fake_trace.match = Mock(
@@ -424,6 +481,7 @@ class TelegramGatewayTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual(result.status, "remote_mode_disabled")
         self.assertIn("leitura segura", result.text)
+        self.assertIn("lembretes", result.text)
         self.assertIn("mídia/volume", result.text)
         self.assertIn("Bloqueado", result.text)
 

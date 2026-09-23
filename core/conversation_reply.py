@@ -5,6 +5,7 @@ from collections.abc import Callable
 
 from memory.assistant_customization import get_axel_introduction
 from core.router_conversation import (
+    _question_fallback_response,
     _looks_like_weak_open_response,
     detect_builtin_general_answer,
     practical_question_response,
@@ -12,6 +13,7 @@ from core.router_conversation import (
     useful_conversation_response,
 )
 from core.router_utils import normalize_text
+from memory.adaptive_preferences import apply_adaptive_response_tone, get_adaptive_assistant_name
 
 ChatResponse = Callable[[str], str]
 
@@ -32,19 +34,19 @@ def conversation_reply(user_input: str, chat_response: ChatResponse) -> str:
 
     if "tudo bem" in normalized or "como voce" in normalized or "como vc" in normalized:
         response = chat_response(user_input)
-        return response or "Tudo bem por aqui. E você?"
+        return response or _question_fallback_response(user_input)
 
     if "bom dia" in normalized:
         response = chat_response(user_input)
-        return response or "Bom dia."
+        return response or _question_fallback_response(user_input)
 
     if "boa tarde" in normalized:
         response = chat_response(user_input)
-        return response or "Boa tarde."
+        return response or _question_fallback_response(user_input)
 
     if "boa noite" in normalized:
         response = chat_response(user_input)
-        return response or "Boa noite."
+        return response or _question_fallback_response(user_input)
 
     if normalized in {
         "se apresente",
@@ -60,6 +62,10 @@ def conversation_reply(user_input: str, chat_response: ChatResponse) -> str:
         "conta quem voce e",
     }:
         return get_axel_introduction()
+
+    adaptive_name = get_adaptive_assistant_name()
+    if adaptive_name != "Axel" and difflib.SequenceMatcher(None, normalized, "qual o seu nome").ratio() >= 0.78:
+        return f"Meu nome e {adaptive_name}."
 
     if difflib.SequenceMatcher(None, normalized, "qual o seu nome").ratio() >= 0.78:
         return "Meu nome é Axel."
@@ -85,7 +91,8 @@ def conversation_reply(user_input: str, chat_response: ChatResponse) -> str:
         return response
 
     if fallback:
+        fallback = apply_adaptive_response_tone(fallback, user_input)
         remember_useful_conversation_topic(user_input, fallback)
         return fallback
 
-    return "Acho que eu ouvi meio torto. Repete de outro jeito?"
+    return _question_fallback_response(user_input)

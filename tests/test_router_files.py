@@ -57,6 +57,13 @@ class RouterFilesTests(unittest.TestCase):
     def test_delete_file_ignores_watchlist_command(self):
         self.assertIsNone(detect_delete_file("remova BBAS3 da watchlist"))
 
+    def test_broad_delete_scope_is_not_operational_path(self):
+        result = detect_delete_file("apague todos os meus arquivos")
+
+        self.assertEqual(result["intent"], "respond")
+        self.assertEqual(result["__decision_type"], "BLOCKED")
+        self.assertIn("amplo demais", result["response"])
+
     def test_copy_file(self):
         self.assertEqual(
             detect_copy_file("copie a.txt para b.txt"),

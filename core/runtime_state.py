@@ -112,15 +112,37 @@ class RuntimeState:
         brief = self.axel_brain_brief if isinstance(self.axel_brain_brief, dict) else {}
         memory_layers = brief.get("memory_layers") if isinstance(brief.get("memory_layers"), list) else []
         context_layers = []
+        memory_influences = []
         for layer in memory_layers[:6]:
             if not isinstance(layer, dict):
                 continue
             name = str(layer.get("name") or "").strip()
             if name:
                 context_layers.append(name)
+            for influence in layer.get("influences") or []:
+                if isinstance(influence, dict):
+                    memory_influences.append(
+                        {
+                            "layer": name,
+                            "domain": str(influence.get("domain") or ""),
+                            "section": str(influence.get("section") or ""),
+                            "source": str(influence.get("source") or ""),
+                            "scope": str(influence.get("scope") or ""),
+                            "confidence": influence.get("confidence"),
+                            "priority": str(influence.get("priority") or ""),
+                            "reason": str(influence.get("reason") or "")[:180],
+                            "text": str(influence.get("text") or "")[:180],
+                        }
+                    )
+        contract_influences = contract.get("memory_influences") if isinstance(contract.get("memory_influences"), list) else []
+        if not memory_influences and contract_influences:
+            memory_influences = [item for item in contract_influences if isinstance(item, dict)]
 
         decision = {
             "intent": str(route_trace.get("intent") or contract.get("intent") or plan.get("intent") or ""),
+            "decision_type": str(plan.get("decision_type") or contract.get("decision_type") or route_trace.get("decision_type") or ""),
+            "capability": str(plan.get("capability") or contract.get("capability") or route_trace.get("capability") or ""),
+            "capability_source": str(plan.get("capability_source") or contract.get("capability_source") or route_trace.get("capability_source") or ""),
             "agent": str(plan.get("agent") or contract.get("agent") or ""),
             "toolset": str(plan.get("toolset") or contract.get("toolset") or ""),
             "risk_level": str(plan.get("risk_level") or contract.get("risk_level") or ""),
@@ -140,6 +162,7 @@ class RuntimeState:
             "checked_detectors": route_trace.get("checked_detectors"),
             "checked_groups": list(route_trace.get("checked_groups") or []) if isinstance(route_trace.get("checked_groups"), list) else [],
             "memory_layers": context_layers,
+            "memory_influences": memory_influences[:8],
             "channel": str(contract.get("channel") or policy.get("channel") or ""),
             "safety_profile": str(policy.get("safety_profile") or ""),
         }
@@ -165,6 +188,9 @@ class RuntimeState:
             "route_group": context["route_group"],
             "detector": context["detector"],
             "intent": decision["intent"],
+            "decision_type": decision["decision_type"],
+            "capability": decision["capability"],
+            "capability_source": decision["capability_source"],
             "agent": decision["agent"],
             "toolset": decision["toolset"],
             "risk_level": decision["risk_level"],

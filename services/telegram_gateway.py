@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -20,6 +21,7 @@ from core.response_polish import polish_assistant_response
 from core.router import route_trace
 from core.router_utils import normalize_text
 from core.shared_commands import maybe_handle_shared_command
+from core.unknown_intent import action_from_unknown_intent
 
 
 TELEGRAM_LOG_PATH = Path("memory/telegram_bot.log")
@@ -82,6 +84,7 @@ class TelegramRequest:
     media_file_id: str = ""
     media_duration: int = 0
     media_mime_type: str = ""
+    message_date: int = 0
 
 
 @dataclass(frozen=True)
@@ -135,6 +138,7 @@ def parse_inbound_update(update: dict[str, Any]) -> TelegramRequest:
             username=str(sender.get("username") or sender.get("first_name") or "").strip(),
             callback_data=str(callback.get("data") or "").strip(),
             callback_query_id=str(callback.get("id") or "").strip(),
+            message_date=int(message.get("date") or 0),
         )
 
     message = update.get("message") if isinstance(update.get("message"), dict) else {}
@@ -160,6 +164,7 @@ def parse_inbound_update(update: dict[str, Any]) -> TelegramRequest:
         media_file_id=str(media.get("file_id") or "").strip(),
         media_duration=int(media.get("duration") or 0),
         media_mime_type=str(media.get("mime_type") or "").strip(),
+        message_date=int(message.get("date") or 0),
     )
 
 
@@ -200,7 +205,7 @@ def _handle_remote_mode_command(text: str, chat_id: str) -> TelegramResponse | N
             True,
             (
                 "Modo remoto ampliado desativado. "
-                "Permitido: leitura segura. "
+                "Permitido: leitura segura e lembretes. "
                 f"Com confirmacao no chat: {confirmable_count} acoes leves de midia/volume. "
                 "Bloqueado: escrita, apps, arquivos, automacoes e risco medio/alto; use o PC."
             ),
@@ -417,9 +422,18 @@ def execute_telegram_command(command):
     return execute_result(command)
 
 
+def _message_now_iso(message_date: int) -> str:
+    try:
+        if int(message_date or 0) <= 0:
+            return ""
+        return datetime.fromtimestamp(int(message_date)).isoformat(timespec="seconds")
+    except Exception:
+        return ""
+
+
 def build_remote_decision(text: str) -> tuple[dict, object, object, dict]:
     trace = route_trace(text)
-    raw_action = trace.match.result if trace.match else {"intent": "respond", "target": None, "response": "Nao entendi."}
+    raw_action = trace.match.result if trace.match else action_from_unknown_intent(text)
     intent_level = trace.match.intent_level if trace.match else "conversa"
     complexity = classify_intent_complexity(text, intent_level=intent_level, raw_action=raw_action)
     decision = build_axel_brain_decision(
@@ -433,6 +447,10 @@ def build_remote_decision(text: str) -> tuple[dict, object, object, dict]:
         "input": text,
         "intent": raw_action.get("intent"),
         "target": raw_action.get("target"),
+        "decision_type": raw_action.get("__decision_type"),
+        "capability": raw_action.get("__capability"),
+        "capability_source": raw_action.get("__capability_source"),
+        "semantic_fallback": raw_action.get("__semantic_fallback") if isinstance(raw_action.get("__semantic_fallback"), dict) else {},
         "group": trace.match.group_name if trace.match else "",
         "detector": trace.match.detector_name if trace.match else "",
         "intent_level": intent_level,
@@ -452,7 +470,13 @@ def build_remote_decision(text: str) -> tuple[dict, object, object, dict]:
     return raw_action, decision.plan, decision.brief, contract
 
 
-def handle_telegram_text(text: str, *, chat_id: str = "", callback_query_id: str = "") -> TelegramResponse:
+def handle_telegram_text(
+    text: str,
+    *,
+    chat_id: str = "",
+    callback_query_id: str = "",
+    message_date: int = 0,
+) -> TelegramResponse:
     clean = str(text or "").strip()
     if not clean:
         return TelegramResponse(False, "Envie uma mensagem para o Axel.", status="empty", chat_id=chat_id)
@@ -502,6 +526,10 @@ def handle_telegram_text(text: str, *, chat_id: str = "", callback_query_id: str
         )
 
     command = normalize_action(raw_action)
+    if command.action == "reminder_add":
+        message_now = _message_now_iso(message_date)
+        if message_now:
+            command.params["now"] = message_now
     if not contract.get("remote_policy", {}).get("can_execute"):
         context = _CHAT_CONTEXT.setdefault(_chat_key(chat_id), {})
         context["blocked_action"] = command.action
@@ -599,7 +627,12 @@ def handle_telegram_audio_request(
             chat_id=request.chat_id,
         )
     log_telegram_event("audio_transcribed", chat_id=request.chat_id, media_kind=request.media_kind, chars=len(text))
-    return handle_telegram_text(text, chat_id=request.chat_id, callback_query_id=request.callback_query_id)
+    return handle_telegram_text(
+        text,
+        chat_id=request.chat_id,
+        callback_query_id=request.callback_query_id,
+        message_date=request.message_date,
+    )
 
 
 def handle_telegram_update(
@@ -614,4 +647,9 @@ def handle_telegram_update(
         return _blocked_response("Chat nao autorizado.", chat_id=request.chat_id)
     if request.media_file_id and not request.text:
         return handle_telegram_audio_request(request, transcribe_audio=transcribe_audio)
-    return handle_telegram_text(request.text, chat_id=request.chat_id, callback_query_id=request.callback_query_id)
+    return handle_telegram_text(
+        request.text,
+        chat_id=request.chat_id,
+        callback_query_id=request.callback_query_id,
+        message_date=request.message_date,
+    )

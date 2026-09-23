@@ -7,6 +7,7 @@ from pathlib import Path
 from time import time
 
 from core.cache_policy import BRIEFING_CACHE_POLICY, is_cache_fresh
+from memory.adaptive_preferences import apply_adaptive_briefing_layout
 from memory.agenda import agenda_brief_summary
 from memory.auto_advances import load_auto_advances
 from memory.investment_formatting import format_percent, parse_currency_value, parse_percent_value
@@ -21,10 +22,12 @@ from tools.weather_tools import get_weather_snapshot
 
 TODO_PATH = Path("memory/todo.md")
 BRIEFING_CACHE_PATH = BRIEFING_CACHE_POLICY.path
+BRIEFING_SIGNAL_STATE_PATH = Path("memory/briefing_signal_state.json")
 INVESTMENT_HISTORY_PATH = Path("memory/investment_snapshot_history.json")
 DEFAULT_BRIEFING_CACHE_TTL_SECONDS = BRIEFING_CACHE_POLICY.ttl_seconds
-BRIEFING_CONTENT_VERSION = 8
+BRIEFING_CONTENT_VERSION = 9
 DIVIDEND_BRIEF_LOOKAHEAD_DAYS = 7
+DIVIDEND_REMINDER_DAYS = 1
 
 B3_HOLIDAYS_2026 = {
     "2026-01-01",
@@ -461,6 +464,77 @@ def _dividend_agenda_brief() -> str:
         return ""
 
 
+def _load_briefing_signal_state() -> dict[str, str]:
+    try:
+        data = json.loads(BRIEFING_SIGNAL_STATE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return {}
+    announced = data.get("announced_dividends") if isinstance(data, dict) else {}
+    return announced if isinstance(announced, dict) else {}
+
+
+def _write_briefing_signal_state(announced: dict[str, str]) -> None:
+    try:
+        BRIEFING_SIGNAL_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        BRIEFING_SIGNAL_STATE_PATH.write_text(
+            json.dumps({"announced_dividends": announced}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        return
+
+
+def _dividend_payment_day_from_text(text: str, *, today: date) -> date | None:
+    match = re.search(r"\bem\s+(\d{1,2})/(\d{1,2})\b", text, flags=re.I)
+    if not match:
+        return None
+    try:
+        candidate = date(today.year, int(match.group(2)), int(match.group(1)))
+    except ValueError:
+        return None
+    return candidate if candidate >= today else None
+
+
+def _new_dividend_agenda_brief(text: str, *, today: date | None = None) -> str:
+    """Announce a dividend once, then repeat it only on the eve/payment day."""
+    raw = _compact_text(text, max_chars=500).rstrip(".")
+    prefix = "Dividendos próximos:"
+    if not raw.lower().startswith(prefix.lower()):
+        return text
+
+    current_day = today or _today()
+    announced = _load_briefing_signal_state()
+    entries = [entry.strip() for entry in raw[len(prefix) :].split(";") if entry.strip()]
+    fresh_entries: list[str] = []
+    for entry in entries:
+        payment_day = _dividend_payment_day_from_text(entry, today=current_day)
+        key = re.sub(r"\s+", " ", entry.lower()).strip()
+        days_until_payment = (payment_day - current_day).days if payment_day else None
+        should_repeat = days_until_payment is not None and days_until_payment <= DIVIDEND_REMINDER_DAYS
+        if key not in announced or should_repeat:
+            fresh_entries.append(entry)
+            announced[key] = current_day.isoformat()
+
+    if announced:
+        _write_briefing_signal_state(announced)
+    if not fresh_entries:
+        return ""
+    return prefix + " " + "; ".join(fresh_entries) + "."
+
+
+def _radar_without_dividend_repeats(text: str) -> str:
+    """The dividend section owns payment notices; radar keeps the other alerts."""
+    prefix = "Radar da carteira: alertas ativos:"
+    raw = _compact_text(text, max_chars=500).rstrip(".")
+    if not raw.lower().startswith(prefix.lower()):
+        return text
+    signals = [part.strip() for part in raw[len(prefix) :].split(";") if part.strip()]
+    signals = [part for part in signals if not re.search(r"\bpaga(?:\s+\w+)?\s+em\s+\d{1,2}/\d{1,2}\b", part, flags=re.I)]
+    if not signals:
+        return "Radar da carteira: sem alerta ativo novo agora."
+    return prefix + " " + "; ".join(signals) + "."
+
+
 def _short_reminders_brief() -> str:
     summary = list_reminders(limit=3)
     if "Nao ha lembretes pendentes" in summary:
@@ -507,22 +581,25 @@ def _build_daily_briefing(*, include_greeting: bool = True) -> str:
     market_day = _is_b3_market_day()
     sections = []
     if include_greeting:
-        sections.append(_time_greeting())
+        sections.append({"id": "greeting", "text": _time_greeting()})
     sections.extend([
-        _climate_brief(),
-        _short_agenda_brief(),
-        _investment_brief(),
+        {"id": "climate", "text": _climate_brief()},
+        {"id": "agenda", "text": _short_agenda_brief()},
+        {"id": "investments", "text": _investment_brief()},
     ])
     if market_day:
+        dividend_brief = _new_dividend_agenda_brief(_dividend_agenda_brief())
+        radar_brief = _radar_without_dividend_repeats(_portfolio_radar_brief())
         sections.extend([
-            _dividend_agenda_brief(),
-            _portfolio_radar_brief(),
+            {"id": "dividends", "text": dividend_brief},
+            {"id": "radar", "text": radar_brief},
         ])
     sections.extend([
-        focus_brief_summary(),
-        _short_reminders_brief(),
+        {"id": "focus", "text": focus_brief_summary()},
+        {"id": "reminders", "text": _short_reminders_brief()},
     ])
-    return _polish_pt_br(" ".join(part.strip() for part in sections if str(part or "").strip()))
+    sections = apply_adaptive_briefing_layout(sections)
+    return _polish_pt_br(" ".join(str(part.get("text") or "").strip() for part in sections if str(part.get("text") or "").strip()))
 
 
 def daily_briefing(

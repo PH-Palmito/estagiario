@@ -199,6 +199,8 @@ DEFAULT_STATE = {
     "skipped": [],
     "injuries": {},
     "levels": {},
+    "plan_enabled": True,
+    "custom_weekly_plan": {},
     "reminder": {"enabled": True, "time": "19:00", "last_notified_date": ""},
 }
 
@@ -218,7 +220,7 @@ def load_training_state() -> dict:
     for key in ("completed", "skipped"):
         if not isinstance(state.get(key), list):
             state[key] = []
-    for key in ("injuries", "levels", "reminder"):
+    for key in ("injuries", "levels", "reminder", "custom_weekly_plan"):
         if not isinstance(state.get(key), dict):
             state[key] = dict(DEFAULT_STATE[key])
     reminder = dict(DEFAULT_STATE["reminder"])
@@ -247,12 +249,13 @@ def _normalize_training_state(data: dict) -> dict:
     for key in ("completed", "skipped"):
         if not isinstance(state.get(key), list):
             state[key] = []
-    for key in ("injuries", "levels", "reminder"):
+    for key in ("injuries", "levels", "reminder", "custom_weekly_plan"):
         if not isinstance(state.get(key), dict):
             state[key] = dict(DEFAULT_STATE[key])
     reminder = dict(DEFAULT_STATE["reminder"])
     reminder.update(state.get("reminder") or {})
     state["reminder"] = reminder
+    state["plan_enabled"] = bool(state.get("plan_enabled", True))
     return state
 
 
@@ -264,10 +267,38 @@ def _date_key(now: datetime | None = None) -> str:
     return _today(now).date().isoformat()
 
 
-def workout_for_date(now: datetime | None = None) -> dict:
+def _disabled_workout(base: dict) -> dict:
+    return {
+        **base,
+        "title": "Plano pausado",
+        "focus": "O plano de treino está pausado. Você ainda pode registrar treino livre se fizer algo fora do cronograma.",
+        "muscles": [],
+        "warmup": [],
+        "exercises": [["Plano pausado", "reative o plano quando quiser voltar ao cronograma"]],
+        "plan_disabled": True,
+    }
+
+
+def _custom_workout(base: dict, state: dict) -> dict:
+    overrides = state.get("custom_weekly_plan") or {}
+    item = overrides.get(str(base.get("day"))) if isinstance(overrides, dict) else None
+    if not isinstance(item, dict):
+        return base
+    merged = {**base, **item}
+    merged["day"] = base.get("day")
+    merged["label"] = base.get("label")
+    merged["custom"] = True
+    return merged
+
+
+def workout_for_date(now: datetime | None = None, state: dict | None = None) -> dict:
     date = _today(now)
     monday_based = date.weekday()
-    return WEEKLY_PLAN[monday_based]
+    base = dict(WEEKLY_PLAN[monday_based])
+    state = state if isinstance(state, dict) else load_training_state()
+    if not bool(state.get("plan_enabled", True)):
+        return _disabled_workout(base)
+    return _custom_workout(base, state)
 
 
 def workout_by_weekday_text(text: str) -> dict | None:
@@ -472,7 +503,7 @@ def current_streak(state: dict | None = None, now: datetime | None = None) -> in
 
 def training_snapshot(now: datetime | None = None) -> dict:
     state = load_training_state()
-    workout = workout_for_date(now)
+    workout = workout_for_date(now, state)
     blocked = _blocked_muscles(workout, state, now)
     today_key = _date_key(now)
     today_entries = [
@@ -495,6 +526,8 @@ def training_snapshot(now: datetime | None = None) -> dict:
         "progression": PROGRESSION_GUIDE,
         "completed_today": bool(today_entries),
         "today_entries": today_entries,
+        "plan_enabled": bool(state.get("plan_enabled", True)),
+        "custom_weekly_plan": state.get("custom_weekly_plan") or {},
     }
 
 
@@ -513,8 +546,10 @@ def format_today_workout(now: datetime | None = None) -> str:
 
 def mark_training_completed(now: datetime | None = None, allow_rest_day: bool = False) -> str:
     state = load_training_state()
-    workout = workout_for_date(now)
+    workout = workout_for_date(now, state)
     date_key = _date_key(now)
+    if workout.get("plan_disabled") and not allow_rest_day:
+        return "O plano de treino está pausado. Posso registrar treino livre se você disser os grupos que treinou."
     if _is_completed(state, date_key):
         return f"O treino de {datetime.fromisoformat(date_key).strftime('%d/%m')} já está marcado como concluído."
     blocked = _blocked_muscles(workout, state, now)
@@ -564,6 +599,7 @@ def mark_named_workout_from_text(text: str, now: datetime | None = None) -> str:
     else:
         target = parse_training_datetime(str(workout.get("label", "")), now)
     state = load_training_state()
+    workout = _custom_workout(workout, state)
     date_key = _date_key(target)
     blocked = _blocked_muscles(workout, state, target)
     if blocked:
@@ -636,7 +672,7 @@ def mark_custom_training_from_text(text: str, now: datetime | None = None) -> st
 
     state = load_training_state()
     target = parse_training_datetime(text, now)
-    workout = workout_for_date(target)
+    workout = workout_for_date(target, state)
     blocked = [muscle for muscle in muscles if muscle in {item[0] for item in _active_injuries(state, target)}]
     if blocked:
         return "Não vou registrar treino em região lesionada: " + ", ".join(MUSCLE_NAMES.get(m, m) for m in blocked) + "."
@@ -689,6 +725,75 @@ def skip_today_training(now: datetime | None = None) -> str:
         state["skipped"] = list(state.get("skipped") or []) + [date_key]
         save_training_state(state)
     return "Marquei hoje como treino pulado."
+
+
+def pause_training_plan() -> str:
+    state = load_training_state()
+    state["plan_enabled"] = False
+    save_training_state(state)
+    return "Plano de treino pausado. Os lembretes continuam salvos, mas o treino do dia fica como plano pausado até você reativar."
+
+
+def resume_training_plan() -> str:
+    state = load_training_state()
+    state["plan_enabled"] = True
+    save_training_state(state)
+    return "Plano de treino reativado. Voltei a usar o cronograma semanal salvo."
+
+
+def _workout_title_from_muscles(muscles: list[str]) -> str:
+    names = [MUSCLE_NAMES.get(muscle, muscle) for muscle in muscles]
+    if not names:
+        return "Descanso"
+    return " + ".join(name.capitalize() for name in names)
+
+
+def update_weekly_workout_from_text(text: str) -> str:
+    workout = workout_by_weekday_text(text)
+    if not workout:
+        return "Qual dia do plano você quer mudar? Exemplo: trocar treino de segunda para peito e tríceps."
+    muscles = parse_muscles(text)
+    if not muscles:
+        return "Quais grupos entram nesse dia? Exemplo: trocar treino de segunda para peito e tríceps."
+
+    state = load_training_state()
+    custom = dict(state.get("custom_weekly_plan") or {})
+    title = _workout_title_from_muscles(muscles)
+    custom[str(workout.get("day"))] = {
+        "title": title,
+        "focus": f"Treino personalizado salvo por comando: {title}.",
+        "muscles": muscles,
+        "warmup": [["Aquecimento leve", "5 minutos"], ["Mobilidade", "articulações do treino"]],
+        "exercises": [[title, "monte as séries conforme seu nível ou peça ao Axel para detalhar esse dia"]],
+        "source": "user_override",
+        "note": str(text or "").strip(),
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    state["custom_weekly_plan"] = custom
+    state["plan_enabled"] = True
+    save_training_state(state)
+    return f"Atualizei o treino de {workout['label']} para {title}. O plano continua ativo."
+
+
+def cancel_weekly_workout_from_text(text: str) -> str:
+    workout = workout_by_weekday_text(text)
+    if not workout:
+        return "Qual dia do plano você quer cancelar? Exemplo: cancelar treino de terça."
+    state = load_training_state()
+    custom = dict(state.get("custom_weekly_plan") or {})
+    custom[str(workout.get("day"))] = {
+        "title": "Descanso",
+        "focus": "Dia cancelado no plano personalizado.",
+        "muscles": [],
+        "warmup": [],
+        "exercises": [["Descanso", "treino cancelado por comando"]],
+        "source": "user_cancelled_day",
+        "note": str(text or "").strip(),
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    state["custom_weekly_plan"] = custom
+    save_training_state(state)
+    return f"Cancelado o treino de {workout['label']}. Esse dia agora fica como descanso no plano personalizado."
 
 
 def parse_muscle(text: str) -> str:
@@ -752,7 +857,7 @@ def consume_due_training_reminder(now: datetime | None = None) -> dict:
         hour, minute = 19, 0
     if now.time() < now.replace(hour=hour, minute=minute, second=0, microsecond=0).time():
         return {}
-    workout = workout_for_date(now)
+    workout = workout_for_date(now, state)
     reminder["last_notified_date"] = date_key
     state["reminder"] = reminder
     save_training_state(state)

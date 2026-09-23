@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from threading import Thread
 
+from memory.adaptive_preferences import is_adaptive_preference_suppressed
+
 INTERACTIVE_STARTUP_BRIEFING_DELAY_SECONDS = 2.0
 WINDOWS_STARTUP_BRIEFING_DELAY_SECONDS = 8.0
 
@@ -30,6 +32,8 @@ def send_startup_briefing_once(
     force = "--force-startup-briefing" in args
 
     now = now or datetime.now()
+    if not force and is_adaptive_preference_suppressed("briefing", action="run", text="startup briefing", now=now):
+        return False
     today_key = now.date().isoformat()
     try:
         state = json.loads(state_path.read_text(encoding="utf-8"))

@@ -10,6 +10,7 @@ class AxelBrainTests(unittest.TestCase):
         with (
             patch("core.axel_brain.format_curated_memory", return_value="memoria curta"),
             patch("core.axel_brain.format_relevant_session_memory", return_value="sessoes"),
+            patch("core.axel_brain.explain_memory_influence", return_value={"items": [], "conflicts": []}),
             patch("core.axel_brain.format_relevant_skills", return_value="skills"),
             patch("core.axel_brain.format_relevant_toolsets", return_value="toolsets"),
         ):
@@ -27,6 +28,7 @@ class AxelBrainTests(unittest.TestCase):
         self.assertEqual(decision.brief.tool_libraries[0]["agent"], "dev_agent")
         self.assertEqual(decision.brief.brain_version, "2.0")
         self.assertEqual(decision.brief.memory_layers[0].name, "memoria_curta")
+        self.assertEqual(decision.brief.memory_layers[2].name, "memoria_profunda")
         self.assertIn("Responder", decision.brief.next_step)
         self.assertIn("resposta curta", decision.brief.success_criteria[0])
         self.assertIn("autoavaliacao", decision.brief.post_task_signals[0])
@@ -38,6 +40,7 @@ class AxelBrainTests(unittest.TestCase):
         with (
             patch("core.axel_brain.format_curated_memory", return_value="memoria curta"),
             patch("core.axel_brain.format_relevant_session_memory", return_value="sessoes"),
+            patch("core.axel_brain.explain_memory_influence", return_value={"items": [], "conflicts": []}),
             patch("core.axel_brain.format_relevant_skills", return_value="skills"),
             patch("core.axel_brain.format_relevant_toolsets", return_value="toolsets"),
         ):
@@ -55,6 +58,7 @@ class AxelBrainTests(unittest.TestCase):
         with (
             patch("core.axel_brain.format_curated_memory", return_value="memoria curta"),
             patch("core.axel_brain.format_relevant_session_memory", return_value="sessoes"),
+            patch("core.axel_brain.explain_memory_influence", return_value={"items": [], "conflicts": []}),
             patch("core.axel_brain.format_relevant_skills", return_value="skills"),
             patch("core.axel_brain.format_relevant_toolsets", return_value="toolsets"),
         ):
@@ -73,6 +77,7 @@ class AxelBrainTests(unittest.TestCase):
         with (
             patch("core.axel_brain.format_curated_memory", return_value="memoria curta"),
             patch("core.axel_brain.format_relevant_session_memory", return_value="sessoes"),
+            patch("core.axel_brain.explain_memory_influence", return_value={"items": [], "conflicts": []}),
             patch("core.axel_brain.format_relevant_skills", return_value="skills"),
             patch("core.axel_brain.format_relevant_toolsets", return_value="toolsets"),
         ):
@@ -80,6 +85,46 @@ class AxelBrainTests(unittest.TestCase):
 
         self.assertIn("AxelBrain escolheu", text)
         self.assertIn("Politica de modelo", text)
+
+    def test_deep_memory_layer_preserves_structured_influence(self):
+        with (
+            patch("core.axel_brain.format_curated_memory", return_value="memoria curta"),
+            patch("core.axel_brain.format_relevant_session_memory", return_value="sessoes"),
+            patch(
+                "core.axel_brain.explain_memory_influence",
+                return_value={
+                    "items": [
+                        {
+                            "id": "adaptive:training",
+                            "dominio": "treino",
+                            "secao": "regras_adaptativas",
+                            "texto": "Regra adaptativa: evitar avisar treino",
+                            "metadados": {
+                                "origem": "memory/adaptive_preferences.json",
+                                "escopo": "treino",
+                                "confianca": 0.9,
+                                "prioridade": "alta",
+                                "motivo": "nao me avise sobre treino",
+                            },
+                        }
+                    ],
+                    "conflicts": [],
+                },
+            ),
+            patch("core.axel_brain.format_relevant_skills", return_value="skills"),
+            patch("core.axel_brain.format_relevant_toolsets", return_value="toolsets"),
+        ):
+            decision = build_axel_brain_decision(
+                "por que voce nao me avisou do treino?",
+                {"intent": "respond"},
+                intent_level=INTENT_LEVEL_QUESTION,
+            )
+
+        deep_layer = decision.brief.memory_layers[2]
+        self.assertEqual(deep_layer.name, "memoria_profunda")
+        self.assertEqual(deep_layer.sources, ("memory/adaptive_preferences.json",))
+        self.assertEqual(deep_layer.influences[0]["domain"], "treino")
+        self.assertIn("evitar avisar treino", deep_layer.content)
 
 
 if __name__ == "__main__":

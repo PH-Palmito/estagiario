@@ -105,6 +105,15 @@ def format_last_response_reality(timeline: list | tuple | None) -> str:
     models = [item for item in provenance.get("models", []) if isinstance(item, dict)]
     context = latest.get("context") if isinstance(latest.get("context"), dict) else {}
     memories = [str(item) for item in context.get("memory_layers", []) if str(item).strip()]
+    influences = [
+        item for item in context.get("memory_influences", [])
+        if isinstance(item, dict)
+    ]
+    influence_sources = []
+    for item in influences:
+        source = str(item.get("source") or "").strip()
+        if source and source not in influence_sources:
+            influence_sources.append(source)
 
     if models:
         model = models[-1]
@@ -124,7 +133,8 @@ def format_last_response_reality(timeline: list | tuple | None) -> str:
         f"modelo usado: {model_text}; "
         f"ferramentas executadas: {', '.join(tools) if tools else 'nenhuma'}; "
         f"arquivos envolvidos: {', '.join(files) if files else 'nenhum'}; "
-        f"memorias consultadas: {', '.join(memories) if memories else 'nenhuma camada registrada'}. "
+        f"memorias consultadas: {', '.join(memories) if memories else 'nenhuma camada registrada'}; "
+        f"fontes profundas: {', '.join(influence_sources[:3]) if influence_sources else 'nenhuma fonte especifica'}. "
         "Nao foram exibidos prompts, chaves, caminhos completos ou parametros sensiveis."
     )
 
@@ -153,6 +163,15 @@ def format_axel_brain_runtime_decision(
     success_criteria = specialist.get("success_criteria") or []
     post_task_signals = specialist.get("post_task_signals") or []
     memory_layers = specialist.get("memory_layers") or []
+    memory_influences = contract_payload.get("memory_influences") if isinstance(contract_payload.get("memory_influences"), list) else []
+    if not memory_influences and isinstance(memory_layers, (list, tuple)):
+        memory_influences = [
+            influence
+            for layer in memory_layers
+            if isinstance(layer, dict)
+            for influence in (layer.get("influences") or [])
+            if isinstance(influence, dict)
+        ]
     coordination_mode = str(payload.get("coordination_mode") or specialist.get("coordination_mode") or "single_agent")
     remote_policy = contract_payload.get("remote_policy") if isinstance(contract_payload.get("remote_policy"), dict) else {}
     channel = str(contract_payload.get("channel") or remote_policy.get("channel") or "").strip()
@@ -215,6 +234,17 @@ def format_axel_brain_runtime_decision(
                     layer_names.append(name)
         if layer_names:
             parts.append("memoria consultada: " + ", ".join(layer_names))
+    if memory_influences:
+        snippets = []
+        for influence in memory_influences[:3]:
+            if not isinstance(influence, dict):
+                continue
+            source = str(influence.get("source") or "sem origem").strip()
+            domain = str(influence.get("domain") or "--").strip()
+            text = _shorten(influence.get("text"), 90)
+            snippets.append(f"{domain} via {source}: {text}")
+        if snippets:
+            parts.append("influencias profundas: " + " | ".join(snippets))
     if handoff_chain:
         chain = " -> ".join(
             f"{item.get('agent', '--')} via {item.get('toolset', '--')}"
@@ -258,7 +288,10 @@ def maybe_handle_axel_brain_runtime_command(user_input: str, runtime_state) -> s
         return format_axel_brain_timeline(getattr(runtime_state, "axel_brain_timeline", None))
 
     if normalized in AXEL_BRAIN_HISTORY_COMMANDS:
-        return format_axel_brain_history(getattr(runtime_state, "axel_brain_history", None))
+        return format_axel_brain_history(
+            getattr(runtime_state, "axel_brain_history", None),
+            timeline=getattr(runtime_state, "axel_brain_timeline", None),
+        )
 
     if normalized in AXEL_ROUTE_TRACE_COMMANDS:
         return format_axel_route_trace(getattr(runtime_state, "last_route_trace", None))
@@ -303,6 +336,14 @@ def format_axel_brain_timeline(timeline: list | tuple | None) -> str:
         reason = _shorten(decision.get("reason"), 90)
         memory_layers = context.get("memory_layers") if isinstance(context.get("memory_layers"), list) else []
         memory_text = ", ".join(str(layer) for layer in memory_layers[:3] if str(layer).strip())
+        memory_influences = context.get("memory_influences") if isinstance(context.get("memory_influences"), list) else []
+        influence_sources = []
+        for influence in memory_influences:
+            if not isinstance(influence, dict):
+                continue
+            source = str(influence.get("source") or "").strip()
+            if source and source not in influence_sources:
+                influence_sources.append(source)
         confirmation = "sim" if bool(execution.get("needs_confirmation", item.get("needs_confirmation"))) else "nao"
         action = str(execution.get("action") or item.get("action") or "--")
         result = _shorten(response.get("final") or item.get("result"), 120) or "--"
@@ -312,6 +353,8 @@ def format_axel_brain_timeline(timeline: list | tuple | None) -> str:
         context_text = f"contexto rota {route_group}/{detector}"
         if memory_text:
             context_text += f", memoria {memory_text}"
+        if influence_sources:
+            context_text += f", fontes profundas {', '.join(influence_sources[:2])}"
         lines.append(
             f"{index}. entrada '{user_input}' via {source}; {decision_text}; "
             f"{context_text}; execucao action {action}, confirmacao {confirmation}; resposta final {result}"
@@ -319,7 +362,26 @@ def format_axel_brain_timeline(timeline: list | tuple | None) -> str:
     return "Timeline auditavel do AxelBrain: " + "; ".join(lines) + "."
 
 
-def format_axel_brain_history(history: list | tuple | None) -> str:
+def format_axel_brain_history(history: list | tuple | None, *, timeline: list | tuple | None = None) -> str:
+    timeline_items = [item for item in list(timeline or []) if isinstance(item, dict)]
+    if timeline_items:
+        lines = []
+        for index, item in enumerate(timeline_items[-5:], start=1):
+            decision = item.get("decision") if isinstance(item.get("decision"), dict) else {}
+            execution = item.get("execution") if isinstance(item.get("execution"), dict) else {}
+            response = item.get("response") if isinstance(item.get("response"), dict) else {}
+            question = _shorten((item.get("context") or {}).get("input") if isinstance(item.get("context"), dict) else item.get("input"), 100) or "--"
+            answer = _shorten(response.get("final") or item.get("result"), 140) or "--"
+            intent = str(decision.get("intent") or item.get("intent") or "--")
+            decision_type = str(decision.get("decision_type") or item.get("decision_type") or "").strip()
+            action = str(execution.get("action") or item.get("action") or "--")
+            route_group = str(((item.get("context") or {}).get("route_group") if isinstance(item.get("context"), dict) else item.get("route_group")) or "--")
+            decision_label = f"{intent}/{decision_type}" if decision_type else intent
+            lines.append(
+                f"{index}. pergunta: {question} | resposta: {answer} | decisao: {decision_label}; action: {action}; rota: {route_group}"
+            )
+        return "Historico recente do Axel: " + "; ".join(lines) + "."
+
     items = list(history or [])
     if not items:
         return "Ainda nao tenho historico de decisoes do AxelBrain nesta sessao."
@@ -407,6 +469,9 @@ def format_axel_route_trace(trace: dict | None) -> str:
     detector = str(payload.get("detector") or "nenhum")
     intent = str(payload.get("intent") or "--")
     target = payload.get("target")
+    decision_type = str(payload.get("decision_type") or "").strip()
+    capability = str(payload.get("capability") or "").strip()
+    capability_source = str(payload.get("capability_source") or "").strip()
     intent_level = str(payload.get("intent_level") or "--")
     complexity = str(payload.get("complexity") or "--")
     checked = payload.get("checked_detectors")
@@ -417,8 +482,12 @@ def format_axel_route_trace(trace: dict | None) -> str:
     checked_text = f"; avaliou {checked} detectores" if checked not in {None, ""} else ""
     groups_text = f"; grupos vistos: {', '.join(str(item) for item in checked_groups[:5])}" if checked_groups else ""
     reason_text = f"; motivo de complexidade: {reason}" if reason else ""
+    decision_text = f"; decisao {decision_type}" if decision_type else ""
+    capability_text = f"; capability {capability}" if capability else ""
+    source_text = f" via {capability_source}" if capability_source and capability else ""
     return (
         "Ultima rota do Axel: "
         f"grupo {group}; detector {detector}; intent {intent}{target_text}; "
-        f"nivel {intent_level}; complexidade {complexity}{reason_text}{checked_text}{groups_text}."
+        f"nivel {intent_level}; complexidade {complexity}{decision_text}{capability_text}{source_text}"
+        f"{reason_text}{checked_text}{groups_text}."
     )

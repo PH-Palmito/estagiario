@@ -7,6 +7,7 @@ from core.router_registry import INTENT_LEVEL_CONVERSATION, INTENT_LEVEL_QUESTIO
 from core.specialist_agents import select_agents
 from core.toolsets import format_relevant_toolsets
 from memory.curated_memory import format_curated_memory
+from memory.deep_memory import explain_memory_influence
 from memory.procedural_skills import format_relevant_skills
 from memory.session_index import format_relevant_session_memory
 
@@ -16,6 +17,8 @@ class MemoryLayer:
     name: str
     priority: int
     content: str
+    sources: tuple[str, ...] = ()
+    influences: tuple[dict, ...] = ()
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -60,12 +63,63 @@ def _memory_layers(user_input: str) -> tuple[MemoryLayer, ...]:
     return (
         MemoryLayer("memoria_curta", 1, format_curated_memory()),
         MemoryLayer("sessoes_relevantes", 2, format_relevant_session_memory(user_input)),
-        MemoryLayer("skills_procedurais", 3, format_relevant_skills(user_input)),
-        MemoryLayer("toolsets_relevantes", 4, format_relevant_toolsets(user_input)),
+        _deep_memory_layer(user_input),
+        MemoryLayer("skills_procedurais", 4, format_relevant_skills(user_input)),
+        MemoryLayer("toolsets_relevantes", 5, format_relevant_toolsets(user_input)),
+    )
+
+
+def _deep_memory_layer(user_input: str) -> MemoryLayer:
+    explanation = explain_memory_influence(user_input, limit=4)
+    items = [item for item in explanation.get("items") or [] if isinstance(item, dict)]
+    conflicts = [item for item in explanation.get("conflicts") or [] if isinstance(item, dict)]
+    influences = []
+    sources = []
+    rows = []
+
+    for item in items[:4]:
+        meta = item.get("metadados") if isinstance(item.get("metadados"), dict) else {}
+        source = str(meta.get("origem") or "").strip()
+        if source and source not in sources:
+            sources.append(source)
+        influence = {
+            "id": str(item.get("id") or ""),
+            "domain": str(item.get("dominio") or ""),
+            "section": str(item.get("secao") or ""),
+            "source": source,
+            "scope": str(meta.get("escopo") or ""),
+            "confidence": meta.get("confianca"),
+            "priority": str(meta.get("prioridade") or ""),
+            "reason": str(meta.get("motivo") or "")[:180],
+            "text": str(item.get("texto") or "")[:180],
+        }
+        influences.append(influence)
+        rows.append(
+            f"{influence['domain']}/{influence['section']}: {influence['text']} "
+            f"(origem {source or 'sem origem'}, conf {influence['confidence']})"
+        )
+
+    if conflicts:
+        rows.append(f"conflitos sinalizados: {len(conflicts)}")
+    content = "Memoria profunda relevante: " + " ; ".join(rows) + "." if rows else "Memoria profunda: nenhum item especifico relevante."
+    return MemoryLayer(
+        "memoria_profunda",
+        3,
+        content,
+        sources=tuple(sources[:6]),
+        influences=tuple(influences[:4]),
     )
 
 
 def _next_step_for_plan(plan: DecisionPlan) -> str:
+    if plan.decision_type == "CLARIFICATION":
+        return "Pedir esclarecimento objetivo antes de escolher capability ou executar."
+    if plan.decision_type == "PLANNING":
+        return "Planejar primeiro; nao executar etapas automaticamente."
+    if plan.decision_type == "UNKNOWN":
+        return "Explicar limite e pedir reformulacao ou contexto minimo."
+    if plan.decision_type == "INFORMATION":
+        return "Responder ou pesquisar usando fontes e memoria relevantes sem acao de sistema."
     if plan.needs_confirmation:
         return "Pedir confirmacao antes de executar a acao."
     if plan.response_mode == "plan_then_execute":
@@ -82,6 +136,10 @@ def _success_criteria(plan: DecisionPlan) -> tuple[str, ...]:
         "resposta curta e coerente com o pedido",
         "contexto relevante usado sem poluir a fala final",
     ]
+    if plan.decision_type in {"CLARIFICATION", "UNKNOWN"}:
+        base.append("nenhuma action inventada para cobrir incerteza")
+    if plan.decision_type == "PLANNING":
+        base.append("plano separado de execucao")
     if plan.response_mode == "execute_short":
         base.append("acao executada ou erro explicado")
     if plan.needs_confirmation:
@@ -96,6 +154,8 @@ def _post_task_signals(plan: DecisionPlan) -> tuple[str, ...]:
         "registrar sucesso, falha ou ajuste na autoavaliacao",
         "observar se o padrao deve virar skill procedural",
     ]
+    if plan.decision_type in {"UNKNOWN", "CLARIFICATION"}:
+        signals.append("observar se o fallback precisa virar capability ou detector")
     if plan.risk_level in {"high", "critical"}:
         signals.append("registrar auditoria da acao sensivel")
     if plan.model_policy != "local_first":

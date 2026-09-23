@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from memory.assistant_phrases import contextual_assistant_phrase
+from memory.adaptive_preferences import is_adaptive_preference_suppressed
 from memory.json_store import read_json_file, update_json_file
 
 REMINDER_ANNOUNCER_STATE_PATH = Path("memory") / "reminder_announcer_state.json"
@@ -56,7 +57,7 @@ class ReminderAnnouncer:
             training_due = {}
         if training_due:
             text = str(training_due.get("text", "")).strip()
-            if text:
+            if text and not is_adaptive_preference_suppressed("training", action="announce", text=text):
                 self._announce(text, voice_mode)
                 return True
 
@@ -65,6 +66,15 @@ class ReminderAnnouncer:
         except Exception:
             return False
 
+        due = [
+            item
+            for item in due
+            if not is_adaptive_preference_suppressed(
+                "reminders",
+                action="announce",
+                text=str(item.get("text") or item.get("source") or ""),
+            )
+        ]
         message = reminder_message(due)
         if not message:
             return self.maybe_announce_night_sleep_prompt(voice_mode)
@@ -73,6 +83,8 @@ class ReminderAnnouncer:
         return True
 
     def maybe_announce_night_sleep_prompt(self, voice_mode: bool) -> bool:
+        if is_adaptive_preference_suppressed("reminders", action="announce", text="night sleep prompt"):
+            return False
         current = datetime.fromtimestamp(self.now_fn())
         if 5 <= current.hour < self.night_sleep_prompt_hour:
             return False

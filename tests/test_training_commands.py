@@ -1,8 +1,11 @@
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import core.training_commands as training_commands
 from core.training_commands import maybe_handle_training_command, reset_pending_training_request
+from memory import training
 
 
 class TrainingCommandTests(unittest.TestCase):
@@ -75,6 +78,58 @@ class TrainingCommandTests(unittest.TestCase):
         self.assertEqual(result, "Lembrete salvo.")
         reminder.assert_called_once_with("lembrete de treino 18h")
         update_ui.assert_not_called()
+
+    def test_can_pause_and_resume_training_plan_by_voice(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "training.json"
+            with (
+                patch.object(training, "TRAINING_PATH", path),
+                patch("memory.training.sync_memory_state_safely"),
+                patch("core.training_commands.update_ui_state"),
+            ):
+                paused = maybe_handle_training_command("pausar plano de treino", Mock())
+                snapshot_paused = training.training_snapshot()
+                resumed = maybe_handle_training_command("reativar plano de treino", Mock())
+                snapshot_resumed = training.training_snapshot()
+
+        self.assertIn("Plano de treino pausado", paused)
+        self.assertFalse(snapshot_paused["plan_enabled"])
+        self.assertEqual(snapshot_paused["workout"]["title"], "Plano pausado")
+        self.assertIn("Plano de treino reativado", resumed)
+        self.assertTrue(snapshot_resumed["plan_enabled"])
+
+    def test_can_change_weekly_training_day_by_voice(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "training.json"
+            with (
+                patch.object(training, "TRAINING_PATH", path),
+                patch("memory.training.sync_memory_state_safely"),
+                patch("core.training_commands.update_ui_state"),
+            ):
+                result = maybe_handle_training_command("trocar treino de segunda para peito e triceps", Mock())
+                state = training.load_training_state()
+
+        monday = state["custom_weekly_plan"]["1"]
+        self.assertIn("Atualizei o treino de Segunda", result)
+        self.assertIn("chest", monday["muscles"])
+        self.assertIn("triceps", monday["muscles"])
+        self.assertEqual(monday["source"], "user_override")
+
+    def test_can_cancel_weekly_training_day_by_voice(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "training.json"
+            with (
+                patch.object(training, "TRAINING_PATH", path),
+                patch("memory.training.sync_memory_state_safely"),
+                patch("core.training_commands.update_ui_state"),
+            ):
+                result = maybe_handle_training_command("cancelar treino de terça", Mock())
+                state = training.load_training_state()
+
+        tuesday = state["custom_weekly_plan"]["2"]
+        self.assertIn("Cancelado o treino de Ter", result)
+        self.assertEqual(tuesday["title"], "Descanso")
+        self.assertEqual(tuesday["muscles"], [])
 
     def test_unrelated_command_returns_none(self):
         self.assertIsNone(maybe_handle_training_command("abrir spotify", Mock()))

@@ -4,6 +4,7 @@ import re
 import time
 import unicodedata
 from datetime import datetime, timedelta
+from datetime import datetime as _RealDateTime
 from pathlib import Path
 
 from memory.current_topic import load_current_topic
@@ -256,11 +257,23 @@ def _resolve_deictic_text(text: str) -> str:
     return text
 
 
-def add_reminder(raw_text: str) -> str:
+def _coerce_now(value: datetime | str | None) -> datetime:
+    if isinstance(value, _RealDateTime):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            return _RealDateTime.fromisoformat(value.strip())
+        except Exception:
+            return datetime.now()
+    return datetime.now()
+
+
+def add_reminder(raw_text: str, now: datetime | str | None = None) -> str:
+    base_now = _coerce_now(now)
     pending_text = _load_pending_reminder()
-    due_at, text, repeat = parse_reminder_details(raw_text)
+    due_at, text, repeat = parse_reminder_details(raw_text, now=base_now)
     if pending_text and due_at is not None and not text:
-        due_at, text, repeat = parse_reminder_details(f"{pending_text} {raw_text}")
+        due_at, text, repeat = parse_reminder_details(f"{pending_text} {raw_text}", now=base_now)
         _clear_pending_reminder()
     text = _apply_reminder_text_corrections(text)
     text = _resolve_deictic_text(text)
@@ -274,7 +287,7 @@ def add_reminder(raw_text: str) -> str:
         "id": str(time.time_ns()),
         "text": text,
         "due_at": due_at.isoformat(timespec="minutes"),
-        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "created_at": base_now.isoformat(timespec="seconds"),
         "notified_at": "",
     }
     if repeat:

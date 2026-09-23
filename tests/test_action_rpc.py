@@ -66,6 +66,17 @@ class ActionRpcTests(unittest.TestCase):
 
         self.assertTrue(daily["read_only"])
 
+    def test_deep_memory_actions_are_read_only(self):
+        catalog = action_rpc_catalog("memory")
+        actions = {item["name"]: item for item in catalog["actions"]}
+
+        self.assertIn("memory.deep.summary", actions)
+        self.assertIn("memory.deep.domain", actions)
+        self.assertIn("memory.deep.explain", actions)
+        self.assertTrue(actions["memory.deep.summary"]["read_only"])
+        self.assertTrue(actions["memory.deep.domain"]["read_only"])
+        self.assertTrue(actions["memory.deep.explain"]["read_only"])
+
     def test_execute_blocks_write_by_default(self):
         result = action_rpc_execute("unit.rpc_write", {})
 

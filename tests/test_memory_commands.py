@@ -98,6 +98,31 @@ class MemoryCommandTests(unittest.TestCase):
 
         self.assertEqual(result, "Memoria longa: project: Axel.")
 
+    def test_show_deep_memory(self):
+        with patch("core.memory_commands.format_deep_memory_summary", return_value="Memoria profunda: preferencias."):
+            result = maybe_handle_long_memory_command("mostrar memoria profunda")
+
+        self.assertEqual(result, "Memoria profunda: preferencias.")
+
+    def test_deep_memory_preferences_question(self):
+        with patch("core.memory_commands.format_domain_memory", return_value="Memoria profunda de operacional: preferencias."):
+            result = maybe_handle_long_memory_command("o que voce sabe sobre minhas preferencias")
+
+        self.assertEqual(result, "Memoria profunda de operacional: preferencias.")
+
+    def test_deep_memory_training_context_question(self):
+        with patch("core.memory_commands.format_domain_memory", return_value="Memoria profunda de treino: regra."):
+            result = maybe_handle_long_memory_command("qual contexto de treino esta ativo")
+
+        self.assertEqual(result, "Memoria profunda de treino: regra.")
+
+    def test_deep_memory_explain_question(self):
+        with patch("core.memory_commands.format_deep_memory_summary", return_value="Memoria profunda relevante: regra de treino.") as summary:
+            result = maybe_handle_long_memory_command("por que voce nao me avisou do treino?")
+
+        self.assertEqual(result, "Memoria profunda relevante: regra de treino.")
+        summary.assert_called_once_with("por que voce nao me avisou do treino?", limit=6)
+
     def test_list_skills(self):
         with patch("core.memory_commands.format_skill_catalog", return_value="Skills procedurais: programacao."):
             result = maybe_handle_long_memory_command("listar skills do axel")

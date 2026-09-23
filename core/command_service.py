@@ -26,7 +26,18 @@ def _runtime_evaluation_metadata(runtime_state) -> dict:
     metadata = {}
     plan = getattr(runtime_state, "axel_brain_plan", {}) or {}
     if isinstance(plan, dict):
-        for key in ("intent", "agent", "toolset", "model_policy", "risk_level", "response_mode", "coordination_mode"):
+        for key in (
+            "intent",
+            "decision_type",
+            "capability",
+            "capability_source",
+            "agent",
+            "toolset",
+            "model_policy",
+            "risk_level",
+            "response_mode",
+            "coordination_mode",
+        ):
             value = str(plan.get(key) or "").strip()
             if value:
                 metadata[key] = value

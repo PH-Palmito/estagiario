@@ -12,6 +12,7 @@ class MainPreRouteFlowTests(unittest.TestCase):
             patch.object(main, "maybe_handle_shared_command", side_effect=lambda text, **kwargs: calls.append("shared") or None),
             patch.object(main, "maybe_handle_pronunciation_command_core", side_effect=lambda text: calls.append("pronunciation") or None),
             patch.object(main, "maybe_handle_humor_command_core", side_effect=lambda text, prefs, refresh: calls.append("humor") or None),
+            patch.object(main, "maybe_handle_adaptive_preference_request", side_effect=lambda text: calls.append("adaptive") or None),
             patch.object(main, "maybe_handle_input_device_command_core", side_effect=lambda text, refresh: calls.append("input") or None),
             patch.object(main, "maybe_handle_voice_profile_command_core", side_effect=lambda text, prefs, refresh: calls.append("voice_profile") or None),
             patch.object(main, "maybe_handle_work_mode_command_core", side_effect=lambda text, show_ui: calls.append("work") or None),
@@ -47,13 +48,13 @@ class MainPreRouteFlowTests(unittest.TestCase):
         )
 
         patches = list(self._patch_pre_route_defaults(calls))
-        patches[11] = patch.object(
+        patches[12] = patch.object(
             main,
             "maybe_handle_operational_command",
             side_effect=lambda text: calls.append("operational") or operational_result,
         )
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patches[13], patches[14]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patches[13], patches[14], patches[15]:
             handled = main.handle_pre_route_command("comando operacional", voice_mode=False)
 
         self.assertTrue(handled)
@@ -65,23 +66,23 @@ class MainPreRouteFlowTests(unittest.TestCase):
         calls = []
 
         patches = self._patch_pre_route_defaults(calls)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patches[13], patches[14]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patches[13], patches[14], patches[15]:
             handled = main.handle_pre_route_command("sem match", voice_mode=False)
 
         self.assertFalse(handled)
-        self.assertEqual(calls[:12], ["correction", "shared", "pronunciation", "humor", "input", "voice_profile", "work", "ui", "training", "study", "axel_brain", "operational"])
+        self.assertEqual(calls[:13], ["correction", "shared", "pronunciation", "humor", "adaptive", "input", "voice_profile", "work", "ui", "training", "study", "axel_brain", "operational"])
 
     def test_pre_route_handles_axel_brain_runtime_command(self):
         calls = []
 
         patches = list(self._patch_pre_route_defaults(calls))
-        patches[10] = patch.object(
+        patches[11] = patch.object(
             main,
             "maybe_handle_axel_brain_runtime_command",
             side_effect=lambda text, state: calls.append(("axel_brain", state is main.app_runtime.runtime_state)) or "ultima decisao",
         )
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patches[13], patches[14]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patches[13], patches[14], patches[15]:
             handled = main.handle_pre_route_command("por que o axel decidiu isso", voice_mode=False)
 
         self.assertTrue(handled)
@@ -110,7 +111,7 @@ class MainPreRouteFlowTests(unittest.TestCase):
             or "status comum",
         )
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patches[13], patches[14]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patches[13], patches[14], patches[15]:
             handled = main.handle_pre_route_command("/status", voice_mode=False)
 
         self.assertTrue(handled)

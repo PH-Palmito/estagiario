@@ -1,9 +1,7 @@
+import re
+
+
 def split_commands(text: str):
-    separators = [" e depois ", " e ", ","]
-
-    for sep in separators:
-        if sep in text:
-            parts = [p.strip() for p in text.split(sep) if p.strip()]
-            return parts
-
-    return [text]
+    raw_parts = [part.strip() for part in re.split(r"\s*,\s*|\s+e\s+depois\s+|\s+e\s+", text) if part.strip()]
+    parts = [re.sub(r"^(?:depois|ai|aí)\s+", "", part, flags=re.IGNORECASE).strip() for part in raw_parts]
+    return [part for part in parts if part]

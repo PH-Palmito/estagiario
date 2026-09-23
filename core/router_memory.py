@@ -56,6 +56,60 @@ def detect_memory_command(user_input: str):
     }:
         return {"intent": "action_memory_list", "target": "general"}
 
+    if lower in {
+        "memoria profunda",
+        "mostrar memoria profunda",
+        "resumo da memoria profunda",
+        "sintese da memoria profunda",
+        "visao profunda",
+    }:
+        return {"intent": "action_tool_execute", "target": {"name": "memory.deep.summary", "arguments": {}}}
+
+    if lower in {
+        "o que voce sabe sobre minhas preferencias",
+        "quais minhas preferencias",
+        "quais sao minhas preferencias",
+        "listar minhas preferencias",
+        "minhas preferencias",
+    }:
+        return {
+            "intent": "action_tool_execute",
+            "target": {"name": "memory.deep.domain", "arguments": {"domain": "operacional"}},
+        }
+
+    deep_domain_match = re.match(
+        r"^(?:qual|quais|mostrar|mostre|consultar|consulte|listar|liste)\s+"
+        r"(?:(?:o|a|os|as)\s+)?(?:contexto|memoria|memoria profunda|visao)\s+"
+        r"(?:(?:ativo|ativa)\s+)?(?:de|do|da|sobre)\s+(.+?)(?:\s+(?:esta|está|ativo|ativa))?$",
+        cleaned_input,
+        flags=re.I,
+    )
+    if deep_domain_match and any(token in lower for token in {"memoria profunda", "contexto", "visao"}):
+        domain = re.sub(r"\s+(?:esta|está|ativo|ativa).*$", "", deep_domain_match.group(1).strip(), flags=re.I)
+        return {
+            "intent": "action_tool_execute",
+            "target": {"name": "memory.deep.domain", "arguments": {"domain": domain}},
+        }
+
+    deep_explain_match = re.match(r"^(?:por que|porque|explique|explica|explicar)\s+(.+)$", cleaned_input, flags=re.I)
+    if deep_explain_match and any(token in lower for token in {"treino", "aviso", "avisou", "briefing", "preferencia", "memoria"}):
+        return {
+            "intent": "action_tool_execute",
+            "target": {"name": "memory.deep.explain", "arguments": {"query": cleaned_input.strip()}},
+        }
+
+    deep_search_match = re.match(
+        r"^(?:buscar|busque|consultar|consulte|procurar|procure)\s+"
+        r"(?:na\s+)?(?:memoria profunda|visao profunda)\s+(?:sobre\s+)?(.+)$",
+        cleaned_input,
+        flags=re.I,
+    )
+    if deep_search_match:
+        return {
+            "intent": "action_tool_execute",
+            "target": {"name": "memory.deep.summary", "arguments": {"query": deep_search_match.group(1).strip()}},
+        }
+
     list_match = re.match(r"^(?:listar|liste|mostrar|mostre|ver)\s+(?:a\s+)?memoria\s+(?:de\s+|sobre\s+)?(.+)$", lower)
     if list_match and list_match.group(1).strip() not in {"atalhos", "apps", "sites"}:
         namespace_text = list_match.group(1).strip()

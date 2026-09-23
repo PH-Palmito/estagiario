@@ -44,6 +44,16 @@ def format_axel_brain_effects(plan: dict | None, brief: dict | None, contract: d
         for item in layers
         if isinstance(item, dict) and str(item.get("name") or "").strip()
     ]
+    influence_sources = []
+    for layer in layers:
+        if not isinstance(layer, dict):
+            continue
+        for influence in layer.get("influences") or []:
+            if not isinstance(influence, dict):
+                continue
+            source = str(influence.get("source") or "").strip()
+            if source and source not in influence_sources:
+                influence_sources.append(source)
     raw_libraries = payload.get("tool_libraries")
     libraries = list(raw_libraries) if isinstance(raw_libraries, (list, tuple)) else []
     action_count = sum(
@@ -58,6 +68,7 @@ def format_axel_brain_effects(plan: dict | None, brief: dict | None, contract: d
         f"com {action_count} actions candidatas; "
         f"modelo segue {payload.get('model_policy', '--')}; "
         f"memoria selecionada: {', '.join(layer_names) or 'nenhuma camada'}; "
+        f"influencias: {', '.join(influence_sources[:3]) if influence_sources else 'nenhuma fonte profunda especifica'}; "
         f"confirmacao {'obrigatoria' if payload.get('needs_confirmation') else 'nao exigida'}; "
         f"resposta usa modo {payload.get('response_mode', '--')} com personalidade {personality}; "
         f"canal {agreement.get('channel', 'local')}."

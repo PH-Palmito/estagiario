@@ -62,11 +62,27 @@ class ReminderAnnouncerTests(unittest.TestCase):
             now_fn=lambda: 30.0,
         )
 
-        announced = announcer.maybe_announce_due_reminders(True)
+        with patch("core.reminder_announcer.is_adaptive_preference_suppressed", return_value=False):
+            announced = announcer.maybe_announce_due_reminders(True)
 
         self.assertTrue(announced)
         self.assertEqual(calls[0][0], ("hora do treino", True))
         self.assertTrue(calls[0][1]["interrupt_current_tts"])
+
+    def test_adaptive_preference_suppresses_training_reminder(self):
+        calls = []
+        announcer = ReminderAnnouncer(
+            consume_due_training_reminder=lambda: {"text": "hora do treino"},
+            consume_due_reminders=lambda: [],
+            output_response=lambda *args, **kwargs: calls.append((args, kwargs)),
+            now_fn=lambda: 30.0,
+        )
+
+        with patch("core.reminder_announcer.is_adaptive_preference_suppressed", side_effect=lambda target, **kwargs: target == "training"):
+            announced = announcer.maybe_announce_due_reminders(True)
+
+        self.assertFalse(announced)
+        self.assertEqual(calls, [])
 
     def test_skips_when_checked_recently(self):
         calls = []

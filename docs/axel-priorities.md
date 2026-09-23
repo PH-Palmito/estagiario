@@ -2,6 +2,29 @@
 
 Este documento concentra as prioridades de maior ROI para deixar o Axel mais confiavel, demonstravel e util no dia a dia.
 
+## Prioridade estrategica atual: memoria profunda e adaptacao ampla
+
+Decisao de produto: a proxima fase do Axel deve priorizar duas capacidades acima de novas features isoladas:
+
+1. Memoria profunda e estavel: consolidar preferencias, projetos, rotinas, contexto recente, historico episodico, regras adaptativas e memorias de dominio em um modelo unico do operador.
+2. Autoadaptacao ampla: transformar pedidos naturais do usuario em mudancas reais de comportamento, sem criar um comando rigido para cada caso.
+
+Exemplos-alvo:
+
+- "nao quero que voce me avise sobre treino" deve virar uma preferencia adaptativa consultada pelos avisos.
+- "nao fazer briefing amanha" deve virar uma excecao temporaria de briefing.
+- "estou indo para academia, acompanhe os dias que fui" deve criar ou ajustar um contexto de treino.
+- "vou mandar uma foto da ficha" deve preparar o Axel para extrair plano, pedir confirmacao e ativar um novo plano quando aprovado.
+- "quando eu estiver estudando, seja mais professor" deve alterar tom e nivel de detalhe naquele contexto.
+
+Definicao de pronto:
+
+- O Axel consegue explicar quais memorias e regras adaptativas influenciaram uma resposta.
+- Preferencias aprendidas tem origem, data, validade, escopo e forma de desfazer.
+- Regras temporarias expiram sozinhas.
+- Mudancas de comportamento sensiveis pedem confirmacao antes de alterar dados importantes.
+- O usuario nao precisa memorizar frases exatas: pedidos naturais convergem para a mesma capacidade.
+
 ## Posicionamento
 
 O Axel deve ser tratado como um copiloto operacional local para Windows: voz, automacao, navegador, memoria e seguranca para executar tarefas praticas no ambiente do operador.
@@ -50,9 +73,9 @@ Objetivo: transformar o AxelBrain em uma timeline clara de decisao.
 - Permitir consultar a ultima decisao por texto. Status: parcial; `timeline do axelbrain` consulta as ultimas entradas.
 - Separar decisao deterministica, contexto usado e resposta final. Status: parcial; a timeline agora salva blocos `decision`, `context`, `execution` e `response`, e o comando `timeline do axelbrain` mostra essa separacao.
 
-## Prioridade 4: memoria com fontes
+## Prioridade 4: memoria profunda com fontes
 
-Objetivo: memoria deve ajudar sem virar ruido.
+Objetivo: memoria deve ajudar sem virar ruido e virar um modelo operacional coerente do operador.
 
 - Melhorar sugestoes de skills procedurais para evitar titulos genericos e duplicatas obvias. Status: concluido na v1.
 - Cada memoria importante deve ter origem, data, validade, confianca e motivo. Status: parcial; memoria longa salva/exibe esses metadados e a nota Long Memory do Obsidian tambem mostra fonte, confianca, validade e motivo.
@@ -60,8 +83,22 @@ Objetivo: memoria deve ajudar sem virar ruido.
 - Criar limpeza/deduplicacao periodica. Status: parcial; `limpar memoria longa` remove vencidas e mescla duplicatas exatas normalizadas.
 - Mostrar quais memorias influenciaram uma resposta. Status: parcial; recall em camadas agora mostra fonte, confianca, validade e motivo das memorias longas usadas.
 - Adotar contexto por workspace/projeto. Status: primeira camada concluida; `AGENTS.md`, `AXEL.md`, `.agents/AGENTS.md`, `.agents/AXEL.md` e `.axel/context.md` entram no contexto operacional.
+- Consolidar preferencias, memoria longa, memoria episodica, contexto operacional e preferencias adaptativas em um indice consultavel por prioridade, escopo e validade. Status: planejado.
+- Criar comando/relatorio "por que voce se adaptou assim?", mostrando a regra, origem e como desfazer. Status: planejado.
+- Criar modelo de contexto por dominio, com pelo menos treino, estudos, investimentos, codigo e rotina. Status: planejado.
 
-## Prioridade 5: UX enxuta
+## Prioridade 5: autoadaptacao ampla
+
+Objetivo: o Axel deve adaptar comportamento por linguagem natural, sem depender de comandos decorados.
+
+- Generalizar `memory/adaptive_preferences.py` para alem de silenciar avisos: tom, frequencia, briefing, treino, estudos, apps, horarios e canais. Status: primeira camada parcial.
+- Fazer pedidos naturais criarem regras estruturadas com `kind`, `target`, `action`, `scope`, `starts_at`, `expires_at`, `source_text` e confirmacao quando houver risco. Status: primeira camada parcial.
+- Integrar adaptacao ao treino: reconhecer mudanca para academia, registrar frequencia e aceitar ficha por imagem/texto como candidato a novo plano. Status: planejado.
+- Integrar adaptacao ao briefing: permitir mais/menos secoes por assunto, horario, dia e contexto. Status: planejado.
+- Integrar adaptacao ao modo de resposta: professor, direto, detalhado, silencioso, codando, estudando, treino, financeiro. Status: planejado.
+- Criar reversao natural: "volta como era", "pode me avisar de novo", "esquece essa regra". Status: primeira camada parcial.
+
+## Prioridade 6: UX enxuta
 
 Objetivo: o Axel deve parecer ferramenta diaria, nao catalogo de experimentos.
 

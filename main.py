@@ -98,6 +98,7 @@ from core.voice_modes import (
 )
 from core.voice_profile_commands import maybe_handle_voice_profile_command as maybe_handle_voice_profile_command_core
 from core.work_mode_commands import maybe_handle_work_mode_command as maybe_handle_work_mode_command_core
+from core.unknown_intent import action_from_unknown_intent
 from llm.chat import chat_response, clear_chat_history
 from memory.assistant_phrases import (
     ACTION_PROGRESS_VARIANTS,
@@ -119,6 +120,7 @@ from memory.piper_voice_manager import (
     list_piper_voices,
 )
 from memory.agenda import consume_due_agenda_items
+from memory.adaptive_preferences import maybe_handle_adaptive_preference_request
 from memory.reminders import consume_due_reminders
 from memory.session import add_turn, clear
 from memory.training import (
@@ -187,11 +189,7 @@ def route_user_input(user_input: str, *, source: str = "turn") -> dict:
     started_at = time.perf_counter()
     begin_response_provenance()
     trace = route_trace(user_input)
-    raw_action = (
-        trace.match.result
-        if trace.match
-        else {"intent": "respond", "target": None, "response": "Nao entendi."}
-    )
+    raw_action = trace.match.result if trace.match else action_from_unknown_intent(user_input)
     intent_level = trace.match.intent_level if trace.match else "conversa"
     complexity = classify_intent_complexity(user_input, intent_level=intent_level, raw_action=raw_action)
     brain_decision = build_axel_brain_decision(
@@ -208,6 +206,10 @@ def route_user_input(user_input: str, *, source: str = "turn") -> dict:
         "input": user_input,
         "intent": raw_action.get("intent"),
         "target": raw_action.get("target"),
+        "decision_type": raw_action.get("__decision_type"),
+        "capability": raw_action.get("__capability"),
+        "capability_source": raw_action.get("__capability_source"),
+        "semantic_fallback": raw_action.get("__semantic_fallback") if isinstance(raw_action.get("__semantic_fallback"), dict) else {},
         "group": trace.match.group_name if trace.match else "",
         "detector": trace.match.detector_name if trace.match else "",
         "intent_level": intent_level,
@@ -237,6 +239,10 @@ def route_user_input(user_input: str, *, source: str = "turn") -> dict:
         input=user_input,
         intent=raw_action.get("intent"),
         target=raw_action.get("target"),
+        decision_type=raw_action.get("__decision_type"),
+        capability=raw_action.get("__capability"),
+        capability_source=raw_action.get("__capability_source"),
+        semantic_fallback=raw_action.get("__semantic_fallback") if isinstance(raw_action.get("__semantic_fallback"), dict) else {},
         group=trace.match.group_name if trace.match else "",
         detector=trace.match.detector_name if trace.match else "",
         intent_level=intent_level,
@@ -360,7 +366,10 @@ def output_response(
         normalized = normalize_text(result.styled_message)
         failure = any(
             marker in normalized
-            for marker in ("nao consegui", "erro", "falha", "invalido", "indisponivel")
+            for marker in ("nao consegui", "falha", "invalido", "indisponivel")
+        ) or (
+            "erro" in normalized
+            and not any(marker in normalized for marker in ("sem erro", "nenhum erro"))
         )
         if assistant_state.pending_command is not None:
             feedback_status = "waiting_confirmation"
@@ -1086,6 +1095,12 @@ def handle_pre_route_command(user_input: str, *, voice_mode: bool) -> bool:
     humor_response = maybe_handle_humor_command_core(user_input, VOICE_PREFERENCES, refresh_voice_preferences)
     if humor_response:
         output_response(humor_response, voice_mode)
+        return True
+
+    adaptive_preference_response = maybe_handle_adaptive_preference_request(user_input)
+    if adaptive_preference_response:
+        refresh_improvement_brain(force=True)
+        output_response(adaptive_preference_response, voice_mode)
         return True
 
     input_device_response = maybe_handle_input_device_command_core(user_input, refresh_voice_preferences)

@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from core.conversation_reply import conversation_reply
+from memory import adaptive_preferences
 
 
 class ConversationReplyTests(unittest.TestCase):
@@ -19,12 +20,23 @@ class ConversationReplyTests(unittest.TestCase):
     def test_short_ack_reply_is_local(self):
         self.assertEqual(conversation_reply("isso", lambda _text: ""), "Peguei.")
 
-    def test_greeting_uses_chat_then_fallback(self):
+    def test_greeting_uses_chat_then_explicit_model_unavailable_response(self):
         self.assertEqual(conversation_reply("bom dia", lambda _text: "Bom dia, chefe."), "Bom dia, chefe.")
-        self.assertEqual(conversation_reply("boa noite", lambda _text: ""), "Boa noite.")
+        self.assertIn("chat remoto", conversation_reply("boa noite", lambda _text: "").lower())
 
     def test_name_question_tolerates_transcription_noise(self):
         self.assertEqual(conversation_reply("qual seu nome", lambda _text: ""), "Meu nome é Axel.")
+
+    def test_name_question_uses_confirmed_adaptive_identity(self):
+        with TemporaryDirectory() as temp_dir, patch.object(
+            adaptive_preferences,
+            "ADAPTIVE_PREFERENCES_PATH",
+            Path(temp_dir) / "adaptive.json",
+        ):
+            adaptive_preferences.maybe_handle_adaptive_preference_request("muda seu nome para Atlas")
+            adaptive_preferences.maybe_handle_adaptive_preference_request("sim")
+
+            self.assertEqual(conversation_reply("qual seu nome", lambda _text: ""), "Meu nome e Atlas.")
 
     def test_introduction_is_local_in_conversation_mode(self):
         with TemporaryDirectory() as temp_dir, patch(
@@ -40,12 +52,11 @@ class ConversationReplyTests(unittest.TestCase):
         self.assertIn("nasci ontem", conversation_reply("quantos anos voce tem", lambda _text: ""))
         self.assertIn("não chamaria isso de consciência", conversation_reply("voce sente algo", lambda _text: ""))
 
-    def test_falls_back_to_chat_or_unclear_message(self):
+    def test_falls_back_to_chat_or_explicit_model_unavailable_message(self):
         self.assertEqual(conversation_reply("conte uma ideia", lambda _text: "Ideia boa."), "Ideia boa.")
-        self.assertEqual(
-            conversation_reply("frase sem caminho util", lambda _text: ""),
-            "Acho que eu ouvi meio torto. Repete de outro jeito?",
-        )
+        response = conversation_reply("frase sem caminho util", lambda _text: "")
+        self.assertIn("chat remoto", response.lower())
+        self.assertIn("frase sem caminho util", response.lower())
 
     def test_conversation_mode_uses_useful_fallback_when_chat_fails(self):
         response = conversation_reply("ideia de presente para minha namorada", lambda _text: "")

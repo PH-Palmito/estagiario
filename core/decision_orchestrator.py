@@ -14,6 +14,13 @@ from core.skill_operations import match_actionable_skill
 from core.specialist_agents import agent_for_toolset, find_agent, select_agents
 from core.toolsets import select_toolsets
 
+DECISION_KNOWN_CAPABILITY = "KNOWN_CAPABILITY"
+DECISION_INFORMATION = "INFORMATION"
+DECISION_PLANNING = "PLANNING"
+DECISION_CLARIFICATION = "CLARIFICATION"
+DECISION_UNKNOWN = "UNKNOWN"
+DECISION_BLOCKED = "BLOCKED"
+
 HIGH_RISK_INTENTS = {
     "close_app",
     "smart_close_app",
@@ -30,10 +37,15 @@ HIGH_RISK_INTENTS = {
     "investment_set_thesis",
 }
 CRITICAL_INTENTS = {
+    "delete_file",
     "file_delete",
+    "move_file",
     "file_move",
+    "rename_file",
     "file_rename",
+    "replace_in_file",
     "file_replace",
+    "write_file",
     "file_write",
     "memory.backup.restore_file",
     "windows_startup_enable",
@@ -45,6 +57,7 @@ CRITICAL_INTENTS = {
 class DecisionPlan:
     intent: str
     intent_level: str
+    decision_type: str
     confidence: float
     toolset: str
     agent: str
@@ -53,6 +66,8 @@ class DecisionPlan:
     response_mode: str
     model_policy: str
     reason: str
+    capability: str = ""
+    capability_source: str = ""
     handoff_chain: tuple[dict, ...] = ()
     coordination_mode: str = "single_agent"
     tool_libraries: tuple[dict, ...] = ()
@@ -101,6 +116,35 @@ def _response_mode(intent_level: str, risk_level: str) -> str:
     return "conversational"
 
 
+def _decision_type_for(action: dict, intent: str, level: str, risk_level: str) -> str:
+    explicit = str(action.get("__decision_type") or "").strip()
+    if explicit:
+        return explicit
+    if risk_level in {"high", "critical"}:
+        return DECISION_KNOWN_CAPABILITY
+    if intent != "respond":
+        return DECISION_KNOWN_CAPABILITY
+    if level == INTENT_LEVEL_QUESTION:
+        return DECISION_INFORMATION
+    if level == INTENT_LEVEL_COMPOSITE_TASK:
+        return DECISION_PLANNING
+    return DECISION_UNKNOWN
+
+
+def _confidence_for(action: dict, intent: str, complexity_kind: str) -> float:
+    try:
+        explicit = action.get("__confidence")
+        if explicit is not None:
+            value = float(explicit)
+            return max(0.0, min(1.0, value))
+    except Exception:
+        pass
+    confidence = 0.45 if intent == "respond" else 0.78
+    if complexity_kind in {"complex_reasoning", "multi_step"}:
+        confidence = min(0.92, confidence + 0.08)
+    return confidence
+
+
 def build_decision_plan(
     user_input: str,
     raw_action: dict | None,
@@ -141,13 +185,16 @@ def build_decision_plan(
 
     risk_level = _risk_for_intent(intent, level)
     needs_confirmation = risk_level in {"high", "critical"}
-    confidence = 0.45 if intent == "respond" else 0.78
-    if complexity_kind in {"complex_reasoning", "multi_step"}:
-        confidence = min(0.92, confidence + 0.08)
+    decision_type = _decision_type_for(action, intent, level, risk_level)
+    confidence = _confidence_for(action, intent, complexity_kind)
+    capability = str(action.get("__capability") or "").strip()
+    capability_source = str(action.get("__capability_source") or "").strip()
+    fallback_reason = str(action.get("__fallback_reason") or "").strip()
 
     return DecisionPlan(
         intent=intent,
         intent_level=level,
+        decision_type=decision_type,
         confidence=round(confidence, 2),
         toolset=toolset,
         agent=agent,
@@ -157,8 +204,13 @@ def build_decision_plan(
         model_policy=model_policy,
         reason=(
             f"{toolset_reason}; agente {agent}; risco {risk_level}; "
+            f"decisao {decision_type}; "
+            f"capability {capability or 'nao registrada'}; "
             f"complexidade {complexity_kind or 'indefinida'}; coordenacao {coordination_mode}"
+            + (f"; fallback {fallback_reason}" if fallback_reason else "")
         ),
+        capability=capability,
+        capability_source=capability_source,
         handoff_chain=tuple(chain),
         coordination_mode=coordination_mode,
         tool_libraries=tuple(tool_library_for_chain(chain, include_write=True, limit_per_agent=12)),

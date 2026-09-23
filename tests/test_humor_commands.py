@@ -22,6 +22,7 @@ class HumorCommandTests(unittest.TestCase):
     def test_current_personality_description_includes_proactivity_and_humor(self):
         preferences = {
             "assistant_personality_enabled": True,
+            "assistant_adaptive_tone_enabled": True,
             "assistant_proactivity_enabled": False,
             "assistant_humor_enabled": True,
             "assistant_humor_style": "seco",
@@ -30,7 +31,7 @@ class HumorCommandTests(unittest.TestCase):
 
         self.assertEqual(
             current_personality_description(preferences),
-            "Personalidade do Axel: ligada. Proatividade: desligada. Humor atual: seco, intensidade 2 de 3.",
+            "Personalidade do Axel: ligada. Tom adaptativo: ligado. Proatividade: desligada. Humor atual: seco, intensidade 2 de 3.",
         )
 
     def test_humor_test_neutral(self):
@@ -81,6 +82,7 @@ class HumorCommandTests(unittest.TestCase):
     def test_personality_command_updates_preferences_and_refreshes(self):
         preferences = {
             "assistant_personality_enabled": True,
+            "assistant_adaptive_tone_enabled": True,
             "assistant_proactivity_enabled": True,
             "assistant_humor_enabled": True,
             "assistant_humor_style": "seco",
@@ -94,6 +96,24 @@ class HumorCommandTests(unittest.TestCase):
         update.assert_called_once_with({"assistant_personality_enabled": False})
         refresh.assert_called_once_with()
         self.assertFalse(preferences["assistant_personality_enabled"])
+
+    def test_adaptive_tone_command_updates_preferences_and_refreshes(self):
+        preferences = {
+            "assistant_personality_enabled": True,
+            "assistant_adaptive_tone_enabled": False,
+            "assistant_proactivity_enabled": True,
+            "assistant_humor_enabled": False,
+            "assistant_humor_style": "neutro",
+            "assistant_humor_level": 0,
+        }
+        refresh = Mock()
+        with patch("core.humor_commands.update_voice_preferences") as update:
+            result = maybe_handle_humor_command("ligar tom adaptativo", preferences, refresh)
+
+        self.assertIn("Tom adaptativo: ligado.", result)
+        update.assert_called_once_with({"assistant_adaptive_tone_enabled": True})
+        refresh.assert_called_once_with()
+        self.assertTrue(preferences["assistant_adaptive_tone_enabled"])
 
     def test_proactivity_command_updates_preferences_and_refreshes(self):
         preferences = {
@@ -125,7 +145,7 @@ class HumorCommandTests(unittest.TestCase):
 
         self.assertEqual(
             result,
-            "Nao identifiquei a configuracao. Tente: personalidade atual, ligar personalidade, desligar personalidade, ligar proatividade ou desligar proatividade.",
+            "Nao identifiquei a configuracao. Tente: personalidade atual, ligar tom adaptativo, desligar tom adaptativo, ligar proatividade ou desligar proatividade.",
         )
 
     def test_unrelated_command_returns_none(self):

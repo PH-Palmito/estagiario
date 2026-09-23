@@ -11,6 +11,7 @@ from core.router_basic import (
     detect_profile_question,
     detect_user_name,
 )
+from memory import adaptive_preferences
 from core.router_files import detect_study_file_analysis
 
 
@@ -31,10 +32,7 @@ class RouterBasicTests(unittest.TestCase):
         )
 
     def test_greeting(self):
-        self.assertEqual(
-            detect_greeting("bom dia"),
-            {"intent": "respond", "target": None, "response": "Bom dia. Vamos colocar esse computador em movimento."},
-        )
+        self.assertIsNone(detect_greeting("bom dia"))
 
     def test_project_name_question_is_local(self):
         self.assertEqual(
@@ -46,6 +44,19 @@ class RouterBasicTests(unittest.TestCase):
             },
         )
 
+    def test_name_question_uses_confirmed_adaptive_identity(self):
+        with TemporaryDirectory() as temp_dir, patch.object(
+            adaptive_preferences,
+            "ADAPTIVE_PREFERENCES_PATH",
+            Path(temp_dir) / "adaptive.json",
+        ):
+            adaptive_preferences.maybe_handle_adaptive_preference_request("muda seu nome para Atlas")
+            adaptive_preferences.maybe_handle_adaptive_preference_request("sim")
+
+            result = detect_greeting("qual seu nome")
+
+            self.assertEqual(result["response"], "Meu nome e Atlas.")
+
     def test_night_intern_question_is_local(self):
         result = detect_greeting("oq faz o estagiario noturno?")
 
@@ -53,14 +64,8 @@ class RouterBasicTests(unittest.TestCase):
         self.assertIn("modo de tom mais quieto", result["response"])
 
     def test_presence_check(self):
-        self.assertEqual(
-            detect_greeting("esta ai?"),
-            {"intent": "respond", "target": None, "response": "Estou aqui."},
-        )
-        self.assertEqual(
-            detect_greeting("axel?"),
-            {"intent": "respond", "target": None, "response": "Estou aqui."},
-        )
+        self.assertIsNone(detect_greeting("esta ai?"))
+        self.assertIsNone(detect_greeting("axel?"))
 
     def test_introduction(self):
         with TemporaryDirectory() as temp_dir, patch(

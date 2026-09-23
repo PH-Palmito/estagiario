@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from actions.registry import ActionSpec, register_action
 from memory.training import (
+    cancel_weekly_workout_from_text,
     clear_training_injuries,
     format_muscle_status_from_text,
     format_today_workout,
@@ -12,9 +13,12 @@ from memory.training import (
     mark_named_workouts_from_text,
     mark_planned_training_from_text,
     mark_training_completed,
+    pause_training_plan,
+    resume_training_plan,
     set_training_reminder_from_text,
     skip_today_training,
     training_snapshot,
+    update_weekly_workout_from_text,
 )
 
 
@@ -48,6 +52,10 @@ def register_training_actions() -> None:
     _register("training.register_named", "Registra treino de um dia especifico do cronograma.", lambda args: mark_named_workout_from_text(args.get("text", "")), text_param, read_only=False)
     _register("training.register_named_many", "Registra varios treinos nomeados no mesmo texto.", lambda args: mark_named_workouts_from_text(args.get("text", "")), text_param, read_only=False)
     _register("training.register_custom", "Registra treino livre por grupos musculares.", lambda args: mark_custom_training_from_text(args.get("text", "")), text_param, read_only=False)
+    _register("training.pause_plan", "Pausa o plano semanal de treino.", lambda _args: pause_training_plan(), read_only=False)
+    _register("training.resume_plan", "Reativa o plano semanal de treino.", lambda _args: resume_training_plan(), read_only=False)
+    _register("training.update_weekly", "Altera um dia do plano semanal de treino.", lambda args: update_weekly_workout_from_text(args.get("text", "")), text_param, read_only=False)
+    _register("training.cancel_day", "Cancela um dia do plano semanal de treino.", lambda args: cancel_weekly_workout_from_text(args.get("text", "")), text_param, read_only=False)
     _register("training.mark_injury", "Registra lesao temporaria informada no texto.", lambda args: mark_injury_from_text(args.get("text", "")), text_param, read_only=False)
     _register("training.clear_injuries", "Limpa lesoes ativas do treino.", lambda _args: clear_training_injuries(), read_only=False)
     _register("training.set_reminder", "Ajusta horario do lembrete de treino.", lambda args: set_training_reminder_from_text(args.get("text", "")), text_param, read_only=False)

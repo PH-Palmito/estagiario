@@ -1,5 +1,9 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
+from memory import adaptive_preferences
 from services.voice_notification_service import plan_background_voice_notification, speak_next_pending_voice_notification
 
 
@@ -21,6 +25,39 @@ class VoiceNotificationServiceTests(unittest.TestCase):
 
         self.assertTrue(plan.should_speak)
         self.assertEqual(plan.text, "daily_briefing terminou. Resumo pronto")
+
+    def test_adaptive_preference_blocks_background_voice_notification(self):
+        with patch("services.voice_notification_service.is_adaptive_preference_suppressed", return_value=True):
+            plan = plan_background_voice_notification(
+                {"name": "daily_briefing", "status": "succeeded", "message": "Resumo pronto"},
+                {"voice_notifications_enabled": True, "mode": "comando"},
+            )
+
+        self.assertFalse(plan.should_speak)
+        self.assertEqual(plan.reason, "preferencia adaptativa")
+
+    def test_conditional_adaptive_preference_blocks_training_notification_only_in_context(self):
+        with TemporaryDirectory() as temp_dir, patch.object(
+            adaptive_preferences,
+            "ADAPTIVE_PREFERENCES_PATH",
+            Path(temp_dir) / "adaptive.json",
+        ), patch.object(adaptive_preferences, "remember_operational_preference"):
+            adaptive_preferences.maybe_handle_adaptive_preference_request(
+                "quando eu estiver estudando nao me avise sobre treino"
+            )
+            normal = plan_background_voice_notification(
+                {"name": "training_reminder", "status": "failed", "error": "hora do treino"},
+                {"voice_notifications_enabled": True, "mode": "comando"},
+            )
+            adaptive_preferences.maybe_handle_adaptive_preference_request("estou estudando")
+            studying = plan_background_voice_notification(
+                {"name": "training_reminder", "status": "failed", "error": "hora do treino"},
+                {"voice_notifications_enabled": True, "mode": "comando"},
+            )
+
+        self.assertTrue(normal.should_speak)
+        self.assertFalse(studying.should_speak)
+        self.assertEqual(studying.reason, "preferencia adaptativa")
 
     def test_failure_can_be_spoken_even_for_unknown_task(self):
         plan = plan_background_voice_notification(

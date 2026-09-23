@@ -39,24 +39,13 @@ class GoldenUICommandsV2Tests(unittest.TestCase):
         self.assertIn("data-command-filter", html)
         self.assertIn('data-command="autoteste do axel"', html)
 
-    def test_hud_has_single_intent_judge_toggle(self):
+    def test_hud_hides_expensive_behavior_toggles_from_settings_menu(self):
         html = Path("ui/axel_web_hud.html").read_text(encoding="utf-8")
 
-        self.assertIn('id="intentJudgeToggle"', html)
-        self.assertIn('data-command="alternar juiz llm"', html)
-        self.assertIn('intentToggle.dataset.command = intentJudgeEnabled ? "desligar juiz llm" : "ligar juiz llm"', html)
-        self.assertEqual(html.count('id="intentJudgeToggle"'), 1)
-        self.assertEqual(html.count('id="intentJudgeStatus"'), 1)
-
-    def test_hud_contains_personality_and_proactivity_toggles(self):
-        html = Path("ui/axel_web_hud.html").read_text(encoding="utf-8")
-
-        self.assertIn('id="personalityToggle"', html)
-        self.assertIn('id="proactivityToggle"', html)
-        self.assertIn('personalityToggle.dataset.command = personalityEnabled ? "desligar personalidade" : "ligar personalidade"', html)
-        self.assertIn('proactivityToggle.dataset.command = proactivityEnabled ? "desligar proatividade" : "ligar proatividade"', html)
-        self.assertEqual(html.count('id="personalityStatus"'), 1)
-        self.assertEqual(html.count('id="proactivityStatus"'), 1)
+        self.assertNotIn('id="intentJudgeToggle"', html)
+        self.assertNotIn('id="personalityToggle"', html)
+        self.assertNotIn('id="proactivityToggle"', html)
+        self.assertNotIn('data-command="alternar juiz llm"', html)
 
     def test_hud_buttons_expose_backend_feedback_states(self):
         html = Path("ui/axel_web_hud.html").read_text(encoding="utf-8")

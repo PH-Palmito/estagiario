@@ -5,6 +5,7 @@ from collections.abc import Callable
 
 from core.router_utils import normalize_text
 from memory.training import (
+    cancel_weekly_workout_from_text,
     clear_training_injuries,
     format_muscle_status_from_text,
     format_today_workout,
@@ -16,9 +17,12 @@ from memory.training import (
     mark_planned_training_from_text,
     mark_training_completed,
     parse_muscles,
+    pause_training_plan,
+    resume_training_plan,
     set_training_reminder_from_text,
     skip_today_training,
     training_snapshot,
+    update_weekly_workout_from_text,
 )
 from memory.ui_state import update_ui_state
 
@@ -148,6 +152,46 @@ def maybe_handle_training_command(user_input: str, show_training: Callable[[], s
 
     if normalized in {"pular treino", "pular treino hoje", "nao treinei hoje", "faltei treino hoje"}:
         result = skip_today_training()
+        _refresh_training_snapshot()
+        return result
+
+    if normalized in {
+        "cancelar plano de treino",
+        "pausar plano de treino",
+        "desativar plano de treino",
+        "parar plano de treino",
+        "cancelar meus treinos",
+        "pausar meus treinos",
+    }:
+        result = pause_training_plan()
+        _refresh_training_snapshot()
+        return result
+
+    if normalized in {
+        "reativar plano de treino",
+        "ativar plano de treino",
+        "voltar plano de treino",
+        "retomar plano de treino",
+        "reativar meus treinos",
+        "voltar com meus treinos",
+    }:
+        result = resume_training_plan()
+        _refresh_training_snapshot()
+        return result
+
+    if (
+        any(term in normalized for term in {"cancelar treino de", "cancelar treino da", "tirar treino de", "tirar treino da"})
+        and any(day in normalized for day in {"segunda", "terca", "terça", "quarta", "quinta", "sexta", "sabado", "sábado", "domingo"})
+    ):
+        result = cancel_weekly_workout_from_text(user_input)
+        _refresh_training_snapshot()
+        return result
+
+    if (
+        any(term in normalized for term in {"mudar treino", "alterar treino", "trocar treino", "mudar plano de treino", "alterar plano de treino", "trocar plano de treino"})
+        and any(day in normalized for day in {"segunda", "terca", "terça", "quarta", "quinta", "sexta", "sabado", "sábado", "domingo"})
+    ):
+        result = update_weekly_workout_from_text(user_input)
         _refresh_training_snapshot()
         return result
 

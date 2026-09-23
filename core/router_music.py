@@ -165,6 +165,11 @@ def _extract_music_session_vibe(text: str) -> str:
 
 def detect_music_command(user_input: str):
     lower = _music_command_segment(user_input)
+    if "?" in str(user_input or "") and re.match(
+        r"^(?:como|voce consegue|vc consegue|voce tem capacidade|vc tem capacidade|o que aconteceria)\b",
+        lower,
+    ):
+        return None
 
     if (
         "spotify" in lower

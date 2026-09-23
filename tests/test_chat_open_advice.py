@@ -30,6 +30,21 @@ class ChatOpenAdviceTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertFalse(chat._looks_like_complex_request(phrase))
 
+    @patch("llm.chat.ask_model", return_value="Estou bem. E voce?")
+    def test_short_cloud_chat_uses_a_lightweight_prompt(self, ask_model):
+        with patch.object(chat, "GEMINI_COMPLEX_CHAT_ENABLED", True), patch.object(chat, "GEMINI_API_KEY", "gem-key"), patch.dict(
+            chat.PREFERENCES,
+            {"ai_text_provider": "cloud", "chat_enabled": True},
+            clear=False,
+        ):
+            response = chat.chat_response("axel you good?")
+
+        self.assertEqual(response, "Estou bem. E voce?")
+        self.assertEqual(ask_model.call_args.kwargs["provider"], "cloud")
+        self.assertIn("Voce e Axel", ask_model.call_args.args[0])
+        self.assertIn("exatamente uma frase completa", ask_model.call_args.args[0])
+        self.assertNotIn("Briefing do AxelBrain", ask_model.call_args.args[0])
+
     @patch("llm.chat.index_exchange")
     @patch("llm.chat.update_current_topic_from_conversation")
     @patch("llm.chat.ask_model", return_value="Um bom presente combina utilidade e lembranca pessoal.")
@@ -62,6 +77,17 @@ class ChatOpenAdviceTests(unittest.TestCase):
             clear=False,
         ):
             response = chat.chat_response("pode me ajudar a aprender inglês?")
+
+        self.assertIsNone(response)
+
+    @patch("llm.chat.ask_model", return_value="Tudo certo por aqui. Pronto para começar.")
+    def test_chat_response_rejects_legacy_canned_chat_answer(self, _ask_model):
+        with patch.object(chat, "GEMINI_COMPLEX_CHAT_ENABLED", False), patch.dict(
+            chat.PREFERENCES,
+            {"ai_text_provider": "local", "chat_enabled": True},
+            clear=False,
+        ):
+            response = chat.chat_response("tudo bem?")
 
         self.assertIsNone(response)
 

@@ -232,6 +232,7 @@
   - [x] Adicionar comando compartilhado `/personalidade` para consultar status em canais comuns e permitir mudancas apenas no canal local.
   - [x] Trocar os botoes separados do juiz LLM por um unico controle de estado no HUD, alternando ligar/desligar conforme a configuracao atual.
   - [x] Adicionar controles visuais de personalidade e proatividade no HUD, refletindo `voice_preferences` sem duplicar a fonte de verdade.
+  - [ ] Lembrar que Juiz LLM, Personalidade e Proatividade existem e reavaliar se vale reativar depois de estabilizar latencia.
 - [x] Personalidade do Axel: dar mais liberdade controlada para frases naturais, tom proprio, variacao de respostas e presenca menos generica, mantendo acentuacao, pontuacao e seguranca.
   - [x] Criar camada final de personalidade contextual, com proatividade curta, humor seco opcional e bloqueios para erro critico, frustracao, financas, medicina, juridico e seguranca.
   - [x] Expor comandos naturais para consultar, ligar e desligar personalidade e proatividade sem editar arquivos de configuracao.
@@ -269,3 +270,14 @@
 - [x] Confirmar politica de modelo para respostas abertas complexas.
   - Evidencia: sonda local mostrou `ideia de presente`, `dicas de treino`, `aprender ingles` e pergunta macro de investimentos roteando para `cloud` com modelo `nvidia/llama-3.1-nemotron-ultra-253b-v1` quando nuvem esta disponivel, com fallback local.
 - [ ] Rodada final de experiencia com Axel em execucao real: voz/painel/Telegram, conversa aberta, comandos misturados, arquivos, briefing, lembretes e auditoria "o que foi real nessa resposta?".
+
+## Prioridade estrategica atual: memoria profunda e autoadaptacao
+
+- [ ] Consolidar memoria profunda do Axel em uma visao unica do operador: preferencias, projetos, rotinas, episodios, regras adaptativas, contexto operacional e dominios como treino, estudos, carteira e codigo.
+- [ ] Fazer a memoria profunda ter origem, data, validade, confianca, escopo, prioridade e forma natural de desfazer.
+- [ ] Criar relatorio/comando para explicar adaptacoes: "por que voce se adaptou assim?", mostrando regra usada, origem e como desfazer.
+- [ ] Generalizar preferencias adaptativas para mais do que silenciar avisos: tom, briefing, treino, estudos, horarios, canais, apps e modo de resposta.
+- [ ] Transformar pedidos naturais em regras estruturadas sem criar comando rigido por caso, com confirmacao quando a mudanca afetar dados importantes.
+- [ ] Evoluir treino adaptativo: reconhecer mudanca para academia, registrar frequencia e aceitar foto/texto da ficha como candidato a novo plano ativo.
+- [ ] Evoluir briefing adaptativo: aprender secoes que o usuario quer mais, menos ou nunca, por dia, horario e contexto.
+- [ ] Evoluir resposta adaptativa: professor quando estudando, direto quando em foco, detalhado quando planejando, cuidadoso quando financeiro/saude/seguranca.

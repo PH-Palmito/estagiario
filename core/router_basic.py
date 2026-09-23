@@ -11,6 +11,7 @@ from memory.assistant_customization import (
     reset_axel_introduction,
     set_axel_introduction,
 )
+from memory.adaptive_preferences import get_adaptive_assistant_name
 from memory.profile import get_value, set_value
 from tools.math_tools import calculate_basic_expression, calculate_percentage
 
@@ -73,6 +74,41 @@ CHATTER_PATTERNS = {
     "o que faz o estagiario noturno": "O estagiario noturno e so um modo de tom mais quieto para a noite: respostas mais curtas, menos barulho e lembrete amigavel para salvar o progresso e dormir quando ficar tarde. Ele nao muda permissoes nem executa tarefas sozinho.",
     "me conta uma coisa interessante": "Uma coisa interessante: quase toda automacao boa nasce de uma frase irritante repetida muitas vezes. A gente esta transformando irritacao em botao invisivel.",
     "fala uma coisa interessante": "Uma coisa interessante: quase toda automacao boa nasce de uma frase irritante repetida muitas vezes. A gente esta transformando irritacao em botao invisivel.",
+}
+
+SOCIAL_CHAT_PATTERNS = {
+    "ok",
+    "okay",
+    "okey",
+    "boa",
+    "opa",
+    "e ai",
+    "oi",
+    "ola",
+    "axel",
+    "esta ai",
+    "ta ai",
+    "axel esta ai",
+    "axel ta ai",
+    "estagiario esta ai",
+    "estagiario ta ai",
+    "assistente esta ai",
+    "assistente ta ai",
+    "voce esta ai",
+    "voce ta ai",
+    "posso falar",
+    "ta ouvindo",
+    "esta ouvindo",
+    "tudo bem",
+    "como voce esta",
+    "como voce ta",
+    "obrigado",
+    "obrigada",
+    "valeu",
+    "bom trabalho",
+    "muito bom",
+    "vamos trabalhar",
+    "vamos avancar",
 }
 
 def _contains_bluetooth(text: str) -> bool:
@@ -227,7 +263,14 @@ def detect_greeting(user_input: str):
     if text.startswith("axel ") and any(phrase in text for phrase in {"se apresente", "apresente se", "quem voce e", "quem e voce"}):
         return {"intent": "respond", "target": None, "response": get_axel_introduction()}
 
+    if text in SOCIAL_CHAT_PATTERNS or text.startswith(("bom dia", "boa tarde", "boa noite")):
+        return None
+
     if text in CHATTER_PATTERNS:
+        if text in {"qual seu nome", "qual e seu nome"}:
+            adaptive_name = get_adaptive_assistant_name()
+            if adaptive_name != "Axel":
+                return {"intent": "respond", "target": None, "response": f"Meu nome e {adaptive_name}."}
         return {"intent": "respond", "target": None, "response": CHATTER_PATTERNS[text]}
 
     if "bom dia" in text:
@@ -243,6 +286,9 @@ def detect_greeting(user_input: str):
         return {"intent": "respond", "target": None, "response": "Obrigado. Eu tento compensar a falta de cafe com processamento."}
 
     if difflib.SequenceMatcher(None, text, "qual o seu nome").ratio() >= 0.78:
+        adaptive_name = get_adaptive_assistant_name()
+        if adaptive_name != "Axel":
+            return {"intent": "respond", "target": None, "response": f"Meu nome e {adaptive_name}."}
         return {"intent": "respond", "target": None, "response": CHATTER_PATTERNS["qual seu nome"]}
 
     heard_about_match = re.search(r"(?:voce\s+)?(?:ja\s+)?ouviu falar(?:\s+de|\s+sobre)?\s+(.+)", text)

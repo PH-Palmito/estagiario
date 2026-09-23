@@ -51,9 +51,15 @@ def current_humor_description(preferences: MutableMapping[str, object]) -> str:
 
 
 def current_personality_description(preferences: MutableMapping[str, object]) -> str:
-    personality = "ligada" if bool(preferences.get("assistant_personality_enabled", True)) else "desligada"
-    proactivity = "ligada" if bool(preferences.get("assistant_proactivity_enabled", True)) else "desligada"
-    return f"Personalidade do Axel: {personality}. Proatividade: {proactivity}. {current_humor_description(preferences)}"
+    personality = "ligada" if bool(preferences.get("assistant_personality_enabled", False)) else "desligada"
+    adaptive_tone = "ligado" if bool(preferences.get("assistant_adaptive_tone_enabled", False)) else "desligado"
+    proactivity = "ligada" if bool(preferences.get("assistant_proactivity_enabled", False)) else "desligada"
+    return (
+        f"Personalidade do Axel: {personality}. "
+        f"Tom adaptativo: {adaptive_tone}. "
+        f"Proatividade: {proactivity}. "
+        f"{current_humor_description(preferences)}"
+    )
 
 
 def apply_humor_settings(
@@ -97,11 +103,14 @@ def apply_personality_settings(
     refresh_preferences: Callable[[], None],
     *,
     personality_enabled: bool | None = None,
+    adaptive_tone_enabled: bool | None = None,
     proactivity_enabled: bool | None = None,
 ) -> str:
     changes = {}
     if personality_enabled is not None:
         changes["assistant_personality_enabled"] = bool(personality_enabled)
+    if adaptive_tone_enabled is not None:
+        changes["assistant_adaptive_tone_enabled"] = bool(adaptive_tone_enabled)
     if proactivity_enabled is not None:
         changes["assistant_proactivity_enabled"] = bool(proactivity_enabled)
     if not changes:
@@ -151,6 +160,9 @@ def maybe_handle_humor_command(
         "personalidade do axel",
         "modo personalidade",
         "status da personalidade",
+        "tom adaptativo",
+        "modo adaptativo",
+        "status adaptativo",
         "qual personalidade",
         "qual a personalidade",
     }:
@@ -167,6 +179,34 @@ def maybe_handle_humor_command(
         "sem personalidade",
     }:
         return apply_personality_settings(preferences, refresh_preferences, personality_enabled=False)
+
+    if normalized in {
+        "ligar tom adaptativo",
+        "liga tom adaptativo",
+        "ativar tom adaptativo",
+        "ativa tom adaptativo",
+        "ligar modo adaptativo",
+        "liga modo adaptativo",
+        "ativar modo adaptativo",
+        "ativa modo adaptativo",
+        "deixar axel adaptavel",
+        "axel adaptavel",
+    }:
+        return apply_personality_settings(preferences, refresh_preferences, adaptive_tone_enabled=True)
+
+    if normalized in {
+        "desligar tom adaptativo",
+        "desliga tom adaptativo",
+        "desativar tom adaptativo",
+        "desativa tom adaptativo",
+        "desligar modo adaptativo",
+        "desliga modo adaptativo",
+        "desativar modo adaptativo",
+        "desativa modo adaptativo",
+        "sem tom adaptativo",
+        "sem modo adaptativo",
+    }:
+        return apply_personality_settings(preferences, refresh_preferences, adaptive_tone_enabled=False)
 
     if normalized in {"ligar proatividade", "liga proatividade", "ativar proatividade", "ativa proatividade"}:
         return apply_personality_settings(preferences, refresh_preferences, proactivity_enabled=True)
@@ -191,7 +231,7 @@ def maybe_handle_humor_command(
         level = int(preferences.get("assistant_humor_level", 2) or 2)
         return apply_humor_settings(preferences, refresh_preferences, level=level - 1)
 
-    if not any(word in normalized for word in {"humor", "personalidade"}):
+    if not any(word in normalized for word in {"humor", "personalidade", "adaptativo", "adaptavel"}):
         return None
 
     if any(phrase in normalized for phrase in {"desligar", "desliga", "sem humor", "neutro", "serio"}):
@@ -215,7 +255,7 @@ def maybe_handle_humor_command(
         level = int(level_match.group(1))
         return apply_humor_settings(preferences, refresh_preferences, level=level)
 
-    if "personalidade" in normalized or "proatividade" in normalized:
-        return "Nao identifiquei a configuracao. Tente: personalidade atual, ligar personalidade, desligar personalidade, ligar proatividade ou desligar proatividade."
+    if "personalidade" in normalized or "proatividade" in normalized or "adaptativo" in normalized or "adaptavel" in normalized:
+        return "Nao identifiquei a configuracao. Tente: personalidade atual, ligar tom adaptativo, desligar tom adaptativo, ligar proatividade ou desligar proatividade."
 
     return "Nao identifiquei o humor. Tente: humor jarvis, humor seco, humor reflexivo, humor leve ou humor neutro."

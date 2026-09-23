@@ -25,6 +25,7 @@ from memory.session_index import format_session_search
 from memory.procedural_skills import create_skill_from_request, format_skill_catalog, format_relevant_skills
 from memory.skill_learning import approve_pending_skill_suggestion, format_pending_skill_suggestions, reject_pending_skill_suggestion
 from memory.layered_recall import format_layered_memory_recall
+from memory.deep_memory import format_deep_memory_summary, format_domain_memory
 from memory.episodic_memory import (
     build_episode_summary,
     format_episode,
@@ -263,6 +264,54 @@ def maybe_handle_operational_context_command(user_input: str) -> str | None:
 def maybe_handle_long_memory_command(user_input: str) -> str | None:
     normalized = normalize_text(user_input)
     raw = str(user_input or "").strip()
+
+    if normalized in {
+        "memoria profunda",
+        "mostrar memoria profunda",
+        "resumo da memoria profunda",
+        "sintese da memoria profunda",
+        "visao profunda",
+        "visao profunda do operador",
+    }:
+        return format_deep_memory_summary(limit=8)
+
+    if normalized in {
+        "o que voce sabe sobre minhas preferencias",
+        "o que voce sabe sobre minhas preferencias?",
+        "quais minhas preferencias",
+        "quais sao minhas preferencias",
+        "listar minhas preferencias",
+        "minhas preferencias",
+    }:
+        return format_domain_memory("operacional", limit=8)
+
+    deep_domain_match = re.match(
+        r"^(?:qual|quais|mostrar|mostre|consultar|consulte|listar|liste)\s+"
+        r"(?:(?:o|a|os|as)\s+)?(?:contexto|memoria|memoria profunda|visao)\s+"
+        r"(?:(?:ativo|ativa)\s+)?(?:de|do|da|sobre)\s+(.+?)(?:\s+(?:esta|está|ativo|ativa))?$",
+        raw,
+        flags=re.I,
+    )
+    if deep_domain_match and any(token in normalized for token in {"memoria profunda", "contexto", "visao"}):
+        domain = re.sub(r"\s+(?:esta|está|ativo|ativa).*$", "", deep_domain_match.group(1).strip(), flags=re.I)
+        return format_domain_memory(domain, limit=8)
+
+    deep_explain_match = re.match(
+        r"^(?:por que|porque|explique|explica|explicar)\s+(.+)$",
+        raw,
+        flags=re.I,
+    )
+    if deep_explain_match and any(token in normalized for token in {"treino", "aviso", "avisou", "briefing", "preferencia", "memoria"}):
+        return format_deep_memory_summary(raw, limit=6)
+
+    deep_search_match = re.match(
+        r"^(?:buscar|busque|consultar|consulte|procurar|procure)\s+"
+        r"(?:na\s+)?(?:memoria profunda|visao profunda)\s+(?:sobre\s+)?(.+)$",
+        raw,
+        flags=re.I,
+    )
+    if deep_search_match:
+        return format_deep_memory_summary(deep_search_match.group(1), limit=8)
 
     tool_library_match = re.match(
         r"^(?:ferramentas|biblioteca de ferramentas|tools)\s+"

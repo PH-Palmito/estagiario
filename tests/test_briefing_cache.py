@@ -5,6 +5,7 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
+from memory import adaptive_preferences
 from memory.investment_report import investment_active_radar_brief
 from tools import briefing_tools
 
@@ -85,17 +86,19 @@ class BriefingCacheTests(unittest.TestCase):
         self.assertEqual(result, "recuperado")
 
     def test_daily_briefing_includes_explicit_day_focus(self):
-        with (
-            patch.object(briefing_tools, "_time_greeting", return_value="Bom dia."),
-            patch.object(briefing_tools, "_climate_brief", return_value="Clima ok."),
-            patch.object(briefing_tools, "_short_agenda_brief", return_value="Agenda livre."),
-            patch.object(briefing_tools, "_investment_brief", return_value="Carteira monitorada."),
-            patch.object(briefing_tools, "_dividend_agenda_brief", return_value=""),
-            patch.object(briefing_tools, "_portfolio_radar_brief", return_value="Radar ok."),
-            patch.object(briefing_tools, "todo_brief_summary", return_value="Proximo avanco sugerido: revisar agenda."),
-            patch.object(briefing_tools, "_short_reminders_brief", return_value=""),
-        ):
-            result = briefing_tools.daily_briefing(use_cache=False)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(adaptive_preferences, "ADAPTIVE_PREFERENCES_PATH", Path(temp_dir) / "adaptive.json"),
+                patch.object(briefing_tools, "_time_greeting", return_value="Bom dia."),
+                patch.object(briefing_tools, "_climate_brief", return_value="Clima ok."),
+                patch.object(briefing_tools, "_short_agenda_brief", return_value="Agenda livre."),
+                patch.object(briefing_tools, "_investment_brief", return_value="Carteira monitorada."),
+                patch.object(briefing_tools, "_dividend_agenda_brief", return_value=""),
+                patch.object(briefing_tools, "_portfolio_radar_brief", return_value="Radar ok."),
+                patch.object(briefing_tools, "todo_brief_summary", return_value="Proximo avanco sugerido: revisar agenda."),
+                patch.object(briefing_tools, "_short_reminders_brief", return_value=""),
+            ):
+                result = briefing_tools.daily_briefing(use_cache=False)
 
         self.assertIn("Foco do dia: revisar agenda.", result)
 
@@ -114,6 +117,78 @@ class BriefingCacheTests(unittest.TestCase):
 
         self.assertNotIn("Bom dia", result)
         self.assertTrue(result.startswith("Clima ok."))
+
+    def test_daily_briefing_applies_adaptive_layout_rules(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(adaptive_preferences, "ADAPTIVE_PREFERENCES_PATH", Path(temp_dir) / "adaptive.json"),
+                patch.object(briefing_tools, "_time_greeting", return_value="Bom dia."),
+                patch.object(briefing_tools, "_climate_brief", return_value="Clima ok."),
+                patch.object(briefing_tools, "_short_agenda_brief", return_value="Agenda livre."),
+                patch.object(briefing_tools, "_investment_brief", return_value="Carteira monitorada."),
+                patch.object(briefing_tools, "_dividend_agenda_brief", return_value=""),
+                patch.object(briefing_tools, "_portfolio_radar_brief", return_value="Radar ok."),
+                patch.object(briefing_tools, "focus_brief_summary", return_value="Foco do dia: revisar agenda."),
+                patch.object(briefing_tools, "_short_reminders_brief", return_value=""),
+                patch.object(adaptive_preferences, "remember_operational_preference"),
+            ):
+                adaptive_preferences.maybe_handle_adaptive_preference_request("tira foco do dia do briefing")
+                adaptive_preferences.maybe_handle_adaptive_preference_request("coloca agenda primeiro no briefing")
+                result = briefing_tools.daily_briefing(use_cache=False)
+
+        self.assertTrue(result.startswith("Agenda livre."))
+        self.assertNotIn("Foco do dia", result)
+
+    def test_daily_briefing_applies_complete_adaptive_order(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(adaptive_preferences, "ADAPTIVE_PREFERENCES_PATH", Path(temp_dir) / "adaptive.json"),
+                patch.object(briefing_tools, "_time_greeting", return_value="Bom dia."),
+                patch.object(briefing_tools, "_climate_brief", return_value="Clima ok."),
+                patch.object(briefing_tools, "_short_agenda_brief", return_value="Agenda livre."),
+                patch.object(briefing_tools, "_investment_brief", return_value="Carteira monitorada."),
+                patch.object(briefing_tools, "_dividend_agenda_brief", return_value="Dividendos."),
+                patch.object(briefing_tools, "_portfolio_radar_brief", return_value="Radar ok."),
+                patch.object(briefing_tools, "focus_brief_summary", return_value="Foco ok."),
+                patch.object(briefing_tools, "_short_reminders_brief", return_value="Lembretes."),
+                patch.object(adaptive_preferences, "remember_operational_preference"),
+            ):
+                adaptive_preferences.maybe_handle_adaptive_preference_request(
+                    "briefing nessa ordem: agenda, clima, carteira, foco"
+                )
+                result = briefing_tools.daily_briefing(use_cache=False)
+
+        agenda_pos = result.index("Agenda livre.")
+        climate_pos = result.index("Clima ok.")
+        wallet_pos = result.index("Carteira monitorada.")
+        focus_pos = result.index("Foco ok.")
+        self.assertLess(agenda_pos, climate_pos)
+        self.assertLess(climate_pos, wallet_pos)
+        self.assertLess(wallet_pos, focus_pos)
+
+    def test_daily_briefing_uses_current_adaptive_context(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(adaptive_preferences, "ADAPTIVE_PREFERENCES_PATH", Path(temp_dir) / "adaptive.json"),
+                patch.object(briefing_tools, "_time_greeting", return_value="Bom dia."),
+                patch.object(briefing_tools, "_climate_brief", return_value="Clima ok."),
+                patch.object(briefing_tools, "_short_agenda_brief", return_value="Agenda livre."),
+                patch.object(briefing_tools, "_investment_brief", return_value="Carteira monitorada."),
+                patch.object(briefing_tools, "_dividend_agenda_brief", return_value="Dividendos."),
+                patch.object(briefing_tools, "_portfolio_radar_brief", return_value="Radar ok."),
+                patch.object(briefing_tools, "focus_brief_summary", return_value="Foco ok."),
+                patch.object(briefing_tools, "_short_reminders_brief", return_value=""),
+                patch.object(adaptive_preferences, "remember_operational_preference"),
+            ):
+                adaptive_preferences.maybe_handle_adaptive_preference_request(
+                    "quando eu estiver estudando tira radar do briefing"
+                )
+                normal = briefing_tools.daily_briefing(use_cache=False)
+                adaptive_preferences.maybe_handle_adaptive_preference_request("estou estudando")
+                studying = briefing_tools.daily_briefing(use_cache=False)
+
+        self.assertIn("Radar ok.", normal)
+        self.assertNotIn("Radar ok.", studying)
 
     def test_focus_brief_summary_has_fallback_when_no_task_exists(self):
         with patch.object(briefing_tools, "todo_brief_summary", return_value="Sem tarefas em aberto de destaque."):
@@ -242,6 +317,31 @@ class BriefingCacheTests(unittest.TestCase):
         self.assertEqual(calls[0]["limit"], 2)
         self.assertEqual(calls[0]["max_days_until_payment"], 7)
         self.assertEqual(calls[0]["today"], date(2026, 6, 17))
+
+    def test_dividend_notice_is_announced_once_then_repeats_on_the_eve(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_path = Path(temp_dir) / "briefing_signal_state.json"
+            notice = "Dividendos próximos: PETR4 paga JCP em 21/09."
+            with patch.object(briefing_tools, "BRIEFING_SIGNAL_STATE_PATH", state_path):
+                first = briefing_tools._new_dividend_agenda_brief(notice, today=date(2026, 9, 16))
+                repeated = briefing_tools._new_dividend_agenda_brief(notice, today=date(2026, 9, 17))
+                eve = briefing_tools._new_dividend_agenda_brief(notice, today=date(2026, 9, 20))
+
+        self.assertIn("PETR4", first)
+        self.assertEqual(repeated, "")
+        self.assertIn("PETR4", eve)
+
+    def test_radar_does_not_repeat_dividend_already_shown_in_briefing(self):
+        radar = (
+            "Radar da carteira: alertas ativos: atenção em BBAS3, PETR4; "
+            "volatilidade: BBSE3 em alta de 12,0%; PETR4 paga JCP em 21/09."
+        )
+
+        result = briefing_tools._radar_without_dividend_repeats(radar)
+
+        self.assertIn("atenção em BBAS3, PETR4", result)
+        self.assertIn("volatilidade", result)
+        self.assertNotIn("paga JCP", result)
 
     def test_portfolio_radar_brief_uses_one_week_dividend_window(self):
         calls = []
