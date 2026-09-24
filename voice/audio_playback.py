@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 import time
-import winsound
 from collections.abc import Callable
 from pathlib import Path
 
+try:
+    import winsound
+except ImportError:
+    winsound = None
+
 
 def stop_playback():
+    if winsound is None:
+        return
     winsound.PlaySound(None, 0)
 
 
 def play_wav_async(path: str | Path):
+    if winsound is None:
+        return
     winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC)
 
 

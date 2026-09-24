@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import ctypes
-import msvcrt
 import os
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -25,7 +25,12 @@ from voice.piper_utils import (
     write_piper_worker_payload,
 )
 
-kernel32 = ctypes.windll.kernel32
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None
+
+kernel32 = ctypes.windll.kernel32 if sys.platform.startswith("win") else None
 
 _PIPER_WORKER_LOCK = Lock()
 _PIPER_WORKER_PROCESS = None
@@ -101,6 +106,9 @@ def ensure_piper_worker(settings, model_path: str, *, popen: Callable[..., Any] 
 
 
 def piper_stdout_available(stdout) -> int:
+    if kernel32 is None or msvcrt is None:
+        return 4096
+
     try:
         handle = msvcrt.get_osfhandle(stdout.fileno())
         total_available = ctypes.c_ulong(0)

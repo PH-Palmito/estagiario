@@ -1,11 +1,13 @@
 import base64
 import ctypes
 import subprocess
+import sys
 import time
 
 from tools.system_tools import focus_app, open_app
 
-user32 = ctypes.windll.user32
+IS_WINDOWS = sys.platform.startswith("win")
+user32 = ctypes.windll.user32 if IS_WINDOWS else None
 
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
@@ -39,6 +41,9 @@ MEDIA_TARGET_HINTS = {
 
 
 def _run_powershell(script: str, timeout_seconds: int = 8) -> subprocess.CompletedProcess:
+    if not IS_WINDOWS:
+        raise RuntimeError("PowerShell/WinRT media control is available only on Windows.")
+
     encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
     return subprocess.run(
         [
@@ -110,6 +115,9 @@ try {{
 
 
 def _tap(vk_code: int, times: int = 1):
+    if user32 is None:
+        return
+
     for _ in range(max(1, times)):
         user32.keybd_event(vk_code, 0, KEYEVENTF_EXTENDEDKEY, 0)
         time.sleep(0.02)
@@ -118,6 +126,9 @@ def _tap(vk_code: int, times: int = 1):
 
 
 def _shortcut(*vk_codes: int):
+    if user32 is None:
+        return
+
     for code in vk_codes:
         user32.keybd_event(code, 0, KEYEVENTF_EXTENDEDKEY, 0)
         time.sleep(0.02)
@@ -130,16 +141,22 @@ def _shortcut(*vk_codes: int):
 
 
 def media_play_pause():
+    if not IS_WINDOWS:
+        return "Controle de midia esta disponivel apenas no Windows."
     _tap(VK_MEDIA_PLAY_PAUSE)
     return "Pausando ou continuando midia."
 
 
 def media_next():
+    if not IS_WINDOWS:
+        return "Controle de midia esta disponivel apenas no Windows."
     _tap(VK_MEDIA_NEXT_TRACK)
     return "Proxima midia."
 
 
 def media_previous():
+    if not IS_WINDOWS:
+        return "Controle de midia esta disponivel apenas no Windows."
     _tap(VK_MEDIA_PREV_TRACK)
     return "Midia anterior."
 
@@ -188,6 +205,9 @@ def _browser_media_action(target: str, action: str):
 
 
 def media_play_pause_target(target: str):
+    if not IS_WINDOWS:
+        return "Controle de midia esta disponivel apenas no Windows."
+
     if _targeted_media_session(target, "toggle"):
         return f"Pausando ou continuando {target}."
 
@@ -203,6 +223,9 @@ def media_play_pause_target(target: str):
 
 
 def media_play_target(target: str):
+    if not IS_WINDOWS:
+        return "Controle de midia esta disponivel apenas no Windows."
+
     if _targeted_media_session(target, "play"):
         return f"Tocando {target}."
 
@@ -218,6 +241,9 @@ def media_play_target(target: str):
 
 
 def media_pause_target(target: str):
+    if not IS_WINDOWS:
+        return "Controle de midia esta disponivel apenas no Windows."
+
     if _targeted_media_session(target, "pause"):
         return f"Pausando {target}."
 
@@ -233,6 +259,9 @@ def media_pause_target(target: str):
 
 
 def media_next_target(target: str):
+    if not IS_WINDOWS:
+        return "Controle de midia esta disponivel apenas no Windows."
+
     if _targeted_media_session(target, "next"):
         return f"Proxima midia em {target}."
 
@@ -248,6 +277,9 @@ def media_next_target(target: str):
 
 
 def media_previous_target(target: str):
+    if not IS_WINDOWS:
+        return "Controle de midia esta disponivel apenas no Windows."
+
     if _targeted_media_session(target, "previous"):
         return f"Midia anterior em {target}."
 
@@ -263,15 +295,21 @@ def media_previous_target(target: str):
 
 
 def volume_up():
+    if not IS_WINDOWS:
+        return "Controle de volume esta disponivel apenas no Windows."
     _tap(VK_VOLUME_UP, times=3)
     return "Aumentando volume."
 
 
 def volume_down():
+    if not IS_WINDOWS:
+        return "Controle de volume esta disponivel apenas no Windows."
     _tap(VK_VOLUME_DOWN, times=3)
     return "Abaixando volume."
 
 
 def volume_mute():
+    if not IS_WINDOWS:
+        return "Controle de volume esta disponivel apenas no Windows."
     _tap(VK_VOLUME_MUTE)
     return "Alternando mudo."

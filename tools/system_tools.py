@@ -11,7 +11,8 @@ from urllib.parse import urlparse
 from core.startup_diagnostics import startup_log_path
 from tools.clipboard_tools import get_clipboard, set_clipboard
 
-user32 = ctypes.windll.user32
+IS_WINDOWS = sys.platform.startswith("win")
+user32 = ctypes.windll.user32 if IS_WINDOWS else None
 KEYEVENTF_KEYUP = 0x0002
 VK_CONTROL = 0x11
 VK_V = 0x56
@@ -96,12 +97,16 @@ WINDOW_ACTIONS = {
 
 
 def _tap(vk_code: int):
+    if user32 is None:
+        return
     user32.keybd_event(vk_code, 0, 0, 0)
     time.sleep(0.02)
     user32.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
 
 
 def _shortcut(*vk_codes: int):
+    if user32 is None:
+        return
     for code in vk_codes:
         user32.keybd_event(code, 0, 0, 0)
         time.sleep(0.01)
@@ -114,6 +119,9 @@ def _shortcut(*vk_codes: int):
 
 
 def _focused_text_target_available() -> bool:
+    if not IS_WINDOWS:
+        return False
+
     script = r"""
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -200,6 +208,9 @@ def _resolve_app_command(candidates):
 
 
 def _run_window_action(app_name: str, action: str):
+    if not IS_WINDOWS:
+        return f"Controle de janela para '{app_name}' esta disponivel apenas no Windows."
+
     process_names = APP_PROCESSES.get(app_name)
 
     if not process_names:
@@ -290,6 +301,8 @@ def open_app(app_name: str):
 
     try:
         if isinstance(command, str) and (command.endswith(":") or command.startswith("shell:")):
+            if not IS_WINDOWS:
+                return f"Atalho Windows para '{app_name}' indisponivel neste ambiente."
             os.startfile(command)
             return f"Abrindo {app_name}."
 
@@ -333,6 +346,8 @@ def type_text(text: str):
         return "Qual texto devo inserir?"
     if not content.strip() and content not in {"\n", "\r\n", "\n\n", "\r\n\r\n", "\t"}:
         return "Qual texto devo inserir?"
+    if not IS_WINDOWS:
+        return "Insercao de texto automatica esta disponivel apenas no Windows."
 
     if not _ensure_text_target():
         return "Nao encontrei um campo de texto ativo."

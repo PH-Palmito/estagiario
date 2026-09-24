@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import sys
 import time
 
 from tools.browser_windows_io import BrowserWindowsIO
@@ -40,10 +41,12 @@ MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
 MOUSEEVENTF_WHEEL = 0x0800
 
-user32 = ctypes.windll.user32
+IS_WINDOWS = sys.platform.startswith("win")
+user32 = ctypes.windll.user32 if IS_WINDOWS else None
 try:
     # Keeps UI Automation coordinates aligned with mouse coordinates on scaled/multi-monitor setups.
-    user32.SetProcessDPIAware()
+    if user32 is not None:
+        user32.SetProcessDPIAware()
 except Exception:
     pass
 
@@ -51,6 +54,9 @@ _BROWSER_WINDOWS_IO = None
 
 
 def browser_windows_io() -> BrowserWindowsIO:
+    if user32 is None:
+        raise RuntimeError("Automacao de navegador por WinAPI esta disponivel apenas no Windows.")
+
     global _BROWSER_WINDOWS_IO
     if _BROWSER_WINDOWS_IO is None:
         _BROWSER_WINDOWS_IO = BrowserWindowsIO(

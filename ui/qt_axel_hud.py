@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 import traceback
+import urllib.request
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, QUrl, Slot
@@ -150,6 +152,7 @@ class AxelWebHud(QMainWindow):
             "investment": {"at": 0.0, "data": {}},
             "news": {"at": 0.0, "data": []},
             "health": {"at": 0.0, "data": {}},
+            "setup": {"at": 0.0, "data": {}},
         }
 
         self.view = QWebEngineView(self)
@@ -340,6 +343,47 @@ class AxelWebHud(QMainWindow):
         self._cache["health"] = {"at": time.time(), "data": data}
         return data
 
+    def _setup_payload(self) -> dict:
+        if time.time() - self._cache["setup"]["at"] < 15:
+            return self._cache["setup"]["data"]
+
+        def env_present(name: str) -> bool:
+            return bool(str(os.environ.get(name) or "").strip())
+
+        checks = [
+            {"id": "python", "label": "Python", "ready": True, "detail": f"{sys.version_info.major}.{sys.version_info.minor}"},
+            {"id": "ui", "label": "Interface", "ready": True, "detail": "Qt HUD ativa"},
+            {"id": "voice", "label": "Voz", "ready": True, "detail": "dependencias importadas"},
+            {"id": "gemini", "label": "Gemini", "ready": env_present("AXEL_GEMINI_API_KEY"), "detail": "chave no .env"},
+            {"id": "nvidia", "label": "NVIDIA", "ready": env_present("AXEL_NVIDIA_API_KEY"), "detail": "chave no .env"},
+            {"id": "telegram", "label": "Telegram", "ready": env_present("AXEL_TELEGRAM_BOT_TOKEN"), "detail": "bot token"},
+            {"id": "spotify", "label": "Spotify", "ready": env_present("AXEL_SPOTIFY_CLIENT_ID") and env_present("AXEL_SPOTIFY_CLIENT_SECRET"), "detail": "OAuth"},
+            {"id": "supabase", "label": "Supabase", "ready": env_present("AXEL_SUPABASE_REST_URL") and (env_present("AXEL_SUPABASE_ANON_KEY") or env_present("AXEL_SUPABASE_PUBLISHABLE_KEY")), "detail": "memoria remota"},
+            {"id": "brapi", "label": "BRAPI", "ready": env_present("AXEL_BRAPI_TOKEN"), "detail": "mercado"},
+            {"id": "newsapi", "label": "NewsAPI", "ready": env_present("AXEL_NEWSAPI_KEY"), "detail": "noticias"},
+        ]
+
+        ollama_url = str(os.environ.get("AXEL_OLLAMA_BASE_URL") or "http://localhost:11434").rstrip("/")
+        ollama_ready = False
+        ollama_detail = "offline"
+        try:
+            with urllib.request.urlopen(f"{ollama_url}/api/tags", timeout=1.2) as response:
+                ollama_ready = 200 <= int(response.status) < 300
+                ollama_detail = "online" if ollama_ready else f"HTTP {response.status}"
+        except Exception:
+            ollama_detail = "offline"
+        checks.insert(3, {"id": "ollama", "label": "Ollama", "ready": ollama_ready, "detail": ollama_detail})
+
+        ready_count = sum(1 for item in checks if item["ready"])
+        data = {
+            "ready": ready_count,
+            "total": len(checks),
+            "checks": checks,
+            "summary": f"{ready_count}/{len(checks)} prontos",
+        }
+        self._cache["setup"] = {"at": time.time(), "data": data}
+        return data
+
     def _payload(self) -> dict:
         ui_state = load_ui_state()
         try:
@@ -386,6 +430,7 @@ class AxelWebHud(QMainWindow):
             "investment": investment,
             "news": news,
             "health": health,
+            "setup": self._setup_payload(),
             "map": self._map_payload(ui_state),
         }
 

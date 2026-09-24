@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import ctypes
-import winsound
+import sys
 from collections.abc import Callable
+
+try:
+    import winsound
+except ImportError:
+    winsound = None
 
 VIRTUAL_KEYS = {
     "ESC": 0x1B,
@@ -20,7 +25,7 @@ VIRTUAL_KEYS = {
     "F12": 0x7B,
 }
 
-_user32 = ctypes.windll.user32
+_user32 = ctypes.windll.user32 if sys.platform.startswith("win") else None
 _last_key_down: dict[int, bool] = {}
 
 
@@ -43,6 +48,8 @@ def consume_key_press(
     get_async_key_state: Callable[[int], int] | None = None,
 ) -> bool:
     state = _last_key_down if key_state is None else key_state
+    if get_async_key_state is None and _user32 is None:
+        return False
     get_state = _user32.GetAsyncKeyState if get_async_key_state is None else get_async_key_state
     was_down = state.get(vk_code, False)
     is_down = bool(get_state(vk_code) & 0x8000)
@@ -56,6 +63,8 @@ def play_activation_sound(preferences: dict):
         return
 
     try:
+        if winsound is None:
+            return
         hz = int(preferences.get("activation_sound_hz", 880))
         duration = int(preferences.get("activation_sound_ms", 120))
         winsound.Beep(hz, duration)
